@@ -26,7 +26,7 @@ jobs:
       - name: Configure Poetry
         run: poetry config virtualenvs.create true
       - name: Install dependencies
-        run: poetry install --no-interaction --no-root --with dev
+        run: poetry install --no-interaction --with dev
       - name: Run tests with coverage
         run: poetry run pytest --maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing
       - name: Check formatting (Black)
