@@ -1,20 +1,33 @@
 from __future__ import annotations
 
 from typing import Dict
-from pydantic import BaseModel, Field, PositiveFloat, conlist, model_validator
+from pydantic import BaseModel, Field, PositiveFloat, model_validator
 
 
 class ThermalTime(BaseModel):
-    base_temp_c: float = Field(..., description="Base temperature in °C")
-    emergence_dd: PositiveFloat
-    flowering_dd: PositiveFloat
-    maturity_dd: PositiveFloat
+    base_temp_c: float = Field(..., description="Base temperature threshold in °C")
+    emergence_dd: PositiveFloat = Field(
+        ..., description="Thermal time from sowing to emergence (degree-days)"
+    )
+    flowering_dd: PositiveFloat = Field(
+        ..., description="Thermal time from emergence to flowering (degree-days)"
+    )
+    maturity_dd: PositiveFloat = Field(
+        ...,
+        description="Thermal time from flowering to physiological maturity (degree-days)",
+    )
 
 
 class Roots(BaseModel):
-    max_depth_cm: PositiveFloat
-    growth_rate_cm_per_day: PositiveFloat
-    distribution: conlist(float, min_length=3)  # fraction per layer must sum ~1.0
+    max_depth_cm: PositiveFloat = Field(..., description="Maximum rooting depth (cm)")
+    growth_rate_cm_per_day: PositiveFloat = Field(
+        ..., description="Rooting depth growth rate (cm/day)"
+    )
+    distribution: list[float] = Field(
+        ...,
+        min_length=3,
+        description="Fractional root distribution per soil layer (sums to 1.0)",
+    )
 
     @model_validator(mode="after")
     def validate_distribution(self) -> "Roots":
@@ -27,10 +40,21 @@ class Roots(BaseModel):
 
 
 class Biomass(BaseModel):
-    rue_g_per_mj: PositiveFloat
-    harvest_index: PositiveFloat
-    partition_vegetative: Dict[str, float]
-    partition_reproductive: Dict[str, float]
+    rue_g_per_mj: PositiveFloat = Field(
+        ..., description="Radiation Use Efficiency (g biomass per MJ intercepted PAR)"
+    )
+    harvest_index: PositiveFloat = Field(
+        ...,
+        description="Harvest index: fraction of total biomass in harvestable product (0-1]",
+    )
+    partition_vegetative: Dict[str, float] = Field(
+        ...,
+        description="Biomass partition fractions during vegetative phase (sum to 1.0)",
+    )
+    partition_reproductive: Dict[str, float] = Field(
+        ...,
+        description="Biomass partition fractions during reproductive phase (sum to 1.0)",
+    )
 
     @model_validator(mode="after")
     def validate_partitions(self) -> "Biomass":
@@ -51,11 +75,13 @@ class Biomass(BaseModel):
 
 
 class CropParameters(BaseModel):
-    name: str
-    thermal_time: ThermalTime
-    roots: Roots
-    biomass: Biomass
+    name: str = Field(..., description="Crop identifier or human-readable name")
+    thermal_time: ThermalTime = Field(..., description="Thermal time requirements")
+    roots: Roots = Field(..., description="Root system parameters")
+    biomass: Biomass = Field(..., description="Biomass conversion and partitioning")
 
 
 class CropParameterLibrary(BaseModel):
-    crops: Dict[str, CropParameters]
+    crops: Dict[str, CropParameters] = Field(
+        ..., description="Mapping from crop key to its parameter set"
+    )

@@ -28,6 +28,7 @@ mypy = "^1.0"
 pre-commit = "^3.0"
 flake8-bugbear = "*"
 flake8-comprehensions = "*"
+types-PyYAML = "*"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
