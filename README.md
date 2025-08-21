@@ -1,5 +1,7 @@
 # AgroGame
 
+[![CI](https://github.com/databuildcompany/agrogame/actions/workflows/ci.yml/badge.svg)](https://github.com/databuildcompany/agrogame/actions/workflows/ci.yml)
+
 Initial repository setup.
 
 - Jira project: AGRO
