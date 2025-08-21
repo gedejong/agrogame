@@ -1,0 +1,37 @@
+site_name: AgroGame Docs
+repo_url: https://github.com/databuildcompany/agrogame
+repo_name: databuildcompany/agrogame
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Soil Module: architecture/soil-module.md
+      - Plant Module: architecture/plant-module.md
+      - Data Flow: architecture/data-flow.md
+  - Models:
+      - Water Balance: models/water-balance.md
+      - Nutrient Cycle: models/nutrient-cycle.md
+      - Crop Growth: models/crop-growth.md
+  - Contributing: contributing.md
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - search.highlight
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+plugins:
+  - search
+  - autorefs
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: false
