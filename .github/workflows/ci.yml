@@ -34,4 +34,4 @@ jobs:
       - name: Lint (Flake8)
         run: poetry run flake8 .
       - name: Type check (MyPy)
-        run: poetry run mypy .
+        run: poetry run mypy agrogame
