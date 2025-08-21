@@ -40,5 +40,5 @@ class CropParameters(BaseModel):
     biomass: Biomass
 
 
-class ParameterLibrary(BaseModel):
+class CropParameterLibrary(BaseModel):
     crops: Dict[str, CropParameters]
