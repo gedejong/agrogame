@@ -48,6 +48,68 @@ def merge_libraries(existing: CropParameterLibrary, incoming: Dict[str, CropPara
     return CropParameterLibrary(crops=merged)
 
 
+def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
+    """Parse a minimal subset of PCSE .crop files (key=value lines).
+
+    Extracts: name (from filename), TBASE, TSUM1, TSUM2, TSUMEM if present.
+    """
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return None
+    kv: Dict[str, float] = {}
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        # Strip inline comments starting with ! or #
+        for token in ("!", "#"):
+            if token in line:
+                line = line.split(token, 1)[0].strip()
+        if "=" not in line:
+            continue
+        key, val = [p.strip() for p in line.split("=", 1)]
+        try:
+            kv[key.upper()] = float(val)
+        except ValueError:
+            continue
+    if not kv:
+        return None
+    name = path.stem.replace(".crop", "").replace("wofost_", "").replace("lintul3_", "")
+    base_temp = float(kv.get("TBASE", 8.0))
+    emer = float(kv.get("TSUMEM", kv.get("TSUM_EMERG", 100.0)))
+    tsum1 = float(kv.get("TSUM1", 900.0))
+    tsum2 = float(kv.get("TSUM2", 1700.0))
+    # Guard against zeros/negatives in source files
+    if emer <= 0:
+        emer = 100.0
+    if tsum1 <= 0:
+        tsum1 = 900.0
+    if tsum2 <= 0:
+        tsum2 = 1700.0
+    tt = ThermalTime(
+        base_temp_c=base_temp,
+        emergence_dd=emer,
+        flowering_dd=tsum1,
+        maturity_dd=tsum2,
+    )
+    roots = Roots(
+        max_depth_cm=120.0,
+        growth_rate_cm_per_day=2.0,
+        distribution=[0.5, 0.3, 0.2],
+    )
+    biomass = Biomass(
+        rue_g_per_mj=kv.get("RUE", 2.8),
+        harvest_index=kv.get("HI", 0.5),
+        partition_vegetative={"leaf": 0.6, "stem": 0.2, "root": 0.2},
+        partition_reproductive={"leaf": 0.2, "stem": 0.2, "grain": 0.6},
+    )
+    try:
+        return CropParameters(name=name, thermal_time=tt, roots=roots, biomass=biomass)
+    except Exception:
+        return None
+
+
 def import_from_directory(path: Path) -> Dict[str, CropParameters]:
     """
     Import crop parameters from a directory by:
@@ -55,8 +117,22 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
     2) Attempting basic adapters for simple JSON/YAML with familiar keys
     """
     collected: Dict[str, CropParameters] = {}
-    for file in path.rglob("*"):
+    pcse_tests = path / "pcse" / "tests" / "test_data"
+    candidate_files: list[Path] = []
+    if pcse_tests.exists():
+        candidate_files.extend(pcse_tests.glob("*.crop"))
+        candidate_files.extend(pcse_tests.glob("*.yaml"))
+    else:
+        candidate_files = list(path.rglob("*.yaml")) + list(path.rglob("*.yml")) + list(path.rglob("*.json"))
+
+    for file in candidate_files:
         if not file.is_file():
+            continue
+        # Special-case PCSE .crop files
+        if file.suffix.lower() == ".crop":
+            cp = _parse_pcse_crop_file(file)
+            if cp is not None:
+                collected[cp.name] = cp
             continue
         try:
             if file.suffix.lower() in {".yaml", ".yml"}:

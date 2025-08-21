@@ -1,51 +1,126 @@
 crops:
   maize:
-    name: "maize"
+    name: maize
     thermal_time:
       base_temp_c: 8.0
-      emergence_dd: 100
-      flowering_dd: 900
-      maturity_dd: 1700
+      emergence_dd: 100.0
+      flowering_dd: 900.0
+      maturity_dd: 1700.0
     roots:
-      max_depth_cm: 180
+      max_depth_cm: 180.0
       growth_rate_cm_per_day: 2.5
-      distribution: [0.5, 0.3, 0.2]
+      distribution:
+      - 0.5
+      - 0.3
+      - 0.2
     biomass:
       rue_g_per_mj: 3.0
       harvest_index: 0.5
-      partition_vegetative: {leaf: 0.6, stem: 0.2, root: 0.2}
-      partition_reproductive: {leaf: 0.2, stem: 0.2, grain: 0.6}
-
+      partition_vegetative:
+        leaf: 0.6
+        stem: 0.2
+        root: 0.2
+      partition_reproductive:
+        leaf: 0.2
+        stem: 0.2
+        grain: 0.6
   wheat:
-    name: "wheat"
+    name: wheat
     thermal_time:
       base_temp_c: 0.0
-      emergence_dd: 120
-      flowering_dd: 800
-      maturity_dd: 1600
+      emergence_dd: 120.0
+      flowering_dd: 800.0
+      maturity_dd: 1600.0
     roots:
-      max_depth_cm: 150
+      max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
-      distribution: [0.45, 0.35, 0.20]
+      distribution:
+      - 0.45
+      - 0.35
+      - 0.2
     biomass:
       rue_g_per_mj: 2.8
       harvest_index: 0.45
-      partition_vegetative: {leaf: 0.55, stem: 0.25, root: 0.20}
-      partition_reproductive: {leaf: 0.15, stem: 0.25, grain: 0.60}
-
+      partition_vegetative:
+        leaf: 0.55
+        stem: 0.25
+        root: 0.2
+      partition_reproductive:
+        leaf: 0.15
+        stem: 0.25
+        grain: 0.6
   potato:
-    name: "potato"
+    name: potato
     thermal_time:
       base_temp_c: 4.0
-      emergence_dd: 150
-      flowering_dd: 700
-      maturity_dd: 1400
+      emergence_dd: 150.0
+      flowering_dd: 700.0
+      maturity_dd: 1400.0
     roots:
-      max_depth_cm: 60
+      max_depth_cm: 60.0
       growth_rate_cm_per_day: 1.5
-      distribution: [0.60, 0.30, 0.10]
+      distribution:
+      - 0.6
+      - 0.3
+      - 0.1
     biomass:
       rue_g_per_mj: 2.6
       harvest_index: 0.75
-      partition_vegetative: {leaf: 0.50, stem: 0.30, root: 0.20}
-      partition_reproductive: {leaf: 0.10, stem: 0.15, tuber: 0.75}
+      partition_vegetative:
+        leaf: 0.5
+        stem: 0.3
+        root: 0.2
+      partition_reproductive:
+        leaf: 0.1
+        stem: 0.15
+        tuber: 0.75
+  springwheat:
+    name: springwheat
+    thermal_time:
+      base_temp_c: 0.0
+      emergence_dd: 100.0
+      flowering_dd: 800.0
+      maturity_dd: 1030.0
+    roots:
+      max_depth_cm: 120.0
+      growth_rate_cm_per_day: 2.0
+      distribution:
+      - 0.5
+      - 0.3
+      - 0.2
+    biomass:
+      rue_g_per_mj: 2.8
+      harvest_index: 0.5
+      partition_vegetative:
+        leaf: 0.6
+        stem: 0.2
+        root: 0.2
+      partition_reproductive:
+        leaf: 0.2
+        stem: 0.2
+        grain: 0.6
+  npk:
+    name: npk
+    thermal_time:
+      base_temp_c: 0.0
+      emergence_dd: 100.0
+      flowering_dd: 1050.0
+      maturity_dd: 1000.0
+    roots:
+      max_depth_cm: 120.0
+      growth_rate_cm_per_day: 2.0
+      distribution:
+      - 0.5
+      - 0.3
+      - 0.2
+    biomass:
+      rue_g_per_mj: 2.8
+      harvest_index: 0.5
+      partition_vegetative:
+        leaf: 0.6
+        stem: 0.2
+        root: 0.2
+      partition_reproductive:
+        leaf: 0.2
+        stem: 0.2
+        grain: 0.6
