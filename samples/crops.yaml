@@ -15,3 +15,37 @@ crops:
       harvest_index: 0.5
       partition_vegetative: {leaf: 0.6, stem: 0.2, root: 0.2}
       partition_reproductive: {leaf: 0.2, stem: 0.2, grain: 0.6}
+
+  wheat:
+    name: "wheat"
+    thermal_time:
+      base_temp_c: 0.0
+      emergence_dd: 120
+      flowering_dd: 800
+      maturity_dd: 1600
+    roots:
+      max_depth_cm: 150
+      growth_rate_cm_per_day: 2.0
+      distribution: [0.45, 0.35, 0.20]
+    biomass:
+      rue_g_per_mj: 2.8
+      harvest_index: 0.45
+      partition_vegetative: {leaf: 0.55, stem: 0.25, root: 0.20}
+      partition_reproductive: {leaf: 0.15, stem: 0.25, grain: 0.60}
+
+  potato:
+    name: "potato"
+    thermal_time:
+      base_temp_c: 4.0
+      emergence_dd: 150
+      flowering_dd: 700
+      maturity_dd: 1400
+    roots:
+      max_depth_cm: 60
+      growth_rate_cm_per_day: 1.5
+      distribution: [0.60, 0.30, 0.10]
+    biomass:
+      rue_g_per_mj: 2.6
+      harvest_index: 0.75
+      partition_vegetative: {leaf: 0.50, stem: 0.30, root: 0.20}
+      partition_reproductive: {leaf: 0.10, stem: 0.15, tuber: 0.75}

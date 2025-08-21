@@ -32,6 +32,23 @@ class Biomass(BaseModel):
     partition_vegetative: Dict[str, float]
     partition_reproductive: Dict[str, float]
 
+    @model_validator(mode="after")
+    def validate_partitions(self) -> "Biomass":
+        # Ensure harvest index is (0, 1]
+        if not (0.0 < self.harvest_index <= 1.0):
+            raise ValueError("harvest_index must be in (0, 1]")
+
+        def _sum_to_one(d: Dict[str, float], name: str) -> None:
+            total = sum(d.values())
+            if abs(total - 1.0) > 1e-6:
+                raise ValueError(f"{name} must sum to 1.0 (got {total})")
+            if any(v < 0.0 for v in d.values()):
+                raise ValueError(f"{name} must not contain negative fractions")
+
+        _sum_to_one(self.partition_vegetative, "partition_vegetative")
+        _sum_to_one(self.partition_reproductive, "partition_reproductive")
+        return self
+
 
 class CropParameters(BaseModel):
     name: str
