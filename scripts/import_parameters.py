@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import yaml
+import subprocess
 
 from agrogame.params.models import (
     Biomass,
@@ -126,9 +127,9 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Import crop parameters into samples/crops.yaml")
     parser.add_argument("--pcse-path", type=Path, help="Path to a local clone of ajwdewit/pcse", required=False)
-    parser.add_argument("--apsim-path", type=Path, help="Path to a local clone of APSIMInitiative/APSIM-Crop-Codes", required=False)
     parser.add_argument("--output", type=Path, default=Path("samples/crops.yaml"), help="Output YAML file (merged)")
     parser.add_argument("--dry-run", action="store_true", help="Do not write output; just validate and report counts")
+    parser.add_argument("--fetch", action="store_true", help="Clone PCSE into .cache/imports if local path not provided")
     args = parser.parse_args()
 
     # Load existing library if present
@@ -141,10 +142,25 @@ def main() -> None:
         existing = CropParameterLibrary(crops={})
 
     incoming: Dict[str, CropParameters] = {}
-    if args.pcse_path and args.pcse_path.exists():
-        incoming.update(import_from_directory(args.pcse_path))
-    if args.apsim_path and args.apsim_path.exists():
-        incoming.update(import_from_directory(args.apsim_path))
+
+    def ensure_clone(url: str, dest: Path) -> Path | None:
+        if dest.exists():
+            return dest
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run(["git", "clone", "--depth", "1", url, str(dest)], check=True)
+            return dest
+        except Exception:
+            return None
+
+    pcse_path = args.pcse_path
+    cache_root = Path(".cache/imports")
+
+    if not pcse_path and args.fetch:
+        pcse_path = ensure_clone("https://github.com/ajwdewit/pcse.git", cache_root / "pcse")
+
+    if pcse_path and Path(pcse_path).exists():
+        incoming.update(import_from_directory(Path(pcse_path)))
 
     if not incoming:
         print("No parameters discovered. Provide --pcse-path / --apsim-path pointing to repositories.")
