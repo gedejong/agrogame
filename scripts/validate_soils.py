@@ -25,15 +25,29 @@ def main() -> int:
             violations.append((soil_id, "depth_cm", f"total depth {total_depth} < 100"))
         for idx, layer in enumerate(profile.layers):
             if not (FC_RANGE[0] <= layer.field_capacity <= FC_RANGE[1]):
-                violations.append((soil_id, f"layer[{idx}].field_capacity", layer.field_capacity))
+                violations.append(
+                    (soil_id, f"layer[{idx}].field_capacity", layer.field_capacity)
+                )
             if not (WP_RANGE[0] <= layer.wilting_point <= WP_RANGE[1]):
-                violations.append((soil_id, f"layer[{idx}].wilting_point", layer.wilting_point))
+                violations.append(
+                    (soil_id, f"layer[{idx}].wilting_point", layer.wilting_point)
+                )
             if not (SAT_RANGE[0] <= layer.saturation <= SAT_RANGE[1]):
-                violations.append((soil_id, f"layer[{idx}].saturation", layer.saturation))
+                violations.append(
+                    (soil_id, f"layer[{idx}].saturation", layer.saturation)
+                )
             if not (BD_RANGE[0] <= layer.bulk_density_g_cm3 <= BD_RANGE[1]):
-                violations.append((soil_id, f"layer[{idx}].bulk_density_g_cm3", layer.bulk_density_g_cm3))
+                violations.append(
+                    (
+                        soil_id,
+                        f"layer[{idx}].bulk_density_g_cm3",
+                        layer.bulk_density_g_cm3,
+                    )
+                )
             if not (KSAT_RANGE[0] <= layer.ksat_mm_per_hour <= KSAT_RANGE[1]):
-                violations.append((soil_id, f"layer[{idx}].ksat_mm_per_hour", layer.ksat_mm_per_hour))
+                violations.append(
+                    (soil_id, f"layer[{idx}].ksat_mm_per_hour", layer.ksat_mm_per_hour)
+                )
 
     if violations:
         print("Validation violations:")
@@ -46,5 +60,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
