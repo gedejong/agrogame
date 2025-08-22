@@ -40,6 +40,12 @@ target-version = ["py39"]
 [tool.flake8]
 max-line-length = 88
 extend-ignore = ["E203", "W503"]
+extend-exclude = [
+    ".cache",
+    ".cache/*",
+    "site",
+    "site/*",
+]
 
 [tool.mypy]
 files = ["agrogame"]

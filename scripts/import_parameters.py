@@ -40,7 +40,9 @@ def try_parse_our_schema(payload: Dict[str, Any]) -> Dict[str, CropParameters]:
     return crops
 
 
-def merge_libraries(existing: CropParameterLibrary, incoming: Dict[str, CropParameters]) -> CropParameterLibrary:
+def merge_libraries(
+    existing: CropParameterLibrary, incoming: Dict[str, CropParameters]
+) -> CropParameterLibrary:
     merged: Dict[str, CropParameters] = dict(existing.crops)
     for name, params in incoming.items():
         # Prefer incoming; overwrite if exists
@@ -123,7 +125,11 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
         candidate_files.extend(pcse_tests.glob("*.crop"))
         candidate_files.extend(pcse_tests.glob("*.yaml"))
     else:
-        candidate_files = list(path.rglob("*.yaml")) + list(path.rglob("*.yml")) + list(path.rglob("*.json"))
+        candidate_files = (
+            list(path.rglob("*.yaml"))
+            + list(path.rglob("*.yml"))
+            + list(path.rglob("*.json"))
+        )
 
     for file in candidate_files:
         if not file.is_file():
@@ -151,11 +157,15 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
             continue
 
         # Strategy 2: simple flat mapping heuristic (PCSE/APSIM-lite)
-        # Expected example:
+        # Expected example (wrapped for E501):
         # {
         #   "name": "rice",
         #   "thermal_time": {"base_temp_c": 8, "emergence_dd": 100, ...},
-        #   "roots": {"max_depth_cm": 120, "growth_rate_cm_per_day": 2, "distribution": [0.5,0.3,0.2]},
+        #   "roots": {
+        #       "max_depth_cm": 120,
+        #       "growth_rate_cm_per_day": 2,
+        #       "distribution": [0.5, 0.3, 0.2],
+        #   },
         #   "biomass": {"rue_g_per_mj": 2.7, "harvest_index": 0.5, ...}
         # }
         try:
@@ -174,25 +184,66 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
                 continue
             # Thermal time
             tt = ThermalTime(
-                base_temp_c=float(payload.get("TBASE", payload.get("base_temp_c", 8.0))),
-                emergence_dd=float(payload.get("TSUM_EMERG", payload.get("emergence_dd", 100)) ),
-                flowering_dd=float(payload.get("TSUM1", payload.get("flowering_dd", 900))),
-                maturity_dd=float(payload.get("TSUM2", payload.get("maturity_dd", 1700))),
+                base_temp_c=float(
+                    payload.get("TBASE", payload.get("base_temp_c", 8.0))
+                ),
+                emergence_dd=float(
+                    payload.get(
+                        "TSUM_EMERG",
+                        payload.get("emergence_dd", 100),
+                    )
+                ),
+                flowering_dd=float(
+                    payload.get("TSUM1", payload.get("flowering_dd", 900))
+                ),
+                maturity_dd=float(
+                    payload.get("TSUM2", payload.get("maturity_dd", 1700))
+                ),
             )
             # Roots
             roots = Roots(
-                max_depth_cm=float(payload.get("MaxRootDepth", payload.get("max_depth_cm", 120))),
-                growth_rate_cm_per_day=float(payload.get("RootGrowthRate", payload.get("growth_rate_cm_per_day", 2.0))),
-                distribution=list(payload.get("RootDistribution", payload.get("distribution", [0.5, 0.3, 0.2]))),
+                max_depth_cm=float(
+                    payload.get(
+                        "MaxRootDepth",
+                        payload.get("max_depth_cm", 120),
+                    )
+                ),
+                growth_rate_cm_per_day=float(
+                    payload.get(
+                        "RootGrowthRate", payload.get("growth_rate_cm_per_day", 2.0)
+                    )
+                ),
+                distribution=list(
+                    payload.get(
+                        "RootDistribution",
+                        payload.get("distribution", [0.5, 0.3, 0.2]),
+                    )
+                ),
             )
             # Biomass
             biomass = Biomass(
-                rue_g_per_mj=float(payload.get("RUE", payload.get("rue_g_per_mj", 2.8))),
-                harvest_index=float(payload.get("HI", payload.get("harvest_index", 0.5))),
-                partition_vegetative=dict(payload.get("partition_vegetative", {"leaf": 0.6, "stem": 0.2, "root": 0.2})),
-                partition_reproductive=dict(payload.get("partition_reproductive", {"leaf": 0.2, "stem": 0.2, "grain": 0.6})),
+                rue_g_per_mj=float(
+                    payload.get("RUE", payload.get("rue_g_per_mj", 2.8))
+                ),
+                harvest_index=float(
+                    payload.get("HI", payload.get("harvest_index", 0.5))
+                ),
+                partition_vegetative=dict(
+                    payload.get(
+                        "partition_vegetative",
+                        {"leaf": 0.6, "stem": 0.2, "root": 0.2},
+                    )
+                ),
+                partition_reproductive=dict(
+                    payload.get(
+                        "partition_reproductive",
+                        {"leaf": 0.2, "stem": 0.2, "grain": 0.6},
+                    )
+                ),
             )
-            collected[name] = CropParameters(name=name, thermal_time=tt, roots=roots, biomass=biomass)
+            collected[name] = CropParameters(
+                name=name, thermal_time=tt, roots=roots, biomass=biomass
+            )
         except Exception:
             # Skip unknown formats silently
             continue
@@ -201,11 +252,31 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Import crop parameters into samples/crops.yaml")
-    parser.add_argument("--pcse-path", type=Path, help="Path to a local clone of ajwdewit/pcse", required=False)
-    parser.add_argument("--output", type=Path, default=Path("samples/crops.yaml"), help="Output YAML file (merged)")
-    parser.add_argument("--dry-run", action="store_true", help="Do not write output; just validate and report counts")
-    parser.add_argument("--fetch", action="store_true", help="Clone PCSE into .cache/imports if local path not provided")
+    parser = argparse.ArgumentParser(
+        description="Import crop parameters into samples/crops.yaml"
+    )
+    parser.add_argument(
+        "--pcse-path",
+        type=Path,
+        help="Path to a local clone of ajwdewit/pcse",
+        required=False,
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("samples/crops.yaml"),
+        help="Output YAML file (merged)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Do not write output; just validate and report counts",
+    )
+    parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="Clone PCSE into .cache/imports if local path not provided",
+    )
     args = parser.parse_args()
 
     # Load existing library if present
@@ -233,17 +304,22 @@ def main() -> None:
     cache_root = Path(".cache/imports")
 
     if not pcse_path and args.fetch:
-        pcse_path = ensure_clone("https://github.com/ajwdewit/pcse.git", cache_root / "pcse")
+        pcse_path = ensure_clone(
+            "https://github.com/ajwdewit/pcse.git", cache_root / "pcse"
+        )
 
     if pcse_path and Path(pcse_path).exists():
         incoming.update(import_from_directory(Path(pcse_path)))
 
     if not incoming:
-        print("No parameters discovered. Provide --pcse-path / --apsim-path pointing to repositories.")
+        print("No parameters discovered. Provide --pcse-path pointing to a repository.")
         return
 
     merged = merge_libraries(existing, incoming)
-    print(f"Collected {len(incoming)} crops; merged library now has {len(merged.crops)} crops.")
+    print(
+        f"Collected {len(incoming)} crops; merged library now has "
+        f"{len(merged.crops)} crops."
+    )
 
     if args.dry_run:
         # Validate serialization and exit
@@ -257,5 +333,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

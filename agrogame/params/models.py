@@ -14,7 +14,10 @@ class ThermalTime(BaseModel):
     )
     maturity_dd: PositiveFloat = Field(
         ...,
-        description="Thermal time from flowering to physiological maturity (degree-days)",
+        description=(
+            "Thermal time from flowering to physiological "
+            "maturity (degree-days)"
+        ),
     )
 
 
@@ -45,7 +48,9 @@ class Biomass(BaseModel):
     )
     harvest_index: PositiveFloat = Field(
         ...,
-        description="Harvest index: fraction of total biomass in harvestable product (0-1]",
+        description=(
+            "Harvest index: fraction of total biomass in harvestable product (0-1]"
+        ),
     )
     partition_vegetative: Dict[str, float] = Field(
         ...,
@@ -53,7 +58,9 @@ class Biomass(BaseModel):
     )
     partition_reproductive: Dict[str, float] = Field(
         ...,
-        description="Biomass partition fractions during reproductive phase (sum to 1.0)",
+        description=(
+            "Biomass partition fractions during reproductive phase (sum to 1.0)"
+        ),
     )
 
     @model_validator(mode="after")
