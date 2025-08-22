@@ -20,7 +20,7 @@ def main() -> int:
     for soil_id, profile in lib.soils.items():
         if len(profile.layers) < 3:
             violations.append((soil_id, "layers", f"<3 layers ({len(profile.layers)})"))
-        total_depth = sum(l.depth_cm for l in profile.layers)
+        total_depth = sum(layer.depth_cm for layer in profile.layers)
         if total_depth < 100:
             violations.append((soil_id, "depth_cm", f"total depth {total_depth} < 100"))
         for idx, layer in enumerate(profile.layers):
