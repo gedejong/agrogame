@@ -15,8 +15,7 @@ class ThermalTime(BaseModel):
     maturity_dd: PositiveFloat = Field(
         ...,
         description=(
-            "Thermal time from flowering to physiological "
-            "maturity (degree-days)"
+            "Thermal time from flowering to physiological " "maturity (degree-days)"
         ),
     )
 
