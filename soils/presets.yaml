@@ -110,6 +110,43 @@ soils:
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
 
+  clay_netherlands:
+    name: "Clay - Netherlands"
+    layers:
+      - depth_cm: 30
+        texture: clay
+        field_capacity: 0.37
+        wilting_point: 0.21
+        saturation: 0.56
+        bulk_density_g_cm3: 1.33
+        ksat_mm_per_hour: 5.0
+        organic_matter_pct: 3.5
+        initial_no3_kg_ha: 14.0
+        initial_nh4_kg_ha: 5.0
+        initial_p_kg_ha: 24.0
+      - depth_cm: 35
+        texture: clay
+        field_capacity: 0.35
+        wilting_point: 0.19
+        saturation: 0.54
+        bulk_density_g_cm3: 1.38
+        ksat_mm_per_hour: 3.5
+        organic_matter_pct: 2.5
+        initial_no3_kg_ha: 9.0
+        initial_nh4_kg_ha: 3.5
+        initial_p_kg_ha: 16.0
+      - depth_cm: 40
+        texture: clay
+        field_capacity: 0.33
+        wilting_point: 0.18
+        saturation: 0.52
+        bulk_density_g_cm3: 1.45
+        ksat_mm_per_hour: 2.5
+        organic_matter_pct: 1.8
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 12.0
+
   sandy_loam_temperate:
     name: "Sandy Loam - Temperate"
     layers:
