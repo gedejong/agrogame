@@ -51,5 +51,3 @@ def test_event_bus_overhead_benchmark() -> None:
         f"iterations={iterations} no_bus_ms={no_bus_ms:.2f} "
         f"with_bus_ms={with_bus_ms:.2f} overhead_pct={overhead_pct:.1f}%"
     )
-
-
