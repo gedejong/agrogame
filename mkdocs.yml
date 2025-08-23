@@ -7,6 +7,7 @@ nav:
   - Architecture:
       - Overview: architecture/overview.md
       - Soil Module: architecture/soil-module.md
+      - Water Model Abstraction: architecture/water_model_abstraction.md
       - Plant Module: architecture/plant-module.md
       - Data Flow: architecture/data-flow.md
   - Models:
