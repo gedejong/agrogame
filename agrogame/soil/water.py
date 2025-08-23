@@ -176,9 +176,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
             )
         return remaining
 
-    def _cascade_excess(
-        self, profile: SoilProfile, state: SoilWaterState
-    ) -> float:
+    def _cascade_excess(self, profile: SoilProfile, state: SoilWaterState) -> float:
         deep_drainage = 0.0
         for i, layer in enumerate(profile.layers):
             current = state.layer_storage_mm(profile, i)
