@@ -1,0 +1,4 @@
+# file: /Users/edejong/src/agrogame/agrogame/params/models.py
+# hypothesis_version: 6.138.2
+
+[0.0, 1e-06, 1.0, 'Biomass', 'Roots', 'after', 'partition_vegetative']
