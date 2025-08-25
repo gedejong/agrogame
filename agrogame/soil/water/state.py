@@ -14,6 +14,11 @@ class SoilWaterState:
     """
 
     def __init__(self, profile: SoilProfile):
+        """Initialize state with theta set to field capacity per layer.
+
+        Args:
+            profile: Soil profile providing layer metadata.
+        """
         self.theta: List[float] = [layer.field_capacity for layer in profile.layers]
 
     def layer_storage_mm(self, profile: SoilProfile, idx: int) -> float:
@@ -21,9 +26,7 @@ class SoilWaterState:
         layer = profile.layers[idx]
         return self.theta[idx] * layer.depth_cm * 10.0
 
-    def set_layer_storage_mm(
-        self, profile: SoilProfile, idx: int, storage_mm: float
-    ) -> None:
+    def set_layer_storage_mm(self, profile: SoilProfile, idx: int, storage_mm: float) -> None:
         """Set water storage of a layer from depth (mm), clamped to saturation."""
         layer = profile.layers[idx]
         max_storage = layer.saturation * layer.depth_cm * 10.0

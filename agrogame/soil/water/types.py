@@ -37,6 +37,7 @@ class DailyDrivers:
         irrigation_mm: float = 0.0,
         evaporation_mm: float = 0.0,
     ):
+        """Initialize daily drivers with non-negative values."""
         self.rainfall_mm = max(0.0, rainfall_mm)
         self.irrigation_mm = max(0.0, irrigation_mm)
         self.evaporation_mm = max(0.0, evaporation_mm)

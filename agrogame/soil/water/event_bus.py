@@ -26,6 +26,11 @@ class EventBus:
     """
 
     def __init__(self, debug_mode: bool = False):
+        """Initialize the event bus.
+
+        Args:
+            debug_mode: When True, re-raise handler exceptions.
+        """
         self._handlers: DefaultDict[type, List[Callable[[Any], None]]] = defaultdict(
             list
         )
