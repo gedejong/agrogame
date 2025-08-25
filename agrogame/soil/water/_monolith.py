@@ -49,7 +49,12 @@ class WaterFluxes:  # moved
 
 
 class DailyDrivers:  # moved
-    def __init__(self, rainfall_mm: float, irrigation_mm: float = 0.0, evaporation_mm: float = 0.0):
+    def __init__(
+        self,
+        rainfall_mm: float,
+        irrigation_mm: float = 0.0,
+        evaporation_mm: float = 0.0,
+    ):
         self.rainfall_mm = max(0.0, rainfall_mm)
         self.irrigation_mm = max(0.0, irrigation_mm)
         self.evaporation_mm = max(0.0, evaporation_mm)
@@ -63,7 +68,9 @@ class SoilWaterState:  # moved
         layer = profile.layers[idx]
         return self.theta[idx] * layer.depth_cm * 10.0
 
-    def set_layer_storage_mm(self, profile: SoilProfile, idx: int, storage_mm: float) -> None:
+    def set_layer_storage_mm(
+        self, profile: SoilProfile, idx: int, storage_mm: float
+    ) -> None:
         layer = profile.layers[idx]
         max_storage = layer.saturation * layer.depth_cm * 10.0
         storage_mm = max(0.0, min(storage_mm, max_storage))
