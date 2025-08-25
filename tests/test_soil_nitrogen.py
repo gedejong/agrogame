@@ -98,7 +98,9 @@ def test_nitrification_depends_on_temperature_and_ph():
 
     # Higher temperature and neutral pH increase nitrification
     state.nh4[0] = 10.0
-    flux_warm_neutral = cycle.daily_step(temperature_c=25.0, ph_by_layer=[7.0, 7.0, 7.0])
+    flux_warm_neutral = cycle.daily_step(
+        temperature_c=25.0, ph_by_layer=[7.0, 7.0, 7.0]
+    )
 
     assert flux_warm_neutral.nitrified_kg_ha > flux_cold_acid.nitrified_kg_ha
 
@@ -128,9 +130,12 @@ def test_plant_uptake_allocation_by_roots():
 
     root_fracs = [0.6, 0.3, 0.1]
     demand = 6.0
-    _ = cycle.daily_step(temperature_c=20.0, plant_demand_kg_ha=demand, root_fractions=root_fracs)
+    _ = cycle.daily_step(
+        temperature_c=20.0, plant_demand_kg_ha=demand, root_fractions=root_fracs
+    )
     # Top layer should lose more than lower layers according to root fractions
-    assert state.no3[0] <= 10.0 - demand * 0.5  # loose bound
+    assert state.no3[0] < state.no3[1]
+    assert state.no3[0] < state.no3[2]
 
 
 def test_fertilizer_application_updates_pools():
@@ -144,7 +149,10 @@ def test_fertilizer_application_updates_pools():
     assert state.nh4[0] >= 20.0
 
     cycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=10.0)
-    assert state.nh4[0] >= 25.0 and state.no3[0] >= profile.layers[0].initial_no3_kg_ha + 5.0
+    assert (
+        state.nh4[0] >= 25.0
+        and state.no3[0] >= profile.layers[0].initial_no3_kg_ha + 5.0
+    )
 
 
 def test_within_profile_leaching_transfers_no3_downward():
@@ -154,7 +162,7 @@ def test_within_profile_leaching_transfers_no3_downward():
     state.no3[0] = 40.0
     state.no3[1] = 0.0
     water = SoilWaterState(profile)
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    _ = NitrogenCycle(bus, state, water_state=water, profile=profile)
 
     storage0 = water.layer_storage_mm(profile, 0)
     # Drain 50% of storage from layer 0 to layer 1

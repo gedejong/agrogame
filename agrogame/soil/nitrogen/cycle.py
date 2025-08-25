@@ -135,16 +135,16 @@ class NitrogenCycle:
             # Nitrification: up to ~15%/day at optimal conditions
             nh4 = self.state.nh4[i]
             if nh4 > 0.0:
-                rate_n = 0.15 * temp_factor * moisture_factor * nitrif_aeration * ph_factor
+                rate_n = (
+                    0.15 * temp_factor * moisture_factor * nitrif_aeration * ph_factor
+                )
                 rate_n = max(0.0, min(0.20, rate_n))  # clamp to reasonable range
                 dn = min(nh4, rate_n * nh4)
                 self.state.nh4[i] -= dn
                 self.state.no3[i] += dn
                 nitrified += dn
                 if dn > 0.0:
-                    self.event_bus.emit(
-                        NitrificationOccurred(layer=i, amount_kg_ha=dn)
-                    )
+                    self.event_bus.emit(NitrificationOccurred(layer=i, amount_kg_ha=dn))
 
             # Denitrification: occurs under anaerobic conditions
             no3 = self.state.no3[i]
@@ -174,7 +174,7 @@ class NitrogenCycle:
                     take_nh4 = min(self.state.nh4[i], remaining)
                     self.state.nh4[i] -= take_nh4
                     remaining -= take_nh4
-                taken_total += (take_no3 + take_nh4)
+                taken_total += take_no3 + take_nh4
         plant_uptake = taken_total
 
         # Mass balance: inputs - outputs should match Δstorage
