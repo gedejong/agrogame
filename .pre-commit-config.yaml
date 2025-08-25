@@ -1,0 +1,43 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        args: ["--line-length=88"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.1.0
+    hooks:
+      - id: flake8
+
+  # Use project virtualenv for mypy to pick up installed stubs and config
+  - repo: local
+    hooks:
+      - id: mypy-project
+        name: mypy (project)
+        entry: poetry run mypy agrogame
+        language: system
+        pass_filenames: false
+        files: ^agrogame/
+        stages: [push]
+
+  - repo: local
+    hooks:
+      - id: pytest-with-cov
+        name: pytest with coverage
+        entry: poetry run pytest --maxfail=1 --disable-warnings
+        language: system
+        pass_filenames: false
+        stages: [push]
+      - id: ruff-docstrings-water
+        name: ruff docstrings (water package)
+        entry: poetry run ruff check agrogame/soil/water --select D
+        language: system
+        pass_filenames: false
+
