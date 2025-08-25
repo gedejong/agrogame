@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 
@@ -11,12 +11,33 @@ from agrogame.soil.nitrogen import NitrogenCycle, SoilNitrogenState
 from agrogame.soil.water import DailyDrivers, EventBus, SoilWaterState
 
 
+def _seasonal_series(
+    days: int, base: float, amplitude: float, period: int
+) -> List[float]:
+    import math
+
+    return [
+        base + amplitude * math.sin(2 * math.pi * (i / max(1, period)))
+        for i in range(days)
+    ]
+
+
+def _storm_series(
+    days: int, base: float, storm_every: int, storm_amount: float
+) -> List[float]:
+    vals: List[float] = []
+    for i in range(days):
+        vals.append(base + (storm_amount if (i % max(1, storm_every) == 0) else 0.0))
+    return vals
+
+
 def simulate_nitrogen(
     profile_name: str,
     days: int,
     rainfall_mm: float,
     evaporation_mm: float,
-):
+    pattern: str = "constant",
+) -> Tuple[List[float], List[float], List[float]]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils[profile_name]
 
@@ -34,12 +55,31 @@ def simulate_nitrogen(
 
     w_model = CascadingBucketWaterModel(event_bus=bus)
 
-    for _ in range(days):
+    if pattern == "seasonal":
+        rains = _seasonal_series(
+            days, rainfall_mm, amplitude=rainfall_mm * 0.8, period=30
+        )
+        evaps = _seasonal_series(
+            days, evaporation_mm, amplitude=evaporation_mm * 0.5, period=30
+        )
+    elif pattern == "storms":
+        rains = _storm_series(
+            days,
+            base=rainfall_mm * 0.2,
+            storm_every=7,
+            storm_amount=rainfall_mm * 3.0,
+        )
+        evaps = [evaporation_mm] * days
+    else:
+        rains = [rainfall_mm] * days
+        evaps = [evaporation_mm] * days
+
+    for i in range(days):
         # Advance water to emit movement events
         _ = w_model.update_daily(
             profile,
             water_state,
-            DailyDrivers(rainfall_mm=rainfall_mm, evaporation_mm=evaporation_mm),
+            DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
         )
         # Advance nitrogen
         _ = n_cycle.daily_step(temperature_c=20.0)
@@ -58,6 +98,9 @@ def main() -> None:
     parser.add_argument("--rain", type=float, default=5.0)
     parser.add_argument("--evap", type=float, default=2.0)
     parser.add_argument("--out", type=Path, default=Path("out/nitrogen_timeseries.png"))
+    parser.add_argument(
+        "--pattern", choices=["constant", "seasonal", "storms"], default="constant"
+    )
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -67,6 +110,7 @@ def main() -> None:
         days=args.days,
         rainfall_mm=args.rain,
         evaporation_mm=args.evap,
+        pattern=args.pattern,
     )
 
     x = list(range(1, args.days + 1))
@@ -76,7 +120,7 @@ def main() -> None:
     plt.plot(x, total_no3, label="NO3 (kg/ha)")
     plt.xlabel("Day")
     plt.ylabel("N mass (kg/ha)")
-    plt.title(f"Nitrogen pools over time – {args.profile}")
+    plt.title(f"Nitrogen pools – {args.profile} ({args.pattern})")
     plt.legend()
     plt.tight_layout()
     plt.savefig(args.out, dpi=150)
