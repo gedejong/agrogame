@@ -18,3 +18,5 @@ build/
 # MkDocs build output
 site/
 .cache/
+# Hypothesis
+.hypothesis/

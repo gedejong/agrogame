@@ -1,4 +1,0 @@
-# file: /Users/edejong/src/agrogame/agrogame/soil/water/constants.py
-# hypothesis_version: 6.138.2
-
-['clay', 'clay_loam', 'loam', 'peat', 'sand', 'sandy_loam']

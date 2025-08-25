@@ -1,4 +1,0 @@
-# file: /Users/edejong/src/agrogame/agrogame/soil/water.py
-# hypothesis_version: 6.138.2
-
-[0.0, 1e-09, 0.2, 10.0, 254.0, 25400.0, 'T', 'clay', 'clay_loam', 'loam', 'peat', 'sand', 'sandy_loam']
