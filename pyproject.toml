@@ -64,12 +64,13 @@ check_untyped_defs = true
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-extend-select = ["D", "E", "F", "B", "C4"]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "C4", "D"]
 ignore = ["D104", "D105"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
-add-select = []
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
