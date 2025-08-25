@@ -31,6 +31,7 @@ flake8-comprehensions = "*"
 types-PyYAML = "*"
 hypothesis = "^6.0"
 ruff = "^0.5.0"
+matplotlib = "^3.9"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
