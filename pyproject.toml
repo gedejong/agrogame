@@ -66,8 +66,8 @@ line-length = 88
 target-version = "py39"
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "C4", "D"]
-ignore = ["D104", "D105"]
+select = ["E", "F", "B", "C4"]
+ignore = []
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

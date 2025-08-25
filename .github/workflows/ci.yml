@@ -33,8 +33,10 @@ jobs:
         run: poetry run black --check .
       - name: Lint (Flake8)
         run: poetry run flake8 .
-      - name: Lint (Ruff)
+      - name: Lint (Ruff - general)
         run: poetry run ruff check .
+      - name: Lint (Ruff - docstrings water package)
+        run: poetry run ruff check agrogame/soil/water --select D
       - name: Type check (MyPy)
         run: poetry run mypy agrogame
   docs:
