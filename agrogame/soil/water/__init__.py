@@ -1,3 +1,10 @@
+"""Public API for the soil water package.
+
+This package re-exports the primary classes and events for ease of import:
+`EventBus`, `CascadingBucketWaterModel`, `SoilWaterBalance`, `DailyDrivers`,
+`SoilWaterState`, `WaterFluxes`, and the water events.
+"""
+
 from __future__ import annotations
 
 from agrogame.soil.water.event_bus import EventBus

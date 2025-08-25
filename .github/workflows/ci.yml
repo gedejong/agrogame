@@ -33,6 +33,8 @@ jobs:
         run: poetry run black --check .
       - name: Lint (Flake8)
         run: poetry run flake8 .
+      - name: Lint (Ruff)
+        run: poetry run ruff check .
       - name: Type check (MyPy)
         run: poetry run mypy agrogame
   docs:

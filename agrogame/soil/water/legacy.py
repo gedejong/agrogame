@@ -1,3 +1,5 @@
+"""Legacy compatibility wrapper for the previous `SoilWaterBalance` API."""
+
 from __future__ import annotations
 
 from typing import Tuple
@@ -10,7 +12,19 @@ from agrogame.soil.water.types import DailyDrivers
 
 
 class SoilWaterBalance:
+    """Wrapper maintaining the historical tuple-returning API.
+
+    Stores `last_*` properties for evaporation, runoff, and deep drainage to
+    ease migration of existing callers.
+    """
+
     def __init__(self, profile: SoilProfile, event_bus: EventBus | None = None):
+        """Create the balance wrapper for a given profile.
+
+        Args:
+            profile: Static soil profile definition.
+            event_bus: Optional bus to emit water events on.
+        """
         self.profile = profile
         self._state = SoilWaterState(profile)
         self._model = CascadingBucketWaterModel(event_bus=event_bus)
@@ -24,6 +38,7 @@ class SoilWaterBalance:
         irrigation_mm: float = 0.0,
         evaporation_mm: float = 0.0,
     ) -> Tuple[float, float, float]:
+        """Advance one day and return (runoff, deep_drainage, storage_change)."""
         flux = self._model.update_daily(
             self.profile,
             self._state,

@@ -30,6 +30,7 @@ flake8-bugbear = "*"
 flake8-comprehensions = "*"
 types-PyYAML = "*"
 hypothesis = "^6.0"
+ruff = "^0.5.0"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
@@ -59,6 +60,16 @@ python_version = "3.9"
 warn_unused_ignores = true
 warn_redundant_casts = true
 check_untyped_defs = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py39"
+extend-select = ["D", "E", "F", "B", "C4"]
+ignore = ["D104", "D105"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+add-select = []
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

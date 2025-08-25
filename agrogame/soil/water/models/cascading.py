@@ -1,3 +1,10 @@
+"""Cascading bucket soil water model.
+
+Provides a concrete implementation of a simple layer-based water balance with
+runoff via SCS CN, infiltration by filling capacity, evaporation from the top
+layer, and gravitational drainage cascading through layers.
+"""
+
 from __future__ import annotations
 
 from typing import Tuple
@@ -17,29 +24,47 @@ from agrogame.soil.water.types import DailyDrivers, WaterFluxes
 
 
 class SoilWaterModel:
-    def update_daily(
-        self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers
-    ) -> WaterFluxes:  # pragma: no cover - interface
+    """Interface for soil water models."""
+
+    def update_daily(self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers) -> WaterFluxes:  # pragma: no cover - interface
+        """Advance the water model by one day.
+
+        Args:
+            profile: Static soil profile definition.
+            state: Mutable state of layer water contents.
+            drivers: Exogenous daily drivers (rain/irrigation/evaporation).
+
+        Returns:
+            WaterFluxes summarizing the step.
+        """
         raise NotImplementedError
 
 
 class CascadingBucketWaterModel(SoilWaterModel):
+    """Concrete cascading bucket implementation."""
+
     def __init__(self, event_bus: EventBus | None = None):
+        """Create the model.
+
+        Args:
+            event_bus: Optional bus to emit water events on.
+        """
         self.event_bus = event_bus
 
     def _texture_cn(self, profile: SoilProfile) -> int:
+        """Return SCS CN derived from the top layer texture."""
         texture = profile.layers[0].texture
         return TEXTURE_TO_CN.get(texture, 86)
 
     def _compute_runoff(self, incoming_mm: float, cn: int) -> Tuple[float, float]:
+        """Partition incoming water into runoff and infiltrated components."""
         runoff = scs_runoff_mm(incoming_mm, cn)
         if self.event_bus and runoff > 0:
             self.event_bus.emit(RunoffGenerated(amount_mm=runoff, curve_number=cn))
         return runoff, incoming_mm - runoff
 
-    def _apply_evaporation(
-        self, profile: SoilProfile, state: SoilWaterState, evaporation_mm: float
-    ) -> float:
+    def _apply_evaporation(self, profile: SoilProfile, state: SoilWaterState, evaporation_mm: float) -> float:
+        """Remove actual evaporation from the top layer (bounded by availability)."""
         if evaporation_mm <= 0:
             return 0.0
         top = state.layer_storage_mm(profile, 0)
@@ -50,9 +75,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 self.event_bus.emit(EvaporationTaken(amount_mm=evap_taken))
         return evap_taken
 
-    def _infiltrate_layers(
-        self, profile: SoilProfile, state: SoilWaterState, infiltrated_mm: float
-    ) -> float:
+    def _infiltrate_layers(self, profile: SoilProfile, state: SoilWaterState, infiltrated_mm: float) -> float:
+        """Fill layers up to saturation with infiltrated water, top to bottom."""
         remaining = infiltrated_mm
         infil_indices: list[int] = []
         infil_amounts: list[float] = []
@@ -70,13 +94,12 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 break
         if self.event_bus and infil_indices:
             self.event_bus.emit(
-                WaterInfiltrated(
-                    layer_indices=tuple(infil_indices), amounts_mm=tuple(infil_amounts)
-                )
+                WaterInfiltrated(layer_indices=tuple(infil_indices), amounts_mm=tuple(infil_amounts))
             )
         return remaining
 
     def _cascade_excess(self, profile: SoilProfile, state: SoilWaterState) -> float:
+        """Cascade water above field capacity to lower layers or deep drainage."""
         deep_drainage = 0.0
         for i, layer in enumerate(profile.layers):
             current = state.layer_storage_mm(profile, i)
@@ -94,9 +117,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 if moved > 0:
                     state.set_layer_storage_mm(profile, i + 1, nxt + moved)
                     if self.event_bus:
-                        self.event_bus.emit(
-                            WaterDrained(from_layer=i, to_layer=i + 1, amount_mm=moved)
-                        )
+                        self.event_bus.emit(WaterDrained(from_layer=i, to_layer=i + 1, amount_mm=moved))
                 leftover = excess - moved
                 if leftover > 0:
                     deep_drainage += leftover
@@ -104,16 +125,13 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 deep_drainage += excess
         return deep_drainage
 
-    def update_daily(
-        self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers
-    ) -> WaterFluxes:
+    def update_daily(self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers) -> WaterFluxes:
+        """Run one daily step and return flux diagnostics."""
         incoming = drivers.rainfall_mm + drivers.irrigation_mm
         cn = self._texture_cn(profile)
         runoff, infiltrated = self._compute_runoff(incoming, cn)
 
-        storage_before = sum(
-            state.layer_storage_mm(profile, i) for i in range(len(profile.layers))
-        )
+        storage_before = sum(state.layer_storage_mm(profile, i) for i in range(len(profile.layers)))
 
         evap_taken = self._apply_evaporation(profile, state, drivers.evaporation_mm)
         remaining = self._infiltrate_layers(profile, state, infiltrated)
@@ -124,9 +142,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
         deep_drainage += self._cascade_excess(profile, state)
 
-        storage_after = sum(
-            state.layer_storage_mm(profile, i) for i in range(len(profile.layers))
-        )
+        storage_after = sum(state.layer_storage_mm(profile, i) for i in range(len(profile.layers)))
         storage_change = storage_after - storage_before
         return WaterFluxes(
             runoff_mm=runoff,
