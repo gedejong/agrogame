@@ -7,6 +7,14 @@ from .events import GddAccumulated, StageChanged
 
 
 class PhenologyModule:
+    """Thermal-time phenology with optional photoperiod and vernalization.
+
+    - Accumulates GDD using base and max temperature caps
+    - Optional photoperiod sensitivity (linear around 12h)
+    - Optional vernalization gating before flowering (units/day in cool range)
+    - Emits GddAccumulated and StageChanged events via EventBus
+    """
+
     def __init__(self, params: CropPhenologyParams, event_bus: EventBus | None = None):
         self.params = params
         self.state: PhenologyState = PhenologyState(

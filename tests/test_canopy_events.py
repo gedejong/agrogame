@@ -69,3 +69,18 @@ def test_canopy_senescence_increases_after_grain_fill():
     lai_after = canopy.update_lai(new_leaf_biomass_g_m2=0.0)
 
     assert (2.0 - lai_after) > (2.0 - lai_before)
+
+
+def test_lai_bootstraps_on_emergence():
+    bus = EventBus()
+    params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.01)
+    canopy = CanopyModule(params, event_bus=bus)
+    assert canopy.state.lai == 0.0
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.PLANTED,
+            to_stage=PhenologyStage.EMERGED,
+            at_gdd=120.0,
+        )
+    )
+    assert canopy.state.lai >= 0.1

@@ -11,6 +11,20 @@ from .events import LightIntercepted, BiomassAccumulated, LAIUpdated
 
 
 class CanopyModule:
+    """Canopy growth and light interception.
+
+    Responsibilities:
+    - Compute intercepted PAR via Beer–Lambert law (k, LAI)
+    - Convert intercepted PAR to biomass using RUE and stress/temperature factors
+    - Update LAI from new leaf biomass with SLA and senescence, with logistic taper
+    - Integrate with phenology to increase senescence during grain fill
+
+    Units:
+    - PAR: MJ m^-2 day^-1
+    - Biomass: g m^-2
+    - LAI: m^2 leaf per m^2 ground
+    """
+
     def __init__(self, params: CanopyParams, event_bus: EventBus | None = None):
         self.params = params
         self.state = CanopyState(lai=0.0, biomass_g_m2=0.0)
@@ -23,12 +37,20 @@ class CanopyModule:
         self._senescence_multiplier = 1.0
 
     def _on_stage_changed(self, event: StageChanged) -> None:
+        # Bootstrap canopy at emergence
+        if event.to_stage == PhenologyStage.EMERGED and self.state.lai <= 0.0:
+            self.state.lai = max(self.state.lai, 0.1)
         if event.to_stage in (PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY):
             self._senescence_multiplier = 2.0
         else:
             self._senescence_multiplier = 1.0
 
     def calculate_light_interception(self, incident_par_mj_m2: float) -> CanopyFluxes:
+        """Return intercepted PAR and emit LightIntercepted event.
+
+        Args:
+            incident_par_mj_m2: Daily incident PAR (MJ m^-2).
+        """
         if self.state.lai <= 0.0 or incident_par_mj_m2 <= 0.0:
             if self.event_bus is not None:
                 self.event_bus.emit(
@@ -62,12 +84,17 @@ class CanopyModule:
         water_stress: float,
         n_stress: float,
     ) -> float:
+        """Compute biomass increment from intercepted PAR.
+
+        biomass = PAR_intercepted * RUE * temp_factor * min(water_stress, n_stress)
+        """
         stress = min(max(water_stress, 0.0), 1.0)
         stress = min(stress, max(min(n_stress, 1.0), 0.0))
         rue = self.params.radiation_use_efficiency_g_per_mj
         return intercepted_par_mj_m2 * max(0.0, temp_factor) * rue * stress
 
     def update_lai(self, new_leaf_biomass_g_m2: float) -> float:
+        """Update LAI from new leaf biomass and senescence with logistic taper."""
         prev = self.state.lai
         growth = (
             max(0.0, new_leaf_biomass_g_m2) * self.params.specific_leaf_area_m2_per_g
