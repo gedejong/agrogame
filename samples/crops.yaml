@@ -31,6 +31,9 @@ crops:
       emergence_dd: 120.0
       flowering_dd: 800.0
       maturity_dd: 1600.0
+      max_temp_c: 35.0
+      photoperiod_sensitivity: 0.2
+      vernalization_required_units: 30.0
     roots:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
