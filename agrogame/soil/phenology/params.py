@@ -16,3 +16,6 @@ class CropPhenologyParams:
     max_temperature_c: float
     thresholds: GrowthStageThresholds
     photoperiod_sensitivity: float | None = None  # 0..1 multiplier; None to disable
+    vernalization_required_units: float | None = (
+        None  # units needed to unlock flowering
+    )

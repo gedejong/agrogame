@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 
-class PhenologyStage(str, Enum):
+class PhenologyStage(Enum):
     PLANTED = "planted"
     EMERGED = "emerged"
     VEGETATIVE = "vegetative"
@@ -17,3 +17,4 @@ class PhenologyStage(str, Enum):
 class PhenologyState:
     accumulated_gdd: float
     stage: PhenologyStage
+    vernalization_units: float = 0.0
