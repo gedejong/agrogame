@@ -4,6 +4,12 @@ repo_name: databuildcompany/agrogame
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Quick Context:
+      - Water: docs/water.md
+      - Nitrogen: docs/nitrogen.md
+      - Phenology: docs/phenology.md
+      - Canopy: docs/canopy.md
+      - Architecture (compressed): docs/architecture.md
   - Architecture:
       - Overview: architecture/overview.md
       - Soil Module: architecture/soil-module.md
