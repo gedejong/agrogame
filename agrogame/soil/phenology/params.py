@@ -15,4 +15,4 @@ class CropPhenologyParams:
     base_temperature_c: float
     max_temperature_c: float
     thresholds: GrowthStageThresholds
-    # Optional photoperiod sensitivity could be added later
+    photoperiod_sensitivity: float | None = None  # 0..1 multiplier; None to disable
