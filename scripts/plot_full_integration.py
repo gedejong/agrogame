@@ -21,6 +21,7 @@ from agrogame.soil.phenology import (
 from agrogame.soil.nitrogen import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.canopy import CanopyModule, CanopyParams
+from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from scripts._weather_cli import add_weather_args, get_weather_series
@@ -76,6 +77,7 @@ def main() -> None:
 
     roots = RootModule(RootParams(), event_bus=bus)
     rstate = RootState()
+    istate = InterceptionState()
 
     nstate = SoilNitrogenState(profile)
     ncycle = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
@@ -155,8 +157,10 @@ def main() -> None:
         storage_before = sum(
             wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
         )
+        # Interception: split rainfall into intercepted and throughfall
+        intercepted, throughfall = istate.intercept(canopy.state.lai, rain)
         fx = water.update_daily(
-            profile, wstate, DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0)
+            profile, wstate, DailyDrivers(rainfall_mm=throughfall, evaporation_mm=0.0)
         )
         runoff.append(fx.runoff_mm)
         deep.append(fx.deep_drainage_mm)
@@ -193,9 +197,17 @@ def main() -> None:
             if rstate.layer_fractions
             else [1.0 / len(profile.layers)] * len(profile.layers)
         )
-        actual = etmod.actual_et(profile, wstate, water, comps, rf)
+        # Evaporate from canopy store before soil evaporation
+        canopy_evap = istate.evaporate(comps.potential_evap_mm)
+        # Reduce soil potential evaporation by canopy evaporation already taken
+        comps_adj = type(comps)(
+            potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
+            potential_transp_mm=comps.potential_transp_mm,
+            et0_mm=comps.et0_mm,
+        )
+        actual = etmod.actual_et(profile, wstate, water, comps_adj, rf)
         et0s.append(et0)
-        act_e.append(actual.evaporation_mm)
+        act_e.append(actual.evaporation_mm + canopy_evap)
         act_t.append(actual.transpiration_mm)
         # Update last evap value for plotting (replace 0.0)
         evap[-1] = actual.evaporation_mm

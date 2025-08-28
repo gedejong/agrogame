@@ -76,3 +76,17 @@ class TranspirationByLayer(BaseEvent):
     layer_indices: Tuple[int, ...]
     amounts_mm: Tuple[float, ...]
     total_mm: float
+
+
+@dataclass(frozen=True)
+class CanopyIntercepted(BaseEvent):
+    """Rainfall intercepted by the canopy and stored (mm)."""
+
+    amount_mm: float
+
+
+@dataclass(frozen=True)
+class CanopyEvaporated(BaseEvent):
+    """Evaporation taken directly from the canopy store (mm)."""
+
+    amount_mm: float

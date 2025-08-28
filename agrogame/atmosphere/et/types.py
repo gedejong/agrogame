@@ -19,3 +19,4 @@ class EtState:
 class EtActual:
     evaporation_mm: float
     transpiration_mm: float
+    canopy_evap_mm: float = 0.0
