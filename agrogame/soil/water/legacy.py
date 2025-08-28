@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Tuple
 
 from agrogame.soil.models import SoilProfile
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers

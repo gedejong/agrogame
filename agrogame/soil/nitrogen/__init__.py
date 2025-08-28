@@ -10,7 +10,7 @@ from __future__ import annotations
 from .events import NutrientLeached, NitrificationOccurred
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
-from .cycle import NitrogenCycle
+from .module import NitrogenCycle
 
 __all__ = [
     "NutrientLeached",

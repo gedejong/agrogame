@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from agrogame.events import BaseEvent
 
 from .types import PhenologyStage
 
 
 @dataclass(frozen=True)
-class GddAccumulated:
+class GddAccumulated(BaseEvent):
     """Daily GDD increment and new total accumulated thermal time."""
 
     daily_gdd: float
@@ -14,7 +15,7 @@ class GddAccumulated:
 
 
 @dataclass(frozen=True)
-class StageChanged:
+class StageChanged(BaseEvent):
     """Phenological stage transition event."""
 
     from_stage: PhenologyStage

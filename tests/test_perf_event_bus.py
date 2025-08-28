@@ -9,9 +9,9 @@ from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water import (
     CascadingBucketWaterModel,
     DailyDrivers,
-    EventBus,
     SoilWaterState,
 )
+from agrogame.events import EventBus
 
 
 # Skipped by default to avoid impacting CI durations

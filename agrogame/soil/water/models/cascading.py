@@ -11,7 +11,7 @@ from typing import Tuple
 
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.constants import TEXTURE_TO_CN
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.water.events import (
     EvaporationTaken,
     RunoffGenerated,

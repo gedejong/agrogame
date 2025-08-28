@@ -8,7 +8,8 @@ import matplotlib.pyplot as plt
 
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.nitrogen import NitrogenCycle, SoilNitrogenState
-from agrogame.soil.water import DailyDrivers, EventBus, SoilWaterState
+from agrogame.soil.water import DailyDrivers, SoilWaterState
+from agrogame.events import EventBus
 
 
 def _seasonal_series(

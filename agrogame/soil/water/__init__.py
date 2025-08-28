@@ -7,7 +7,7 @@ This package re-exports the primary classes and events for ease of import:
 
 from __future__ import annotations
 
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.water.events import (
     EvaporationTaken,
     RunoffGenerated,

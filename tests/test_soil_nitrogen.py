@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agrogame.soil.models import SoilLayer, SoilProfile
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.nitrogen import (

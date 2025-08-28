@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 
 from .params import CanopyParams

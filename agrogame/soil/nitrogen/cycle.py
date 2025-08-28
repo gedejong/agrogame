@@ -13,7 +13,7 @@ AGRO-17 acceptance criteria:
 """
 
 from __future__ import annotations
-from agrogame.soil.water.event_bus import EventBus
+from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile

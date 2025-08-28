@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from agrogame.events import BaseEvent
 
 
 @dataclass(frozen=True)
-class NutrientLeached:
+class NutrientLeached(BaseEvent):
     """Nutrient mass lost from the profile with drainage.
 
     Attributes:
@@ -21,7 +22,7 @@ class NutrientLeached:
 
 
 @dataclass(frozen=True)
-class NitrificationOccurred:
+class NitrificationOccurred(BaseEvent):
     """Nitrification transformation diagnostic for a layer on a given day.
 
     Attributes:

@@ -9,9 +9,9 @@ from agrogame.soil.loader import load_soil_presets as _load
 from agrogame.soil.water import (
     CascadingBucketWaterModel,
     DailyDrivers,
-    EventBus,
     SoilWaterState,
 )
+from agrogame.events import EventBus
 from agrogame.soil.water import SoilWaterBalance
 
 
