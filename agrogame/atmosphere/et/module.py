@@ -75,7 +75,8 @@ class Evapotranspiration:
         rs = self.params.rs_min_s_m / vpd_factor
 
         # FAO-56 PM daily in mm/day using rn_mm, vpd, ra, rs
-        numerator = delta * rn_mm + (900.0 / (temp_mean_c + 273.0)) * u2 * vpd
+        # Note: aerodynamic term must be scaled by psychrometric constant (gamma)
+        numerator = delta * rn_mm + gamma * (900.0 / (temp_mean_c + 273.0)) * u2 * vpd
         denominator = delta + gamma * (1.0 + rs / ra)
         et0 = numerator / max(1e-6, denominator)
         return max(0.0, et0)
