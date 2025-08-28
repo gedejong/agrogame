@@ -7,6 +7,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
+from agrogame.weather import load_weather, load_weather_auto
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -36,6 +37,9 @@ def main() -> None:
         default=1,
         help="Moving-average window (days) for plotting",
     )
+    parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
+    parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
+    parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -87,6 +91,17 @@ def main() -> None:
 
     import math
 
+    # Optional automatic/file-based weather overrides pattern
+    auto_series = None
+    if args.weather_file:
+        auto_series = load_weather(args.weather_file)
+    elif args.power_lat is not None and args.power_lon is not None:
+        from datetime import date, timedelta
+
+        start = date.today() - timedelta(days=args.days - 1)
+        end = date.today()
+        auto_series = load_weather_auto(args.power_lat, args.power_lon, start, end)
+
     for day in range(args.days):
         # Synthetic drivers by pattern
         if args.pattern == "seasonal":
@@ -110,6 +125,15 @@ def main() -> None:
             tmin, tmax = 10.0, 24.0
             rad = 12.0
             rain, evap0 = 3.0, 2.0
+        if auto_series and day < len(auto_series.records):
+            rec = auto_series.records[day]
+            tmin, tmax = rec.tmin_c, rec.tmax_c
+            rad = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+            wind = rec.wind_m_s or 2.0
+            rh = rec.relative_humidity_pct or 60.0
+        else:
+            wind = 2.0 + 1.0 * math.sin(2 * math.pi * day / 10.0)
+            rh = 60.0 - 20.0 * math.sin(2 * math.pi * day / 15.0)
         temp_mean = 0.5 * (tmin + tmax)
 
         phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
@@ -122,8 +146,8 @@ def main() -> None:
             temp_mean_c=temp_mean,
             net_radiation_mj_m2=rad,
             method="penman-monteith",
-            wind_m_s=2.0 + 1.0 * math.sin(2 * math.pi * day / 10.0),
-            relative_humidity_pct=60.0 - 20.0 * math.sin(2 * math.pi * day / 15.0),
+            wind_m_s=wind,
+            relative_humidity_pct=rh,
         )
         comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
         comps_pm = etmod.potential_components(et0_mm=et0_pm, lai=canopy.state.lai)
