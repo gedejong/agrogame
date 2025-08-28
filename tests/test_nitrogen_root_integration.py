@@ -117,3 +117,70 @@ def test_massflow_uptake_bounded_by_availability() -> None:
 
     # NO3 cannot go below zero
     assert nstate.no3[0] >= 0.0
+
+
+def test_massflow_decreases_with_water_stress() -> None:
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    nstate = SoilNitrogenState(profile)
+    for i in range(len(nstate.no3)):
+        nstate.no3[i] = 20.0
+    bus = EventBus()
+    wstate = SoilWaterState(profile)
+    water = CascadingBucketWaterModel(event_bus=bus)
+    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+
+    et = Evapotranspiration()
+    rf = [1.0 / len(profile.layers)] * len(profile.layers)
+
+    def run_once(et0: float) -> tuple[float, float]:
+        comps = et.potential_components(et0_mm=et0, lai=2.0)
+        no3_before = sum(nstate.no3)
+        actual = et.actual_et(profile, wstate, water, comps, rf)
+        uptake = max(0.0, no3_before - sum(nstate.no3))
+        return actual.transpiration_mm, uptake
+
+    t1, u1 = run_once(5.0)
+    t2, u2 = run_once(2.5)  # lower ET0
+    assert t2 <= t1 + 1e-6
+    assert u2 <= u1 + 1e-6
+
+
+def test_transpiration_by_layer_event_integrity() -> None:
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    bus = EventBus()
+    events: list = []
+    from agrogame.soil.water.events import TranspirationByLayer
+
+    bus.subscribe(TranspirationByLayer, lambda e: events.append(e))
+    wstate = SoilWaterState(profile)
+    water = CascadingBucketWaterModel(event_bus=bus)
+    # Set adequate water above wilting in first two layers
+    for i, layer in enumerate(profile.layers[:2]):
+        storage = (layer.wilting_point + 0.05) * layer.depth_cm * 10.0
+        wstate.set_layer_storage_mm(profile, i, storage)
+    rf = [0.5, 0.5] + [0.0] * (len(profile.layers) - 2)
+    taken = water.extract_transpiration_by_roots(profile, wstate, 4.0, rf)
+    assert events, "No TranspirationByLayer event captured"
+    evt = events[-1]
+    assert abs(sum(evt.amounts_mm) - evt.total_mm) < 1e-6
+    assert abs(evt.total_mm - taken) < 1e-6
+
+
+def test_zero_et_and_zero_no3_yield_zero_uptake() -> None:
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    nstate = SoilNitrogenState(profile)
+    for i in range(len(nstate.no3)):
+        nstate.no3[i] = 0.0
+    bus = EventBus()
+    wstate = SoilWaterState(profile)
+    water = CascadingBucketWaterModel(event_bus=bus)
+    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    et = Evapotranspiration()
+    rf = [1.0 / len(profile.layers)] * len(profile.layers)
+    comps = et.potential_components(et0_mm=0.0, lai=1.0)
+    no3_before = sum(nstate.no3)
+    _ = et.actual_et(profile, wstate, water, comps, rf)
+    assert sum(nstate.no3) == no3_before

@@ -24,6 +24,7 @@ from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from scripts._weather_cli import add_weather_args, get_weather_series
+from agrogame.weather.constants import DEFAULT_ALBEDO
 from agrogame.weather.module import WeatherModule
 
 
@@ -93,6 +94,7 @@ def main() -> None:
     stage_series: List[PhenologyStage] = []
     root_depth: List[float] = []
     n_no3_top: List[float] = []
+    n_uptake_massflow: List[float] = []
     et0s: List[float] = []
     act_e: List[float] = []
     act_t: List[float] = []
@@ -104,12 +106,28 @@ def main() -> None:
     winds: List[float] = []
     rads: List[float] = []
 
-    for day in range(args.days):
+    # Respect available weather length to avoid trailing fallbacks
+    total_days = args.days
+    if auto_series is not None:
+        total_days = min(args.days, len(auto_series.records))
+
+    for day in range(total_days):
         # Weather drivers
         if auto_series and day < len(auto_series.records):
             rec = auto_series.records[day]
             tmin, tmax = rec.tmin_c, rec.tmax_c
-            par = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+            # Prefer provided net radiation; otherwise derive from shortwave
+            if rec.net_radiation_mj_m2 is not None:
+                par = rec.net_radiation_mj_m2
+            else:
+                albedo = (
+                    rec.albedo
+                    if getattr(rec, "albedo", None) is not None
+                    else DEFAULT_ALBEDO
+                )
+                sw = rec.shortwave_mj_m2 or 0.0
+                par = sw * max(0.0, 1.0 - albedo)
+            par = max(0.0, par)
             wind = rec.wind_m_s or 2.0
             rh = rec.relative_humidity_pct or 60.0
             rain = 0.0
@@ -157,6 +175,7 @@ def main() -> None:
         root_depth.append(rstate.current_depth_cm)
 
         # Nitrogen daily step (demand simplistic, root fractions from cached event)
+        no3_before = list(nstate.no3)
         _ = ncycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=1.0)
         n_no3_top.append(nstate.no3[0])
 
@@ -181,6 +200,11 @@ def main() -> None:
             wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
         )
         dS[-1] = storage_after - storage_before
+        # Mass-flow NO3 uptake estimate from NO3 pool decrease (kg/ha) after ET day
+        total_no3_before = sum(no3_before)
+        total_no3_after = sum(nstate.no3)
+        uptake_today = max(0.0, total_no3_before - total_no3_after)
+        n_uptake_massflow.append(uptake_today)
         # collect weather for plotting
         tmins.append(tmin)
         tmaxs.append(tmax)
@@ -188,7 +212,7 @@ def main() -> None:
         winds.append(wind)
         rads.append(par)
 
-    x = list(range(1, args.days + 1))
+    x = list(range(1, total_days + 1))
     # Grid with weather row and legend row
     fig = plt.figure(figsize=(12, 12), constrained_layout=True)
     gs = fig.add_gridspec(5, 2, height_ratios=[1.0, 1.0, 1.0, 1.0, 0.14], hspace=0.05)
@@ -204,7 +228,23 @@ def main() -> None:
     ax_legend.axis("off")
     ax = [[ax10, ax11], [ax20, ax21], [ax30, ax31]]
 
-    # Weather panels
+    # Weather panels (sanitize series to avoid odd spikes)
+    def _ffill_clamp(vals: List[float], lo: float, hi: float) -> List[float]:
+        out: List[float] = []
+        last: float | None = None
+        for v in vals:
+            vv = v
+            if vv is None or vv < lo or vv > hi:  # type: ignore[operator]
+                vv = last if last is not None else max(lo, min(0.0, hi))
+            out.append(vv)
+            last = vv
+        return out
+
+    tmins = _ffill_clamp(tmins, -60.0, 60.0)
+    tmaxs = _ffill_clamp(tmaxs, -60.0, 60.0)
+    rhs = _ffill_clamp(rhs, 0.0, 100.0)
+    winds = _ffill_clamp(winds, 0.0, 60.0)
+
     wx0.plot(x, tmins, label="Tmin (°C)")
     wx0.plot(x, tmaxs, label="Tmax (°C)")
     wx0b = wx0.twinx()
@@ -218,9 +258,18 @@ def main() -> None:
         auto_series is not None
         and getattr(auto_series.records[0], "precip_mm", None) is not None
     ):
-        prec = [rec.precip_mm or 0.0 for rec in auto_series.records[: args.days]]
+        prec = [rec.precip_mm or 0.0 for rec in auto_series.records[:total_days]]
         wx1.bar(x, prec, color="#1f77b4", alpha=0.15, label="Precip (mm)")
     wx1.set_title("Radiation")
+    # Clamp y-limits to sensible ranges to avoid autoscale artifacts
+    if tmins and tmaxs:
+        ymin = min(min(tmins), min(tmaxs)) - 2.0
+        ymax = max(max(tmins), max(tmaxs)) + 2.0
+        if ymin < ymax:
+            wx0.set_ylim(ymin, ymax)
+    if rads:
+        rmax = max(rads)
+        wx1.set_ylim(0.0, max(1.0, rmax * 1.1))
     wx1.legend(loc="upper left")
 
     # Water fluxes with ΔStorage on right axis
@@ -257,7 +306,7 @@ def main() -> None:
             t_days.append(day_idx)
             t_labels.append(st.name)
             last_stage = st
-    t_days.append(args.days + 1)
+    t_days.append(total_days + 1)
     for i in range(len(t_labels)):
         start_day = t_days[i]
         end_day = t_days[i + 1] - 1
@@ -272,9 +321,17 @@ def main() -> None:
     ax[1][1].plot(x, root_depth, label="Root depth (cm)")
     ax[1][1].set_title("Root depth")
 
-    # Nitrogen
+    # Nitrogen: NO3 top and mass-flow uptake
     ax[2][0].plot(x, n_no3_top, label="NO₃ top (kg/ha)")
-    ax[2][0].set_title("Nitrogen NO3 (top layer)")
+    ax_n2 = ax[2][0].twinx()
+    ax_n2.bar(
+        x,
+        n_uptake_massflow,
+        alpha=0.25,
+        color="#2ca02c",
+        label="Mass-flow uptake (kg/ha·d)",
+    )
+    ax[2][0].set_title("Nitrogen: NO3 (top) and mass-flow uptake")
 
     # ET overview
     # ET overview with cumulative ET on secondary axis
