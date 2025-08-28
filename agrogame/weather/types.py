@@ -15,6 +15,7 @@ class WeatherRecord:
     shortwave_mj_m2: Optional[float] = None  # Rs
     net_radiation_mj_m2: Optional[float] = None  # Rn
     albedo: Optional[float] = None
+    precip_mm: Optional[float] = None
 
 
 @dataclass

@@ -23,6 +23,7 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
+from agrogame.weather import load_weather, load_weather_auto
 
 
 def main() -> None:
@@ -30,6 +31,11 @@ def main() -> None:
     parser.add_argument("--profile", default="loam_temperate")
     parser.add_argument("--days", type=int, default=120)
     parser.add_argument("--out", type=Path, default=Path("out/full_integration.png"))
+    parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
+    parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
+    parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
+    parser.add_argument("--power-start", type=str, help="POWER start date YYYY-MM-DD")
+    parser.add_argument("--power-end", type=str, help="POWER end date YYYY-MM-DD")
     parser.add_argument(
         "--alt-weather",
         action="store_true",
@@ -76,6 +82,23 @@ def main() -> None:
     ncycle = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
     etmod = Evapotranspiration(EtParams())
 
+    # Optional external weather time series
+    auto_series = None
+    if args.weather_file:
+        auto_series = load_weather(args.weather_file)
+    elif args.power_lat is not None and args.power_lon is not None:
+        from datetime import date as _date, timedelta as _td
+        from datetime import datetime as _dt
+
+        if args.power_start and args.power_end:
+            start = _dt.strptime(args.power_start, "%Y-%m-%d").date()
+            end = _dt.strptime(args.power_end, "%Y-%m-%d").date()
+        else:
+            today = _date.today()
+            end = _date(today.year - 1, today.month, today.day)
+            start = end - _td(days=args.days - 1)
+        auto_series = load_weather_auto(args.power_lat, args.power_lon, start, end)
+
     # Time series
     runoff: List[float] = []
     deep: List[float] = []
@@ -90,17 +113,35 @@ def main() -> None:
     act_e: List[float] = []
     act_t: List[float] = []
 
+    # Weather diagnostics
+    tmins: List[float] = []
+    tmaxs: List[float] = []
+    rhs: List[float] = []
+    winds: List[float] = []
+    rads: List[float] = []
+
     for day in range(args.days):
         # Weather drivers
-        if args.alt_weather:
+        if auto_series and day < len(auto_series.records):
+            rec = auto_series.records[day]
+            tmin, tmax = rec.tmin_c, rec.tmax_c
+            par = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+            wind = rec.wind_m_s or 2.0
+            rh = rec.relative_humidity_pct or 60.0
+            rain = 0.0
+        elif args.alt_weather:
             # Sinusoidal temps and PAR, pulsed rainfall
             tmin = 8.0 + 4.0 * sin(2 * pi * day / 30.0)
             tmax = 20.0 + 6.0 * sin(2 * pi * day / 30.0 + 0.8)
             par = 10.0 + 6.0 * max(0.0, sin(2 * pi * day / 15.0))
             rain = 8.0 if (day % 11 in (0, 1)) else 0.0
+            wind = 2.0
+            rh = 60.0
         else:
             tmin, tmax, par = 10.0, 22.0, 12.0
             rain = 3.0
+            wind = 2.0
+            rh = 60.0
 
         phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         stage_series.append(phen.state.stage)
@@ -154,20 +195,47 @@ def main() -> None:
             wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
         )
         dS[-1] = storage_after - storage_before
+        # collect weather for plotting
+        tmins.append(tmin)
+        tmaxs.append(tmax)
+        rhs.append(rh)
+        winds.append(wind)
+        rads.append(par)
 
     x = list(range(1, args.days + 1))
-    # Create explicit GridSpec with a dedicated legend row to avoid overlap
-    fig = plt.figure(figsize=(12, 10), constrained_layout=True)
-    gs = fig.add_gridspec(4, 2, height_ratios=[1.0, 1.0, 1.0, 0.14], hspace=0.05)
-    ax00 = fig.add_subplot(gs[0, 0])
-    ax01 = fig.add_subplot(gs[0, 1], sharex=ax00)
-    ax10 = fig.add_subplot(gs[1, 0], sharex=ax00)
-    ax11 = fig.add_subplot(gs[1, 1], sharex=ax00)
-    ax20 = fig.add_subplot(gs[2, 0], sharex=ax00)
-    ax21 = fig.add_subplot(gs[2, 1], sharex=ax00)
-    ax_legend = fig.add_subplot(gs[3, :])
+    # Grid with weather row and legend row
+    fig = plt.figure(figsize=(12, 12), constrained_layout=True)
+    gs = fig.add_gridspec(5, 2, height_ratios=[1.0, 1.0, 1.0, 1.0, 0.14], hspace=0.05)
+    wx0 = fig.add_subplot(gs[0, 0])
+    wx1 = fig.add_subplot(gs[0, 1], sharex=wx0)
+    ax10 = fig.add_subplot(gs[1, 0], sharex=wx0)
+    ax11 = fig.add_subplot(gs[1, 1], sharex=wx0)
+    ax20 = fig.add_subplot(gs[2, 0], sharex=wx0)
+    ax21 = fig.add_subplot(gs[2, 1], sharex=wx0)
+    ax30 = fig.add_subplot(gs[3, 0], sharex=wx0)
+    ax31 = fig.add_subplot(gs[3, 1], sharex=wx0)
+    ax_legend = fig.add_subplot(gs[4, :])
     ax_legend.axis("off")
-    ax = [[ax00, ax01], [ax10, ax11], [ax20, ax21]]
+    ax = [[ax10, ax11], [ax20, ax21], [ax30, ax31]]
+
+    # Weather panels
+    wx0.plot(x, tmins, label="Tmin (°C)")
+    wx0.plot(x, tmaxs, label="Tmax (°C)")
+    wx0b = wx0.twinx()
+    wx0b.plot(x, rhs, ":", label="RH (%)")
+    wx0b.plot(x, winds, "--", label="Wind (m/s)")
+    wx0.set_title("Weather drivers")
+    wx0.legend(loc="upper left")
+    wx1.plot(x, rads, label="Radiation (MJ m⁻²)")
+    # Precipitation bars if available from weather series
+    if (
+        auto_series is not None
+        and getattr(auto_series.records[0], "precip_mm", None) is not None
+    ):
+        prec = [rec.precip_mm or 0.0 for rec in auto_series.records[: args.days]]
+        wx1.bar(x, prec, color="#1f77b4", alpha=0.15, label="Precip (mm)")
+    wx1.set_title("Radiation")
+    wx1.legend(loc="upper left")
 
     # Water fluxes with ΔStorage on right axis
     ax_w = ax[0][0]
@@ -256,7 +324,19 @@ def main() -> None:
     # Shared legend at bottom
     handles = []
     labels = []
-    for a in [ax_w, ax_w2, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1], ax_et_cum]:
+    for a in [
+        wx0,
+        wx0b,
+        wx1,
+        ax_w,
+        ax_w2,
+        ax[0][1],
+        ax[1][0],
+        ax[1][1],
+        ax[2][0],
+        ax[2][1],
+        ax_et_cum,
+    ]:
         h, labels_part = a.get_legend_handles_labels()
         handles.extend(h)
         labels.extend(labels_part)
@@ -286,10 +366,19 @@ def main() -> None:
             transition_days.append(day_idx)
             transition_labels.append(st.name)
             last = st
-    for a in [ax_w, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1]]:
+    for a in [wx0, wx1, ax_w, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1]]:
         for d in transition_days:
             a.axvline(d, color="gray", linestyle=":", alpha=0.4, linewidth=0.8)
         a.grid(True, axis="x", which="both", linestyle=":", alpha=0.2)
+
+    # Lightly shade phenology stages across all panels
+    axes_to_shade = [wx0, wx1, ax_w, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1]]
+    for i, label_name in enumerate(t_labels):
+        start_day = t_days[i]
+        end_day = t_days[i + 1] - 1
+        color = stage_colors.get(label_name, plt.cm.tab10(i % 10))
+        for a in axes_to_shade:
+            a.axvspan(start_day, end_day, color=color, alpha=0.06, zorder=0)
     # Place stage labels below the bottom-left axis
     for d, name in zip(transition_days, transition_labels):
         ax[2][0].annotate(

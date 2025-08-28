@@ -93,6 +93,13 @@ def main() -> None:
     act_e: List[float] = []
     act_t: List[float] = []
     lais: List[float] = []
+    # Weather diagnostics
+    tmins: List[float] = []
+    tmaxs: List[float] = []
+    rhs: List[float] = []
+    winds: List[float] = []
+    rads: List[float] = []
+    precs: List[float] = []
 
     # Cumulative trackers
     cum_et0 = 0.0
@@ -194,6 +201,15 @@ def main() -> None:
         act_e.append(actual.evaporation_mm)
         act_t.append(actual.transpiration_mm)
         lais.append(canopy.state.lai)
+        tmins.append(tmin)
+        tmaxs.append(tmax)
+        rhs.append(rh)
+        winds.append(wind)
+        rads.append(rad)
+        if auto_series and day < len(auto_series.records):
+            precs.append(auto_series.records[day].precip_mm or 0.0)
+        else:
+            precs.append(0.0)
         cum_et0 += et0
         cum_act_e += actual.evaporation_mm
         cum_act_t += actual.transpiration_mm
@@ -214,12 +230,33 @@ def main() -> None:
 
     x = list(range(1, args.days + 1))
     plt.style.use("ggplot")
-    fig = plt.figure(figsize=(12, 9), constrained_layout=True)
-    gs = fig.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 0.8])
-    ax_top = fig.add_subplot(gs[0, :])
-    ax_evap = fig.add_subplot(gs[1, 0], sharex=ax_top)
-    ax_transp = fig.add_subplot(gs[1, 1], sharex=ax_top)
-    ax_lai = fig.add_subplot(gs[2, :], sharex=ax_top)
+    fig = plt.figure(figsize=(12, 11), constrained_layout=True)
+    gs = fig.add_gridspec(4, 2, height_ratios=[1.0, 1.0, 1.0, 0.8])
+    ax_weather = fig.add_subplot(gs[0, :])
+    ax_top = fig.add_subplot(gs[1, :])
+    ax_evap = fig.add_subplot(gs[2, 0], sharex=ax_top)
+    ax_transp = fig.add_subplot(gs[2, 1], sharex=ax_top)
+    ax_lai = fig.add_subplot(gs[3, :], sharex=ax_top)
+
+    # Panel 0: Weather drivers
+    ax_weather.plot(x, smooth(tmins), color="#1f77b4", label="Tmin (°C)")
+    ax_weather.plot(x, smooth(tmaxs), color="#ff7f0e", label="Tmax (°C)")
+    ax_w2 = ax_weather.twinx()
+    ax_w2.plot(x, smooth(rhs), color="#2ca02c", linestyle=":", label="RH (%)")
+    ax_w2.plot(x, smooth(winds), color="#9467bd", linestyle="--", label="Wind (m/s)")
+    ax_weather.set_title("Weather conditions")
+    ax_weather.set_ylabel("°C")
+    ax_w2.set_ylabel("% / m s⁻¹")
+    # Radiation on separate axis to keep scale reasonable
+    ax_w3 = ax_weather.twinx()
+    ax_w3.spines.right.set_position(("axes", 1.08))
+    ax_w3.plot(x, smooth(rads), color="#8c564b", alpha=0.6, label="Radiation (MJ m⁻²)")
+    ax_weather.bar(x, precs, color="#1f77b4", alpha=0.15, label="Precip (mm)")
+    # Build combined legend
+    h1, l1 = ax_weather.get_legend_handles_labels()
+    h2, l2 = ax_w2.get_legend_handles_labels()
+    h3, l3 = ax_w3.get_legend_handles_labels()
+    ax_weather.legend(h1 + h2 + h3, l1 + l2 + l3, ncol=3, loc="upper left")
 
     # Panel 1: ET0 PT vs PM
     ax_top.plot(x, smooth(et0s), label="ET0 PT (mm)")

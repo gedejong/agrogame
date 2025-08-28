@@ -30,9 +30,8 @@ def test_power_auto_fetch_monkeypatched(monkeypatch) -> None:
                 "T2M_MAX": {day_key: 25.0},
                 "T2M_MIN": {day_key: 12.0},
                 "RH2M": {day_key: 60.0},
-                "WIND_SPEED": {day_key: 2.5},
+                "WS10M": {day_key: 2.5},
                 "ALLSKY_SFC_SW_DWN": {day_key: 18.0},
-                "ALLSKY_SFC_LW_NET_DWN": {day_key: 2.0},
             }
         }
     }
@@ -47,5 +46,5 @@ def test_power_auto_fetch_monkeypatched(monkeypatch) -> None:
     series = load_weather_auto(52.0, 5.0, date(2024, 6, 1), date(2024, 6, 1))
     assert len(series.records) == 1
     rec = series.records[0]
-    # Net radiation should be rs + lw_net from our approximation
-    assert rec.net_radiation_mj_m2 == 20.0
+    # Net radiation derived from shortwave with albedo 0.23 => 18*(1-0.23)
+    assert rec.net_radiation_mj_m2 == 18.0 * (1.0 - 0.23)

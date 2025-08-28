@@ -45,6 +45,7 @@ def _load_csv(path: Path) -> WeatherSeries:
                         shortwave_mj_m2=_opt_float(r.get("rs_mj_m2")),
                         net_radiation_mj_m2=_opt_float(r.get("rn_mj_m2")),
                         albedo=_opt_float(r.get("albedo")),
+                        precip_mm=_opt_float(r.get("precip_mm")),
                     )
                 )
             except Exception as e:  # noqa: BLE001
@@ -67,6 +68,7 @@ def _load_json(path: Path) -> WeatherSeries:
                     shortwave_mj_m2=_opt_float(r.get("rs_mj_m2")),
                     net_radiation_mj_m2=_opt_float(r.get("rn_mj_m2")),
                     albedo=_opt_float(r.get("albedo")),
+                    precip_mm=_opt_float(r.get("precip_mm")),
                 )
             )
         except Exception as e:  # noqa: BLE001
@@ -95,7 +97,7 @@ def load_weather_auto(
         "community": "AG",
         # POWER recommended dailies; use WS10M/WS2M may vary by dataset; prefer WS10M
         # Keep request minimal to avoid 422s
-        "parameters": ("T2M_MAX,T2M_MIN,RH2M,WS10M,ALLSKY_SFC_SW_DWN"),
+        "parameters": ("T2M_MAX,T2M_MIN,RH2M,WS10M,ALLSKY_SFC_SW_DWN,PRECTOTCORR"),
         "format": "JSON",
     }
     url = (
@@ -123,6 +125,7 @@ def load_weather_auto(
             d.get("WS2M", {}).get(str(k))
         )
         rs = _opt_float(d.get("ALLSKY_SFC_SW_DWN", {}).get(str(k)))
+        pmm = _opt_float(d.get("PRECTOTCORR", {}).get(str(k)))
         # Derive net radiation assuming albedo 0.23 when Rs present
         rn = None
         if rs is not None:
@@ -137,6 +140,7 @@ def load_weather_auto(
                 shortwave_mj_m2=rs,
                 net_radiation_mj_m2=rn,
                 albedo=None,
+                precip_mm=pmm,
             )
         )
     return WeatherSeries(records)
