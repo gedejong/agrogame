@@ -166,3 +166,48 @@ class CascadingBucketWaterModel(SoilWaterModel):
             evap_mm=evap_taken,
             storage_change_mm=storage_change,
         )
+
+    # --- Plant transpiration extraction ---------------------------------
+    def extract_transpiration_by_roots(
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        demand_mm: float,
+        root_fractions: tuple[float, ...] | list[float],
+    ) -> float:
+        """Remove transpiration from layers according to root fractions.
+
+        Water can be extracted down to the wilting point only.
+
+        Args:
+            profile: Soil profile.
+            state: Current water state (will be mutated).
+            demand_mm: Transpiration demand (mm).
+            root_fractions: Fractions per layer that sum to 1 across rooted layers.
+
+        Returns:
+            Actual transpiration supplied (mm).
+        """
+        if demand_mm <= 0.0:
+            return 0.0
+        n = min(len(profile.layers), len(root_fractions))
+        if n == 0:
+            return 0.0
+        # Normalize defensively
+        s = sum(max(0.0, f) for f in root_fractions[:n]) or 1.0
+        shares = [max(0.0, f) / s for f in root_fractions[:n]]
+
+        supplied = 0.0
+        for i in range(n):
+            desired = demand_mm * shares[i]
+            if desired <= 0.0:
+                continue
+            layer = profile.layers[i]
+            current = state.layer_storage_mm(profile, i)
+            wilt_storage = layer.wilting_point * layer.depth_cm * 10.0
+            available = max(0.0, current - wilt_storage)
+            take = min(desired, available)
+            if take > 0.0:
+                state.set_layer_storage_mm(profile, i, current - take)
+                supplied += take
+        return supplied

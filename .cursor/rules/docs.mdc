@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+---
+# Documentation Practice
+
+- Keep quick-context docs in `docs/` for each module (water, nitrogen, phenology, canopy, architecture)
+- Update MkDocs navigation when adding docs
+- Prefer concise, high-signal markdown with equations/links where useful
+- Reference local files in rules via `[file](mdc:file)` syntax when needed
+

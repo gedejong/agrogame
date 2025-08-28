@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+# Jira Operating Rules
+
+- For each story:
+  - Fetch acceptance criteria, post a short implementation plan
+  - Transition to In Progress upon starting; attach branch name
+  - Add a compliance comment before PR, and after merge if needed
+- Prefer the highest-priority To Do story; create branch from develop
+- Use issue key in branch and PR title; link PR in Jira
+

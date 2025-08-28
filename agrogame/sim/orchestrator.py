@@ -7,6 +7,7 @@ from agrogame.soil.phenology import (
     PhenologyModule,
 )
 from agrogame.soil.canopy import CanopyModule, CanopyParams
+from agrogame.plant.roots import RootModule, RootParams, RootState
 
 
 class SimulationOrchestrator:
@@ -24,6 +25,8 @@ class SimulationOrchestrator:
         self.event_bus = event_bus or EventBus()
         self.phenology = PhenologyModule(phenology_params, event_bus=self.event_bus)
         self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
+        self.roots = RootModule(RootParams(), event_bus=self.event_bus)
+        self.root_state = RootState()
 
     def step_day(
         self,
@@ -43,6 +46,17 @@ class SimulationOrchestrator:
             temp_factor=temp_factor,
             water_stress=water_stress,
             n_stress=n_stress,
+        )
+        # Simple demo: allocate a fraction of biomass to roots, update roots
+        # In a full coupling, we'd pass real nutrient signals and constraints
+        stage = self.phenology.state.stage
+        _ = self.roots.daily_step(
+            state=self.root_state,
+            profile=None,  # type: ignore[arg-type]
+            stage=stage,
+            daily_root_biomass_g_m2=0.0,
+            nutrient_signal=None,
+            constraints=None,
         )
 
 

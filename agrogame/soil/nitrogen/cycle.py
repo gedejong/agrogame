@@ -14,6 +14,7 @@ AGRO-17 acceptance criteria:
 
 from __future__ import annotations
 from agrogame.events import EventBus
+from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
@@ -42,6 +43,9 @@ class NitrogenCycle:
         # Subscribe to water movement events
         event_bus.subscribe(WaterDrained, self._on_water_drained)
         event_bus.subscribe(WaterInfiltrated, self._on_infiltrated)
+        # Subscribe to root distribution updates to cache latest fractions
+        self._root_fractions_cached: list[float] | None = None
+        event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -84,6 +88,17 @@ class NitrogenCycle:
         """Placeholder infiltration hook (no-op for now)."""
         return
 
+    def _on_root_distribution(self, event: RootDistributionUpdated) -> None:
+        fracs = [max(0.0, f) for f in event.fractions]
+        s = sum(fracs) or 1.0
+        fracs = [f / s for f in fracs]
+        # Trim or pad to number of layers
+        if len(fracs) >= self._n_layers:
+            self._root_fractions_cached = fracs[: self._n_layers]
+        else:
+            pad = [0.0] * (self._n_layers - len(fracs))
+            self._root_fractions_cached = fracs + pad
+
     # --- Daily update ---------------------------------------------------
     def daily_step(
         self,
@@ -101,7 +116,11 @@ class NitrogenCycle:
             ph_by_layer: Optional soil pH per layer; defaults to neutral (7.0).
         """
         if root_fractions is None:
-            root_fractions = [1.0 / self._n_layers] * self._n_layers
+            root_fractions = (
+                self._root_fractions_cached
+                if self._root_fractions_cached is not None
+                else [1.0 / self._n_layers] * self._n_layers
+            )
         if ph_by_layer is None:
             ph_by_layer = [7.0] * self._n_layers
 
