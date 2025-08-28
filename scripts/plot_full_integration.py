@@ -23,7 +23,8 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
-from agrogame.weather import load_weather, load_weather_auto
+from scripts._weather_cli import add_weather_args, get_weather_series
+from agrogame.weather.module import WeatherModule
 
 
 def main() -> None:
@@ -31,11 +32,7 @@ def main() -> None:
     parser.add_argument("--profile", default="loam_temperate")
     parser.add_argument("--days", type=int, default=120)
     parser.add_argument("--out", type=Path, default=Path("out/full_integration.png"))
-    parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
-    parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
-    parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
-    parser.add_argument("--power-start", type=str, help="POWER start date YYYY-MM-DD")
-    parser.add_argument("--power-end", type=str, help="POWER end date YYYY-MM-DD")
+    add_weather_args(parser)
     parser.add_argument(
         "--alt-weather",
         action="store_true",
@@ -83,21 +80,8 @@ def main() -> None:
     etmod = Evapotranspiration(EtParams())
 
     # Optional external weather time series
-    auto_series = None
-    if args.weather_file:
-        auto_series = load_weather(args.weather_file)
-    elif args.power_lat is not None and args.power_lon is not None:
-        from datetime import date as _date, timedelta as _td
-        from datetime import datetime as _dt
-
-        if args.power_start and args.power_end:
-            start = _dt.strptime(args.power_start, "%Y-%m-%d").date()
-            end = _dt.strptime(args.power_end, "%Y-%m-%d").date()
-        else:
-            today = _date.today()
-            end = _date(today.year - 1, today.month, today.day)
-            start = end - _td(days=args.days - 1)
-        auto_series = load_weather_auto(args.power_lat, args.power_lon, start, end)
+    auto_series = get_weather_series(args, args.days)
+    weather_module = WeatherModule(auto_series, bus) if auto_series else None
 
     # Time series
     runoff: List[float] = []
@@ -129,6 +113,8 @@ def main() -> None:
             wind = rec.wind_m_s or 2.0
             rh = rec.relative_humidity_pct or 60.0
             rain = 0.0
+            if weather_module:
+                _ = weather_module.emit_for_day(day)
         elif args.alt_weather:
             # Sinusoidal temps and PAR, pulsed rainfall
             tmin = 8.0 + 4.0 * sin(2 * pi * day / 30.0)

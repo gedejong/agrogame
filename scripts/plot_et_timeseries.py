@@ -7,7 +7,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
-from agrogame.weather import load_weather, load_weather_auto
+from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -37,19 +37,7 @@ def main() -> None:
         default=1,
         help="Moving-average window (days) for plotting",
     )
-    parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
-    parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
-    parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
-    parser.add_argument(
-        "--power-start",
-        type=str,
-        help="Historic start date (YYYY-MM-DD) for NASA POWER",
-    )
-    parser.add_argument(
-        "--power-end",
-        type=str,
-        help="Historic end date (YYYY-MM-DD) for NASA POWER",
-    )
+    add_weather_args(parser)
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -109,22 +97,7 @@ def main() -> None:
     import math
 
     # Optional automatic/file-based weather overrides pattern
-    auto_series = None
-    if args.weather_file:
-        auto_series = load_weather(args.weather_file)
-    elif args.power_lat is not None and args.power_lon is not None:
-        from datetime import date, timedelta
-        from datetime import datetime as _dt
-
-        if args.power_start and args.power_end:
-            start = _dt.strptime(args.power_start, "%Y-%m-%d").date()
-            end = _dt.strptime(args.power_end, "%Y-%m-%d").date()
-        else:
-            # Default: a fixed historical window (last year same period)
-            today = date.today()
-            end = date(today.year - 1, today.month, today.day)
-            start = end - timedelta(days=args.days - 1)
-        auto_series = load_weather_auto(args.power_lat, args.power_lon, start, end)
+    auto_series = get_weather_series(args, args.days)
 
     for day in range(args.days):
         # Synthetic drivers by pattern
