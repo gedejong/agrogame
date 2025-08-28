@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import urllib.request
+from urllib.error import HTTPError, URLError
 
 from .types import WeatherRecord, WeatherSeries
 
@@ -92,9 +93,9 @@ def load_weather_auto(
         "start": start.strftime("%Y%m%d"),
         "end": end.strftime("%Y%m%d"),
         "community": "AG",
-        "parameters": (
-            "T2M_MAX,T2M_MIN,RH2M,WIND_SPEED,ALLSKY_SFC_SW_DWN,ALLSKY_SFC_LW_NET_DWN"
-        ),
+        # POWER recommended dailies; use WS10M/WS2M may vary by dataset; prefer WS10M
+        # Keep request minimal to avoid 422s
+        "parameters": ("T2M_MAX,T2M_MIN,RH2M,WS10M,ALLSKY_SFC_SW_DWN"),
         "format": "JSON",
     }
     url = (
@@ -103,8 +104,11 @@ def load_weather_auto(
         f"&community=AG&longitude={longitude}&latitude={latitude}"
         f"&start={params['start']}&end={params['end']}&format=JSON"
     )
-    with urllib.request.urlopen(url, timeout=60) as resp:  # nosec B310
-        payload = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(url, timeout=60) as resp:  # nosec B310
+            payload = json.loads(resp.read().decode("utf-8"))
+    except (HTTPError, URLError) as e:  # noqa: PERF203
+        raise ValueError(f"NASA POWER request failed: {e}") from e
 
     d = payload["properties"]["parameter"]
     days = sorted(int(k) for k in d["T2M_MAX"].keys())
@@ -114,13 +118,15 @@ def load_weather_auto(
         tmax = float(d["T2M_MAX"][str(k)])
         tmin = float(d["T2M_MIN"][str(k)])
         rh = _opt_float(d.get("RH2M", {}).get(str(k)))
-        w = _opt_float(d.get("WIND_SPEED", {}).get(str(k)))
+        # 10 m wind
+        w = _opt_float(d.get("WS10M", {}).get(str(k))) or _opt_float(
+            d.get("WS2M", {}).get(str(k))
+        )
         rs = _opt_float(d.get("ALLSKY_SFC_SW_DWN", {}).get(str(k)))
-        # NASA POWER provides net longwave; approximate net radiation if Rs present
+        # Derive net radiation assuming albedo 0.23 when Rs present
         rn = None
         if rs is not None:
-            lw_net = _opt_float(d.get("ALLSKY_SFC_LW_NET_DWN", {}).get(str(k))) or 0.0
-            rn = max(0.0, rs + lw_net)
+            rn = max(0.0, rs * (1.0 - 0.23))
         records.append(
             WeatherRecord(
                 day=s,

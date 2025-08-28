@@ -40,6 +40,16 @@ def main() -> None:
     parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
     parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
     parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
+    parser.add_argument(
+        "--power-start",
+        type=str,
+        help="Historic start date (YYYY-MM-DD) for NASA POWER",
+    )
+    parser.add_argument(
+        "--power-end",
+        type=str,
+        help="Historic end date (YYYY-MM-DD) for NASA POWER",
+    )
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -97,9 +107,16 @@ def main() -> None:
         auto_series = load_weather(args.weather_file)
     elif args.power_lat is not None and args.power_lon is not None:
         from datetime import date, timedelta
+        from datetime import datetime as _dt
 
-        start = date.today() - timedelta(days=args.days - 1)
-        end = date.today()
+        if args.power_start and args.power_end:
+            start = _dt.strptime(args.power_start, "%Y-%m-%d").date()
+            end = _dt.strptime(args.power_end, "%Y-%m-%d").date()
+        else:
+            # Default: a fixed historical window (last year same period)
+            today = date.today()
+            end = date(today.year - 1, today.month, today.day)
+            start = end - timedelta(days=args.days - 1)
         auto_series = load_weather_auto(args.power_lat, args.power_lon, start, end)
 
     for day in range(args.days):
