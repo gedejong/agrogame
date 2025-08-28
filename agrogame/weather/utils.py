@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import math
+from .constants import FAO_SVP_A_KPA, FAO_SVP_B, FAO_SVP_C
 
 
 def saturation_vapor_pressure_kpa(temp_c: float) -> float:
-    return 0.6108 * math.exp(17.27 * temp_c / (temp_c + 237.3))
+    return FAO_SVP_A_KPA * math.exp(FAO_SVP_B * temp_c / (temp_c + FAO_SVP_C))
 
 
 def vpd_kpa(temp_mean_c: float, relative_humidity_pct: float) -> float:

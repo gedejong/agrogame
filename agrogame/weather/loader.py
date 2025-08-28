@@ -8,6 +8,7 @@ from typing import List, Optional
 
 import urllib.request
 from urllib.error import HTTPError, URLError
+from .constants import DEFAULT_ALBEDO, POWER_DAILY_PARAMS_MINIMAL
 
 from .types import WeatherRecord, WeatherSeries
 
@@ -97,7 +98,7 @@ def load_weather_auto(
         "community": "AG",
         # POWER recommended dailies; use WS10M/WS2M may vary by dataset; prefer WS10M
         # Keep request minimal to avoid 422s
-        "parameters": ("T2M_MAX,T2M_MIN,RH2M,WS10M,ALLSKY_SFC_SW_DWN,PRECTOTCORR"),
+        "parameters": (POWER_DAILY_PARAMS_MINIMAL),
         "format": "JSON",
     }
     url = (
@@ -126,10 +127,10 @@ def load_weather_auto(
         )
         rs = _opt_float(d.get("ALLSKY_SFC_SW_DWN", {}).get(str(k)))
         pmm = _opt_float(d.get("PRECTOTCORR", {}).get(str(k)))
-        # Derive net radiation assuming albedo 0.23 when Rs present
+        # Derive net radiation using default albedo when Rs present
         rn = None
         if rs is not None:
-            rn = max(0.0, rs * (1.0 - 0.23))
+            rn = max(0.0, rs * (1.0 - DEFAULT_ALBEDO))
         records.append(
             WeatherRecord(
                 day=s,
