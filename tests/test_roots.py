@@ -52,3 +52,26 @@ def test_turnover_reduces_biomass() -> None:
     state = RootState(current_depth_cm=20.0, biomass_g_m2=100.0)
     _ = roots.daily_step(state, profile, PhenologyStage.FLOWERING)
     assert state.biomass_g_m2 < 100.0
+
+
+def test_taproot_distribution_biases_deeper_layers() -> None:
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    roots = RootModule(RootParams(distribution="taproot"))
+    state = RootState(current_depth_cm=60.0)
+    _ = roots.daily_step(state, profile, PhenologyStage.VEGETATIVE)
+    fracs = state.layer_fractions or []
+    # Compare deepest rooted layer (last with fraction > 0) with top layer
+
+    if fracs:
+        try:
+            last_rooted = max(i for i, f in enumerate(fracs) if f > 0.0)
+        except ValueError:
+            last_rooted = 0
+        assert fracs[last_rooted] >= fracs[0] - 1e-12
+
+
+def test_root_shoot_ratio_basic() -> None:
+    from agrogame.plant.roots.module import RootModule as RM
+
+    assert abs(RM.root_shoot_ratio(50.0, 150.0) - (50.0 / 150.0)) < 1e-9
