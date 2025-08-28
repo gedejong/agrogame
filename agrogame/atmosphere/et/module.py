@@ -7,6 +7,21 @@ from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 
 from .params import EtParams
+from agrogame.weather.constants import (
+    DELTA_NUMERATOR,
+    FAO_PM_NUMERATOR_COEF,
+    ABSOLUTE_ZERO_C,
+    LATENT_HEAT_MJ_PER_KG,
+    PSYCHROMETRIC_COEFF_PER_KPA,
+    SEA_LEVEL_PRESSURE_KPA,
+    PRESSURE_TEMP_REF_K,
+    LAPSE_RATE_K_PER_M,
+    PRESSURE_EXPONENT,
+    FAO_SVP_A_KPA,
+    FAO_SVP_B,
+    FAO_SVP_C,
+    PSYCHROMETRIC_CONST_APPROX_KPA_PER_C,
+)
 from .types import EtActual, EtComponents, EtState
 
 
@@ -17,27 +32,37 @@ class Evapotranspiration:
     def priestley_taylor(self, temp_mean_c: float, net_radiation_mj_m2: float) -> float:
         # delta slope of saturation vapor pressure curve
         delta = (
-            4098.0
-            * (0.6108 * math.exp(17.27 * temp_mean_c / (temp_mean_c + 237.3)))
-            / (temp_mean_c + 237.3) ** 2
+            DELTA_NUMERATOR
+            * (
+                FAO_SVP_A_KPA
+                * math.exp(FAO_SVP_B * temp_mean_c / (temp_mean_c + FAO_SVP_C))
+            )
+            / (temp_mean_c + FAO_SVP_C) ** 2
         )
-        gamma = 0.067  # psychrometric constant (kPa/°C)
-        # Convert MJ to equivalent mm via latent heat 2.45 MJ/kg (≈ mm)
+        gamma = PSYCHROMETRIC_CONST_APPROX_KPA_PER_C  # kPa/°C
+        # Convert MJ to equivalent mm via latent heat
         et0 = (
             self.params.pt_alpha
             * (delta / (delta + gamma))
             * net_radiation_mj_m2
-            / 2.45
+            / LATENT_HEAT_MJ_PER_KG
         )
         return max(0.0, et0)
 
     def _saturation_vapor_pressure_kpa(self, temp_c: float) -> float:
-        return 0.6108 * math.exp(17.27 * temp_c / (temp_c + 237.3))
+        return FAO_SVP_A_KPA * math.exp(FAO_SVP_B * temp_c / (temp_c + FAO_SVP_C))
 
     def _psychrometric_constant_kpa_per_c(self, elevation_m: float = 0.0) -> float:
-        # FAO56 approx: gamma = 0.000665 * P, P(kPa) = 101.3*((293-0.0065z)/293)^5.26
-        p_kpa: float = float(101.3 * ((293.0 - 0.0065 * elevation_m) / 293.0) ** 5.26)
-        return float(0.000665 * p_kpa)
+        # FAO-56 approx
+        p_kpa: float = float(
+            SEA_LEVEL_PRESSURE_KPA
+            * (
+                (PRESSURE_TEMP_REF_K - LAPSE_RATE_K_PER_M * elevation_m)
+                / PRESSURE_TEMP_REF_K
+            )
+            ** PRESSURE_EXPONENT
+        )
+        return float(PSYCHROMETRIC_COEFF_PER_KPA * p_kpa)
 
     def penman_monteith(
         self,
@@ -50,16 +75,16 @@ class Evapotranspiration:
     ) -> float:
         # FAO-56 reference crop Penman–Monteith (daily)
         delta = (
-            4098.0
+            DELTA_NUMERATOR
             * self._saturation_vapor_pressure_kpa(temp_mean_c)
-            / (temp_mean_c + 237.3) ** 2
+            / (temp_mean_c + FAO_SVP_C) ** 2
         )
         gamma = self._psychrometric_constant_kpa_per_c(elevation_m)
         es = self._saturation_vapor_pressure_kpa(temp_mean_c)
         ea = es * max(0.0, min(1.0, relative_humidity_pct / 100.0))
         vpd = max(0.0, es - ea)
         # Convert Rn [MJ m-2 d-1] to equivalent mm: divide by latent heat 2.45
-        rn_mm = max(0.0, net_radiation_mj_m2) / 2.45
+        rn_mm = max(0.0, net_radiation_mj_m2) / LATENT_HEAT_MJ_PER_KG
 
         # Aerodynamic resistance ra (s/m), simple FAO daily: ra = 208/(u2)
         u2 = max(0.1, wind_m_s)  # avoid zero
@@ -76,7 +101,13 @@ class Evapotranspiration:
 
         # FAO-56 PM daily in mm/day using rn_mm, vpd, ra, rs
         # Note: aerodynamic term must be scaled by psychrometric constant (gamma)
-        numerator = delta * rn_mm + gamma * (900.0 / (temp_mean_c + 273.0)) * u2 * vpd
+        numerator = (
+            delta * rn_mm
+            + gamma
+            * (FAO_PM_NUMERATOR_COEF / (temp_mean_c + ABSOLUTE_ZERO_C))
+            * u2
+            * vpd
+        )
         denominator = delta + gamma * (1.0 + rs / ra)
         et0 = numerator / max(1e-6, denominator)
         return max(0.0, et0)
