@@ -30,6 +30,12 @@ def main() -> None:
     parser.add_argument(
         "--pattern", choices=["constant", "seasonal", "storms"], default="constant"
     )
+    parser.add_argument(
+        "--smooth-window",
+        type=int,
+        default=1,
+        help="Moving-average window (days) for plotting",
+    )
     args = parser.parse_args()
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -151,43 +157,65 @@ def main() -> None:
         cum_act_e += actual.evaporation_mm
         cum_act_t += actual.transpiration_mm
 
+    # Optional smoothing
+    def smooth(data: List[float]) -> List[float]:
+        w = max(1, args.smooth_window)
+        if w == 1:
+            return data
+        out: List[float] = []
+        run = 0.0
+        for i, v in enumerate(data):
+            run += v
+            if i >= w:
+                run -= data[i - w]
+            out.append(run / min(i + 1, w))
+        return out
+
     x = list(range(1, args.days + 1))
-    fig, ax = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-    ax[0].plot(x, et0s, label="ET0 PT (mm)")
-    ax[0].plot(x, et0s_pm, label="ET0 PM (mm)")
-    ax[0].set_title("ET0 and Partitioning")
-    ax[0].legend()
-    ax[1].plot(x, pot_e, label="Potential Evap PT (mm)")
-    ax[1].plot(x, pot_t, label="Potential Transp PT (mm)")
-    ax[1].plot(x, pot_e_pm, label="Potential Evap PM (mm)")
-    ax[1].plot(x, pot_t_pm, label="Potential Transp PM (mm)")
-    ax[1].plot(x, act_e, label="Actual Evap (mm)")
-    ax[1].plot(x, act_t, label="Actual Transp (mm)")
-    ax[1].set_ylabel("mm/day")
-    # Secondary axis for cumulative ET
-    ax1b = ax[1].twinx()
-    ax1b.plot(
-        x, [sum(et0s[:i]) for i in range(1, len(et0s) + 1)], "k--", label="Cum ET0"
+    plt.style.use("ggplot")
+    fig = plt.figure(figsize=(12, 9), constrained_layout=True)
+    gs = fig.add_gridspec(3, 2, height_ratios=[1.0, 1.0, 0.8])
+    ax_top = fig.add_subplot(gs[0, :])
+    ax_evap = fig.add_subplot(gs[1, 0], sharex=ax_top)
+    ax_transp = fig.add_subplot(gs[1, 1], sharex=ax_top)
+    ax_lai = fig.add_subplot(gs[2, :], sharex=ax_top)
+
+    # Panel 1: ET0 PT vs PM
+    ax_top.plot(x, smooth(et0s), label="ET0 PT (mm)")
+    ax_top.plot(x, smooth(et0s_pm), label="ET0 PM (mm)")
+    ax_top.set_title("ET0 (PT vs PM)")
+    ax_top.set_ylabel("mm/day")
+    ax_top.legend(loc="upper left")
+
+    # Panel 2: Evaporation
+    ax_evap.plot(x, smooth(pot_e), color="#999999", linestyle="-", label="Pot Evap PT")
+    ax_evap.plot(
+        x, smooth(pot_e_pm), color="#bbbbbb", linestyle="--", label="Pot Evap PM"
     )
-    ax1b.plot(
-        x, [sum(act_e[:i]) for i in range(1, len(act_e) + 1)], "C3--", label="Cum Evap"
+    ax_evap.plot(x, smooth(act_e), color="C3", linewidth=2.0, label="Actual Evap")
+    ax_evap.fill_between(x, smooth(act_e), smooth(pot_e), color="C3", alpha=0.15)
+    ax_evap.set_title("Evaporation")
+    ax_evap.set_ylabel("mm/day")
+    ax_evap.legend(loc="upper left")
+
+    # Panel 3: Transpiration
+    ax_transp.plot(
+        x, smooth(pot_t), color="#999999", linestyle="-", label="Pot Transp PT"
     )
-    ax1b.plot(
-        x,
-        [sum(act_t[:i]) for i in range(1, len(act_t) + 1)],
-        "C4--",
-        label="Cum Transp",
+    ax_transp.plot(
+        x, smooth(pot_t_pm), color="#bbbbbb", linestyle="--", label="Pot Transp PM"
     )
-    ax1b.set_ylabel("mm (cumulative)")
-    # Combine legends
-    lines1, labels1 = ax[1].get_legend_handles_labels()
-    lines2, labels2 = ax1b.get_legend_handles_labels()
-    ax[1].legend(lines1 + lines2, labels1 + labels2, ncol=2)
-    ax[2].plot(x, lais, label="LAI")
-    ax[2].set_ylabel("LAI")
-    ax[2].set_xlabel("Day")
-    ax[2].legend()
-    fig.tight_layout()
+    ax_transp.plot(x, smooth(act_t), color="C4", linewidth=2.0, label="Actual Transp")
+    ax_transp.fill_between(x, smooth(act_t), smooth(pot_t), color="C4", alpha=0.15)
+    ax_transp.set_title("Transpiration")
+    ax_transp.legend(loc="upper left")
+
+    # Bottom: LAI
+    ax_lai.plot(x, smooth(lais), label="LAI")
+    ax_lai.set_ylabel("LAI")
+    ax_lai.set_xlabel("Day")
+    ax_lai.legend(loc="upper left")
+
     fig.savefig(args.out, dpi=150)
     print(f"Saved {args.out}")
 
