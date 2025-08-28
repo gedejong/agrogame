@@ -36,8 +36,8 @@ class Evapotranspiration:
 
     def _psychrometric_constant_kpa_per_c(self, elevation_m: float = 0.0) -> float:
         # FAO56 approx: gamma = 0.000665 * P, P(kPa) = 101.3*((293-0.0065z)/293)^5.26
-        p_kpa = 101.3 * ((293.0 - 0.0065 * elevation_m) / 293.0) ** 5.26
-        return 0.000665 * p_kpa
+        p_kpa: float = float(101.3 * ((293.0 - 0.0065 * elevation_m) / 293.0) ** 5.26)
+        return float(0.000665 * p_kpa)
 
     def penman_monteith(
         self,
