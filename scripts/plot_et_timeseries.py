@@ -65,8 +65,11 @@ def main() -> None:
     etmod = Evapotranspiration(EtParams())
 
     et0s: List[float] = []
+    et0s_pm: List[float] = []
     pot_e: List[float] = []
     pot_t: List[float] = []
+    pot_e_pm: List[float] = []
+    pot_t_pm: List[float] = []
     act_e: List[float] = []
     act_t: List[float] = []
     lais: List[float] = []
@@ -109,7 +112,15 @@ def main() -> None:
         )
 
         et0 = etmod.priestley_taylor(temp_mean_c=temp_mean, net_radiation_mj_m2=rad)
+        et0_pm = etmod.et0(
+            temp_mean_c=temp_mean,
+            net_radiation_mj_m2=rad,
+            method="penman-monteith",
+            wind_m_s=2.0 + 1.0 * math.sin(2 * math.pi * day / 10.0),
+            relative_humidity_pct=60.0 - 20.0 * math.sin(2 * math.pi * day / 15.0),
+        )
         comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
+        comps_pm = etmod.potential_components(et0_mm=et0_pm, lai=canopy.state.lai)
 
         # Actuals: use uniform root fractions across layers for demo
         n_layers = len(profile.layers)
@@ -128,8 +139,11 @@ def main() -> None:
         )
 
         et0s.append(et0)
+        et0s_pm.append(et0_pm)
         pot_e.append(comps.potential_evap_mm)
         pot_t.append(comps.potential_transp_mm)
+        pot_e_pm.append(comps_pm.potential_evap_mm)
+        pot_t_pm.append(comps_pm.potential_transp_mm)
         act_e.append(actual.evaporation_mm)
         act_t.append(actual.transpiration_mm)
         lais.append(canopy.state.lai)
@@ -139,11 +153,14 @@ def main() -> None:
 
     x = list(range(1, args.days + 1))
     fig, ax = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-    ax[0].plot(x, et0s, label="ET0 (mm)")
+    ax[0].plot(x, et0s, label="ET0 PT (mm)")
+    ax[0].plot(x, et0s_pm, label="ET0 PM (mm)")
     ax[0].set_title("ET0 and Partitioning")
     ax[0].legend()
-    ax[1].plot(x, pot_e, label="Potential Evap (mm)")
-    ax[1].plot(x, pot_t, label="Potential Transp (mm)")
+    ax[1].plot(x, pot_e, label="Potential Evap PT (mm)")
+    ax[1].plot(x, pot_t, label="Potential Transp PT (mm)")
+    ax[1].plot(x, pot_e_pm, label="Potential Evap PM (mm)")
+    ax[1].plot(x, pot_t_pm, label="Potential Transp PM (mm)")
     ax[1].plot(x, act_e, label="Actual Evap (mm)")
     ax[1].plot(x, act_t, label="Actual Transp (mm)")
     ax[1].set_ylabel("mm/day")

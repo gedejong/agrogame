@@ -45,3 +45,45 @@ def test_actual_et_limited_by_availability_and_roots() -> None:
     comps = et.potential_components(et0_mm=5.0, lai=1.0)
     actual = et.actual_et(profile, ws, water, comps, root_fractions=(1.0, 0.0, 0.0))
     assert actual.evaporation_mm >= 0.0 and actual.transpiration_mm >= 0.0
+
+
+def test_penman_monteith_sensitivity_to_wind_and_humidity() -> None:
+    et = Evapotranspiration(EtParams(method="penman-monteith"))
+    # Fixed Rn and temperature; vary wind and RH
+    base = et.et0(
+        temp_mean_c=20.0,
+        net_radiation_mj_m2=10.0,
+        method="penman-monteith",
+        wind_m_s=1.0,
+        relative_humidity_pct=70.0,
+    )
+    windier = et.et0(
+        temp_mean_c=20.0,
+        net_radiation_mj_m2=10.0,
+        method="penman-monteith",
+        wind_m_s=3.0,
+        relative_humidity_pct=70.0,
+    )
+    drier = et.et0(
+        temp_mean_c=20.0,
+        net_radiation_mj_m2=10.0,
+        method="penman-monteith",
+        wind_m_s=1.0,
+        relative_humidity_pct=40.0,
+    )
+    assert windier > base >= 0.0
+    assert drier > base >= 0.0
+
+
+def test_pm_vs_pt_differs_under_wind_and_vpd() -> None:
+    et = Evapotranspiration(EtParams())
+    # PT ignores wind/RH; PM should respond
+    et0_pt = et.priestley_taylor(temp_mean_c=20.0, net_radiation_mj_m2=10.0)
+    et0_pm = et.et0(
+        temp_mean_c=20.0,
+        net_radiation_mj_m2=10.0,
+        method="penman-monteith",
+        wind_m_s=4.0,
+        relative_humidity_pct=30.0,
+    )
+    assert et0_pm != et0_pt

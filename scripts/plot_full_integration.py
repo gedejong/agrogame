@@ -224,7 +224,23 @@ def main() -> None:
 
     # ET overview
     # ET overview with cumulative ET on secondary axis
-    ax[2][1].plot(x, et0s, label="ET₀ (mm)")
+    ax[2][1].plot(x, et0s, label="ET₀ PT (mm)")
+    # Also compute PM ET0 for comparison (using simple wind/RH patterns)
+    et0s_pm = []
+    import math as _m
+
+    for d in range(args.days):
+        tmin, tmax, par = 10.0, 22.0, 12.0
+        tmean = 0.5 * (tmin + tmax)
+        et0_pm = etmod.et0(
+            temp_mean_c=tmean,
+            net_radiation_mj_m2=par,
+            method="penman-monteith",
+            wind_m_s=2.0 + 1.0 * _m.sin(2 * _m.pi * d / 10.0),
+            relative_humidity_pct=60.0 - 20.0 * _m.sin(2 * _m.pi * d / 15.0),
+        )
+        et0s_pm.append(et0_pm)
+    ax[2][1].plot(x, et0s_pm, label="ET₀ PM (mm)")
     ax[2][1].plot(x, act_e, label="Actual Evap (mm)")
     ax[2][1].plot(x, act_t, label="Actual Transp (mm)")
     cum_et_total: List[float] = []
