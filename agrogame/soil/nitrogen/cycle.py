@@ -16,6 +16,7 @@ from __future__ import annotations
 from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
+from agrogame.soil.water.events import TranspirationByLayer
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
 
@@ -43,6 +44,7 @@ class NitrogenCycle:
         # Subscribe to water movement events
         event_bus.subscribe(WaterDrained, self._on_water_drained)
         event_bus.subscribe(WaterInfiltrated, self._on_infiltrated)
+        event_bus.subscribe(TranspirationByLayer, self._on_transpiration_by_layer)
         # Subscribe to root distribution updates to cache latest fractions
         self._root_fractions_cached: list[float] | None = None
         event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
@@ -87,6 +89,33 @@ class NitrogenCycle:
     def _on_infiltrated(self, event: WaterInfiltrated) -> None:
         """Placeholder infiltration hook (no-op for now)."""
         return
+
+    def _on_transpiration_by_layer(self, event: TranspirationByLayer) -> None:
+        """Mass-flow nitrate uptake proportional to water extracted per layer.
+
+        Uses a concentration proxy based on current NO3 pool over layer water
+        storage (kg/ha per mm). Uptake per layer = conc * water_taken (bounded by
+        available NO3). NH4 is not taken via mass-flow here.
+        """
+        if self._profile is None or self._water_state is None:
+            return
+        if not event.layer_indices:
+            return
+        for idx, take_mm in zip(event.layer_indices, event.amounts_mm):
+            if not (0 <= idx < self._n_layers):
+                continue
+            if take_mm <= 0.0:
+                continue
+            storage_mm = self._get_layer_storage_mm(idx)
+            if storage_mm <= 0.0:
+                continue
+            pool_no3 = self.state.no3[idx]
+            if pool_no3 <= 0.0:
+                continue
+            conc = pool_no3 / storage_mm  # kg/ha per mm
+            uptake = min(pool_no3, conc * take_mm)
+            if uptake > 0.0:
+                self.state.no3[idx] -= uptake
 
     def _on_root_distribution(self, event: RootDistributionUpdated) -> None:
         fracs = [max(0.0, f) for f in event.fractions]

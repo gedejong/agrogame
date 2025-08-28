@@ -4,7 +4,8 @@ from agrogame.events import EventBus
 from agrogame.soil.phenology import PhenologyStage
 
 from .params import PartitioningParams
-from .types import BiomassPools, BiomassAllocations, StressFactors
+from .types import BiomassPools, BiomassAllocations
+from agrogame.plant.stress import StressFactors
 from .events import BiomassPartitioned
 
 

@@ -61,3 +61,18 @@ class EvaporationTaken(BaseEvent):
     """
 
     amount_mm: float
+
+
+@dataclass(frozen=True)
+class TranspirationByLayer(BaseEvent):
+    """Actual transpiration supplied, broken down by soil layer.
+
+    Attributes:
+        layer_indices: Zero-based indices of layers contributing water.
+        amounts_mm: Water amounts extracted from each layer (mm).
+        total_mm: Total transpiration supplied (mm).
+    """
+
+    layer_indices: Tuple[int, ...]
+    amounts_mm: Tuple[float, ...]
+    total_mm: float

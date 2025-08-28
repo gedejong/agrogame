@@ -17,6 +17,7 @@ from agrogame.soil.water.events import (
     RunoffGenerated,
     WaterDrained,
     WaterInfiltrated,
+    TranspirationByLayer,
 )
 from agrogame.soil.water.scs import scs_runoff_mm
 from agrogame.soil.water.state import SoilWaterState
@@ -198,6 +199,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
         shares = [max(0.0, f) / s for f in root_fractions[:n]]
 
         supplied = 0.0
+        layer_indices: list[int] = []
+        layer_amounts: list[float] = []
         for i in range(n):
             desired = demand_mm * shares[i]
             if desired <= 0.0:
@@ -210,4 +213,14 @@ class CascadingBucketWaterModel(SoilWaterModel):
             if take > 0.0:
                 state.set_layer_storage_mm(profile, i, current - take)
                 supplied += take
+                layer_indices.append(i)
+                layer_amounts.append(take)
+        if self.event_bus and layer_indices:
+            self.event_bus.emit(
+                TranspirationByLayer(
+                    layer_indices=tuple(layer_indices),
+                    amounts_mm=tuple(layer_amounts),
+                    total_mm=supplied,
+                )
+            )
         return supplied

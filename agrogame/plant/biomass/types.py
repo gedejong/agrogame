@@ -11,15 +11,9 @@ class BiomassPools:
     grain_g_m2: float = 0.0
 
 
-@dataclass
+@dataclass(frozen=True)
 class BiomassAllocations:
     leaf_g_m2: float
     stem_g_m2: float
     root_g_m2: float
     grain_g_m2: float
-
-
-@dataclass(frozen=True)
-class StressFactors:
-    water: float = 1.0  # 0..1, lower means drought
-    nitrogen: float = 1.0  # 0..1, lower means N stress
