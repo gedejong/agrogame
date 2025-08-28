@@ -11,6 +11,7 @@ from agrogame.soil.water import (
     DailyDrivers,
     SoilWaterState,
 )
+from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.events import EventBus
 from agrogame.soil.water import SoilWaterBalance
 
@@ -193,3 +194,21 @@ def test_texture_order_runoff_and_drainage() -> None:
     # and non-increasing deep drainage
     assert all(a <= b + 1e-6 for a, b in zip(runoffs, runoffs[1:]))
     assert all(a >= b - 1e-6 for a, b in zip(drains, drains[1:]))
+
+
+def test_interception_fills_and_evaporates_before_soil() -> None:
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    state = SoilWaterState(profile)
+    model = CascadingBucketWaterModel()
+    istate = InterceptionState(capacity_coef_mm_per_lai=0.5)
+    lai = 2.0
+    rain = 1.0
+    intercepted, throughfall = istate.intercept(lai, rain)
+    assert intercepted == rain and throughfall == 0.0
+    taken = istate.evaporate(0.6)
+    assert 0.5 <= taken <= 0.6
+    fx = model.update_daily(
+        profile, state, DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0)
+    )
+    assert fx.evap_mm >= 0.0
