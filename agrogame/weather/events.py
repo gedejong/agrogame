@@ -6,7 +6,7 @@ from datetime import date
 from agrogame.events.base import BaseEvent
 
 
-@dataclass
+@dataclass(frozen=True)
 class DailyWeather(BaseEvent):
     day: date = date.today()
     tmin_c: float = 0.0
