@@ -7,6 +7,8 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
+from agrogame.weather.utils import vpd_kpa
+from agrogame.weather.constants import DEFAULT_ALBEDO
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
@@ -88,6 +90,8 @@ def main() -> None:
     winds: List[float] = []
     rads: List[float] = []
     precs: List[float] = []
+    vpds: List[float] = []
+    stomatal_factors: List[float] = []
 
     # Cumulative trackers
     cum_et0 = 0.0
@@ -99,7 +103,13 @@ def main() -> None:
     # Optional automatic/file-based weather overrides pattern
     auto_series = get_weather_series(args, args.days)
 
-    for day in range(args.days):
+    # Respect available weather length to avoid trailing fallbacks
+    total_days = args.days
+    auto_series = get_weather_series(args, args.days)
+    if auto_series is not None:
+        total_days = min(args.days, len(auto_series.records))
+
+    for day in range(total_days):
         # Synthetic drivers by pattern
         if args.pattern == "seasonal":
             # 30-day cycle
@@ -125,13 +135,26 @@ def main() -> None:
         if auto_series and day < len(auto_series.records):
             rec = auto_series.records[day]
             tmin, tmax = rec.tmin_c, rec.tmax_c
-            rad = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+            # Prefer provided net radiation; otherwise derive from shortwave
+            if rec.net_radiation_mj_m2 is not None:
+                rad = rec.net_radiation_mj_m2
+            else:
+                sw = rec.shortwave_mj_m2 or 0.0
+                albedo = (
+                    rec.albedo
+                    if getattr(rec, "albedo", None) is not None
+                    else DEFAULT_ALBEDO
+                )
+                rad = sw * max(0.0, 1.0 - albedo)
+            rad = max(0.0, rad)
             wind = rec.wind_m_s or 2.0
             rh = rec.relative_humidity_pct or 60.0
         else:
             wind = 2.0 + 1.0 * math.sin(2 * math.pi * day / 10.0)
             rh = 60.0 - 20.0 * math.sin(2 * math.pi * day / 15.0)
         temp_mean = 0.5 * (tmin + tmax)
+        vpd = vpd_kpa(temp_mean, rh)
+        vpds.append(vpd)
 
         phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         _ = water.update_daily(
@@ -146,7 +169,14 @@ def main() -> None:
             wind_m_s=wind,
             relative_humidity_pct=rh,
         )
-        comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
+        # Use VPD-aware partitioning for PT demand track
+        comps = etmod.potential_components_with_vpd(
+            et0_mm=et0, lai=canopy.state.lai, vpd_kpa=vpd_kpa(temp_mean, rh)
+        )
+        vpd_excess = max(0.0, vpd - etmod.params.vpd_ref_kpa)
+        stomatal_factors.append(
+            max(0.2, 1.0 - etmod.params.vpd_sensitivity * vpd_excess)
+        )
         comps_pm = etmod.potential_components(et0_mm=et0_pm, lai=canopy.state.lai)
 
         # Actuals: use uniform root fractions across layers for demo
@@ -201,7 +231,24 @@ def main() -> None:
             out.append(run / min(i + 1, w))
         return out
 
-    x = list(range(1, args.days + 1))
+    # Sanitize weather series to avoid odd spikes/invalids
+    def _ffill_clamp(vals: List[float], lo: float, hi: float) -> List[float]:
+        out: List[float] = []
+        last: float | None = None
+        for v in vals:
+            vv = v
+            if vv is None or vv < lo or vv > hi:  # type: ignore[operator]
+                vv = last if last is not None else max(lo, min(0.0, hi))
+            out.append(vv)
+            last = vv
+        return out
+
+    tmins = _ffill_clamp(tmins, -60.0, 60.0)
+    tmaxs = _ffill_clamp(tmaxs, -60.0, 60.0)
+    rhs = _ffill_clamp(rhs, 0.0, 100.0)
+    winds = _ffill_clamp(winds, 0.0, 60.0)
+
+    x = list(range(1, total_days + 1))
     plt.style.use("ggplot")
     fig = plt.figure(figsize=(12, 11), constrained_layout=True)
     gs = fig.add_gridspec(4, 2, height_ratios=[1.0, 1.0, 1.0, 0.8])
@@ -259,7 +306,20 @@ def main() -> None:
     ax_transp.plot(x, smooth(act_t), color="C4", linewidth=2.0, label="Actual Transp")
     ax_transp.fill_between(x, smooth(act_t), smooth(pot_t), color="C4", alpha=0.15)
     ax_transp.set_title("Transpiration")
-    ax_transp.legend(loc="upper left")
+    ax_t2 = ax_transp.twinx()
+    ax_t2.plot(x, vpds, color="#d62728", linestyle=":", alpha=0.7, label="VPD (kPa)")
+    ax_t2.plot(
+        x,
+        stomatal_factors,
+        color="#2ca02c",
+        linestyle="--",
+        alpha=0.7,
+        label="Stomatal factor (-)",
+    )
+    ax_t2.set_ylabel("kPa / -")
+    h1, l1 = ax_transp.get_legend_handles_labels()
+    h2, l2 = ax_t2.get_legend_handles_labels()
+    ax_transp.legend(h1 + h2, l1 + l2, loc="upper left")
 
     # Bottom: LAI
     ax_lai.plot(x, smooth(lais), label="LAI")

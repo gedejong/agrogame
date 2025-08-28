@@ -123,6 +123,29 @@ class Evapotranspiration:
             et0_mm=max(0.0, et0_mm),
         )
 
+    def potential_components_with_vpd(
+        self, et0_mm: float, lai: float, vpd_kpa: float
+    ) -> EtComponents:
+        """Partition ET0 into potential E/T with stomatal VPD response.
+
+        Scales potential transpiration by a stomatal factor that decreases with
+        VPD above the reference (linear clamp to [0.2, 1.0]). Evaporation gets
+        the remaining share of ET0.
+        """
+        k = self.params.extinction_coefficient_k
+        canopy_cover = 1.0 - math.exp(-max(0.0, k) * max(0.0, lai))
+        # Stomatal VPD factor analogous to Penman–Monteith rs scaling
+        vpd_excess = max(0.0, vpd_kpa - self.params.vpd_ref_kpa)
+        stomatal_factor = max(0.2, 1.0 - self.params.vpd_sensitivity * vpd_excess)
+        base_transp = et0_mm * canopy_cover
+        potential_transp = max(0.0, base_transp * stomatal_factor)
+        potential_evap = max(0.0, et0_mm - potential_transp)
+        return EtComponents(
+            potential_evap_mm=potential_evap,
+            potential_transp_mm=potential_transp,
+            et0_mm=max(0.0, et0_mm),
+        )
+
     def et0(
         self,
         temp_mean_c: float,

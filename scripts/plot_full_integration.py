@@ -26,6 +26,7 @@ from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.weather.constants import DEFAULT_ALBEDO
 from agrogame.weather.module import WeatherModule
+from agrogame.weather.utils import vpd_kpa
 
 
 def main() -> None:
@@ -182,7 +183,10 @@ def main() -> None:
         # Evapotranspiration diagnostics (use canopy LAI)
         temp_mean = 0.5 * (tmin + tmax)
         et0 = etmod.priestley_taylor(temp_mean_c=temp_mean, net_radiation_mj_m2=par)
-        comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
+        # Use VPD-aware partitioning (stomatal closure under high VPD)
+        comps = etmod.potential_components_with_vpd(
+            et0_mm=et0, lai=canopy.state.lai, vpd_kpa=vpd_kpa(temp_mean, rh)
+        )
         # Root fractions for transpiration (use roots if available else uniform)
         rf = (
             rstate.layer_fractions
@@ -354,6 +358,18 @@ def main() -> None:
     ax[2][1].plot(x, et0s_pm, label="ET₀ PM (mm)")
     ax[2][1].plot(x, act_e, label="Actual Evap (mm)")
     ax[2][1].plot(x, act_t, label="Actual Transp (mm)")
+    # Overlay VPD and stomatal factor for context
+    vpd_series = [
+        vpd_kpa(0.5 * (tmin + tmax), rh) for tmin, tmax, rh in zip(tmins, tmaxs, rhs)
+    ]
+    stomatal = []
+    for v in vpd_series:
+        v_ex = max(0.0, v - etmod.params.vpd_ref_kpa)
+        stomatal.append(max(0.2, 1.0 - etmod.params.vpd_sensitivity * v_ex))
+    ax_et_aux = ax[2][1].twinx()
+    ax_et_aux.plot(x, vpd_series, ":", color="#d62728", alpha=0.7, label="VPD (kPa)")
+    ax_et_aux.plot(x, stomatal, "--", color="#2ca02c", alpha=0.7, label="Stomatal (-)")
+    ax_et_aux.set_ylabel("kPa / -")
     cum_et_total: List[float] = []
     _cum = 0.0
     for e_mm, t_mm in zip(act_e, act_t):

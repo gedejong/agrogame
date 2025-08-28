@@ -6,6 +6,7 @@ from agrogame.atmosphere.et import EtParams, Evapotranspiration
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
+from agrogame.weather.utils import vpd_kpa
 
 
 def test_priestley_taylor_monotonic_with_radiation() -> None:
@@ -87,3 +88,14 @@ def test_pm_vs_pt_differs_under_wind_and_vpd() -> None:
         relative_humidity_pct=30.0,
     )
     assert et0_pm != et0_pt
+
+
+def test_vpd_reduces_potential_transpiration_in_partitioning() -> None:
+    et = Evapotranspiration(EtParams())
+    et0 = 6.0
+    lai = 3.0
+    vpd_low = vpd_kpa(20.0, 90.0)
+    c_low = et.potential_components_with_vpd(et0_mm=et0, lai=lai, vpd_kpa=vpd_low)
+    vpd_high = vpd_kpa(20.0, 20.0)
+    c_high = et.potential_components_with_vpd(et0_mm=et0, lai=lai, vpd_kpa=vpd_high)
+    assert c_high.potential_transp_mm <= c_low.potential_transp_mm
