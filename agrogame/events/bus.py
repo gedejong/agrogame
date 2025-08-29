@@ -29,6 +29,7 @@ class EventBus:
             payload = {"event": str(event)}
         logger.debug("event_bus.emit", extra={"event": payload})
 
+        # Deliver to exact-type subscribers
         for handler in list(self._handlers[type(event)]):
             try:
                 handler(event)
@@ -37,3 +38,14 @@ class EventBus:
                     raise
                 # best-effort isolation; log exception at debug level
                 logger.debug("event_handler_exception", exc_info=e)
+        # Also deliver to BaseEvent subscribers (catch-all)
+        from .base import BaseEvent  # local import to avoid cycles
+
+        if isinstance(event, BaseEvent):
+            for handler in list(self._handlers[BaseEvent]):
+                try:
+                    handler(event)
+                except Exception as e:  # pragma: no cover
+                    if self._debug_mode:
+                        raise
+                    logger.debug("event_handler_exception", exc_info=e)
