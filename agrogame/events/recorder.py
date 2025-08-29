@@ -11,6 +11,7 @@ from .bus import EventBus
 class RecordedEvent:
     day_index: Optional[int]
     event_type: str
+    module_name: str
     data: Dict[str, Any]
 
 
@@ -28,7 +29,8 @@ class EventRecorder:
     def _on_event(self, event: BaseEvent) -> None:
         data = event.to_dict()
         etype = data.pop("event_type", type(event).__name__)
-        self._events.append(RecordedEvent(self._current_day, etype, data))
+        module_name = type(event).__module__
+        self._events.append(RecordedEvent(self._current_day, etype, module_name, data))
 
     @property
     def events(self) -> Sequence[RecordedEvent]:

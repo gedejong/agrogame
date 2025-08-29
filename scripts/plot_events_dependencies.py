@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List
+from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as pe
 
 from agrogame.events import EventBus
 from agrogame.events.recorder import EventRecorder
+from scripts._weather_cli import add_weather_args, get_weather_series
+from agrogame.weather.utils import sanitize_weather_series
 from agrogame.soil.phenology import (
     CropPhenologyParams,
     GrowthStageThresholds,
@@ -24,20 +27,42 @@ from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.weather.module import WeatherModule
-from scripts._weather_cli import add_weather_args, get_weather_series
-from agrogame.weather.utils import sanitize_weather_series
+
+
+MODULE_BUCKET = {
+    "Weather": ["Weather"],
+    "Soil": ["Water", "Soil"],
+    "ET": ["Evap", "Transpir", "Et"],
+    "Plant": ["Plant"],
+    "Nitrogen": ["Nitrogen", "NO3", "N_"],
+    "Root": ["Root"],
+    "Canopy": ["Canopy", "LAI", "Biomass"],
+}
+
+
+def bucket(event_type: str, module_name: str = "") -> str:
+    et = event_type.lower()
+    mn = module_name.lower()
+    for name, keys in MODULE_BUCKET.items():
+        for k in keys:
+            if k.lower() in et:
+                return name
+    if "nutrient" in et or "agrogame.soil.nitrogen" in mn:
+        return "Nitrogen"
+    return "Plant"
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Event density heatmap (daily)")
+    parser = argparse.ArgumentParser(description="Event dependency (circular) graph")
     parser.add_argument("--days", type=int, default=120)
-    parser.add_argument("--out", type=Path, default=Path("out/events_heatmap.png"))
     parser.add_argument(
-        "--csv-out", type=Path, help="Optional CSV export of daily counts"
+        "--fc-scale",
+        type=float,
+        default=0.8,
+        help="Scale factor to reduce field capacity for all layers (e.g., 0.8)",
     )
-    parser.add_argument("--include", type=str, default="")
-    parser.add_argument("--exclude", type=str, default="")
-    parser.add_argument("--grep", type=str, default="")
+    parser.add_argument("--dpi", type=int, default=180)
+    parser.add_argument("--out", type=Path, default=Path("out/events_dependencies.png"))
     add_weather_args(parser)
     args = parser.parse_args()
 
@@ -46,6 +71,7 @@ def main() -> None:
     bus = EventBus()
     rec = EventRecorder(bus)
 
+    # Modules
     phen = PhenologyModule(
         CropPhenologyParams(
             base_temperature_c=8.0,
@@ -66,9 +92,16 @@ def main() -> None:
         ),
         event_bus=bus,
     )
-    # Wire additional modules to surface more events
+
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
-    profile = soil_lib.soils["loam_temperate"]
+    base = soil_lib.soils["loam_temperate"]
+    # Apply field capacity scaling while preserving bounds
+    new_layers = []
+    for lyr in base.layers:
+        wp, fc, sat = lyr.wilting_point, lyr.field_capacity, lyr.saturation
+        nfc = max(wp + 0.005, min(sat - 0.005, fc * args.fc_scale))
+        new_layers.append(lyr.model_copy(update={"field_capacity": float(nfc)}))
+    profile = base.model_copy(update={"layers": new_layers})
     water = CascadingBucketWaterModel(event_bus=bus)
     wstate = SoilWaterState(profile)
     nstate = SoilNitrogenState(profile)
@@ -86,7 +119,7 @@ def main() -> None:
         total = args.days
     weather_module = WeatherModule(series, bus) if series is not None else None
 
-    # Simulate minimal loop to generate events (phenology+canopy)
+    # Simulate and capture simple causal edges: same-day bucket transitions
     for day in range(total):
         rec.set_day(day + 1)
         if series is not None:
@@ -96,8 +129,8 @@ def main() -> None:
             tmin, tmax, rad = w.tmin_c, w.tmax_c, (w.net_radiation_mj_m2 or 12.0)
             rain = w.precip_mm or 0.0
         else:
-            tmin, tmax, rad = 10.0, 22.0, 12.0
-            rain = 0.0
+            tmin, tmax, rad, rain = 10.0, 22.0, 12.0, 0.0
+        # Phenology, canopy
         phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         _ = canopy.daily_step(
             incident_par_mj_m2=rad, temp_factor=1.0, water_stress=1.0, n_stress=1.0
@@ -119,78 +152,72 @@ def main() -> None:
         _ = etmod.actual_et(profile, wstate, water, comps, root_fracs)
         _ = ncycle.daily_step(temperature_c=0.5 * (tmin + tmax), plant_demand_kg_ha=1.0)
 
-    # Aggregate counts per module (by event type prefix heuristics)
-    row_names = ["Weather", "Soil", "ET", "Plant", "Nitrogen", "Root", "Canopy"]
-    row_index = {n: i for i, n in enumerate(row_names)}
-    mat: List[List[int]] = [[0 for _ in range(total)] for _ in range(len(row_names))]
-
-    def bucket(event_type: str, module_name: str = "") -> str:
-        et = event_type.lower()
-        mn = module_name.lower()
-        if "weather" in et:
-            return "Weather"
-        if "water" in et or "soil" in et:
-            return "Soil"
-        if "evap" in et or "transpir" in et:
-            return "ET"
-        if (
-            "nitrogen" in et
-            or "n_" in et
-            or "no3" in et
-            or "agrogame.soil.nitrogen" in mn
-        ):
-            return "Nitrogen"
-        if "root" in et:
-            return "Root"
-        if "canopy" in et or "lai" in et or "biomass" in et:
-            return "Canopy"
-        return "Plant"
-
-    inc = {s.strip() for s in args.include.split(",") if s.strip()}
-    exc = {s.strip() for s in args.exclude.split(",") if s.strip()}
-    grep = (args.grep or "").lower()
-
-    def allow(ev) -> bool:
-        lane = bucket(ev.event_type, ev.module_name)
-        if inc and lane not in inc:
-            return False
-        if lane in exc:
-            return False
-        if grep and grep not in ev.event_type.lower():
-            return False
-        return True
-
+    # Build bucket transitions based on chronological order within each day
+    edges: Dict[Tuple[str, str], int] = {}
+    day_events: Dict[int, list] = {}
     for ev in rec.events:
-        if not allow(ev):
-            continue
-        r = row_index.get(bucket(ev.event_type, ev.module_name))
-        c = (ev.day_index or 1) - 1
-        if 0 <= r < len(row_names) and 0 <= c < total:
-            mat[r][c] += 1
+        day_events.setdefault(ev.day_index or 0, []).append(ev)
 
-    # Plot heatmap
+    for _, evs in day_events.items():
+        modules = [bucket(e.event_type, e.module_name) for e in evs]
+        for a, b in zip(modules, modules[1:]):
+            if a == b:
+                continue
+            edges[(a, b)] = edges.get((a, b), 0) + 1
+
+    # Draw circular dependency graph
+    nodes = list(MODULE_BUCKET.keys())
+    N = len(nodes)
+    import math
+
+    angles = [2 * math.pi * i / N for i in range(N)]
+    pos = {nodes[i]: (math.cos(ang), math.sin(ang)) for i, ang in enumerate(angles)}
+
     plt.style.use("ggplot")
-    fig, ax = plt.subplots(figsize=(12, 4), constrained_layout=True)
-    im = ax.imshow(mat, aspect="auto", cmap="YlOrRd")
-    ax.set_yticks(range(len(row_names)))
-    ax.set_yticklabels(row_names)
-    ax.set_xlabel("Day")
-    ax.set_title("Event density by module (daily)")
-    fig.colorbar(im, ax=ax, label="Events/day")
-    fig.savefig(args.out, dpi=150)
+    fig, ax = plt.subplots(figsize=(10, 10), constrained_layout=True)
+    # Nodes (bigger, readable labels)
+    for name, (x, y) in pos.items():
+        ax.plot(x, y, "o", color="#1f77b4", markersize=18, zorder=3)
+        txt = ax.text(
+            x,
+            y,
+            name,
+            ha="center",
+            va="center",
+            fontsize=13,
+            color="black",
+            weight="bold",
+            zorder=4,
+        )
+        txt.set_path_effects([pe.withStroke(linewidth=3, foreground="white")])
+    # Edge widths normalized
+    max_cnt = max(edges.values()) if edges else 1
+    for (a, b), cnt in edges.items():
+        x1, y1 = pos[a]
+        x2, y2 = pos[b]
+        lw = 0.6 + 4.0 * (cnt / max_cnt) ** 0.7
+        ax.annotate(
+            "",
+            xy=(x2, y2),
+            xytext=(x1, y1),
+            arrowprops={
+                "arrowstyle": "->",
+                "lw": lw,
+                "color": "#d62728",
+                "alpha": 0.65,
+                "shrinkA": 12,
+                "shrinkB": 12,
+                "connectionstyle": "arc3,rad=0.25",
+            },
+        )
+    ax.set_xlim(-1.2, 1.2)
+    ax.set_ylim(-1.2, 1.2)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title("Event dependency (bucketed, same-day transitions)")
+    ax.set_aspect("equal")
+    fig.savefig(args.out, dpi=args.dpi)
     print(f"Saved {args.out}")
-
-    if args.csv_out:
-        import csv
-
-        args.csv_out.parent.mkdir(parents=True, exist_ok=True)
-        with args.csv_out.open("w", newline="") as f:
-            w = csv.writer(f)
-            w.writerow(["module", "day", "count"])
-            for i, name in enumerate(row_names):
-                for day in range(total):
-                    w.writerow([name, day + 1, mat[i][day]])
-        print(f"Saved {args.csv_out}")
 
 
 if __name__ == "__main__":

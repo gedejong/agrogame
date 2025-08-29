@@ -10,6 +10,7 @@ nav:
       - Nitrogen: nitrogen.md
       - Phenology: phenology.md
       - Canopy: canopy.md
+      - Events & Debugging: events.md
       - Architecture (compressed): architecture.md
   - Architecture:
       - Overview: architecture/overview.md

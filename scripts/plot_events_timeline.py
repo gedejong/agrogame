@@ -32,6 +32,25 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Event timeline swimlanes (daily)")
     parser.add_argument("--days", type=int, default=120)
     parser.add_argument("--out", type=Path, default=Path("out/events_timeline.png"))
+    parser.add_argument("--csv-out", type=Path, help="Optional CSV export of events")
+    parser.add_argument(
+        "--include",
+        type=str,
+        default="",
+        help="Comma list of modules to include (e.g., 'Soil,ET'). Empty = all",
+    )
+    parser.add_argument(
+        "--exclude",
+        type=str,
+        default="",
+        help="Comma list of modules to exclude (applied after include)",
+    )
+    parser.add_argument(
+        "--grep",
+        type=str,
+        default="",
+        help="Substring filter on event_type (case-insensitive)",
+    )
     add_weather_args(parser)
     args = parser.parse_args()
 
@@ -136,15 +155,21 @@ def main() -> None:
         "Canopy": "#ff7f0e",
     }
 
-    def bucket(event_type: str) -> str:
+    def bucket(event_type: str, module_name: str = "") -> str:
         et = event_type.lower()
+        mn = module_name.lower()
         if "weather" in et:
             return "Weather"
         if "water" in et or "soil" in et:
             return "Soil"
         if "evap" in et or "transpir" in et:
             return "ET"
-        if "nitrogen" in et or "n_" in et or "no3" in et:
+        if (
+            "nitrogen" in et
+            or "n_" in et
+            or "no3" in et
+            or "agrogame.soil.nitrogen" in mn
+        ):
             return "Nitrogen"
         if "root" in et:
             return "Root"
@@ -159,10 +184,26 @@ def main() -> None:
     ax.set_xlabel("Day")
     ax.set_title("Event timeline (daily swimlanes)")
 
+    # Build filters
+    inc = {s.strip() for s in args.include.split(",") if s.strip()}
+    exc = {s.strip() for s in args.exclude.split(",") if s.strip()}
+    grep = (args.grep or "").lower()
+
+    def allow(ev) -> bool:
+        lane = bucket(ev.event_type, ev.module_name)
+        if inc and lane not in inc:
+            return False
+        if lane in exc:
+            return False
+        if grep and grep not in ev.event_type.lower():
+            return False
+        return True
+
     # Plot as small markers per event
-    for ev in rec.events:
+    filtered = [ev for ev in rec.events if allow(ev)]
+    for ev in filtered:
         x = ev.day_index or 1
-        lane = bucket(ev.event_type)
+        lane = bucket(ev.event_type, ev.module_name)
         y = lane_y[lane]
         ax.plot(x, y, marker="|", color=colors[lane], markersize=8, linestyle="None")
 
@@ -170,6 +211,30 @@ def main() -> None:
     ax.set_ylim(-0.5, len(lanes) - 0.5)
     fig.savefig(args.out, dpi=150)
     print(f"Saved {args.out}")
+
+    # Optional CSV export
+    if args.csv_out:
+        import csv
+        import json
+
+        args.csv_out.parent.mkdir(parents=True, exist_ok=True)
+        with args.csv_out.open("w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(
+                ["day_index", "event_type", "module_name", "timestamp", "data_json"]
+            )
+            for ev in filtered:
+                ts = ev.data.get("timestamp")
+                w.writerow(
+                    [
+                        ev.day_index,
+                        ev.event_type,
+                        ev.module_name,
+                        ts,
+                        json.dumps(ev.data),
+                    ]
+                )
+        print(f"Saved {args.csv_out}")
 
 
 if __name__ == "__main__":
