@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agrogame.events import EventBus
+from agrogame.plant.events import WaterStressComputed
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 from agrogame.soil.canopy import (
     CanopyModule,
@@ -84,3 +85,11 @@ def test_lai_bootstraps_on_emergence():
         )
     )
     assert canopy.state.lai >= 0.1
+
+
+def test_water_stress_event_emitted():
+    bus = EventBus()
+    seen = {"stress": None}
+    bus.subscribe(WaterStressComputed, lambda e: seen.__setitem__("stress", e.stress))
+    bus.emit(WaterStressComputed(supply_mm=2.0, demand_mm=4.0, stress=0.5))
+    assert seen["stress"] == 0.5

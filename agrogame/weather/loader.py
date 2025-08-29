@@ -78,9 +78,17 @@ def _load_json(path: Path) -> WeatherSeries:
 
 
 def _opt_float(v: Optional[str | float]) -> Optional[float]:
+    """Parse optional float from CSV/JSON, treating sentinel -999 as missing."""
     if v is None or v == "":
         return None
-    return float(v)
+    try:
+        f = float(v)
+    except Exception:  # noqa: BLE001
+        return None
+    # NASA POWER uses -999 or -99 for missing
+    if f <= -900.0:
+        return None
+    return f
 
 
 def load_weather_auto(
@@ -116,17 +124,29 @@ def load_weather_auto(
     d = payload["properties"]["parameter"]
     days = sorted(int(k) for k in d["T2M_MAX"].keys())
     records: List[WeatherRecord] = []
+
+    def _clean(value: Optional[float]) -> Optional[float]:
+        if value is None:
+            return None
+        # Convert POWER sentinel to None
+        if value <= -900.0:
+            return None
+        return float(value)
+
     for k in days:
         s = datetime.strptime(str(k), "%Y%m%d").date()
-        tmax = float(d["T2M_MAX"][str(k)])
-        tmin = float(d["T2M_MIN"][str(k)])
-        rh = _opt_float(d.get("RH2M", {}).get(str(k)))
-        # 10 m wind
-        w = _opt_float(d.get("WS10M", {}).get(str(k))) or _opt_float(
+        tmax = _clean(d["T2M_MAX"].get(str(k)))
+        tmin = _clean(d["T2M_MIN"].get(str(k)))
+        # Skip days without temperatures
+        if tmin is None or tmax is None:
+            continue
+        rh = _clean(d.get("RH2M", {}).get(str(k)))
+        # 10 m wind (fallback to 2 m)
+        w = _clean(d.get("WS10M", {}).get(str(k))) or _clean(
             d.get("WS2M", {}).get(str(k))
         )
-        rs = _opt_float(d.get("ALLSKY_SFC_SW_DWN", {}).get(str(k)))
-        pmm = _opt_float(d.get("PRECTOTCORR", {}).get(str(k)))
+        rs = _clean(d.get("ALLSKY_SFC_SW_DWN", {}).get(str(k)))
+        pmm = _clean(d.get("PRECTOTCORR", {}).get(str(k)))
         # Derive net radiation using default albedo when Rs present
         rn = None
         if rs is not None:

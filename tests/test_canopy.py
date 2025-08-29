@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agrogame.soil.canopy import CanopyModule, CanopyParams
+from agrogame.plant.stress import compute_water_stress
 
 
 def test_light_interception_fraction_increases_with_lai():
@@ -64,3 +65,16 @@ def test_lai_scurve_and_high_interception_at_lai4():
     fx = canopy.calculate_light_interception(incident_par_mj_m2=10.0)
     frac = fx.intercepted_par_mj_m2 / 10.0
     assert 0.9 <= frac <= 0.98
+
+
+def test_compute_water_stress_monotonic():
+    s1 = compute_water_stress(
+        actual_transpiration_mm=1.0, potential_transpiration_mm=4.0
+    )
+    s2 = compute_water_stress(
+        actual_transpiration_mm=2.0, potential_transpiration_mm=4.0
+    )
+    s3 = compute_water_stress(
+        actual_transpiration_mm=4.0, potential_transpiration_mm=4.0
+    )
+    assert 0.0 <= s1 <= s2 <= s3 <= 1.0

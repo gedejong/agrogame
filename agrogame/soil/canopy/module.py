@@ -4,6 +4,7 @@ import math
 
 from agrogame.events import EventBus
 from agrogame.soil.phenology import StageChanged, PhenologyStage
+from agrogame.plant.stress import compute_water_stress
 
 from .params import CanopyParams
 from .types import CanopyState, CanopyFluxes
@@ -136,4 +137,25 @@ class CanopyModule:
         return CanopyFluxes(
             intercepted_par_mj_m2=fx.intercepted_par_mj_m2,
             biomass_increment_g_m2=biomass_inc,
+        )
+
+    def daily_step_with_transpiration(
+        self,
+        incident_par_mj_m2: float,
+        temp_factor: float,
+        actual_transpiration_mm: float,
+        potential_transpiration_mm: float,
+        n_stress: float,
+    ) -> CanopyFluxes:
+        """Variant that derives water stress from ET supply/demand.
+
+        Computes water stress via compute_water_stress(actual, demand) and
+        delegates to daily_step.
+        """
+        ws = compute_water_stress(actual_transpiration_mm, potential_transpiration_mm)
+        return self.daily_step(
+            incident_par_mj_m2=incident_par_mj_m2,
+            temp_factor=temp_factor,
+            water_stress=ws,
+            n_stress=n_stress,
         )
