@@ -32,6 +32,6 @@ class CanopyIntercepted(BaseEvent):
 
 @dataclass(frozen=True)
 class CanopyEvaporated(BaseEvent):
-    """Water evaporated directly from the canopy store (mm)."""
+    """Water evaporated from the canopy store (mm)."""
 
     amount_mm: float

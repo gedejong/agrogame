@@ -47,10 +47,13 @@ class CanopyModule:
             self._senescence_multiplier = 1.0
 
     def calculate_light_interception(self, incident_par_mj_m2: float) -> CanopyFluxes:
-        """Return intercepted PAR and emit LightIntercepted event.
+        """Compute intercepted PAR and emit a LightIntercepted event.
 
         Args:
             incident_par_mj_m2: Daily incident PAR (MJ m^-2).
+
+        Returns:
+            CanopyFluxes: Intercepted PAR and a zero biomass increment placeholder.
         """
         if self.state.lai <= 0.0 or incident_par_mj_m2 <= 0.0:
             if self.event_bus is not None:

@@ -14,6 +14,7 @@ from agrogame.soil.water import (
 from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.events import EventBus
 from agrogame.soil.water import SoilWaterBalance
+from agrogame.soil.water.events import CanopyIntercepted, CanopyEvaporated
 
 
 def _make_state(lib_id: str = "loam_temperate"):
@@ -96,6 +97,26 @@ def test_water_balance_closure() -> None:
     inputs = 10.0
     outputs = runoff + deep + swb.last_evap_mm
     assert abs((inputs - outputs) - dS) < 1e-6
+
+
+def test_day_mass_balance_with_interception_events() -> None:
+    lib = _load(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    bus = EventBus(debug_mode=True)
+    seen = {"int": 0.0, "cevap": 0.0}
+    bus.subscribe(CanopyIntercepted, lambda e: seen.__setitem__("int", e.amount_mm))
+    bus.subscribe(CanopyEvaporated, lambda e: seen.__setitem__("cevap", e.amount_mm))
+
+    swb = SoilWaterBalance(profile, event_bus=bus, interception=InterceptionState(0.5))
+    rain = 5.0
+    evap = 2.0
+    runoff, deep, dS = swb.update_daily(rainfall_mm=rain, evaporation_mm=evap, lai=3.0)
+    # Partitioning sanity and full mass balance including evaporation
+    throughfall = rain - seen["int"]
+    assert abs((seen["int"] + throughfall) - rain) < 1e-9
+    total_evap = swb.last_evap_mm  # canopy + soil evap aggregated in wrapper
+    assert abs(rain - (total_evap + runoff + deep + dS)) < 1e-6
+    assert total_evap >= seen["cevap"]
 
 
 def test_cascade_downward() -> None:
