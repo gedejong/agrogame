@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Iterable, List
+from typing import Any, Callable, Iterable, List
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer as WatchdogObserver
@@ -13,7 +13,7 @@ class _Handler(FileSystemEventHandler):
         self._on_change = on_change
         self._exts = exts
 
-    def on_any_event(self, event) -> None:  # pragma: no cover - thin wrapper
+    def on_any_event(self, event: Any) -> None:  # pragma: no cover - thin wrapper
         if event.is_directory:
             return
         p = Path(event.src_path)
@@ -21,9 +21,7 @@ class _Handler(FileSystemEventHandler):
             self._on_change([p])
 
 
-def watch(
-    paths: Iterable[Path], on_change: Callable[[List[Path]], None]
-) -> WatchdogObserver:
+def watch(paths: Iterable[Path], on_change: Callable[[List[Path]], None]) -> Any:
     """Watch paths for YAML/JSON changes and call on_change with changed files.
 
     Caller is responsible for stopping the observer.

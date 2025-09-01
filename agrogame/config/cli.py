@@ -3,12 +3,11 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from agrogame.config.compose import load_and_compose
 from agrogame.config.validation import validate_data
 from agrogame.config.watcher import watch
-from watchdog.observers import Observer as WatchdogObserver
 from agrogame.events import EventBus, ConfigReloaded
 
 
@@ -50,7 +49,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
         except Exception as e:  # noqa: BLE001
             print(f"Reload failed: {e}")
 
-    observer: WatchdogObserver = watch({p.parent for p in files}, on_change)
+    observer: Any = watch({p.parent for p in files}, on_change)
     print("Watching for changes. Press Ctrl+C to stop.")
     try:
         while True:
@@ -60,8 +59,11 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
     except KeyboardInterrupt:
         pass
     finally:
-        observer.stop()
-        observer.join()
+        try:
+            observer.stop()  # type: ignore[attr-defined]
+            observer.join()  # type: ignore[attr-defined]
+        except Exception:
+            pass
     return 0
 
 
@@ -100,7 +102,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     ns = parser.parse_args(argv)
-    return ns.func(ns)
+    result = ns.func(ns)
+    assert isinstance(result, int)
+    return result
 
 
 if __name__ == "__main__":
