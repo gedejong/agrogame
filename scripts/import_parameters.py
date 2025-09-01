@@ -15,6 +15,7 @@ from agrogame.params.models import (
     Roots,
     ThermalTime,
 )
+from agrogame.config.validation import validate_data
 
 
 def load_yaml(path: Path) -> Dict[str, Any]:
@@ -31,12 +32,15 @@ def save_yaml(data: Dict[str, Any], path: Path) -> None:
 def try_parse_our_schema(payload: Dict[str, Any]) -> Dict[str, CropParameters]:
     crops: Dict[str, CropParameters] = {}
     if "crops" in payload and isinstance(payload["crops"], dict):
+        # Validate full library against JSON Schema first
+        try:
+            validate_data(payload, "crop")
+        except Exception:
+            # Not our schema
+            return {}
+        # Then coerce to models
         for key, value in payload["crops"].items():
-            try:
-                crops[key] = CropParameters.model_validate(value)
-            except Exception:
-                # Not our schema
-                continue
+            crops[key] = CropParameters.model_validate(value)
     return crops
 
 
@@ -322,12 +326,16 @@ def main() -> None:
     )
 
     if args.dry_run:
-        # Validate serialization and exit
+        # Validate merged payload against schema and exit
         _payload = merged.model_dump(mode="json")
+        validate_data(_payload, "crop")
         yaml.safe_dump(_payload, allow_unicode=True)
         return
 
-    save_yaml(merged.model_dump(mode="json"), args.output)
+    # Validate merged payload before writing
+    payload = merged.model_dump(mode="json")
+    validate_data(payload, "crop")
+    save_yaml(payload, args.output)
     print(f"Wrote merged parameters to {args.output}")
 
 
