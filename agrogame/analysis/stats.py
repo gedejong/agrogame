@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Iterable, List, Sequence, Tuple
 
 
@@ -16,7 +17,7 @@ def _to_lists(
 def rmse(obs: Iterable[float], sim: Iterable[float]) -> float:
     o, s = _to_lists(obs, sim)
     n = len(o)
-    return (sum((si - oi) ** 2 for oi, si in zip(o, s)) / n) ** 0.5
+    return math.sqrt(sum((si - oi) ** 2 for oi, si in zip(o, s)) / float(n))
 
 
 def mae(obs: Iterable[float], sim: Iterable[float]) -> float:
