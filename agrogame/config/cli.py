@@ -8,6 +8,7 @@ from typing import List
 from agrogame.config.compose import load_and_compose
 from agrogame.config.validation import validate_data
 from agrogame.config.watcher import watch
+from watchdog.observers import Observer as WatchdogObserver
 from agrogame.events import EventBus, ConfigReloaded
 
 
@@ -49,7 +50,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
         except Exception as e:  # noqa: BLE001
             print(f"Reload failed: {e}")
 
-    observer = watch({p.parent for p in files}, on_change)
+    observer: WatchdogObserver = watch({p.parent for p in files}, on_change)
     print("Watching for changes. Press Ctrl+C to stop.")
     try:
         while True:

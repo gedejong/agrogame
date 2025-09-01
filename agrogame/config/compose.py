@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Iterable
+from typing import Any, Dict, Iterable, cast
 
 import yaml
 
@@ -27,9 +27,9 @@ def deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str
 def _load(path: Path) -> Dict[str, Any]:
     if path.suffix.lower() in {".yaml", ".yml"}:
         with path.open("r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+            return cast(Dict[str, Any], yaml.safe_load(f) or {})
     if path.suffix.lower() == ".json":
-        return json.loads(path.read_text())
+        return cast(Dict[str, Any], json.loads(path.read_text()))
     raise ValueError(f"Unsupported config type: {path}")
 
 
