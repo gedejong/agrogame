@@ -22,8 +22,15 @@ def load_csv(path: Path, key: str, value: str) -> tuple[list, list[float]]:
     with path.open("r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            xs.append(row[key])
-            vs.append(float(row[value]))
+            k = row.get(key)
+            v = row.get(value)
+            if k is None or v is None or v == "" or v.lower() == "nan":
+                continue
+            try:
+                xs.append(k)
+                vs.append(float(v))
+            except ValueError:
+                continue
     return xs, vs
 
 
@@ -41,9 +48,12 @@ def main() -> int:
 
     ox, ov = load_csv(args.obs, args.key, args.obs_col)
     sx, sv = load_csv(args.sim, args.key, args.sim_col)
-    ao, asv = align_series(ox, sx, ov, sv)
+    ao, asv = align_series(ox, sx, ov, sv, use_union=False, sort_keys=True)
+    n_before = min(len(ov), len(sv))
+    n_after = len(ao)
+    dropped = n_before - n_after if n_before >= n_after else 0
 
-    print(f"N={len(ao)}")
+    print(f"N={len(ao)} (dropped ~{dropped} unmatched/invalid rows)")
     print(f"R2={r2(ao, asv):.3f}")
     print(f"RMSE={rmse(ao, asv):.3f}")
     print(f"MAE={mae(ao, asv):.3f}")

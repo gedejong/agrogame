@@ -85,18 +85,36 @@ def coverage_within(obs: Iterable[float], sim: Iterable[float], tol: float) -> f
 
 
 def align_series(
-    xs: Sequence, ys: Sequence, xv: Sequence[float], yv: Sequence[float]
+    xs: Sequence,
+    ys: Sequence,
+    xv: Sequence[float],
+    yv: Sequence[float],
+    *,
+    use_union: bool = False,
+    sort_keys: bool = False,
 ) -> Tuple[List[float], List[float]]:
     """Align two series by key sequences xs, ys and values xv, yv.
 
-    Returns values for keys present in both.
+    - By default returns pairs for keys in intersection, keeping obs (xs) order.
+    - If use_union=True, returns pairs for union of keys (missing mapped to NaN) and
+      drops pairs with NaN in either value.
+    - If sort_keys=True, sorts by key (useful for date-like keys).
     """
     if len(xs) != len(xv) or len(ys) != len(yv):
         raise ValueError("keys and values must be same length for each series")
     xmap = dict(zip(xs, xv))
     ymap = dict(zip(ys, yv))
-    common = [k for k in xs if k in ymap]
-    return [xmap[k] for k in common], [ymap[k] for k in common]
+    if use_union:
+        keys = set(xs) | set(ys)
+        keys_list = sorted(keys) if sort_keys else list(keys)
+        aligned: List[Tuple[float, float]] = []
+        for k in keys_list:
+            if k in xmap and k in ymap:
+                aligned.append((xmap[k], ymap[k]))
+        return [a for a, _ in aligned], [b for _, b in aligned]
+    # Intersection path
+    keys_seq = sorted(set(xs) & set(ys)) if sort_keys else [k for k in xs if k in ymap]
+    return [xmap[k] for k in keys_seq], [ymap[k] for k in keys_seq]
 
 
 def phenology_timing_error_days(
