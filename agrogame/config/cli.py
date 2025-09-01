@@ -60,8 +60,9 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
         pass
     finally:
         try:
-            observer.stop()  # type: ignore[attr-defined]
-            observer.join()  # type: ignore[attr-defined]
+            # Best-effort stopping without strict typing on external observer
+            observer.stop()
+            observer.join()
         except Exception:
             pass
     return 0
