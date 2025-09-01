@@ -7,7 +7,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
-from agrogame.weather.utils import vpd_kpa
+from agrogame.weather.utils import vpd_kpa, sanitize_weather_series
 from agrogame.weather.constants import DEFAULT_ALBEDO
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.events import EventBus
@@ -21,6 +21,7 @@ from agrogame.soil.phenology import (
     PhenologyModule,
 )
 from agrogame.soil.canopy import CanopyModule, CanopyParams
+from agrogame.plant.stress import compute_water_stress
 
 
 def main() -> None:
@@ -38,6 +39,17 @@ def main() -> None:
         type=int,
         default=1,
         help="Moving-average window (days) for plotting",
+    )
+    parser.add_argument(
+        "--stress-highlight",
+        action="store_true",
+        help="Shade days where stomatal factor < threshold (see --stress-threshold)",
+    )
+    parser.add_argument(
+        "--stress-threshold",
+        type=float,
+        default=0.7,
+        help="Threshold for highlighting stress (stomatal factor below this)",
     )
     add_weather_args(parser)
     args = parser.parse_args()
@@ -102,10 +114,12 @@ def main() -> None:
 
     # Optional automatic/file-based weather overrides pattern
     auto_series = get_weather_series(args, args.days)
+    if auto_series is not None:
+        auto_series = sanitize_weather_series(auto_series)
 
     # Respect available weather length to avoid trailing fallbacks
     total_days = args.days
-    auto_series = get_weather_series(args, args.days)
+    auto_series = auto_series
     if auto_series is not None:
         total_days = min(args.days, len(auto_series.records))
 
@@ -185,9 +199,9 @@ def main() -> None:
         actual = etmod.actual_et(profile, wstate, water, comps, root_fracs)
 
         # Update canopy with a simple water stress proxy
-        supply = max(1e-9, actual.transpiration_mm)
-        demand = max(1e-9, comps.potential_transp_mm)
-        water_stress = min(1.0, supply / demand) if demand > 0 else 1.0
+        water_stress = compute_water_stress(
+            actual.transpiration_mm, comps.potential_transp_mm
+        )
         _ = canopy.daily_step(
             incident_par_mj_m2=rad,
             temp_factor=1.0,
@@ -247,6 +261,15 @@ def main() -> None:
     tmaxs = _ffill_clamp(tmaxs, -60.0, 60.0)
     rhs = _ffill_clamp(rhs, 0.0, 100.0)
     winds = _ffill_clamp(winds, 0.0, 60.0)
+
+    # Recompute VPD and stomatal factor using sanitized weather to avoid outliers
+    vpds = [vpd_kpa(0.5 * (tmins[i] + tmaxs[i]), rhs[i]) for i in range(len(tmins))]
+    stomatal_factors = []
+    for v in vpds:
+        vpd_excess = max(0.0, v - etmod.params.vpd_ref_kpa)
+        stomatal_factors.append(
+            max(0.2, 1.0 - etmod.params.vpd_sensitivity * vpd_excess)
+        )
 
     x = list(range(1, total_days + 1))
     plt.style.use("ggplot")
@@ -320,6 +343,14 @@ def main() -> None:
     h1, l1 = ax_transp.get_legend_handles_labels()
     h2, l2 = ax_t2.get_legend_handles_labels()
     ax_transp.legend(h1 + h2, l1 + l2, loc="upper left")
+    # Optional shading for stress periods
+    if args.stress_highlight and stomatal_factors:
+        thr = float(args.stress_threshold)
+        for idx, sf in enumerate(stomatal_factors, start=1):
+            if sf < thr:
+                ax_transp.axvspan(
+                    idx - 0.5, idx + 0.5, color="#d62728", alpha=0.06, zorder=0
+                )
 
     # Bottom: LAI
     ax_lai.plot(x, smooth(lais), label="LAI")
@@ -328,6 +359,14 @@ def main() -> None:
     ax_lai.legend(loc="upper left")
 
     fig.savefig(args.out, dpi=150)
+    try:
+        print(
+            "Diagnostics:",
+            f"VPD min/max={min(vpds):.3f}/{max(vpds):.3f}",
+            f"Stomatal min/max={min(stomatal_factors):.3f}/{max(stomatal_factors):.3f}",
+        )
+    except Exception:
+        pass
     print(f"Saved {args.out}")
 
 

@@ -25,9 +25,12 @@ from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from scripts._weather_cli import add_weather_args, get_weather_series
+from agrogame.weather.utils import sanitize_weather_series
 from agrogame.weather.constants import DEFAULT_ALBEDO
 from agrogame.weather.module import WeatherModule
 from agrogame.weather.utils import vpd_kpa
+from agrogame.plant.stress import compute_water_stress
+from agrogame.plant.events import WaterStressComputed
 
 
 def main() -> None:
@@ -85,6 +88,8 @@ def main() -> None:
 
     # Optional external weather time series
     auto_series = get_weather_series(args, args.days)
+    if auto_series is not None:
+        auto_series = sanitize_weather_series(auto_series)
     weather_module = WeatherModule(auto_series, bus) if auto_series else None
 
     # Time series
@@ -168,7 +173,8 @@ def main() -> None:
         evap.append(0.0)
         dS.append(fx.storage_change_mm)
 
-        # Canopy and biomass
+        # Canopy and biomass (water stress computed from ET later; for now placeholder)
+        # Placeholder canopy update; final stress applied after ET below
         _ = canopy.daily_step(
             incident_par_mj_m2=par, temp_factor=1.0, water_stress=1.0, n_stress=1.0
         )
@@ -216,6 +222,25 @@ def main() -> None:
             wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
         )
         dS[-1] = storage_after - storage_before
+        # Compute water stress for next day canopy update context (simple feed-forward)
+        stress = compute_water_stress(
+            actual.transpiration_mm, comps_adj.potential_transp_mm
+        )
+        # Emit stress event for downstream modules
+        bus.emit(
+            WaterStressComputed(
+                supply_mm=actual.transpiration_mm,
+                demand_mm=comps_adj.potential_transp_mm,
+                stress=stress,
+            )
+        )
+        # Apply stress-aware canopy growth for the day (second pass)
+        _ = canopy.daily_step(
+            incident_par_mj_m2=par,
+            temp_factor=1.0,
+            water_stress=stress,
+            n_stress=1.0,
+        )
         # Mass-flow NO3 uptake estimate from NO3 pool decrease (kg/ha) after ET day
         total_no3_before = sum(no3_before)
         total_no3_after = sum(nstate.no3)
@@ -382,6 +407,13 @@ def main() -> None:
     ax_et_aux.plot(x, vpd_series, ":", color="#d62728", alpha=0.7, label="VPD (kPa)")
     ax_et_aux.plot(x, stomatal, "--", color="#2ca02c", alpha=0.7, label="Stomatal (-)")
     ax_et_aux.set_ylabel("kPa / -")
+    # Optional stress highlighting via env var-like toggle (simple heuristic)
+    # Shade where stomatal factor < 0.7
+    for idx, sf in enumerate(stomatal, start=1):
+        if sf < 0.7:
+            ax[2][1].axvspan(
+                idx - 0.5, idx + 0.5, color="#d62728", alpha=0.04, zorder=0
+            )
     cum_et_total: List[float] = []
     _cum = 0.0
     for e_mm, t_mm in zip(act_e, act_t):

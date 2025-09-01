@@ -12,8 +12,18 @@ from agrogame.weather.types import WeatherSeries
 
 def add_weather_args(parser: ArgumentParser) -> None:
     parser.add_argument("--weather-file", type=Path, help="CSV/JSON weather file")
-    parser.add_argument("--power-lat", type=float, help="NASA POWER latitude")
-    parser.add_argument("--power-lon", type=float, help="NASA POWER longitude")
+    parser.add_argument(
+        "--power-lat",
+        type=float,
+        default=53.22,
+        help="NASA POWER latitude (default Groningen)",
+    )
+    parser.add_argument(
+        "--power-lon",
+        type=float,
+        default=6.57,
+        help="NASA POWER longitude (default Groningen)",
+    )
     parser.add_argument("--power-start", type=str, help="POWER start date YYYY-MM-DD")
     parser.add_argument("--power-end", type=str, help="POWER end date YYYY-MM-DD")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from agrogame.events import EventBus
+from agrogame.plant.events import WaterStressComputed
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 from agrogame.soil.canopy import (
     CanopyModule,
@@ -9,6 +10,8 @@ from agrogame.soil.canopy import (
     BiomassAccumulated,
     LAIUpdated,
 )
+from agrogame.soil.canopy.interception import InterceptionState
+from agrogame.soil.canopy.events import CanopyIntercepted, CanopyEvaporated
 
 
 def test_canopy_daily_step_and_events():
@@ -84,3 +87,35 @@ def test_lai_bootstraps_on_emergence():
         )
     )
     assert canopy.state.lai >= 0.1
+
+
+def test_water_stress_event_emitted():
+    bus = EventBus()
+    seen = {"stress": None}
+    bus.subscribe(WaterStressComputed, lambda e: seen.__setitem__("stress", e.stress))
+    bus.emit(WaterStressComputed(supply_mm=2.0, demand_mm=4.0, stress=0.5))
+    assert seen["stress"] == 0.5
+
+
+def test_interception_events_and_mass_balance():
+    bus = EventBus()
+    seen = {"int": 0.0, "evap": 0.0}
+    bus.subscribe(
+        CanopyIntercepted, lambda e: seen.__setitem__("int", seen["int"] + e.amount_mm)
+    )
+    bus.subscribe(
+        CanopyEvaporated, lambda e: seen.__setitem__("evap", seen["evap"] + e.amount_mm)
+    )
+
+    istate = InterceptionState(capacity_coef_mm_per_lai=0.5, event_bus=bus)
+    lai = 2.0
+    rain = 1.0
+    intercepted, throughfall = istate.intercept(lai, rain)
+    assert intercepted == rain and throughfall == 0.0
+    taken = istate.evaporate(0.6)
+    assert 0.5 <= taken <= 0.6
+    # Events match
+    assert abs(seen["int"] - intercepted) < 1e-9
+    assert abs(seen["evap"] - taken) < 1e-9
+    # Canopy store balance
+    assert abs(istate.store_mm - (intercepted - taken)) < 1e-9
