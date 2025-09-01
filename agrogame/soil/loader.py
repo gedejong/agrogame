@@ -6,6 +6,7 @@ from typing import Any, Dict
 import yaml
 
 from agrogame.soil.models import SoilLibrary
+from agrogame.config.validation import validate_data
 
 
 def load_yaml(path: Path) -> Dict[str, Any]:
@@ -15,4 +16,6 @@ def load_yaml(path: Path) -> Dict[str, Any]:
 
 def load_soil_presets(path: Path) -> SoilLibrary:
     data = load_yaml(path)
+    # Validate against JSON Schema before Pydantic
+    validate_data(data, "soil")
     return SoilLibrary.model_validate(data)

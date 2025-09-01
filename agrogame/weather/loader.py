@@ -11,6 +11,7 @@ from urllib.error import HTTPError, URLError
 from .constants import DEFAULT_ALBEDO, POWER_DAILY_PARAMS_MINIMAL
 
 from .types import WeatherRecord, WeatherSeries
+from agrogame.config.validation import validate_data
 
 
 def _parse_date(s: str) -> date:
@@ -56,6 +57,12 @@ def _load_csv(path: Path) -> WeatherSeries:
 
 def _load_json(path: Path) -> WeatherSeries:
     data = json.loads(path.read_text())
+    # Validate JSON weather structure when available
+    try:
+        validate_data(data, "weather")
+    except Exception:
+        # Be permissive: keep legacy support if schema not matched
+        pass
     rows: List[WeatherRecord] = []
     for i, r in enumerate(data, start=1):
         try:

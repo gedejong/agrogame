@@ -13,6 +13,8 @@ numpy = "^1.24"
 pandas = "^2.0"
 pydantic = "^2.0"
 pyyaml = "^6.0"
+jsonschema = "^4.23"
+watchdog = "^4.0"
 
 [tool.poetry.group.dev.dependencies]
 mkdocs = "^1.6"
@@ -35,6 +37,7 @@ matplotlib = "^3.9"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
+agrogame = "agrogame.config.cli:main"
 
 [tool.black]
 line-length = 88
@@ -80,3 +83,7 @@ testpaths = ["tests"]
 [build-system]
 requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+# Include non-Python assets (schemas) in the package
+[[tool.poetry.include]]
+path = "agrogame/config/schemas/*.json"

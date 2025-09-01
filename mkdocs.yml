@@ -23,6 +23,7 @@ nav:
       - Water Balance: models/water-balance.md
       - Nutrient Cycle: models/nutrient-cycle.md
       - Crop Growth: models/crop-growth.md
+  - Configuration: configuration.md
   - Contributing: contributing.md
 theme:
   name: material
