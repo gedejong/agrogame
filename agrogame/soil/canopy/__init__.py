@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from .types import CanopyState, CanopyFluxes
 from .params import CanopyParams
-from .events import LightIntercepted, BiomassAccumulated, LAIUpdated
+from .events import (
+    LightIntercepted,
+    BiomassAccumulated,
+    LAIUpdated,
+    CanopyIntercepted,
+    CanopyEvaporated,
+)
 from .module import CanopyModule
 
 __all__ = [
@@ -15,4 +21,6 @@ __all__ = [
     "LightIntercepted",
     "BiomassAccumulated",
     "LAIUpdated",
+    "CanopyIntercepted",
+    "CanopyEvaporated",
 ]

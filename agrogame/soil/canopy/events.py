@@ -21,3 +21,17 @@ class BiomassAccumulated(BaseEvent):
 class LAIUpdated(BaseEvent):
     previous_lai: float
     new_lai: float
+
+
+@dataclass(frozen=True)
+class CanopyIntercepted(BaseEvent):
+    """Rainfall intercepted by the canopy (mm)."""
+
+    amount_mm: float
+
+
+@dataclass(frozen=True)
+class CanopyEvaporated(BaseEvent):
+    """Water evaporated from the canopy store (mm)."""
+
+    amount_mm: float

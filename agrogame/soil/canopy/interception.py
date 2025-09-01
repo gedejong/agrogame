@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from agrogame.events import EventBus
+from .events import CanopyIntercepted, CanopyEvaporated
 
 
 @dataclass
@@ -13,6 +15,7 @@ class InterceptionState:
 
     capacity_coef_mm_per_lai: float = 0.2
     store_mm: float = 0.0
+    event_bus: EventBus | None = None
 
     def capacity_mm(self, lai: float) -> float:
         return max(0.0, self.capacity_coef_mm_per_lai * max(0.0, lai))
@@ -27,6 +30,8 @@ class InterceptionState:
         room = max(0.0, cap - self.store_mm)
         take = min(room, incoming)
         self.store_mm += take
+        if self.event_bus is not None and take > 0.0:
+            self.event_bus.emit(CanopyIntercepted(amount_mm=take))
         return take, incoming - take
 
     def evaporate(self, potential_evap_mm: float) -> float:
@@ -38,4 +43,6 @@ class InterceptionState:
             return 0.0
         take = min(self.store_mm, potential_evap_mm)
         self.store_mm -= take
+        if self.event_bus is not None and take > 0.0:
+            self.event_bus.emit(CanopyEvaporated(amount_mm=take))
         return take
