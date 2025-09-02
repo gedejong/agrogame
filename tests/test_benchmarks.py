@@ -82,6 +82,7 @@ def _run_growth(
         _ = phen.update_daily(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,
@@ -89,10 +90,11 @@ def _run_growth(
             wind_m_s=rec.wind_m_s or 2.0,
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
+        rain = rec.precip_mm or 0.0
         _ = water.update_daily(
             profile,
             wstate,
-            DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0),
+            DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0),
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(
@@ -105,7 +107,7 @@ def _run_growth(
             ),
         )
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=rn,
+            incident_par_mj_m2=par,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,
@@ -155,6 +157,7 @@ def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 365):
         )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,
@@ -162,10 +165,11 @@ def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 365):
             wind_m_s=rec.wind_m_s or 2.0,
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
+        rain = rec.precip_mm or 0.0
         _ = water.update_daily(
             profile,
             wstate,
-            DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0),
+            DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0),
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(
@@ -179,7 +183,7 @@ def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 365):
         )
         total_evap_trans_mm += actual.evaporation_mm + actual.transpiration_mm
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=rn,
+            incident_par_mj_m2=par,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,
