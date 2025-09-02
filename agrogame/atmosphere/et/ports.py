@@ -24,10 +24,10 @@ class WaterProfile(Protocol):
 class WaterState(Protocol):
     """Abstraction of soil water state for ET extraction operations."""
 
-    def layer_storage_mm(self, profile: WaterProfile, layer_index: int) -> float: ...
+    def layer_storage_mm(self, profile: WaterProfile, _layer_index: int) -> float: ...
 
     def set_layer_storage_mm(
-        self, profile: WaterProfile, layer_index: int, storage_mm: float
+        self, profile: WaterProfile, _layer_index: int, _storage_mm: float
     ) -> None: ...
 
 
@@ -42,6 +42,6 @@ class TranspirationExtractor(Protocol):
         self,
         profile: WaterProfile,
         state: WaterState,
-        transpiration_mm: float,
+        _transpiration_mm: float,
         root_fractions: Sequence[float],
     ) -> float: ...
