@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import math
 
-from agrogame.soil.models import SoilProfile
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
-from agrogame.soil.water.state import SoilWaterState
+from .ports import WaterProfile, WaterState, TranspirationExtractor
 
 from .params import EtParams
 from agrogame.weather.constants import (
@@ -194,9 +192,9 @@ class Evapotranspiration:
 
     def actual_et(
         self,
-        profile: SoilProfile,
-        water_state: SoilWaterState,
-        water_model: CascadingBucketWaterModel,
+        profile: WaterProfile,
+        water_state: WaterState,
+        water_model: TranspirationExtractor,
         et: EtComponents,
         root_fractions: tuple[float, ...] | list[float],
     ) -> EtActual:

@@ -36,3 +36,12 @@ forbidden_modules =
     agrogame.plant
     agrogame.atmosphere
     agrogame.sim
+
+# Atmosphere must not depend directly on Soil (use ports/adapters or events)
+[contract:atmosphere_independence]
+name = Atmosphere should be independent of Soil
+type = forbidden
+source_modules =
+    agrogame.atmosphere
+forbidden_modules =
+    agrogame.soil
