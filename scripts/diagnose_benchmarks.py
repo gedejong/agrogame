@@ -80,8 +80,9 @@ def diagnose(
             wind_m_s=rec.wind_m_s or 2.0,
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
+        rain = rec.precip_mm or 0.0
         _ = water.update_daily(
-            profile, wstate, DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0)
+            profile, wstate, DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0)
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(

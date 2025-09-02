@@ -27,11 +27,14 @@ def main() -> int:
         out = out_dir / f"{name}.csv"
         # Write POWER-like CSV compatible with load_weather
         with out.open("w") as f:
-            f.write("date,tmin_c,tmax_c,rh_pct,wind_m_s,rs_mj_m2\n")
+            f.write("date,tmin_c,tmax_c,rh_pct,wind_m_s,rs_mj_m2,precip_mm,rn_mj_m2\n")
             for r in series.records:
                 f.write(f"{r.day.isoformat()},{r.tmin_c},{r.tmax_c},")
                 f.write(f"{r.relative_humidity_pct or ''},{r.wind_m_s or ''},")
-                f.write(f"{r.shortwave_mj_m2 or ''}\n")
+                rs = r.shortwave_mj_m2 or ""
+                pmm = r.precip_mm or ""
+                rn = r.net_radiation_mj_m2 or ""
+                f.write(f"{rs},{pmm},{rn}\n")
         print(f"Wrote {out}")
     return 0
 
