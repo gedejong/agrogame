@@ -9,12 +9,12 @@ from agrogame.config.compose import deep_merge_dicts, load_and_compose
 
 
 def test_validate_crop_sample() -> None:
-    data = yaml.safe_load(Path("samples/crops.yaml").read_text())
+    data = yaml.safe_load(Path("data/samples/crops.yaml").read_text())
     validate_data(data, "crop")
 
 
 def test_validate_soils_sample() -> None:
-    data = yaml.safe_load(Path("soils/presets.yaml").read_text())
+    data = yaml.safe_load(Path("data/soils/presets.yaml").read_text())
     validate_data(data, "soil")
 
 

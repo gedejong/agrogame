@@ -257,7 +257,7 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Import crop parameters into samples/crops.yaml"
+        description="Import crop parameters into data/samples/crops.yaml"
     )
     parser.add_argument(
         "--pcse-path",
@@ -268,7 +268,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("samples/crops.yaml"),
+        default=Path("data/samples/crops.yaml"),
         help="Output YAML file (merged)",
     )
     parser.add_argument(
