@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Any
 
 import os
 import csv
@@ -35,18 +35,17 @@ pytestmark = [
 ]
 
 
-SCENARIOS: Dict[str, Tuple[Path, float, float]] = {
-    # name: (weather path, expected yield t/ha, abs tolerance t/ha)
-    "maize_iowa": (Path("tests/data/benchmarks/fullseason/maize_iowa.csv"), 11.5, 3.0),
-    "wheat_kansas": (
-        Path("tests/data/benchmarks/fullseason/wheat_kansas.csv"),
-        4.2,
-        2.0,
-    ),
-    "maize_kenya_drought": (
-        Path("tests/data/benchmarks/fullseason/maize_kenya_drought.csv"),
-        3.5,
-        1.5,
+def _scenario_cfg() -> Dict[str, Any]:
+    import yaml
+
+    return yaml.safe_load(Path("tests/data/benchmarks/scenarios.yaml").read_text())
+
+
+SCENARIOS: Dict[str, Path] = {
+    "maize_iowa": Path("tests/data/benchmarks/fullseason/maize_iowa.csv"),
+    "wheat_kansas": Path("tests/data/benchmarks/fullseason/wheat_kansas.csv"),
+    "maize_kenya_drought": Path(
+        "tests/data/benchmarks/fullseason/maize_kenya_drought.csv"
     ),
 }
 
@@ -207,34 +206,45 @@ def _compare_biomass_series_nse(sim: Dict[int, float]) -> float | None:
     return float(nse(y_obs, y_sim))
 
 
-@pytest.mark.parametrize(
-    "name,expected,tol",
-    [
-        ("maize_iowa", 11.5, 3.0),
-        ("wheat_kansas", 4.2, 2.0),
-        ("maize_kenya_drought", 3.5, 1.5),
-    ],
-)
-def test_end_to_end_benchmarks(name: str, expected: float, tol: float) -> None:
-    wf, _, _ = SCENARIOS[name]
+@pytest.mark.parametrize("name", ["maize_iowa", "wheat_kansas", "maize_kenya_drought"])
+def test_end_to_end_benchmarks(name: str) -> None:
+    wf = SCENARIOS[name]
     if not wf.exists():
         pytest.skip(f"Missing benchmark weather: {wf}")
+    cfg = _scenario_cfg()[name]
     res = _run_one(name, wf)
-    # Yield within tolerance (use generous relative error for current baseline)
-    y = float(res["yield_t_ha"])
-    rel_err = abs(y - expected) / max(1e-6, expected)
-    assert rel_err <= 0.6
-    # Phenology windows (broad sanity)
-    fgdd = res["flowering_gdd"]
-    mgdd = res["maturity_gdd"]
-    assert fgdd is None or 700 <= float(fgdd) <= 1200
-    assert mgdd is None or float(mgdd) >= (float(fgdd) if fgdd is not None else 900)
-    # WUE plausible bounds
-    assert 0.5 <= float(res["wue"]) <= 15.0
-    # N uptake within plausible bounds (kg/ha total)
-    assert 0.0 <= float(res["total_n_uptake"]) <= 250.0
+    # Yield within scenario absolute tolerance
+    exp = float(cfg.get("expected_yield_t_ha", 0.0))
+    tol = float(cfg.get("yield_tol_t_ha", 0.0))
+    assert abs(float(res["yield_t_ha"]) - exp) <= tol
+    # Phenology windows
+    fgdd = float(res["flowering_gdd"]) if res["flowering_gdd"] is not None else None
+    mgdd = float(res["maturity_gdd"]) if res["maturity_gdd"] is not None else None
+    phen = cfg.get("phenology", {})
+    fmin = phen.get("flowering_gdd_min")
+    fmax = phen.get("flowering_gdd_max")
+    mmin = phen.get("maturity_gdd_min")
+    if fgdd is not None and fmin is not None:
+        assert fgdd >= float(fmin)
+    if fgdd is not None and fmax is not None:
+        assert fgdd <= float(fmax)
+    if mgdd is not None and mmin is not None:
+        assert mgdd >= float(mmin)
+    # WUE bounds
+    wue_cfg = cfg.get("wue", {})
+    wmin = float(wue_cfg.get("min", 0.0))
+    wmax = float(wue_cfg.get("max", 1e9))
+    assert wmin <= float(res["wue"]) <= wmax
+    # N uptake bounds (kg/ha total)
+    n_cfg = cfg.get("n_uptake_kg_ha", {})
+    nmin = float(n_cfg.get("min", 0.0))
+    nmax = float(n_cfg.get("max", 1e9))
+    assert nmin <= float(res["total_n_uptake"]) <= nmax
     # Biomass series metrics if observed available
-    if res["r2_obs"] is not None:
-        assert 0.3 <= float(res["r2_obs"]) <= 1.0
-    if res["nse_obs"] is not None:
-        assert -0.5 <= float(res["nse_obs"]) <= 1.0
+    metrics_cfg = cfg.get("series_metrics", {})
+    r2_min = metrics_cfg.get("r2_min")
+    nse_min = metrics_cfg.get("nse_min")
+    if res["r2_obs"] is not None and r2_min is not None:
+        assert float(res["r2_obs"]) >= float(r2_min)
+    if res["nse_obs"] is not None and nse_min is not None:
+        assert float(res["nse_obs"]) >= float(nse_min)
