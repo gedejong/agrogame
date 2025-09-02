@@ -40,5 +40,4 @@ jobs:
 
       - name: Vulture (report-only)
         run: poetry run vulture agrogame --min-confidence 80
-        continue-on-error: true
 
