@@ -20,6 +20,7 @@ Implementation Notes
   - `stomatal = max(0.2, 1 - vpd_sensitivity * max(0, VPD - vpd_ref))`
   - Parameters live in `agrogame/atmosphere/et/params.py`.
 - PM pathway already uses VPD in the aerodynamic term via psychrometric scaling; the above partitioning additionally reduces canopy demand under high VPD.
+- Integration: ET calls water ports (`WaterActuator`) to apply evaporation and extract transpiration; the water model emits events. See Architecture → Ports & Events.
 
 Visualizations
 

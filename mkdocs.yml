@@ -20,6 +20,7 @@ nav:
       - Water Model Abstraction: architecture/water_model_abstraction.md
       - Plant Module: architecture/plant-module.md
       - Data Flow: architecture/data-flow.md
+      - Ports & Events: architecture/ports-and-events.md
   - Models:
       - Water Balance: models/water-balance.md
       - Nutrient Cycle: models/nutrient-cycle.md
