@@ -99,7 +99,7 @@ ignore = ["tests/*", "docs/*", "out/*"]
 
 [tool.deptry]
 known_first_party = ["agrogame"]
-exclude = ["tests", "docs", "build", "dist", "out"]
+exclude = ["tests", "docs", "build", "dist", "out", ".cache", "scripts"]
 ignore_notebooks = true
 
 [build-system]

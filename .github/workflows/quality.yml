@@ -36,8 +36,7 @@ jobs:
         continue-on-error: true
 
       - name: Deptry dependency hygiene
-        run: poetry run deptry . --exclude tests,docs,build,dist,out
-        continue-on-error: true
+        run: poetry run deptry . --exclude tests,docs,build,dist,out,.cache,scripts
 
       - name: Vulture (report-only)
         run: poetry run vulture agrogame --min-confidence 80
