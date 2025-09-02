@@ -73,6 +73,7 @@ def diagnose(
         )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,
@@ -96,7 +97,7 @@ def diagnose(
         )
         total_et_mm += actual.evaporation_mm + actual.transpiration_mm
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=rn,
+            incident_par_mj_m2=par,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,
