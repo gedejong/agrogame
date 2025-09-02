@@ -29,7 +29,7 @@ jobs:
         run: poetry run pre-commit run --all-files --hook-stage push
 
       - name: Import Linter
-        run: poetry run lint-imports --path . --config .importlinter
+        run: poetry run lint-imports --config .importlinter
 
       - name: Xenon complexity
         run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore tests/*,docs/*,out/* agrogame
