@@ -41,7 +41,7 @@ class _WaterState(Protocol):
     def layer_storage_mm(self, profile: _WaterProfile, idx: int) -> float: ...
 
     def set_layer_storage_mm(
-        self, profile: _WaterProfile, idx: int, mm: float
+        self, profile: _WaterProfile, idx: int, _mm: float
     ) -> None: ...
 
 
