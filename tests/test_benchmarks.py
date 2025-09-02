@@ -43,6 +43,7 @@ def _run_growth(
     hi = float(sc.get("harvest_index", 0.5))
     lai0 = float(sc.get("planting_lai", 0.0))
     soil_id = str(sc.get("soil_id", "loam_temperate"))
+    vernal_units = sc.get("vernalization_required_units")
 
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils.get(soil_id, lib.soils["loam_temperate"])
@@ -53,6 +54,9 @@ def _run_growth(
             max_temperature_c=35.0,
             thresholds=GrowthStageThresholds(
                 emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
+            ),
+            vernalization_required_units=(
+                float(vernal_units) if vernal_units is not None else None
             ),
         ),
         event_bus=bus,
