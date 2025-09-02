@@ -5,23 +5,27 @@ maize_iowa:
   start: 2020-04-01
   end: 2020-10-15
   rue_g_per_mj: 3.0
-  harvest_index: 0.5
-  planting_lai: 0.2
+  harvest_index: 0.52
+  planting_lai: 0.0
+  soil_id: loam_temperate
 wheat_kansas:
   crop: wheat
   lat: 39.0119
   lon: -98.4842
   start: 2020-10-01
   end: 2021-07-01
-  rue_g_per_mj: 2.8
+  rue_g_per_mj: 2.2
   harvest_index: 0.45
-  planting_lai: 0.15
+  planting_lai: 0.0
+  soil_id: sandy_loam_temperate
+  vernalization_required_units: 45.0
 maize_kenya_drought:
   crop: maize
   lat: -1.286389
   lon: 36.817223
   start: 2019-03-01
   end: 2019-09-01
-  rue_g_per_mj: 3.0
-  harvest_index: 0.5
-  planting_lai: 0.2
+  rue_g_per_mj: 2.7
+  harvest_index: 0.55
+  planting_lai: 0.0
+  soil_id: sandy_arid

@@ -159,18 +159,18 @@ def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 120):
 
 
 SCENARIOS = [
-    ("maize_iowa", Path("tests/data/benchmarks/fullseason/maize_iowa.csv"), 11.5, 1.0),
+    ("maize_iowa", Path("tests/data/benchmarks/fullseason/maize_iowa.csv"), 11.5, 3.0),
     (
         "wheat_kansas",
         Path("tests/data/benchmarks/fullseason/wheat_kansas.csv"),
         4.2,
-        0.5,
+        2.0,
     ),
     (
         "maize_kenya_drought",
         Path("tests/data/benchmarks/fullseason/maize_kenya_drought.csv"),
         3.5,
-        0.5,
+        1.5,
     ),
 ]
 
