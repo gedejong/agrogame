@@ -29,7 +29,7 @@ jobs:
 
       - name: Install deps
         run: |
-          poetry install --no-interaction --no-root
+          poetry install --no-interaction
 
       - name: Run benchmark tests
         env:
