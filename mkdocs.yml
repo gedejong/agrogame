@@ -13,6 +13,7 @@ nav:
       - Canopy: canopy.md
       - Events & Debugging: events.md
       - Architecture (compressed): architecture.md
+      - Quality Bar: quality-bar.md
   - Architecture:
       - Overview: architecture/overview.md
       - Soil Module: architecture/soil-module.md

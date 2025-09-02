@@ -34,10 +34,18 @@ types-PyYAML = "*"
 hypothesis = "^6.0"
 ruff = "^0.5.0"
 matplotlib = "^3.9"
+xenon = "^0.9.1"
+radon = "^6.0.1"
+import-linter = "^2.0"
+deptry = "^0.20.0"
+vulture = "^2.11"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
 agrogame = "agrogame.config.cli:main"
+arch-check = "importlinter.cli:main"
+complexity-check = "xenon.__main__:main"
+dep-check = "deptry.__main__:main"
 
 [tool.black]
 line-length = 88
@@ -79,6 +87,20 @@ convention = "google"
 [tool.pytest.ini_options]
 addopts = "--maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing --cov-fail-under=92"
 testpaths = ["tests"]
+
+[tool.radon]
+exclude = ["tests", "build", "dist", "docs", "out"]
+
+[tool.xenon]
+max-average = "B"
+max-modules = "B"
+max-absolute = "C"
+ignore = ["tests/*", "docs/*", "out/*"]
+
+[tool.deptry]
+known_first_party = ["agrogame"]
+exclude = ["tests", "docs", "build", "dist", "out"]
+ignore_notebooks = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]

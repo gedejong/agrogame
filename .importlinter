@@ -1,0 +1,17 @@
+[importlinter]
+root_package = agrogame
+include_external_packages = False
+
+# Minimal pragmatic contract: keep the event system isolated from domain modules
+[contract:events_isolated]
+name = Events package must not depend on domain modules
+type = forbidden
+source_modules =
+    agrogame.events
+forbidden_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.weather
+    agrogame.atmosphere
+    agrogame.sim
+
