@@ -60,7 +60,7 @@ def diagnose(
     wstate = SoilWaterState(profile)
     weather = load_weather(weather_file)
 
-    canopy.state.lai = planting_lai if planting_lai is not None else 0.5
+    canopy.state.lai = planting_lai if planting_lai is not None else 0.0
     total_et_mm = 0.0
     flowering_idx = None
     maturity_idx = None
@@ -115,7 +115,9 @@ def diagnose(
     wue = final_biomass / max(1e-6, total_et_mm)
     print(f"Scenario: {name}")
     print(f"  Weather: {weather_file}")
-    print(f"  Final biomass: {final_biomass:.1f} g/m2 -> Yield~ {y:.2f} t/ha (HI=0.5)")
+    hi_used = hi if hi is not None else 0.5
+    print(f"  Final biomass: {final_biomass:.1f} g/m2")
+    print(f"  Yield~ {y:.2f} t/ha (HI={hi_used})")
     print(f"  Total ET: {total_et_mm:.1f} mm, WUE: {wue:.2f} g/m2/mm")
     print(f"  Flowering idx/GDD: {flowering_idx} / {flowering_gdd}")
     print(f"  Maturity idx/GDD: {maturity_idx} / {maturity_gdd}")
@@ -132,10 +134,8 @@ def main() -> int:
             # Optional: per-scenario phenology tuning (e.g., vernalization for wheat)
             rue = float(sc.get("rue_g_per_mj", 3.0))
             hi = float(sc.get("harvest_index", 0.5))
-            lai0 = float(sc.get("planting_lai", 0.5))
+            lai0 = float(sc.get("planting_lai", 0.0))
             soil_id = str(sc.get("soil_id", "loam_temperate"))
-            # Note: vernalization can be added to phenology instantiation in a
-            # future refinement using scenario's vernalization_required_units.
             diagnose(
                 wf,
                 name,
