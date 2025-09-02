@@ -17,12 +17,32 @@ from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
-from agrogame.soil.water.state import SoilWaterState
-from agrogame.soil.models import SoilProfile
+from typing import Protocol, Sequence
+
 
 from .events import NitrificationOccurred, NutrientLeached
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
+
+
+class _SoilLayer(Protocol):
+    field_capacity: float
+    saturation: float
+    depth_cm: float
+
+
+class _WaterProfile(Protocol):
+    layers: Sequence[_SoilLayer]
+
+
+class _WaterState(Protocol):
+    theta: Sequence[float]
+
+    def layer_storage_mm(self, profile: _WaterProfile, idx: int) -> float: ...
+
+    def set_layer_storage_mm(
+        self, profile: _WaterProfile, idx: int, mm: float
+    ) -> None: ...
 
 
 class NitrogenCycle:
@@ -32,8 +52,8 @@ class NitrogenCycle:
         self,
         event_bus: EventBus,
         state: SoilNitrogenState,
-        water_state: SoilWaterState | None = None,
-        profile: SoilProfile | None = None,
+        water_state: _WaterState | None = None,
+        profile: _WaterProfile | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state

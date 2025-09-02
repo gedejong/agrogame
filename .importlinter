@@ -66,3 +66,13 @@ source_modules =
     agrogame.atmosphere
 forbidden_modules =
     agrogame.sim
+
+# Soil subdomains should not cross-reference each other (prefer events)
+[contract:soil_subdomain_independence]
+name = Soil subdomains are independent (use events)
+type = independence
+modules =
+    agrogame.soil.water
+    agrogame.soil.nitrogen
+    agrogame.soil.canopy
+    agrogame.soil.phenology
