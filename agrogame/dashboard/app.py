@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any, Dict, Mapping
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -16,6 +16,7 @@ from agrogame.soil.nitrogen.state import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
+from agrogame.soil.models import SoilProfile
 
 
 def _run_simulation(
@@ -23,7 +24,7 @@ def _run_simulation(
     weather_file: Path,
     irrigation_schedule: list[tuple[int, float]] | None = None,
     fertilizer_schedule: list[tuple[int, float]] | None = None,
-):
+) -> tuple[Dict[str, Any], SoilProfile]:
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
 
@@ -31,15 +32,13 @@ def _run_simulation(
     water = CascadingBucketWaterModel(event_bus=bus)
     wstate = SoilWaterState(profile)
     nstate = SoilNitrogenState(profile)
-    ncycle = NitrogenCycle(
-        event_bus=bus, state=nstate, water_state=wstate, profile=profile
-    )
+    ncycle = NitrogenCycle(event_bus=bus, state=nstate)
     orch = build_default_orchestrator()
     et_mod = Evapotranspiration(EtParams())
 
     weather = load_weather(weather_file)
 
-    history: dict[str, list] = {
+    history: Dict[str, Any] = {
         "day": [],
         "lai": [],
         "biomass_g_m2": [],
@@ -130,7 +129,7 @@ def _run_simulation(
     return history, profile
 
 
-def _plot_soil_moisture(history: dict, profile) -> None:
+def _plot_soil_moisture(history: Mapping[str, Any], profile: SoilProfile) -> None:
     fig = go.Figure()
     for i, _layer in enumerate(profile.layers):
         fig.add_trace(
@@ -145,7 +144,7 @@ def _plot_soil_moisture(history: dict, profile) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_nitrogen(history: dict, profile) -> None:
+def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
     tabs = st.tabs(["NO3 (kg/ha)", "NH4 (kg/ha)"])
     with tabs[0]:
         fig_no3 = go.Figure()
@@ -175,7 +174,7 @@ def _plot_nitrogen(history: dict, profile) -> None:
         st.plotly_chart(fig_nh4, use_container_width=True)
 
 
-def _plot_biomass(history: dict) -> None:
+def _plot_biomass(history: Mapping[str, Any]) -> None:
     fig = go.Figure(
         data=[go.Scatter(x=history["day"], y=history["biomass_g_m2"], mode="lines")]
     )
@@ -183,7 +182,7 @@ def _plot_biomass(history: dict) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_root_depth(history: dict) -> None:
+def _plot_root_depth(history: Mapping[str, Any]) -> None:
     fig = go.Figure(
         data=[go.Scatter(x=history["day"], y=history["root_depth_cm"], mode="lines")]
     )
@@ -191,7 +190,7 @@ def _plot_root_depth(history: dict) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_weather(history: dict) -> None:
+def _plot_weather(history: Mapping[str, Any]) -> None:
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(x=history["day"], y=history["tmin_c"], mode="lines", name="Tmin")
