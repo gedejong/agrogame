@@ -76,3 +76,15 @@ modules =
     agrogame.soil.nitrogen
     agrogame.soil.canopy
     agrogame.soil.phenology
+
+# Plant must not import Soil subdomains directly; use events or ports
+[contract:plant_vs_soil]
+name = Plant independent of Soil subdomains
+type = forbidden
+source_modules =
+    agrogame.plant
+forbidden_modules =
+    agrogame.soil.water
+    agrogame.soil.nitrogen
+    agrogame.soil.canopy
+    agrogame.soil.phenology
