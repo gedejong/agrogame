@@ -40,4 +40,12 @@ repos:
         entry: poetry run ruff check agrogame/soil/water --select D
         language: system
         pass_filenames: false
+  - repo: local
+    hooks:
+      - id: bench-pre-push
+        name: benchmark suite (AGRO_BENCH=1)
+        entry: bash -c 'AGRO_BENCH=1 poetry run pytest -q -k benchmarks'
+        language: system
+        pass_filenames: false
+        stages: [push]
 
