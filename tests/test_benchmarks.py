@@ -232,7 +232,7 @@ def test_yield_against_benchmarks(
 )
 def test_wue_and_phenology_windows() -> None:
     # Use Iowa dataset for demonstration
-    weather_file = Path("tests/data/benchmarks/iowa_2020.csv")
+    weather_file = Path("tests/data/benchmarks/fullseason/maize_iowa.csv")
     if not weather_file.exists():
         pytest.skip("Missing benchmark weather")
     biomass, wue, flowering_day, maturity_day = _run_growth_with_wue_and_stages(

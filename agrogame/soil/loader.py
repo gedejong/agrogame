@@ -15,7 +15,12 @@ def load_yaml(path: Path) -> Dict[str, Any]:
 
 
 def load_soil_presets(path: Path) -> SoilLibrary:
-    data = load_yaml(path)
+    # Support new normalized data location with fallback for backward compatibility
+    candidate = path
+    if not candidate.exists():
+        alt = Path("data/soils/presets.yaml")
+        candidate = alt if alt.exists() else path
+    data = load_yaml(candidate)
     # Validate against JSON Schema before Pydantic
     validate_data(data, "soil")
     return SoilLibrary.model_validate(data)

@@ -44,7 +44,7 @@ repos:
     hooks:
       - id: bench-pre-push
         name: benchmark suite (AGRO_BENCH=1)
-        entry: bash -c 'AGRO_BENCH=1 poetry run pytest -q -k benchmarks'
+        entry: bash -c 'AGRO_BENCH=1 poetry run pytest -q -k benchmarks --no-cov || exit 1'
         language: system
         pass_filenames: false
         stages: [push]
