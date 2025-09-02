@@ -222,9 +222,14 @@ def test_yield_against_benchmarks(
     if not weather_file.exists():
         pytest.skip(f"Missing benchmark weather: {weather_file}")
     y = _run_growth(name, weather_file)
-    # Use generous relative tolerance to accommodate current model realism
-    rel_err = abs(y - expected) / max(1e-6, expected)
-    assert rel_err <= 0.6
+    # Use scenario absolute tolerance for consistency with integration tests
+    import yaml
+
+    sc = yaml.safe_load(Path("tests/data/benchmarks/scenarios.yaml").read_text()).get(
+        name, {}
+    )
+    tol_abs = float(sc.get("yield_tol_t_ha", tol))
+    assert abs(y - expected) <= tol_abs
 
 
 @pytest.mark.skipif(
