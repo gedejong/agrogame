@@ -39,7 +39,7 @@ def _run_simulation(
 
     weather = load_weather(weather_file)
 
-    history = {
+    history: dict[str, list] = {
         "day": [],
         "lai": [],
         "biomass_g_m2": [],
@@ -130,7 +130,7 @@ def _run_simulation(
     return history, profile
 
 
-def _plot_soil_moisture(history, profile):
+def _plot_soil_moisture(history: dict, profile) -> None:
     fig = go.Figure()
     for i, _layer in enumerate(profile.layers):
         fig.add_trace(
@@ -145,7 +145,7 @@ def _plot_soil_moisture(history, profile):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_nitrogen(history, profile):
+def _plot_nitrogen(history: dict, profile) -> None:
     tabs = st.tabs(["NO3 (kg/ha)", "NH4 (kg/ha)"])
     with tabs[0]:
         fig_no3 = go.Figure()
@@ -175,7 +175,7 @@ def _plot_nitrogen(history, profile):
         st.plotly_chart(fig_nh4, use_container_width=True)
 
 
-def _plot_biomass(history):
+def _plot_biomass(history: dict) -> None:
     fig = go.Figure(
         data=[go.Scatter(x=history["day"], y=history["biomass_g_m2"], mode="lines")]
     )
@@ -183,7 +183,7 @@ def _plot_biomass(history):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_root_depth(history):
+def _plot_root_depth(history: dict) -> None:
     fig = go.Figure(
         data=[go.Scatter(x=history["day"], y=history["root_depth_cm"], mode="lines")]
     )
@@ -191,7 +191,7 @@ def _plot_root_depth(history):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_weather(history):
+def _plot_weather(history: dict) -> None:
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(x=history["day"], y=history["tmin_c"], mode="lines", name="Tmin")

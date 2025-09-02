@@ -1,7 +1,14 @@
 __version__ = "0.1.0"
 
-# Optional: expose dashboard entrypoint when extras are installed
-try:  # pragma: no cover - optional dependency surface
-    from .dashboard.app import main as dashboard_main  # type: ignore
-except Exception:  # pragma: no cover
-    dashboard_main = None  # type: ignore
+__all__: list[str] = []
+
+
+# Optional: expose dashboard entrypoint via lazy wrapper to avoid import errors
+def dashboard_main(*args, **kwargs):  # type: ignore[no-redef]
+    """Run the Streamlit dashboard (requires extras)."""
+    from .dashboard.app import main as _main  # local import to keep optional
+
+    return _main(*args, **kwargs)
+
+
+__all__.append("dashboard_main")
