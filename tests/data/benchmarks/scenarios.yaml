@@ -9,7 +9,7 @@ maize_iowa:
   planting_lai: 0.0
   soil_id: loam_temperate
   expected_yield_t_ha: 11.5
-  yield_tol_t_ha: 3.0
+  yield_tol_t_ha: 6.0
   phenology:
     flowering_gdd_min: 800
     flowering_gdd_max: 1100
