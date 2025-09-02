@@ -3,16 +3,21 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable, Sequence
 
 
-@runtime_checkable
-class WaterProfile(Protocol):
-    """Abstraction of a soil/water profile for ET extraction.
+class SoilLayer(Protocol):
+    """Minimal layer interface needed by ET for topsoil evaporation.
 
-    Implementations may wrap concrete soil profile structures.
+    Concrete soil layer objects should provide these attributes.
     """
 
-    # Minimal attribute access used by ET for evaporation calculation
-    # (duck-typed in implementations)
-    ...
+    wilting_point: float
+    depth_cm: float
+
+
+@runtime_checkable
+class WaterProfile(Protocol):
+    """Abstraction of a soil/water profile for ET extraction."""
+
+    layers: Sequence[SoilLayer]
 
 
 @runtime_checkable
