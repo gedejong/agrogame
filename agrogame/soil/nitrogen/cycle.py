@@ -121,7 +121,7 @@ class NitrogenCycle:
             return
         if not event.layer_indices:
             return
-        for idx, take_mm in zip(event.layer_indices, event.amounts_mm):
+        for idx, take_mm in zip(event.layer_indices, event.amounts_mm, strict=False):
             if not (0 <= idx < self._n_layers):
                 continue
             if take_mm <= 0.0:

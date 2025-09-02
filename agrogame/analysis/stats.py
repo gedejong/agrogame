@@ -17,19 +17,20 @@ def _to_lists(
 def rmse(obs: Iterable[float], sim: Iterable[float]) -> float:
     o, s = _to_lists(obs, sim)
     n = len(o)
-    return math.sqrt(sum((si - oi) ** 2 for oi, si in zip(o, s)) / float(n))
+    err_sq = sum((si - oi) ** 2 for oi, si in zip(o, s, strict=False))
+    return math.sqrt(err_sq / float(n))
 
 
 def mae(obs: Iterable[float], sim: Iterable[float]) -> float:
     o, s = _to_lists(obs, sim)
     n = len(o)
-    return sum(abs(si - oi) for oi, si in zip(o, s)) / n
+    return sum(abs(si - oi) for oi, si in zip(o, s, strict=False)) / n
 
 
 def mbe(obs: Iterable[float], sim: Iterable[float]) -> float:
     o, s = _to_lists(obs, sim)
     n = len(o)
-    return sum((si - oi) for oi, si in zip(o, s)) / n
+    return sum((si - oi) for oi, si in zip(o, s, strict=False)) / n
 
 
 def r2(obs: Iterable[float], sim: Iterable[float]) -> float:
@@ -41,7 +42,7 @@ def r2(obs: Iterable[float], sim: Iterable[float]) -> float:
     n = len(o)
     o_mean = sum(o) / n
     s_mean = sum(s) / n
-    cov = sum((oi - o_mean) * (si - s_mean) for oi, si in zip(o, s))
+    cov = sum((oi - o_mean) * (si - s_mean) for oi, si in zip(o, s, strict=False))
     var_o = sum((oi - o_mean) ** 2 for oi in o)
     var_s = sum((si - s_mean) ** 2 for si in s)
     if var_o == 0.0 or var_s == 0.0:
@@ -59,7 +60,7 @@ def nse(obs: Iterable[float], sim: Iterable[float]) -> float:
     """Nash–Sutcliffe efficiency."""
     o, s = _to_lists(obs, sim)
     o_mean = sum(o) / len(o)
-    numerator = sum((si - oi) ** 2 for oi, si in zip(o, s))
+    numerator = sum((si - oi) ** 2 for oi, si in zip(o, s, strict=False))
     denominator = sum((oi - o_mean) ** 2 for oi in o)
     if denominator == 0.0:
         return 1.0 if numerator == 0.0 else -float("inf")
@@ -70,8 +71,10 @@ def willmott_d(obs: Iterable[float], sim: Iterable[float]) -> float:
     """Willmott's index of agreement (d)."""
     o, s = _to_lists(obs, sim)
     o_mean = sum(o) / len(o)
-    num = sum((si - oi) ** 2 for oi, si in zip(o, s))
-    den = sum((abs(si - o_mean) + abs(oi - o_mean)) ** 2 for oi, si in zip(o, s))
+    num = sum((si - oi) ** 2 for oi, si in zip(o, s, strict=False))
+    den = sum(
+        (abs(si - o_mean) + abs(oi - o_mean)) ** 2 for oi, si in zip(o, s, strict=False)
+    )
     if den == 0.0:
         return 1.0 if num == 0.0 else 0.0
     return 1.0 - num / den
@@ -80,7 +83,7 @@ def willmott_d(obs: Iterable[float], sim: Iterable[float]) -> float:
 def coverage_within(obs: Iterable[float], sim: Iterable[float], tol: float) -> float:
     """Fraction of pairs with |sim-obs| <= tol."""
     o, s = _to_lists(obs, sim)
-    count = sum(1 for oi, si in zip(o, s) if abs(si - oi) <= tol)
+    count = sum(1 for oi, si in zip(o, s, strict=False) if abs(si - oi) <= tol)
     return count / len(o)
 
 
@@ -102,8 +105,8 @@ def align_series(
     """
     if len(xs) != len(xv) or len(ys) != len(yv):
         raise ValueError("keys and values must be same length for each series")
-    xmap = dict(zip(xs, xv))
-    ymap = dict(zip(ys, yv))
+    xmap = dict(zip(xs, xv, strict=False))
+    ymap = dict(zip(ys, yv, strict=False))
     if use_union:
         keys = set(xs) | set(ys)
         keys_list = sorted(keys) if sort_keys else list(keys)

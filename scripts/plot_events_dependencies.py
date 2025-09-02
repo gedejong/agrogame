@@ -160,7 +160,7 @@ def main() -> None:
 
     for _, evs in day_events.items():
         modules = [bucket(e.event_type, e.module_name) for e in evs]
-        for a, b in zip(modules, modules[1:]):
+        for a, b in zip(modules, modules[1:], strict=False):
             if a == b:
                 continue
             edges[(a, b)] = edges.get((a, b), 0) + 1

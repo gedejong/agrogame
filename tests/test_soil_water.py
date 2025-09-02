@@ -213,8 +213,8 @@ def test_texture_order_runoff_and_drainage() -> None:
         drains.append(deep)
     # Expect non-decreasing runoff with heavier textures
     # and non-increasing deep drainage
-    assert all(a <= b + 1e-6 for a, b in zip(runoffs, runoffs[1:]))
-    assert all(a >= b - 1e-6 for a, b in zip(drains, drains[1:]))
+    assert all(a <= b + 1e-6 for a, b in zip(runoffs, runoffs[1:], strict=False))
+    assert all(a >= b - 1e-6 for a, b in zip(drains, drains[1:], strict=False))
 
 
 def test_interception_fills_and_evaporates_before_soil() -> None:

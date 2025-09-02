@@ -397,7 +397,8 @@ def main() -> None:
     ax[2][1].plot(x, act_t, label="Actual Transp (mm)")
     # Overlay VPD and stomatal factor for context
     vpd_series = [
-        vpd_kpa(0.5 * (tmin + tmax), rh) for tmin, tmax, rh in zip(tmins, tmaxs, rhs)
+        vpd_kpa(0.5 * (tmin + tmax), rh)
+        for tmin, tmax, rh in zip(tmins, tmaxs, rhs, strict=False)
     ]
     stomatal = []
     for v in vpd_series:
@@ -416,7 +417,7 @@ def main() -> None:
             )
     cum_et_total: List[float] = []
     _cum = 0.0
-    for e_mm, t_mm in zip(act_e, act_t):
+    for e_mm, t_mm in zip(act_e, act_t, strict=False):
         _cum += e_mm + t_mm
         cum_et_total.append(_cum)
     ax_et_cum = ax[2][1].twinx()
@@ -447,7 +448,7 @@ def main() -> None:
     seen = set()
     uniq_handles = []
     uniq_labels = []
-    for handle, label in zip(handles, labels):
+    for handle, label in zip(handles, labels, strict=False):
         if label not in seen and label:
             seen.add(label)
             uniq_handles.append(handle)
@@ -483,7 +484,7 @@ def main() -> None:
         for a in axes_to_shade:
             a.axvspan(start_day, end_day, color=color, alpha=0.06, zorder=0)
     # Place stage labels below the bottom-left axis
-    for d, name in zip(transition_days, transition_labels):
+    for d, name in zip(transition_days, transition_labels, strict=False):
         ax[2][0].annotate(
             name.replace("_", "\n"),
             xy=(d, -0.25),

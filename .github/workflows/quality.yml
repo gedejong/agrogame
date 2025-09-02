@@ -32,7 +32,7 @@ jobs:
         run: poetry run lint-imports --config .importlinter
 
       - name: Xenon complexity
-        run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore tests/*,docs/*,out/* agrogame
+        run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' agrogame
 
       - name: Deptry dependency hygiene
         run: poetry run deptry agrogame

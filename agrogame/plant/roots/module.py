@@ -119,7 +119,8 @@ class RootModule:
         if not nutrient_signal or strength <= 0.0:
             return fracs
         biased = [
-            max(0.0, f + strength * max(0.0, n)) for f, n in zip(fracs, nutrient_signal)
+            max(0.0, f + strength * max(0.0, n))
+            for f, n in zip(fracs, nutrient_signal, strict=False)
         ]
         s = sum(biased) or 1.0
         return [b / s for b in biased]

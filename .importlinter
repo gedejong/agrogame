@@ -88,3 +88,13 @@ forbidden_modules =
     agrogame.soil.nitrogen
     agrogame.soil.canopy
     agrogame.soil.phenology
+
+# Domain layering to ensure dependency direction (should be KEPT)
+[contract:domain_layers]
+name = Domain layers direction
+type = layers
+layers =
+    agrogame.weather
+    agrogame.atmosphere
+    agrogame.soil
+    agrogame.plant
