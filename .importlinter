@@ -15,3 +15,24 @@ forbidden_modules =
     agrogame.atmosphere
     agrogame.sim
 
+
+# Plant may depend on Soil phenology types, but Soil must not import Plant
+[contract:soil_plant_direction]
+name = Soil must not depend on Plant
+type = forbidden
+source_modules =
+    agrogame.soil
+forbidden_modules =
+    agrogame.plant
+
+# Atmosphere ET can depend on Weather constants, but Weather must stay independent
+[contract:weather_independence]
+name = Weather should be independent of domain modules
+type = forbidden
+source_modules =
+    agrogame.weather
+forbidden_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.atmosphere
+    agrogame.sim
