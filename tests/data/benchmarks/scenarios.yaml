@@ -4,8 +4,8 @@ maize_iowa:
   lon: -93.097
   start: 2020-04-01
   end: 2020-10-15
-  rue_g_per_mj: 3.0
-  harvest_index: 0.52
+  rue_g_per_mj: 2.6
+  harvest_index: 0.50
   planting_lai: 0.0
   soil_id: loam_temperate
   expected_yield_t_ha: 11.5
@@ -29,8 +29,8 @@ wheat_kansas:
   lon: -98.4842
   start: 2020-10-01
   end: 2021-07-01
-  rue_g_per_mj: 2.2
-  harvest_index: 0.45
+  rue_g_per_mj: 1.4
+  harvest_index: 0.38
   planting_lai: 0.0
   soil_id: sandy_loam_temperate
   vernalization_required_units: 45.0
