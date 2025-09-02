@@ -45,3 +45,21 @@ class TranspirationExtractor(Protocol):
         _transpiration_mm: float,
         root_fractions: Sequence[float],
     ) -> float: ...
+
+
+@runtime_checkable
+class EvaporationApplier(Protocol):
+    """Capability to apply evaporation removal from topsoil."""
+
+    def apply_evaporation(
+        self, profile: WaterProfile, state: WaterState, evaporation_mm: float
+    ) -> float: ...
+
+
+@runtime_checkable
+class WaterActuator(TranspirationExtractor, Protocol):
+    """Composite protocol for water actions used by ET."""
+
+    def apply_evaporation(
+        self, profile: WaterProfile, state: WaterState, evaporation_mm: float
+    ) -> float: ...

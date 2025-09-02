@@ -66,7 +66,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
             self.event_bus.emit(RunoffGenerated(amount_mm=runoff, curve_number=cn))
         return runoff, incoming_mm - runoff
 
-    def _apply_evaporation(
+    # Expose as public for ET actuator use
+    def apply_evaporation(
         self, profile: SoilProfile, state: SoilWaterState, evaporation_mm: float
     ) -> float:
         """Remove actual evaporation from the top layer (bounded by availability)."""
@@ -148,7 +149,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
             state.layer_storage_mm(profile, i) for i in range(len(profile.layers))
         )
 
-        evap_taken = self._apply_evaporation(profile, state, drivers.evaporation_mm)
+        evap_taken = self.apply_evaporation(profile, state, drivers.evaporation_mm)
         remaining = self._infiltrate_layers(profile, state, infiltrated)
 
         deep_drainage = 0.0

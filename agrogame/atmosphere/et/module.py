@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from .ports import WaterProfile, WaterState, TranspirationExtractor
+from .ports import WaterProfile, WaterState, WaterActuator
 
 from .params import EtParams
 from agrogame.weather.constants import (
@@ -194,7 +194,7 @@ class Evapotranspiration:
         self,
         profile: WaterProfile,
         water_state: WaterState,
-        water_model: TranspirationExtractor,
+        water_model: WaterActuator,
         et: EtComponents,
         root_fractions: tuple[float, ...] | list[float],
     ) -> EtActual:
@@ -205,7 +205,8 @@ class Evapotranspiration:
         st = EtState()
         evap_taken = self.ritchie_evaporation(st, et.potential_evap_mm, top_avail)
         if evap_taken > 0.0:
-            water_state.set_layer_storage_mm(profile, 0, top_current - evap_taken)
+            # Delegate to water actuator to mutate state and emit events
+            _ = water_model.apply_evaporation(profile, water_state, evap_taken)
 
         # Transpiration extraction across rooted layers
         transp_supplied = water_model.extract_transpiration_by_roots(
