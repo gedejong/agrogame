@@ -33,7 +33,6 @@ jobs:
 
       - name: Xenon complexity
         run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore tests/*,docs/*,out/* agrogame
-        continue-on-error: true
 
       - name: Deptry dependency hygiene
         run: poetry run deptry agrogame

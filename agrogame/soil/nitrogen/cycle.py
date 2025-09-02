@@ -161,69 +161,17 @@ class NitrogenCycle:
         nitrified = 0.0
         denitrified = 0.0
 
-        # Compute per-layer water-based factors when water/profile available
         for i in range(self._n_layers):
-            theta, fc, sat = self._get_layer_theta_fc_sat(i)
-            moisture_factor = min(1.0, theta / fc) if fc > 0 else 1.0
-            anaerobic_factor = 0.0
-            if theta > fc and sat > fc:
-                anaerobic_factor = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
-            nitrif_aeration = max(0.0, 1.0 - anaerobic_factor)
-            ph_factor = self._ph_factor(ph_by_layer[i])
+            moisture_factor, anaerobic_factor, nitrif_aeration, ph_factor = (
+                self._environment_factors(i, ph_by_layer[i])
+            )
+            mineralized += self._mineralize_layer(i, temp_factor, moisture_factor)
+            nitrified += self._nitrify_layer(
+                i, temp_factor, moisture_factor, nitrif_aeration, ph_factor
+            )
+            denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor)
 
-            # Mineralization: ~0.1% per day at 25C baseline
-            org = self.state.organic_n[i]
-            if org > 0.0:
-                rate_m = 0.001 * temp_factor * moisture_factor
-                d = min(org, rate_m * org)
-                self.state.organic_n[i] -= d
-                self.state.nh4[i] += d
-                mineralized += d
-
-            # Nitrification: up to ~15%/day at optimal conditions
-            nh4 = self.state.nh4[i]
-            if nh4 > 0.0:
-                rate_n = (
-                    0.15 * temp_factor * moisture_factor * nitrif_aeration * ph_factor
-                )
-                rate_n = max(0.0, min(0.20, rate_n))  # clamp to reasonable range
-                dn = min(nh4, rate_n * nh4)
-                self.state.nh4[i] -= dn
-                self.state.no3[i] += dn
-                nitrified += dn
-                if dn > 0.0:
-                    self.event_bus.emit(NitrificationOccurred(layer=i, amount_kg_ha=dn))
-
-            # Denitrification: occurs under anaerobic conditions
-            no3 = self.state.no3[i]
-            if no3 > 0.0 and anaerobic_factor > 0.0:
-                # baseline 2%/day scaled by temp and anaerobic extent
-                rate_d = 0.02 * temp_factor * anaerobic_factor
-                dd = min(no3, rate_d * no3)
-                self.state.no3[i] -= dd
-                denitrified += dd
-
-        # Plant uptake (prefer NO3, then NH4) allocated by roots
-        total_demand = max(0.0, plant_demand_kg_ha)
-        taken_total = 0.0
-        if total_demand > 0.0:
-            # normalize root fractions defensively
-            s = sum(x for x in root_fractions if x > 0.0) or 1.0
-            shares = [max(0.0, x) / s for x in root_fractions]
-            wants = [total_demand * share for share in shares]
-            for i, want in enumerate(wants):
-                if want <= 0.0:
-                    continue
-                take_no3 = min(self.state.no3[i], want)
-                self.state.no3[i] -= take_no3
-                remaining = want - take_no3
-                take_nh4 = 0.0
-                if remaining > 0.0:
-                    take_nh4 = min(self.state.nh4[i], remaining)
-                    self.state.nh4[i] -= take_nh4
-                    remaining -= take_nh4
-                taken_total += take_no3 + take_nh4
-        plant_uptake = taken_total
+        plant_uptake = self._take_up_plant(max(0.0, plant_demand_kg_ha), root_fractions)
 
         # Mass balance: inputs - outputs should match Δstorage
         after = self._total_n()
@@ -295,3 +243,84 @@ class NitrogenCycle:
     def _total_n(self) -> float:
         """Return total N (organic + NH4 + NO3) across all layers (kg/ha)."""
         return sum(self.state.organic_n) + sum(self.state.nh4) + sum(self.state.no3)
+
+    # --- Internal decomposition helpers --------------------------------
+    def _environment_factors(
+        self, idx: int, ph: float
+    ) -> tuple[float, float, float, float]:
+        theta, fc, sat = self._get_layer_theta_fc_sat(idx)
+        moisture_factor = min(1.0, theta / fc) if fc > 0 else 1.0
+        anaerobic = 0.0
+        if theta > fc and sat > fc:
+            anaerobic = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
+        nitrif_aeration = max(0.0, 1.0 - anaerobic)
+        ph_factor = self._ph_factor(ph)
+        return moisture_factor, anaerobic, nitrif_aeration, ph_factor
+
+    def _mineralize_layer(
+        self, idx: int, temp_factor: float, moisture_factor: float
+    ) -> float:
+        org = self.state.organic_n[idx]
+        if org <= 0.0:
+            return 0.0
+        rate = 0.001 * temp_factor * moisture_factor
+        delta = min(org, rate * org)
+        if delta <= 0.0:
+            return 0.0
+        self.state.organic_n[idx] -= delta
+        self.state.nh4[idx] += delta
+        return delta
+
+    def _nitrify_layer(
+        self,
+        idx: int,
+        temp_factor: float,
+        moisture_factor: float,
+        nitrif_aeration: float,
+        ph_factor: float,
+    ) -> float:
+        nh4 = self.state.nh4[idx]
+        if nh4 <= 0.0:
+            return 0.0
+        rate = 0.15 * temp_factor * moisture_factor * nitrif_aeration * ph_factor
+        rate = max(0.0, min(0.20, rate))
+        dn = min(nh4, rate * nh4)
+        if dn <= 0.0:
+            return 0.0
+        self.state.nh4[idx] -= dn
+        self.state.no3[idx] += dn
+        self.event_bus.emit(NitrificationOccurred(layer=idx, amount_kg_ha=dn))
+        return dn
+
+    def _denitrify_layer(
+        self, idx: int, temp_factor: float, anaerobic_factor: float
+    ) -> float:
+        no3 = self.state.no3[idx]
+        if no3 <= 0.0 or anaerobic_factor <= 0.0:
+            return 0.0
+        rate = 0.02 * temp_factor * anaerobic_factor
+        dd = min(no3, rate * no3)
+        if dd <= 0.0:
+            return 0.0
+        self.state.no3[idx] -= dd
+        return dd
+
+    def _take_up_plant(self, total_demand: float, root_fractions: list[float]) -> float:
+        if total_demand <= 0.0:
+            return 0.0
+        s = sum(x for x in root_fractions if x > 0.0) or 1.0
+        shares = [max(0.0, x) / s for x in root_fractions]
+        wants = [total_demand * share for share in shares]
+        taken = 0.0
+        for i, want in enumerate(wants):
+            if want <= 0.0:
+                continue
+            take_no3 = min(self.state.no3[i], want)
+            self.state.no3[i] -= take_no3
+            remaining = want - take_no3
+            take_nh4 = 0.0
+            if remaining > 0.0:
+                take_nh4 = min(self.state.nh4[i], remaining)
+                self.state.nh4[i] -= take_nh4
+            taken += take_no3 + take_nh4
+        return taken
