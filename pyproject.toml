@@ -48,7 +48,7 @@ agrogame = "agrogame.config.cli:main"
 arch-check = "importlinter.cli:main"
 complexity-check = "xenon.__main__:main"
 dep-check = "deptry.__main__:main"
-dashboard = "scripts.dashboard:main"
+dashboard = "agrogame.dashboard.app:main"
 
 [tool.black]
 line-length = 88

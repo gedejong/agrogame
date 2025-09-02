@@ -15,6 +15,7 @@ from agrogame.weather import load_weather
 from agrogame.soil.nitrogen.state import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phenology.types import PhenologyStage
+from agrogame.atmosphere.et import Evapotranspiration, EtParams
 
 
 def _run_simulation(
@@ -34,6 +35,7 @@ def _run_simulation(
         event_bus=bus, state=nstate, water_state=wstate, profile=profile
     )
     orch = build_default_orchestrator()
+    et_mod = Evapotranspiration(EtParams())
 
     weather = load_weather(weather_file)
 
@@ -49,6 +51,7 @@ def _run_simulation(
         "rain_mm": [],
         "tmin_c": [],
         "tmax_c": [],
+        "et0_mm": [],
     }
 
     irrig_map = dict(irrigation_schedule or [])
@@ -73,6 +76,17 @@ def _run_simulation(
         )
 
         par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+        rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+        tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
+        et0 = et_mod.et0(
+            temp_mean_c=tmean,
+            net_radiation_mj_m2=rn,
+            method="penman-monteith",
+            wind_m_s=rec.wind_m_s or 2.0,
+            relative_humidity_pct=rec.relative_humidity_pct or 60.0,
+        )
+        history["et0_mm"].append(et0)
+
         orch.step_day(
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
@@ -82,7 +96,6 @@ def _run_simulation(
         )
 
         # Nitrogen cycle (use mean air temp as proxy for soil temp)
-        tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         _ = ncycle.daily_step(temperature_c=tmean)
 
         history["day"].append(rec.day)
@@ -189,7 +202,10 @@ def _plot_weather(history):
     fig.add_trace(
         go.Bar(x=history["day"], y=history["rain_mm"], name="Rain (mm)", opacity=0.4)
     )
-    fig.update_layout(yaxis_title="Temperature (°C) / Rain (mm)")
+    fig.add_trace(
+        go.Scatter(x=history["day"], y=history["et0_mm"], mode="lines", name="ET0")
+    )
+    fig.update_layout(yaxis_title="Temp (°C) / Rain & ET0 (mm)")
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -262,7 +278,3 @@ def main(argv: Optional[list[str]] = None) -> None:
         with tab4:
             st.subheader("Weather overview")
             _plot_weather(history)
-
-
-if __name__ == "__main__":
-    main()
