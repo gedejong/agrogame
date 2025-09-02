@@ -45,3 +45,24 @@ source_modules =
     agrogame.atmosphere
 forbidden_modules =
     agrogame.soil
+
+# Plant should be independent of Atmosphere (decouple via params/events)
+[contract:plant_independence]
+name = Plant should be independent of Atmosphere
+type = forbidden
+source_modules =
+    agrogame.plant
+forbidden_modules =
+    agrogame.atmosphere
+
+# Orchestrator must not be imported by domain modules
+[contract:sim_isolation]
+name = Simulation orchestrator is top-level only
+type = forbidden
+source_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.weather
+    agrogame.atmosphere
+forbidden_modules =
+    agrogame.sim
