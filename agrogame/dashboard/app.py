@@ -266,8 +266,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         irrigation_schedule = []
         if irr_mm > 0:
             irrigation_schedule.append((int(irr_day), float(irr_mm)))
-        fertilizer_schedule = []
-        fertilizer_ops = []
+        fertilizer_schedule: list[tuple[int, float]] = []
+        fertilizer_ops: list[tuple[int, float, str, int]] = []
         if fert_kgha > 0:
             fertilizer_ops.append(
                 (int(fert_day), float(fert_kgha), str(fert_type), int(fert_layer))
