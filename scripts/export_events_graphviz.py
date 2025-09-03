@@ -154,19 +154,16 @@ def main() -> None:
         )
         _ = ncycle.daily_step(temperature_c=0.5 * (tmin + tmax), plant_demand_kg_ha=1.0)
 
-    # Build transitions per day order
+    # Build transitions by walking the recorded event stream in order
     edges: Dict[Tuple[str, str], int] = {}
-    for _ev in rec.events:
-        pass
-    day_events: Dict[int, list] = {}
-    for ev in rec.events:
-        day_events.setdefault(ev.day_index or 0, []).append(ev)
-    for _, evs in day_events.items():
-        modules = [bucket(e.event_type, e.module_name) for e in evs]
-        for a, b in zip(modules, modules[1:], strict=False):
-            if a == b:
-                continue
-            edges[(a, b)] = edges.get((a, b), 0) + 1
+    if rec.events:
+        prev = rec.events[0]
+        for cur in rec.events[1:]:
+            a = bucket(prev.event_type, prev.module_name)
+            b = bucket(cur.event_type, cur.module_name)
+            if a != b:
+                edges[(a, b)] = edges.get((a, b), 0) + 1
+            prev = cur
 
     # Emit DOT
     lines = [

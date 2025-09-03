@@ -20,3 +20,6 @@ site/
 .cache/
 # Hypothesis
 .hypothesis/
+
+# Local automation artifacts
+.playwright-mcp/
