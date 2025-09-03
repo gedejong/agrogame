@@ -83,9 +83,11 @@ def _run_simulation(
         "nh4_layers": [[] for _ in profile.layers],
         "root_depth_cm": [],
         "stage": [],
+        "gdd_accum": [],
         "rain_mm": [],
         "tmin_c": [],
         "tmax_c": [],
+        "tmean_c": [],
         "et0_mm": [],
         "et0_pt_mm": [],
         "evap_mm": [],
@@ -93,11 +95,25 @@ def _run_simulation(
         "vpd_kpa": [],
         "stomatal": [],
         "water_stress": [],
+        "n_total_kgha": [],
+        # phenology thresholds (for progress bar)
+        "thr_emergence": None,
+        "thr_flowering": None,
+        "thr_maturity": None,
     }
 
     irrig_map = dict(irrigation_schedule or [])
     fert_map = dict(fertilizer_schedule or [])
     fert_ops = list(fertilizer_ops or [])
+
+    # Capture phenology thresholds once for progress computation
+    try:
+        thr = orch.phenology.params.thresholds
+        history["thr_emergence"] = thr.emergence_gdd
+        history["thr_flowering"] = thr.flowering_gdd
+        history["thr_maturity"] = thr.maturity_gdd
+    except Exception:
+        pass
 
     for i in range(min(days, len(records))):
         rec = records[i]
@@ -233,6 +249,13 @@ def _run_simulation(
         history["stage"].append(
             stage.value if isinstance(stage, PhenologyStage) else str(stage)
         )
+        # Accumulated GDD for progress bar
+        try:
+            history["gdd_accum"].append(
+                getattr(orch.phenology.state, "accumulated_gdd", None)
+            )
+        except Exception:
+            history["gdd_accum"].append(None)
         for li, _layer in enumerate(profile.layers):
             # store volumetric water content per layer
             if len(history["theta_layers"][li]) == i:
@@ -249,6 +272,9 @@ def _run_simulation(
         history["rain_mm"].append(rain)
         history["tmin_c"].append(rec.tmin_c)
         history["tmax_c"].append(rec.tmax_c)
+        history["tmean_c"].append(tmean)
+        # Aggregate N status proxy (total mineral N across layers)
+        history["n_total_kgha"].append(sum(nstate.no3) + sum(nstate.nh4))
 
     return history, profile
 
@@ -262,6 +288,7 @@ def _plot_soil_moisture(history: Mapping[str, Any], profile: SoilProfile) -> Non
                 y=history["theta_layers"][i],
                 mode="lines",
                 name=f"Layer {i+1} θ (m³/m³)",
+                hovertemplate=f"Layer {i+1} θ: %{{y:.3f}} m³/m³<extra></extra>",
             )
         )
     fig.update_layout(yaxis_title="Volumetric water content (m³/m³)")
@@ -279,6 +306,7 @@ def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
                     y=history["no3_layers"][i],
                     mode="lines",
                     name=f"Layer {i+1} NO3",
+                    hovertemplate=f"Layer {i+1} NO3: %{{y:.1f}} kg/ha<extra></extra>",
                 )
             )
         fig_no3.update_layout(yaxis_title="NO3 (kg/ha)")
@@ -292,6 +320,7 @@ def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
                     y=history["nh4_layers"][i],
                     mode="lines",
                     name=f"Layer {i+1} NH4",
+                    hovertemplate=f"Layer {i+1} NH4: %{{y:.1f}} kg/ha<extra></extra>",
                 )
             )
         fig_nh4.update_layout(yaxis_title="NH4 (kg/ha)")
@@ -300,12 +329,33 @@ def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
 
 def _plot_biomass(history: Mapping[str, Any]) -> None:
     fig = go.Figure(
-        data=[go.Scatter(x=history["day"], y=history["biomass_g_m2"], mode="lines")]
+        data=[
+            go.Scatter(
+                x=history["day"],
+                y=history["biomass_g_m2"],
+                mode="lines",
+                hovertemplate="Biomass: %{{y:.0f}} g m⁻²<extra></extra>",
+            )
+        ]
     )
     fig.update_layout(yaxis_title="Biomass (g m⁻²)")
     st.plotly_chart(fig, use_container_width=True)
     if history.get("water_stress"):
-        st.metric("Water Stress (0-1)", f"{history['water_stress'][-1]:.2f}")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.metric("Water stress", f"{history['water_stress'][-1]:.2f}")
+        with c2:
+            n_total = history.get("n_total_kgha", [0])[-1]
+            n_target = 150.0
+            n_stress = max(0.0, min(1.0, (n_total or 0.0) / n_target))
+            st.metric("N stress (proxy)", f"{n_stress:.2f}")
+        with c3:
+            tmean = history.get("tmean_c", [None])[-1]
+            if tmean is not None:
+                optimal = 20.0
+                range_c = 15.0
+                temp_stress = max(0.0, 1.0 - abs(tmean - optimal) / range_c)
+                st.metric("Temp stress (proxy)", f"{temp_stress:.2f}")
 
 
 def _plot_root_depth(history: Mapping[str, Any]) -> None:
@@ -366,6 +416,28 @@ def _plot_phenology(history: Mapping[str, Any]) -> None:
         margin={"l": 10, "r": 10, "t": 10, "b": 10},
     )
     st.plotly_chart(fig, use_container_width=True)
+    # Progress bar based on accumulated GDD vs thresholds
+    last_stage = (history.get("stage", []) or [None])[-1]
+    last_gdd = (history.get("gdd_accum", []) or [None])[-1]
+    te = history.get("thr_emergence") or 0.0
+    tf = history.get("thr_flowering") or te
+    tm = history.get("thr_maturity") or tf
+    frac = None
+    if last_gdd is not None and isinstance(last_stage, str):
+        s = last_stage
+        if s == "planted":
+            denom = max(1e-6, te)
+            frac = max(0.0, min(1.0, last_gdd / denom))
+        elif s == "vegetative":
+            denom = max(1e-6, tf - te)
+            frac = max(0.0, min(1.0, (last_gdd - te) / denom))
+        elif s == "grain_fill":
+            denom = max(1e-6, tm - tf)
+            frac = max(0.0, min(1.0, (last_gdd - tf) / denom))
+        elif s in ("emerged", "flowering", "maturity"):
+            frac = 1.0
+    if frac is not None:
+        st.progress(frac, text=f"Stage {last_stage}: {int(frac*100)}%")
 
 
 def _plot_weather(history: Mapping[str, Any]) -> None:
@@ -393,6 +465,28 @@ def _plot_weather(history: Mapping[str, Any]) -> None:
         )
     fig.update_layout(yaxis_title="Temp (°C) / Rain & ET0 (mm)")
     st.plotly_chart(fig, use_container_width=True)
+    # CSV export button
+    try:
+        import pandas as pd
+
+        buf = __import__("io").StringIO()
+        pd.DataFrame(
+            {
+                "day": history["day"],
+                "tmin_c": history["tmin_c"],
+                "tmax_c": history["tmax_c"],
+                "rain_mm": history["rain_mm"],
+                "et0_mm": history["et0_mm"],
+            }
+        ).to_csv(buf, index=False)
+        st.download_button(
+            "Download weather CSV",
+            data=buf.getvalue(),
+            mime="text/csv",
+            file_name="weather_timeseries.csv",
+        )
+    except Exception:
+        pass
 
 
 def _plot_et(history: Mapping[str, Any]) -> None:
