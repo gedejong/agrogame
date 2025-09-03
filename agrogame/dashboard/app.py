@@ -3,6 +3,8 @@ from pathlib import Path
 from datetime import timedelta
 from typing import Optional, Any, Dict, Mapping, cast
 import math
+import time
+from io import StringIO
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -299,21 +301,38 @@ def _run_simulation(
     return history, profile
 
 
+def _gradient_hex(color_a: str, color_b: str, steps: int) -> list[str]:
+    def to_rgb(h: str) -> tuple[int, int, int]:
+        h = h.lstrip("#")
+        return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+    def to_hex(rgb: tuple[int, int, int]) -> str:
+        return "#%02x%02x%02x" % rgb
+
+    ra, ga, ba = to_rgb(color_a)
+    rb, gb, bb = to_rgb(color_b)
+    out: list[str] = []
+    for i in range(max(1, steps)):
+        t = 0 if steps == 1 else i / (steps - 1)
+        r = int(ra + (rb - ra) * t)
+        g = int(ga + (gb - ga) * t)
+        b = int(ba + (bb - ba) * t)
+        out.append(to_hex((r, g, b)))
+    return out
+
+
 def _plot_soil_moisture(
-    history: Mapping[str, Any], profile: SoilProfile, *, upto_idx: int | None = None
+    history: Mapping[str, Any],
+    profile: SoilProfile,
+    *,
+    upto_idx: int | None = None,
+    high_contrast: bool = False,
 ) -> None:
     fig = go.Figure()
-    # Blue → brown gradient per layer
-    colors = [
-        "#1f77b4",
-        "#2ca02c",
-        "#bcbd22",
-        "#ff7f0e",
-        "#8c564b",
-        "#7f7f7f",
-        "#e377c2",
-        "#9467bd",
-    ]
+    # Blue → brown gradient per layer (high-contrast uses darker tones)
+    start = "#08519c" if high_contrast else "#1f77b4"
+    end = "#7f2704" if high_contrast else "#8c564b"
+    colors = _gradient_hex(start, end, len(profile.layers))
     for i, _layer in enumerate(profile.layers):
         x = history["day"]
         y = history["theta_layers"][i]
@@ -327,11 +346,37 @@ def _plot_soil_moisture(
                 mode="lines",
                 name=f"Layer {i+1} θ (m³/m³)",
                 hovertemplate=f"Layer {i+1} θ: %{{y:.3f}} m³/m³<extra></extra>",
-                line={"color": colors[i % len(colors)]},
+                line={
+                    "color": colors[i % len(colors)],
+                    "width": 2 if high_contrast else 1.5,
+                },
             )
         )
-    fig.update_layout(yaxis_title="Volumetric water content (m³/m³)")
+    fig.update_layout(
+        yaxis_title="Volumetric water content (m³/m³)",
+        template=("plotly_white" if high_contrast else None),
+    )
     st.plotly_chart(fig, use_container_width=True)
+    # CSV export for soil moisture
+    try:
+        buf = StringIO()
+        # header
+        header = ["day"] + [f"theta_layer_{i+1}" for i in range(len(profile.layers))]
+        buf.write(",".join(header) + "\n")
+        n = len(history["day"]) if upto_idx is None else upto_idx
+        for idx in range(n):
+            row = [str(history["day"][idx])]
+            for li in range(len(profile.layers)):
+                row.append(f"{history['theta_layers'][li][idx]:.4f}")
+            buf.write(",".join(row) + "\n")
+        st.download_button(
+            "Download soil moisture CSV",
+            data=buf.getvalue(),
+            mime="text/csv",
+            file_name="soil_moisture_timeseries.csv",
+        )
+    except Exception:
+        pass
 
 
 def _plot_nitrogen(
@@ -396,6 +441,21 @@ def _plot_biomass(history: Mapping[str, Any], *, upto_idx: int | None = None) ->
     )
     fig.update_layout(yaxis_title="Biomass (g m⁻²)")
     st.plotly_chart(fig, use_container_width=True)
+    # CSV export for biomass
+    try:
+        buf = StringIO()
+        n = len(history["day"]) if upto_idx is None else upto_idx
+        buf.write("day,biomass_g_m2\n")
+        for i in range(n):
+            buf.write(f"{history['day'][i]},{history['biomass_g_m2'][i]:.2f}\n")
+        st.download_button(
+            "Download biomass CSV",
+            data=buf.getvalue(),
+            mime="text/csv",
+            file_name="biomass_timeseries.csv",
+        )
+    except Exception:
+        pass
     if history.get("water_stress"):
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -425,6 +485,21 @@ def _plot_root_depth(
     fig = go.Figure(data=[go.Scatter(x=x, y=y, mode="lines")])
     fig.update_layout(yaxis_title="Root depth (cm)")
     st.plotly_chart(fig, use_container_width=True)
+    # CSV export for root depth
+    try:
+        buf = StringIO()
+        n = len(history["day"]) if upto_idx is None else upto_idx
+        buf.write("day,root_depth_cm\n")
+        for i in range(n):
+            buf.write(f"{history['day'][i]},{history['root_depth_cm'][i]:.2f}\n")
+        st.download_button(
+            "Download root depth CSV",
+            data=buf.getvalue(),
+            mime="text/csv",
+            file_name="root_depth_timeseries.csv",
+        )
+    except Exception:
+        pass
 
 
 def _plot_lai(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
@@ -584,6 +659,20 @@ def _plot_weather(history: Mapping[str, Any], *, upto_idx: int | None = None) ->
         )
     fig.update_layout(yaxis_title="Temp (°C) / Rain & ET0 (mm)")
     st.plotly_chart(fig, use_container_width=True)
+    # Headline metrics for last visible day
+    try:
+        last = -1 if upto_idx is None else upto_idx - 1
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            st.metric("Tmin (°C)", f"{tmin[last]:.1f}")
+        with c2:
+            st.metric("Tmax (°C)", f"{tmax[last]:.1f}")
+        with c3:
+            st.metric("Rain (mm)", f"{rain[last]:.1f}")
+        with c4:
+            st.metric("ET0 (mm)", f"{et0[last]:.1f}")
+    except Exception:
+        pass
     # Naive 7-day forecast (persistence from recent week)
     try:
         if history.get("day"):
@@ -776,6 +865,8 @@ def main(argv: Optional[list[str]] = None) -> None:
         "Weather file", value=str(Path("data/weather/sample.csv").resolve())
     )
     days = st.sidebar.number_input("Days", min_value=10, max_value=365, value=120)
+    st.sidebar.header("Display")
+    high_contrast = st.sidebar.checkbox("High-contrast mode", value=False)
     st.sidebar.header("Management (optional)")
     irr_day = st.sidebar.number_input("Irrigation day index", min_value=0, value=0)
     irr_mm = st.sidebar.number_input("Irrigation amount (mm)", min_value=0.0, value=0.0)
@@ -851,6 +942,7 @@ def main(argv: Optional[list[str]] = None) -> None:
                             if "global_idx" not in st.session_state
                             else int(st.session_state["global_idx"])
                         ),
+                        high_contrast=high_contrast,
                     )
                 with col2:
                     st.subheader("Soil nitrogen by layer")
@@ -900,6 +992,17 @@ def main(argv: Optional[list[str]] = None) -> None:
                             else int(st.session_state["global_idx"])
                         ),
                     )
+                    # Root-depth animation (playback to current day)
+                    play = st.button("Play root animation", key="root_anim_play")
+                    if play:
+                        placeholder = st.empty()
+                        max_i = int(
+                            st.session_state.get("global_idx", len(history["day"]))
+                        )
+                        for frame in range(1, max_i + 1):
+                            with placeholder.container():
+                                _plot_root_depth(history, upto_idx=frame)
+                            time.sleep(0.04)
                 st.subheader("Phenology timeline")
                 _plot_phenology(
                     history,
