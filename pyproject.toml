@@ -88,7 +88,7 @@ ignore = []
 convention = "google"
 
 [tool.pytest.ini_options]
-addopts = "--maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing --cov-fail-under=92"
+addopts = "--maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing --cov-config=.coveragerc --cov-fail-under=92"
 testpaths = ["tests"]
 
 [tool.radon]

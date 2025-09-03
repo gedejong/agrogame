@@ -1,0 +1,8 @@
+[run]
+omit =
+    agrogame/dashboard/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+
