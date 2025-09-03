@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import timedelta
 from typing import Optional, Any, Dict, Mapping, cast
+import math
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -78,6 +79,7 @@ def _run_simulation(
         "day": [],
         "lai": [],
         "biomass_g_m2": [],
+        "biomass_inc_g_m2": [],
         "theta_layers": [[] for _ in profile.layers],
         "no3_layers": [[] for _ in profile.layers],
         "nh4_layers": [[] for _ in profile.layers],
@@ -88,6 +90,9 @@ def _run_simulation(
         "tmin_c": [],
         "tmax_c": [],
         "tmean_c": [],
+        "par_mj_m2": [],
+        "par_intercepted_mj_m2": [],
+        "fraction_intercepted": [],
         "et0_mm": [],
         "et0_pt_mm": [],
         "evap_mm": [],
@@ -178,9 +183,13 @@ def _run_simulation(
             canopy_evap = _istate.evaporate(comps.potential_evap_mm)
         except Exception:
             canopy_evap = 0.0
+        # Before emergence (very low LAI), force transpiration to zero so ET is
+        # purely soil evaporation
+        lai_now = float(getattr(orch.canopy.state, "lai", 0.0) or 0.0)
+        potential_transp = comps.potential_transp_mm if lai_now >= 0.05 else 0.0
         comps_adj = type(comps)(
             potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
-            potential_transp_mm=comps.potential_transp_mm,
+            potential_transp_mm=potential_transp,
             et0_mm=comps.et0_mm,
         )
         # Root fractions if available, else uniform
@@ -215,31 +224,42 @@ def _run_simulation(
         history["vpd_kpa"].append(vpd)
         history["stomatal"].append(stomatal)
 
+        # Nitrogen stress proxy from mineral N pools (bounded 0.1–1.0)
+        n_total_now = float(sum(nstate.no3) + sum(nstate.nh4))
+        n_target = 120.0
+        n_stress = max(0.1, min(1.0, n_total_now / n_target))
         orch.step_day(
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
             par_mj_m2=par,
             water_stress=water_stress,
-            n_stress=1.0,
+            n_stress=n_stress,
         )
-        # Ensure canopy growth responds to PAR and stress by doing a
-        # secondary update with current stress (for dashboard visualization)
-        try:
-            _ = orch.canopy.daily_step(
-                incident_par_mj_m2=par,
-                temp_factor=1.0,
-                water_stress=water_stress,
-                n_stress=1.0,
-            )
-        except Exception:
-            pass
 
         # Nitrogen cycle (use mean air temp as proxy for soil temp)
         _ = ncycle.daily_step(temperature_c=tmean, plant_demand_kg_ha=1.0)
 
         history["day"].append(rec.day)
         history["lai"].append(orch.canopy.state.lai)
-        history["biomass_g_m2"].append(orch.canopy.state.biomass_g_m2)
+        # Biomass and increment
+        current_biomass = orch.canopy.state.biomass_g_m2
+        prev_biomass = history["biomass_g_m2"][-1] if history["biomass_g_m2"] else 0.0
+        history["biomass_g_m2"].append(current_biomass)
+        history["biomass_inc_g_m2"].append(max(0.0, current_biomass - prev_biomass))
+        # PAR and interception (Beer–Lambert)
+        try:
+            k_ext = float(getattr(orch.canopy.params, "extinction_coefficient_k", 0.6))
+        except Exception:
+            k_ext = 0.6
+        lai_now2 = float(orch.canopy.state.lai or 0.0)
+        frac_int = (
+            0.0
+            if lai_now2 <= 0.0 or par <= 0.0
+            else (1.0 - math.exp(-k_ext * lai_now2))
+        )
+        history["par_mj_m2"].append(par)
+        history["fraction_intercepted"].append(frac_int)
+        history["par_intercepted_mj_m2"].append(par * frac_int)
         # Root depth and phenology stage
         try:
             history["root_depth_cm"].append(orch.root_state.current_depth_cm)
@@ -279,31 +299,57 @@ def _run_simulation(
     return history, profile
 
 
-def _plot_soil_moisture(history: Mapping[str, Any], profile: SoilProfile) -> None:
+def _plot_soil_moisture(
+    history: Mapping[str, Any], profile: SoilProfile, *, upto_idx: int | None = None
+) -> None:
     fig = go.Figure()
+    # Blue → brown gradient per layer
+    colors = [
+        "#1f77b4",
+        "#2ca02c",
+        "#bcbd22",
+        "#ff7f0e",
+        "#8c564b",
+        "#7f7f7f",
+        "#e377c2",
+        "#9467bd",
+    ]
     for i, _layer in enumerate(profile.layers):
+        x = history["day"]
+        y = history["theta_layers"][i]
+        if upto_idx is not None:
+            x = x[:upto_idx]
+            y = y[:upto_idx]
         fig.add_trace(
             go.Scatter(
-                x=history["day"],
-                y=history["theta_layers"][i],
+                x=x,
+                y=y,
                 mode="lines",
                 name=f"Layer {i+1} θ (m³/m³)",
                 hovertemplate=f"Layer {i+1} θ: %{{y:.3f}} m³/m³<extra></extra>",
+                line={"color": colors[i % len(colors)]},
             )
         )
     fig.update_layout(yaxis_title="Volumetric water content (m³/m³)")
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
+def _plot_nitrogen(
+    history: Mapping[str, Any], profile: SoilProfile, *, upto_idx: int | None = None
+) -> None:
     tabs = st.tabs(["NO3 (kg/ha)", "NH4 (kg/ha)"])
     with tabs[0]:
         fig_no3 = go.Figure()
         for i, _layer in enumerate(profile.layers):
+            x = history["day"]
+            y = history["no3_layers"][i]
+            if upto_idx is not None:
+                x = x[:upto_idx]
+                y = y[:upto_idx]
             fig_no3.add_trace(
                 go.Scatter(
-                    x=history["day"],
-                    y=history["no3_layers"][i],
+                    x=x,
+                    y=y,
                     mode="lines",
                     name=f"Layer {i+1} NO3",
                     hovertemplate=f"Layer {i+1} NO3: %{{y:.1f}} kg/ha<extra></extra>",
@@ -314,10 +360,15 @@ def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
     with tabs[1]:
         fig_nh4 = go.Figure()
         for i, _layer in enumerate(profile.layers):
+            x = history["day"]
+            y = history["nh4_layers"][i]
+            if upto_idx is not None:
+                x = x[:upto_idx]
+                y = y[:upto_idx]
             fig_nh4.add_trace(
                 go.Scatter(
-                    x=history["day"],
-                    y=history["nh4_layers"][i],
+                    x=x,
+                    y=y,
                     mode="lines",
                     name=f"Layer {i+1} NH4",
                     hovertemplate=f"Layer {i+1} NH4: %{{y:.1f}} kg/ha<extra></extra>",
@@ -327,12 +378,17 @@ def _plot_nitrogen(history: Mapping[str, Any], profile: SoilProfile) -> None:
         st.plotly_chart(fig_nh4, use_container_width=True)
 
 
-def _plot_biomass(history: Mapping[str, Any]) -> None:
+def _plot_biomass(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
+    x = history["day"]
+    y = history["biomass_g_m2"]
+    if upto_idx is not None:
+        x = x[:upto_idx]
+        y = y[:upto_idx]
     fig = go.Figure(
         data=[
             go.Scatter(
-                x=history["day"],
-                y=history["biomass_g_m2"],
+                x=x,
+                y=y,
                 mode="lines",
                 hovertemplate="Biomass: %{{y:.0f}} g m⁻²<extra></extra>",
             )
@@ -358,16 +414,77 @@ def _plot_biomass(history: Mapping[str, Any]) -> None:
                 st.metric("Temp stress (proxy)", f"{temp_stress:.2f}")
 
 
-def _plot_root_depth(history: Mapping[str, Any]) -> None:
-    fig = go.Figure(
-        data=[go.Scatter(x=history["day"], y=history["root_depth_cm"], mode="lines")]
-    )
+def _plot_root_depth(
+    history: Mapping[str, Any], *, upto_idx: int | None = None
+) -> None:
+    x = history["day"]
+    y = history["root_depth_cm"]
+    if upto_idx is not None:
+        x = x[:upto_idx]
+        y = y[:upto_idx]
+    fig = go.Figure(data=[go.Scatter(x=x, y=y, mode="lines")])
     fig.update_layout(yaxis_title="Root depth (cm)")
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_phenology(history: Mapping[str, Any]) -> None:
-    stages = [str(s) for s in history.get("stage", [])]
+def _plot_lai(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
+    x = history["day"] if upto_idx is None else history["day"][:upto_idx]
+    lai = (
+        history.get("lai", [])
+        if upto_idx is None
+        else history.get("lai", [])[:upto_idx]
+    )
+    fig = go.Figure(data=[go.Scatter(x=x, y=lai, mode="lines", name="LAI")])
+    fig.update_layout(yaxis_title="LAI (-)")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_interception(
+    history: Mapping[str, Any], *, upto_idx: int | None = None
+) -> None:
+    x = history["day"] if upto_idx is None else history["day"][:upto_idx]
+    par = (
+        history.get("par_mj_m2", [])
+        if upto_idx is None
+        else history.get("par_mj_m2", [])[:upto_idx]
+    )
+    par_int = (
+        history.get("par_intercepted_mj_m2", [])
+        if upto_idx is None
+        else history.get("par_intercepted_mj_m2", [])[:upto_idx]
+    )
+    frac = (
+        history.get("fraction_intercepted", [])
+        if upto_idx is None
+        else history.get("fraction_intercepted", [])[:upto_idx]
+    )
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=par, mode="lines", name="PAR (MJ m⁻²)", yaxis="y1"))
+    fig.add_trace(
+        go.Scatter(
+            x=x, y=par_int, mode="lines", name="Intercepted PAR (MJ m⁻²)", yaxis="y1"
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x, y=frac, mode="lines", name="Fraction intercepted (-)", yaxis="y2"
+        )
+    )
+    fig.update_layout(
+        yaxis={"title": "PAR (MJ m⁻²)", "side": "left"},
+        yaxis2={
+            "title": "Fraction (-)",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+        },
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_phenology(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
+    stages_full = [str(s) for s in history.get("stage", [])]
+    stages = stages_full if upto_idx is None else stages_full[:upto_idx]
     if not stages:
         st.info("No phenology data available.")
         return
@@ -440,31 +557,87 @@ def _plot_phenology(history: Mapping[str, Any]) -> None:
         st.progress(frac, text=f"Stage {last_stage}: {int(frac*100)}%")
 
 
-def _plot_weather(history: Mapping[str, Any]) -> None:
+def _plot_weather(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
     fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(x=history["day"], y=history["tmin_c"], mode="lines", name="Tmin")
-    )
-    fig.add_trace(
-        go.Scatter(x=history["day"], y=history["tmax_c"], mode="lines", name="Tmax")
-    )
-    fig.add_trace(
-        go.Bar(x=history["day"], y=history["rain_mm"], name="Rain (mm)", opacity=0.4)
-    )
-    fig.add_trace(
-        go.Scatter(x=history["day"], y=history["et0_mm"], mode="lines", name="ET0 PM")
-    )
+    x = history["day"] if upto_idx is None else history["day"][:upto_idx]
+    tmin = history["tmin_c"] if upto_idx is None else history["tmin_c"][:upto_idx]
+    tmax = history["tmax_c"] if upto_idx is None else history["tmax_c"][:upto_idx]
+    rain = history["rain_mm"] if upto_idx is None else history["rain_mm"][:upto_idx]
+    et0 = history["et0_mm"] if upto_idx is None else history["et0_mm"][:upto_idx]
+    fig.add_trace(go.Scatter(x=x, y=tmin, mode="lines", name="Tmin"))
+    fig.add_trace(go.Scatter(x=x, y=tmax, mode="lines", name="Tmax"))
+    fig.add_trace(go.Bar(x=x, y=rain, name="Rain (mm)", opacity=0.4))
+    fig.add_trace(go.Scatter(x=x, y=et0, mode="lines", name="ET0 PM"))
     if any(history.get("et0_pt_mm", [])):
+        et0pt = (
+            history["et0_pt_mm"]
+            if upto_idx is None
+            else history["et0_pt_mm"][:upto_idx]
+        )
         fig.add_trace(
             go.Scatter(
-                x=history["day"],
-                y=history["et0_pt_mm"],
+                x=x,
+                y=et0pt,
                 mode="lines",
                 name="ET0 PT",
             )
         )
     fig.update_layout(yaxis_title="Temp (°C) / Rain & ET0 (mm)")
     st.plotly_chart(fig, use_container_width=True)
+    # Naive 7-day forecast (persistence from recent week)
+    try:
+        if history.get("day"):
+            last_day = history["day"][-1]
+            from datetime import timedelta as _td
+
+            # choose recent window
+            def recent(seq: list[Any], n: int) -> list[Any]:
+                if not seq:
+                    return []
+                if len(seq) >= n:
+                    return list(seq[-n:])
+                return [seq[-1]] * n
+
+            tmin_f = recent(history["tmin_c"], 7)
+            tmax_f = recent(history["tmax_c"], 7)
+            et0_f = recent(history["et0_mm"], 7)
+            rain_f = recent(history["rain_mm"], 7)
+            days_f = [last_day + _td(days=i + 1) for i in range(7)]
+            fig_f = go.Figure()
+            fig_f.add_trace(
+                go.Scatter(
+                    x=days_f,
+                    y=tmin_f,
+                    mode="lines",
+                    name="Tmin (fcst)",
+                    line={"dash": "dot"},
+                )
+            )
+            fig_f.add_trace(
+                go.Scatter(
+                    x=days_f,
+                    y=tmax_f,
+                    mode="lines",
+                    name="Tmax (fcst)",
+                    line={"dash": "dot"},
+                )
+            )
+            fig_f.add_trace(go.Bar(x=days_f, y=rain_f, name="Rain (fcst)", opacity=0.3))
+            fig_f.add_trace(
+                go.Scatter(
+                    x=days_f,
+                    y=et0_f,
+                    mode="lines",
+                    name="ET0 PM (fcst)",
+                    line={"dash": "dot"},
+                )
+            )
+            fig_f.update_layout(yaxis_title="Forecast: Temp (°C) / Rain & ET0 (mm)")
+            st.subheader("7-day forecast (naive persistence)")
+            st.plotly_chart(fig_f, use_container_width=True)
+            st.caption("Forecast uses recent-week persistence; replace with API.")
+    except Exception:
+        pass
     # CSV export button
     try:
         import pandas as pd
@@ -489,37 +662,58 @@ def _plot_weather(history: Mapping[str, Any]) -> None:
         pass
 
 
-def _plot_et(history: Mapping[str, Any]) -> None:
+def _plot_et(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
     fig = go.Figure()
+    x = history["day"] if upto_idx is None else history["day"][:upto_idx]
+    evap = (
+        history.get("evap_mm", [])
+        if upto_idx is None
+        else history.get("evap_mm", [])[:upto_idx]
+    )
+    transp = (
+        history.get("transp_mm", [])
+        if upto_idx is None
+        else history.get("transp_mm", [])[:upto_idx]
+    )
+    et0 = (
+        history.get("et0_mm", [])
+        if upto_idx is None
+        else history.get("et0_mm", [])[:upto_idx]
+    )
     fig.add_trace(
         go.Scatter(
-            x=history["day"],
-            y=history.get("evap_mm", []),
+            x=x,
+            y=evap,
             mode="lines",
             name="Evap (mm)",
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=history["day"],
-            y=history.get("transp_mm", []),
+            x=x,
+            y=transp,
             mode="lines",
             name="Transp (mm)",
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=history["day"],
-            y=history.get("et0_mm", []),
+            x=x,
+            y=et0,
             mode="lines",
             name="ET0 PM (mm)",
         )
     )
     if any(history.get("et0_pt_mm", [])):
+        et0pt = (
+            history.get("et0_pt_mm", [])
+            if upto_idx is None
+            else history.get("et0_pt_mm", [])[:upto_idx]
+        )
         fig.add_trace(
             go.Scatter(
-                x=history["day"],
-                y=history.get("et0_pt_mm", []),
+                x=x,
+                y=et0pt,
                 mode="lines",
                 name="ET0 PT (mm)",
             )
@@ -528,12 +722,25 @@ def _plot_et(history: Mapping[str, Any]) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
-def _plot_vpd_stomatal(history: Mapping[str, Any]) -> None:
+def _plot_vpd_stomatal(
+    history: Mapping[str, Any], *, upto_idx: int | None = None
+) -> None:
     fig = go.Figure()
+    x = history["day"] if upto_idx is None else history["day"][:upto_idx]
+    vpd = (
+        history.get("vpd_kpa", [])
+        if upto_idx is None
+        else history.get("vpd_kpa", [])[:upto_idx]
+    )
+    stom = (
+        history.get("stomatal", [])
+        if upto_idx is None
+        else history.get("stomatal", [])[:upto_idx]
+    )
     fig.add_trace(
         go.Scatter(
-            x=history["day"],
-            y=history.get("vpd_kpa", []),
+            x=x,
+            y=vpd,
             mode="lines",
             name="VPD (kPa)",
             yaxis="y1",
@@ -541,8 +748,8 @@ def _plot_vpd_stomatal(history: Mapping[str, Any]) -> None:
     )
     fig.add_trace(
         go.Scatter(
-            x=history["day"],
-            y=history.get("stomatal", []),
+            x=x,
+            y=stom,
             mode="lines",
             name="Stomatal (-)",
             yaxis="y2",
@@ -593,6 +800,9 @@ def main(argv: Optional[list[str]] = None) -> None:
     run = st.sidebar.button("Run Simulation") or autorun
 
     if run:
+        # Global day slider controlling all charts
+        # Ensure the cache key exists; value is used only to derive slider bounds later
+        st.session_state.setdefault("_days_cache", [])
         irrigation_schedule = []
         if irr_mm > 0:
             irrigation_schedule.append((int(irr_day), float(irr_mm)))
@@ -616,29 +826,125 @@ def main(argv: Optional[list[str]] = None) -> None:
             st.exception(e)
             return
 
+        # Set global slider max to history length
+        st.session_state["_days_cache"] = history["day"]
+        gmax = len(history["day"]) if history.get("day") else 1
+        st.session_state["global_idx"] = st.slider(
+            "Day",
+            min_value=1,
+            max_value=gmax,
+            value=gmax,
+            key="global_day_slider",
+        )
+
         try:
             tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
             with tab1:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.subheader("Soil moisture by layer")
-                    _plot_soil_moisture(history, profile)
+                    _plot_soil_moisture(
+                        history,
+                        profile,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
                 with col2:
                     st.subheader("Soil nitrogen by layer")
-                    _plot_nitrogen(history, profile)
+                    _plot_nitrogen(
+                        history,
+                        profile,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
 
             with tab2:
                 c1, c2 = st.columns(2)
                 with c1:
                     st.subheader("Biomass accumulation")
-                    _plot_biomass(history)
+                    _plot_biomass(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
+                    # Yield projection with simple CI
+                    try:
+                        biomass = float(history["biomass_g_m2"][-1])
+                        harvest_index = 0.5
+                        yield_tha = (biomass / 100.0) * harvest_index
+                        lo = yield_tha * 0.8
+                        hi = yield_tha * 1.2
+                        st.metric(
+                            "Yield projection (t/ha)",
+                            f"{yield_tha:.1f}",
+                            help=f"80%–120% CI: {lo:.1f}–{hi:.1f} t/ha",
+                        )
+                    except Exception:
+                        pass
                 with c2:
                     st.subheader("Root depth")
-                    _plot_root_depth(history)
+                    _plot_root_depth(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
                 st.subheader("Phenology timeline")
-                _plot_phenology(history)
+                _plot_phenology(
+                    history,
+                    upto_idx=(
+                        None
+                        if "global_idx" not in st.session_state
+                        else int(st.session_state["global_idx"])
+                    ),
+                )
                 if history["stage"]:
                     st.metric("Phenology stage", history["stage"][-1])
+                # Nutrient traffic lights (N modeled, P not modeled yet)
+                try:
+                    n_total = float(history.get("n_total_kgha", [0.0])[-1] or 0.0)
+                    if n_total >= 120:
+                        n_badge = "🟢 N sufficient"
+                    elif n_total >= 60:
+                        n_badge = "🟡 N moderate"
+                    else:
+                        n_badge = "🔴 N low"
+                    st.markdown(n_badge)
+                    st.markdown("⚪ P status: N/A (not modeled)")
+                except Exception:
+                    pass
+                col3, col4 = st.columns(2)
+                with col3:
+                    st.subheader("Leaf area index (LAI)")
+                    _plot_lai(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
+                with col4:
+                    st.subheader("PAR interception")
+                    _plot_interception(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
 
             with tab3:
                 st.write("Management actions applied in this run:")
@@ -663,12 +969,33 @@ def main(argv: Optional[list[str]] = None) -> None:
                 w1, w2 = st.columns(2)
                 with w1:
                     st.subheader("Weather overview")
-                    _plot_weather(history)
+                    _plot_weather(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
                 with w2:
                     st.subheader("ET components")
-                    _plot_et(history)
+                    _plot_et(
+                        history,
+                        upto_idx=(
+                            None
+                            if "global_idx" not in st.session_state
+                            else int(st.session_state["global_idx"])
+                        ),
+                    )
                 st.subheader("VPD and stomatal factor")
-                _plot_vpd_stomatal(history)
+                _plot_vpd_stomatal(
+                    history,
+                    upto_idx=(
+                        None
+                        if "global_idx" not in st.session_state
+                        else int(st.session_state["global_idx"])
+                    ),
+                )
         except Exception as e:  # Show rendering errors in the UI
             st.error("Rendering failed.")
             st.exception(e)
