@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from datetime import timedelta
-from typing import Optional, Any, Dict, Mapping, cast
+from typing import Optional, Any, Dict, Mapping, cast, NamedTuple
 import math
 import time
 from io import StringIO
@@ -30,17 +30,168 @@ from agrogame.atmosphere.et.ports import (
 )
 
 
-def _run_simulation(
-    days: int,
-    weather_file: Path,
-    irrigation_schedule: list[tuple[int, float]] | None = None,
-    fertilizer_schedule: list[tuple[int, float]] | None = None,
-    *,
-    fertilizer_ops: list[tuple[int, float, str, int]] | None = None,
-) -> tuple[Dict[str, Any], SoilProfile]:
-    soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
-    profile = soil_lib.soils["loam_temperate"]
+def _extend_weather_records(
+    records: list[WeatherRecord], days: int
+) -> list[WeatherRecord]:
+    """Extend records by cycling existing days to reach requested length.
 
+    This keeps the original ordering and increments the day field sequentially.
+    """
+    if days <= len(records) or not records:
+        return records
+    out = list(records)
+    last_day = out[-1].day
+    base = list(records)
+    k = 0
+    while len(out) < days:
+        tmpl = base[k % len(base)]
+        k += 1
+        last_day = last_day + timedelta(days=1)
+        out.append(
+            WeatherRecord(
+                day=last_day,
+                tmin_c=tmpl.tmin_c,
+                tmax_c=tmpl.tmax_c,
+                relative_humidity_pct=tmpl.relative_humidity_pct,
+                wind_m_s=tmpl.wind_m_s,
+                shortwave_mj_m2=tmpl.shortwave_mj_m2,
+                net_radiation_mj_m2=tmpl.net_radiation_mj_m2,
+                albedo=tmpl.albedo,
+                precip_mm=tmpl.precip_mm,
+            )
+        )
+    return out
+
+
+def _apply_fertilizers(
+    ncycle: NitrogenCycle,
+    i: int,
+    fert_ops: list[tuple[int, float, str, int]] | None,
+    fert_map: Mapping[int, float] | None,
+) -> None:
+    """Apply fertilizer operations for the current day index.
+
+    Supports the detailed ops (type + layer) or a backward-compatible map.
+    """
+    if fert_ops:
+        for d, amt, ftype, layer_idx in fert_ops:
+            if d == i and amt > 0.0:
+                if ftype == "urea":
+                    ncycle.apply_urea(layer=layer_idx, amount_kg_ha=amt)
+                else:
+                    ncycle.apply_ammonium_nitrate(layer=layer_idx, amount_kg_ha=amt)
+        return
+    if fert_map:
+        amt_simple = float(fert_map.get(i, 0.0))
+        if amt_simple > 0.0:
+            ncycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=amt_simple)
+
+
+def _compute_reference_et(
+    et_mod: Evapotranspiration,
+    rec: WeatherRecord,
+) -> tuple[float, Optional[float], float, float, float, float]:
+    """Compute ET0 (PM, PT), VPD and thermal/energy inputs used downstream.
+
+    Returns (et0_pm, et0_pt, par, rn, tmean, vpd).
+    """
+    par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+    rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+    tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
+    et0_pm = et_mod.et0(
+        temp_mean_c=tmean,
+        net_radiation_mj_m2=rn,
+        method="penman-monteith",
+        wind_m_s=rec.wind_m_s or 2.0,
+        relative_humidity_pct=rec.relative_humidity_pct or 60.0,
+    )
+    try:
+        et0_pt = et_mod.priestley_taylor(temp_mean_c=tmean, net_radiation_mj_m2=rn)
+    except Exception:
+        et0_pt = None
+    vpd = vpd_kpa(tmean, rec.relative_humidity_pct or 60.0)
+    return et0_pm, et0_pt, par, rn, tmean, vpd
+
+
+def _partition_et(
+    et_mod: Evapotranspiration,
+    orch: Any,  # orchestrator type is internal; keep untyped for simplicity
+    profile: SoilProfile,
+    wstate: SoilWaterState,
+    water: CascadingBucketWaterModel,
+    et0_pm: float,
+    vpd: float,
+) -> tuple[float, float, float, float, float]:
+    """Compute canopy evaporation, soil evaporation, transpiration and stresses.
+
+    Returns (canopy_evap, evap_mm, transp_mm, water_stress, stomatal).
+    """
+    comps = et_mod.potential_components_with_vpd(
+        et0_mm=et0_pm, lai=orch.canopy.state.lai, vpd_kpa=vpd
+    )
+    # Canopy interception evaporation (best-effort)
+    canopy_evap = 0.0
+    try:
+        from agrogame.soil.canopy.interception import InterceptionState
+
+        _istate = InterceptionState()
+        canopy_evap = _istate.evaporate(comps.potential_evap_mm)
+    except Exception:
+        canopy_evap = 0.0
+
+    lai_now = float(getattr(orch.canopy.state, "lai", 0.0) or 0.0)
+    potential_transp = comps.potential_transp_mm if lai_now >= 0.05 else 0.0
+    comps_adj = type(comps)(
+        potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
+        potential_transp_mm=potential_transp,
+        et0_mm=comps.et0_mm,
+    )
+
+    # Root fractions if available
+    try:
+        rf = (
+            list(getattr(orch.root_state, "layer_fractions", []))
+            if getattr(orch, "root_state", None) is not None
+            else []
+        )
+    except Exception:
+        rf = []
+    if not rf:
+        rf = [1.0 / max(1, len(profile.layers))] * max(1, len(profile.layers))
+
+    actual = et_mod.actual_et(
+        cast(ETWaterProfile, profile),
+        cast(ETWaterState, wstate),
+        cast(WaterActuator, water),
+        comps_adj,
+        rf,
+    )
+
+    demand = max(1e-6, comps_adj.potential_transp_mm)
+    water_stress = max(0.05, min(1.0, actual.transpiration_mm / demand))
+    vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
+    stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
+
+    evap_total = actual.evaporation_mm + canopy_evap
+    return (
+        canopy_evap,
+        float(evap_total),
+        float(actual.transpiration_mm),
+        water_stress,
+        stomatal,
+    )
+
+
+def _init_models(profile: SoilProfile) -> tuple[
+    EventBus,
+    CascadingBucketWaterModel,
+    SoilWaterState,
+    SoilNitrogenState,
+    NitrogenCycle,
+    Any,
+    Evapotranspiration,
+]:
+    """Build core models used in the simulation loop."""
     bus = EventBus()
     water = CascadingBucketWaterModel(event_bus=bus)
     wstate = SoilWaterState(profile)
@@ -48,36 +199,12 @@ def _run_simulation(
     ncycle = NitrogenCycle(event_bus=bus, state=nstate)
     orch = build_default_orchestrator()
     et_mod = Evapotranspiration(EtParams())
+    return bus, water, wstate, nstate, ncycle, orch, et_mod
 
-    weather = load_weather(weather_file)
 
-    # If the provided weather file is shorter than requested days, extend by
-    # cycling existing records and incrementing the date. This is intended for
-    # demo-only behavior so the dashboard shows a full season with the sample file.
-    records: list[WeatherRecord] = list(weather.records)
-    if days > len(records) and records:
-        last_day = records[-1].day
-        base = list(records)
-        k = 0
-        while len(records) < days:
-            tmpl = base[k % len(base)]
-            k += 1
-            last_day = last_day + timedelta(days=1)
-            records.append(
-                WeatherRecord(
-                    day=last_day,
-                    tmin_c=tmpl.tmin_c,
-                    tmax_c=tmpl.tmax_c,
-                    relative_humidity_pct=tmpl.relative_humidity_pct,
-                    wind_m_s=tmpl.wind_m_s,
-                    shortwave_mj_m2=tmpl.shortwave_mj_m2,
-                    net_radiation_mj_m2=tmpl.net_radiation_mj_m2,
-                    albedo=tmpl.albedo,
-                    precip_mm=tmpl.precip_mm,
-                )
-            )
-
-    history: Dict[str, Any] = {
+def _new_history(profile: SoilProfile) -> Dict[str, Any]:
+    """Allocate the history structure for time series outputs."""
+    return {
         "day": [],
         "lai": [],
         "biomass_g_m2": [],
@@ -109,6 +236,24 @@ def _run_simulation(
         "thr_maturity": None,
     }
 
+
+def _run_simulation(
+    days: int,
+    weather_file: Path,
+    irrigation_schedule: list[tuple[int, float]] | None = None,
+    fertilizer_schedule: list[tuple[int, float]] | None = None,
+    *,
+    fertilizer_ops: list[tuple[int, float, str, int]] | None = None,
+) -> tuple[Dict[str, Any], SoilProfile]:
+    soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    bus, water, wstate, nstate, ncycle, orch, et_mod = _init_models(profile)
+
+    weather = load_weather(weather_file)
+    records: list[WeatherRecord] = _extend_weather_records(list(weather.records), days)
+
+    history: Dict[str, Any] = _new_history(profile)
+
     irrig_map = dict(irrigation_schedule or [])
     fert_map = dict(fertilizer_schedule or [])
     fert_ops = list(fertilizer_ops or [])
@@ -124,105 +269,31 @@ def _run_simulation(
 
     for i in range(min(days, len(records))):
         rec = records[i]
-        # Rainfall: use precipitation from the weather file only
         rain = rec.precip_mm or 0.0
         irrigation = irrig_map.get(i, 0.0)
 
-        # Optional fertilization (supports type and layer)
-        if fert_ops:
-            for d, amt, ftype, layer_idx in fert_ops:
-                if d == i and amt > 0.0:
-                    if ftype == "urea":
-                        ncycle.apply_urea(layer=layer_idx, amount_kg_ha=amt)
-                    else:
-                        ncycle.apply_ammonium_nitrate(layer=layer_idx, amount_kg_ha=amt)
-        else:
-            # Backward compatibility with simple schedule (AN to top layer)
-            fert_amt = fert_map.get(i, 0.0)
-            if fert_amt > 0.0:
-                ncycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=fert_amt)
+        _apply_fertilizers(ncycle, i, fert_ops, fert_map)
 
         water.update_daily(
             profile,
             wstate,
             DailyDrivers(
-                rainfall_mm=rain, evaporation_mm=0.0, irrigation_mm=irrigation
+                rainfall_mm=rain,
+                evaporation_mm=0.0,
+                irrigation_mm=irrigation,
             ),
         )
-        # Guard soil water theta from drifting: update from state directly
-        # (water.update_daily already mutates wstate)
 
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
-        rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
-        tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
-        et0 = et_mod.et0(
-            temp_mean_c=tmean,
-            net_radiation_mj_m2=rn,
-            method="penman-monteith",
-            wind_m_s=rec.wind_m_s or 2.0,
-            relative_humidity_pct=rec.relative_humidity_pct or 60.0,
-        )
+        et0, et0_pt, par, rn, tmean, vpd = _compute_reference_et(et_mod, rec)
         history["et0_mm"].append(et0)
-        # Priestley-Taylor reference for context
-        try:
-            et0_pt = et_mod.priestley_taylor(temp_mean_c=tmean, net_radiation_mj_m2=rn)
-        except Exception:
-            et0_pt = None
         history["et0_pt_mm"].append(et0_pt)
 
-        # Potential ET components (VPD-aware) and actual ET using soil state
-        vpd = vpd_kpa(tmean, rec.relative_humidity_pct or 60.0)
-        comps = et_mod.potential_components_with_vpd(
-            et0_mm=et0, lai=orch.canopy.state.lai, vpd_kpa=vpd
+        canopy_evap, evap_mm, transp_mm, water_stress, stomatal = _partition_et(
+            et_mod, orch, profile, wstate, water, et0, vpd
         )
-        # Evaporate canopy first; reduce soil evaporation accordingly
-        canopy_evap = 0.0
-        try:
-            # Optional: if interception state is available; else skip
-            from agrogame.soil.canopy.interception import InterceptionState
-
-            _istate = InterceptionState()  # stateless use for diagnostic only
-            canopy_evap = _istate.evaporate(comps.potential_evap_mm)
-        except Exception:
-            canopy_evap = 0.0
-        # Before emergence (very low LAI), force transpiration to zero so ET is
-        # purely soil evaporation
-        lai_now = float(getattr(orch.canopy.state, "lai", 0.0) or 0.0)
-        potential_transp = comps.potential_transp_mm if lai_now >= 0.05 else 0.0
-        comps_adj = type(comps)(
-            potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
-            potential_transp_mm=potential_transp,
-            et0_mm=comps.et0_mm,
-        )
-        # Root fractions if available, else uniform
-        try:
-            rf = (
-                list(getattr(orch.root_state, "layer_fractions", []))
-                if getattr(orch, "root_state", None) is not None
-                else []
-            )
-        except Exception:
-            rf = []
-        if not rf:
-            rf = [1.0 / max(1, len(profile.layers))] * max(1, len(profile.layers))
-        actual = et_mod.actual_et(
-            cast(ETWaterProfile, profile),
-            cast(ETWaterState, wstate),
-            cast(WaterActuator, water),
-            comps_adj,
-            rf,
-        )
-        history["evap_mm"].append(actual.evaporation_mm + canopy_evap)
-        history["transp_mm"].append(actual.transpiration_mm)
-
-        # Simple stress as supply/demand ratio for transpiration; ensure
-        # non-zero demand and cap minimum stress to avoid NaNs downstream
-        demand = max(1e-6, comps_adj.potential_transp_mm)
-        water_stress = max(0.05, min(1.0, actual.transpiration_mm / demand))
+        history["evap_mm"].append(evap_mm)
+        history["transp_mm"].append(transp_mm)
         history["water_stress"].append(water_stress)
-        # Stomatal proxy from VPD and model params
-        vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
-        stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
         history["vpd_kpa"].append(vpd)
         history["stomatal"].append(stomatal)
 
@@ -299,6 +370,206 @@ def _run_simulation(
         history["n_total_kgha"].append(sum(nstate.no3) + sum(nstate.nh4))
 
     return history, profile
+
+
+class SidebarConfig(NamedTuple):
+    weather_path: str
+    days: int
+    high_contrast: bool
+    irr_day: int
+    irr_mm: float
+    fert_day: int
+    fert_kgha: float
+    fert_type: str
+    fert_layer: int
+    autorun: bool
+    run: bool
+
+
+def _read_autorun_default() -> bool:
+    """Read query parameter autorun to determine default auto-run behavior."""
+    autorun_param = "0"
+    try:
+        autorun_param = str(getattr(st, "query_params", {}).get("autorun", "0"))
+    except Exception:
+        try:
+            autorun_param = st.experimental_get_query_params().get("autorun", ["0"])[0]
+        except Exception:
+            autorun_param = "0"
+    return autorun_param == "1"
+
+
+def _collect_sidebar_inputs() -> SidebarConfig:
+    """Render sidebar controls and return collected configuration."""
+    st.sidebar.header("Scenario")
+    weather_path = st.sidebar.text_input(
+        "Weather file", value=str(Path("data/weather/sample.csv").resolve())
+    )
+    days = int(st.sidebar.number_input("Days", min_value=10, max_value=365, value=120))
+    st.sidebar.header("Display")
+    high_contrast = bool(st.sidebar.checkbox("High-contrast mode", value=False))
+    st.sidebar.header("Management (optional)")
+    irr_day = int(st.sidebar.number_input("Irrigation day index", min_value=0, value=0))
+    irr_mm = float(
+        st.sidebar.number_input("Irrigation amount (mm)", min_value=0.0, value=0.0)
+    )
+    fert_day = int(
+        st.sidebar.number_input("Fertilizer day index", min_value=0, value=0)
+    )
+    fert_kgha = float(
+        st.sidebar.number_input("Fertilizer amount (kg N/ha)", min_value=0.0, value=0.0)
+    )
+    fert_type = str(
+        st.sidebar.selectbox("Fertilizer type", ["ammonium_nitrate", "urea"])
+    )
+    fert_layer = int(
+        st.sidebar.number_input("Fertilizer layer index", min_value=0, value=0)
+    )
+    autorun_default = _read_autorun_default()
+    autorun = bool(
+        st.sidebar.checkbox("Auto-run on load", value=autorun_default or True)
+    )
+    run = bool(st.sidebar.button("Run Simulation") or autorun)
+    return SidebarConfig(
+        weather_path,
+        days,
+        high_contrast,
+        irr_day,
+        irr_mm,
+        fert_day,
+        fert_kgha,
+        fert_type,
+        fert_layer,
+        autorun,
+        run,
+    )
+
+
+def _set_global_day_slider(history: Mapping[str, Any]) -> int:
+    """Create the global day slider and return the selected index (1..N)."""
+    st.session_state.setdefault("_days_cache", [])
+    st.session_state["_days_cache"] = history.get("day", [])
+    gmax = len(history.get("day", [])) or 1
+    return int(
+        st.slider(
+            "Day",
+            min_value=1,
+            max_value=gmax,
+            value=gmax,
+            key="global_day_slider",
+        )
+    )
+
+
+def _render_all_tabs(
+    history: Mapping[str, Any],
+    profile: SoilProfile,
+    high_contrast: bool,
+    irrigation_schedule: list[tuple[int, float]],
+    fertilizer_schedule: list[tuple[int, float]],
+) -> None:
+    tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
+    upto = (
+        None
+        if "global_idx" not in st.session_state
+        else int(st.session_state["global_idx"])
+    )
+    with tab1:
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("Soil moisture by layer")
+            _plot_soil_moisture(
+                history, profile, upto_idx=upto, high_contrast=high_contrast
+            )
+        with col2:
+            st.subheader("Soil nitrogen by layer")
+            _plot_nitrogen(history, profile, upto_idx=upto)
+
+    with tab2:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Biomass accumulation")
+            _plot_biomass(history, upto_idx=upto)
+            # Yield projection with simple CI
+            try:
+                biomass = float(history["biomass_g_m2"][-1])
+                harvest_index = 0.5
+                yield_tha = (biomass / 100.0) * harvest_index
+                lo = yield_tha * 0.8
+                hi = yield_tha * 1.2
+                st.metric(
+                    "Yield projection (t/ha)",
+                    f"{yield_tha:.1f}",
+                    help=f"80%–120% CI: {lo:.1f}–{hi:.1f} t/ha",
+                )
+            except Exception:
+                pass
+        with c2:
+            st.subheader("Root depth")
+            _plot_root_depth(history, upto_idx=upto)
+            # Root-depth animation (playback to current day)
+            play = st.button("Play root animation", key="root_anim_play")
+            if play:
+                placeholder = st.empty()
+                max_i = int(st.session_state.get("global_idx", len(history["day"])))
+                for frame in range(1, max_i + 1):
+                    with placeholder.container():
+                        _plot_root_depth(history, upto_idx=frame)
+                    time.sleep(0.04)
+        st.subheader("Phenology timeline")
+        _plot_phenology(history, upto_idx=upto)
+        if history.get("stage"):
+            st.metric("Phenology stage", history["stage"][-1])
+        # Nutrient traffic lights (N modeled, P not modeled yet)
+        try:
+            n_total = float(history.get("n_total_kgha", [0.0])[-1] or 0.0)
+            if n_total >= 120:
+                n_badge = "🟢 N sufficient"
+            elif n_total >= 60:
+                n_badge = "🟡 N moderate"
+            else:
+                n_badge = "🔴 N low"
+            st.markdown(n_badge)
+            st.markdown("⚪ P status: N/A (not modeled)")
+        except Exception:
+            pass
+        col3, col4 = st.columns(2)
+        with col3:
+            st.subheader("Leaf area index (LAI)")
+            _plot_lai(history, upto_idx=upto)
+        with col4:
+            st.subheader("PAR interception")
+            _plot_interception(history, upto_idx=upto)
+
+    with tab3:
+        st.write("Management actions applied in this run:")
+        if irrigation_schedule:
+            st.write(
+                "Irrigation: day "
+                + f"{irrigation_schedule[0][0]}, "
+                + f"{irrigation_schedule[0][1]} mm"
+            )
+        else:
+            st.write("Irrigation: none")
+        if fertilizer_schedule:
+            st.write(
+                "Fertilizer (AN): day "
+                + f"{fertilizer_schedule[0][0]}, "
+                + f"{fertilizer_schedule[0][1]} kg/ha"
+            )
+        else:
+            st.write("Fertilizer: none")
+
+    with tab4:
+        w1, w2 = st.columns(2)
+        with w1:
+            st.subheader("Weather overview")
+            _plot_weather(history, upto_idx=upto)
+        with w2:
+            st.subheader("ET components")
+            _plot_et(history, upto_idx=upto)
+        st.subheader("VPD and stomatal factor")
+        _plot_vpd_stomatal(history, upto_idx=upto)
 
 
 def _gradient_hex(color_a: str, color_b: str, steps: int) -> list[str]:
@@ -859,42 +1130,23 @@ def _plot_vpd_stomatal(
 def main(argv: Optional[list[str]] = None) -> None:
     st.set_page_config(page_title="AgroGame Dashboard", layout="wide")
     st.title("AgroGame Dashboard")
-
-    st.sidebar.header("Scenario")
-    weather_path = st.sidebar.text_input(
-        "Weather file", value=str(Path("data/weather/sample.csv").resolve())
-    )
-    days = st.sidebar.number_input("Days", min_value=10, max_value=365, value=120)
-    st.sidebar.header("Display")
-    high_contrast = st.sidebar.checkbox("High-contrast mode", value=False)
-    st.sidebar.header("Management (optional)")
-    irr_day = st.sidebar.number_input("Irrigation day index", min_value=0, value=0)
-    irr_mm = st.sidebar.number_input("Irrigation amount (mm)", min_value=0.0, value=0.0)
-    fert_day = st.sidebar.number_input("Fertilizer day index", min_value=0, value=0)
-    fert_kgha = st.sidebar.number_input(
-        "Fertilizer amount (kg N/ha)", min_value=0.0, value=0.0
-    )
-    fert_type = st.sidebar.selectbox("Fertilizer type", ["ammonium_nitrate", "urea"])
-    fert_layer = st.sidebar.number_input("Fertilizer layer index", min_value=0, value=0)
-    # Autorun support via query param or checkbox
-    autorun_param = "0"
-    try:
-        # streamlit >= 1.27
-        autorun_param = str(getattr(st, "query_params", {}).get("autorun", "0"))
-    except Exception:
-        try:
-            autorun_param = st.experimental_get_query_params().get("autorun", ["0"])[0]
-        except Exception:
-            autorun_param = "0"
-    autorun_default = autorun_param == "1"
-    autorun = st.sidebar.checkbox("Auto-run on load", value=autorun_default or True)
-    run = st.sidebar.button("Run Simulation") or autorun
+    cfg = _collect_sidebar_inputs()
+    (
+        weather_path,
+        days,
+        high_contrast,
+        irr_day,
+        irr_mm,
+        fert_day,
+        fert_kgha,
+        fert_type,
+        fert_layer,
+        _autorun,
+        run,
+    ) = cfg
 
     if run:
-        # Global day slider controlling all charts
-        # Ensure the cache key exists; value is used only to derive slider bounds later
-        st.session_state.setdefault("_days_cache", [])
-        irrigation_schedule = []
+        irrigation_schedule: list[tuple[int, float]] = []
         if irr_mm > 0:
             irrigation_schedule.append((int(irr_day), float(irr_mm)))
         fertilizer_schedule: list[tuple[int, float]] = []
@@ -917,188 +1169,17 @@ def main(argv: Optional[list[str]] = None) -> None:
             st.exception(e)
             return
 
-        # Set global slider max to history length
-        st.session_state["_days_cache"] = history["day"]
-        gmax = len(history["day"]) if history.get("day") else 1
-        st.session_state["global_idx"] = st.slider(
-            "Day",
-            min_value=1,
-            max_value=gmax,
-            value=gmax,
-            key="global_day_slider",
-        )
+        # Global day slider controlling all charts
+        st.session_state["global_idx"] = _set_global_day_slider(history)
 
         try:
-            tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
-            with tab1:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("Soil moisture by layer")
-                    _plot_soil_moisture(
-                        history,
-                        profile,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                        high_contrast=high_contrast,
-                    )
-                with col2:
-                    st.subheader("Soil nitrogen by layer")
-                    _plot_nitrogen(
-                        history,
-                        profile,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-
-            with tab2:
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.subheader("Biomass accumulation")
-                    _plot_biomass(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-                    # Yield projection with simple CI
-                    try:
-                        biomass = float(history["biomass_g_m2"][-1])
-                        harvest_index = 0.5
-                        yield_tha = (biomass / 100.0) * harvest_index
-                        lo = yield_tha * 0.8
-                        hi = yield_tha * 1.2
-                        st.metric(
-                            "Yield projection (t/ha)",
-                            f"{yield_tha:.1f}",
-                            help=f"80%–120% CI: {lo:.1f}–{hi:.1f} t/ha",
-                        )
-                    except Exception:
-                        pass
-                with c2:
-                    st.subheader("Root depth")
-                    _plot_root_depth(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-                    # Root-depth animation (playback to current day)
-                    play = st.button("Play root animation", key="root_anim_play")
-                    if play:
-                        placeholder = st.empty()
-                        max_i = int(
-                            st.session_state.get("global_idx", len(history["day"]))
-                        )
-                        for frame in range(1, max_i + 1):
-                            with placeholder.container():
-                                _plot_root_depth(history, upto_idx=frame)
-                            time.sleep(0.04)
-                st.subheader("Phenology timeline")
-                _plot_phenology(
-                    history,
-                    upto_idx=(
-                        None
-                        if "global_idx" not in st.session_state
-                        else int(st.session_state["global_idx"])
-                    ),
-                )
-                if history["stage"]:
-                    st.metric("Phenology stage", history["stage"][-1])
-                # Nutrient traffic lights (N modeled, P not modeled yet)
-                try:
-                    n_total = float(history.get("n_total_kgha", [0.0])[-1] or 0.0)
-                    if n_total >= 120:
-                        n_badge = "🟢 N sufficient"
-                    elif n_total >= 60:
-                        n_badge = "🟡 N moderate"
-                    else:
-                        n_badge = "🔴 N low"
-                    st.markdown(n_badge)
-                    st.markdown("⚪ P status: N/A (not modeled)")
-                except Exception:
-                    pass
-                col3, col4 = st.columns(2)
-                with col3:
-                    st.subheader("Leaf area index (LAI)")
-                    _plot_lai(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-                with col4:
-                    st.subheader("PAR interception")
-                    _plot_interception(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-
-            with tab3:
-                st.write("Management actions applied in this run:")
-                if irrigation_schedule:
-                    st.write(
-                        "Irrigation: day "
-                        + f"{irrigation_schedule[0][0]}, "
-                        + f"{irrigation_schedule[0][1]} mm"
-                    )
-                else:
-                    st.write("Irrigation: none")
-                if fertilizer_schedule:
-                    st.write(
-                        "Fertilizer (AN): day "
-                        + f"{fertilizer_schedule[0][0]}, "
-                        + f"{fertilizer_schedule[0][1]} kg/ha"
-                    )
-                else:
-                    st.write("Fertilizer: none")
-
-            with tab4:
-                w1, w2 = st.columns(2)
-                with w1:
-                    st.subheader("Weather overview")
-                    _plot_weather(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-                with w2:
-                    st.subheader("ET components")
-                    _plot_et(
-                        history,
-                        upto_idx=(
-                            None
-                            if "global_idx" not in st.session_state
-                            else int(st.session_state["global_idx"])
-                        ),
-                    )
-                st.subheader("VPD and stomatal factor")
-                _plot_vpd_stomatal(
-                    history,
-                    upto_idx=(
-                        None
-                        if "global_idx" not in st.session_state
-                        else int(st.session_state["global_idx"])
-                    ),
-                )
+            _render_all_tabs(
+                history,
+                profile,
+                high_contrast,
+                irrigation_schedule,
+                fertilizer_schedule,
+            )
         except Exception as e:  # Show rendering errors in the UI
             st.error("Rendering failed.")
             st.exception(e)
