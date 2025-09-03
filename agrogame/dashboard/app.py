@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
-from typing import Optional, Any, Dict, Mapping
+from datetime import timedelta
+from typing import Optional, Any, Dict, Mapping, cast
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -12,11 +13,18 @@ from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather import load_weather
+from agrogame.weather.utils import vpd_kpa
+from agrogame.weather.types import WeatherRecord
 from agrogame.soil.nitrogen.state import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.soil.models import SoilProfile
+from agrogame.atmosphere.et.ports import (
+    WaterProfile as ETWaterProfile,
+    WaterState as ETWaterState,
+    WaterActuator,
+)
 
 
 def _run_simulation(
@@ -40,6 +48,32 @@ def _run_simulation(
 
     weather = load_weather(weather_file)
 
+    # If the provided weather file is shorter than requested days, extend by
+    # cycling existing records and incrementing the date. This is intended for
+    # demo-only behavior so the dashboard shows a full season with the sample file.
+    records: list[WeatherRecord] = list(weather.records)
+    if days > len(records) and records:
+        last_day = records[-1].day
+        base = list(records)
+        k = 0
+        while len(records) < days:
+            tmpl = base[k % len(base)]
+            k += 1
+            last_day = last_day + timedelta(days=1)
+            records.append(
+                WeatherRecord(
+                    day=last_day,
+                    tmin_c=tmpl.tmin_c,
+                    tmax_c=tmpl.tmax_c,
+                    relative_humidity_pct=tmpl.relative_humidity_pct,
+                    wind_m_s=tmpl.wind_m_s,
+                    shortwave_mj_m2=tmpl.shortwave_mj_m2,
+                    net_radiation_mj_m2=tmpl.net_radiation_mj_m2,
+                    albedo=tmpl.albedo,
+                    precip_mm=tmpl.precip_mm,
+                )
+            )
+
     history: Dict[str, Any] = {
         "day": [],
         "lai": [],
@@ -53,6 +87,11 @@ def _run_simulation(
         "tmin_c": [],
         "tmax_c": [],
         "et0_mm": [],
+        "et0_pt_mm": [],
+        "evap_mm": [],
+        "transp_mm": [],
+        "vpd_kpa": [],
+        "stomatal": [],
         "water_stress": [],
     }
 
@@ -60,8 +99,9 @@ def _run_simulation(
     fert_map = dict(fertilizer_schedule or [])
     fert_ops = list(fertilizer_ops or [])
 
-    for i in range(min(days, len(weather.records))):
-        rec = weather.records[i]
+    for i in range(min(days, len(records))):
+        rec = records[i]
+        # Rainfall: use precipitation from the weather file only
         rain = rec.precip_mm or 0.0
         irrigation = irrig_map.get(i, 0.0)
 
@@ -79,13 +119,15 @@ def _run_simulation(
             if fert_amt > 0.0:
                 ncycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=fert_amt)
 
-        _ = water.update_daily(
+        water.update_daily(
             profile,
             wstate,
             DailyDrivers(
                 rainfall_mm=rain, evaporation_mm=0.0, irrigation_mm=irrigation
             ),
         )
+        # Guard soil water theta from drifting: update from state directly
+        # (water.update_daily already mutates wstate)
 
         par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
@@ -98,26 +140,64 @@ def _run_simulation(
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
         history["et0_mm"].append(et0)
-
-        # Compute potential components and approximate water stress
-        # (supply/demand). This is a dashboard-only heuristic and does not
-        # affect core simulation logic.
-        comps = et_mod.potential_components(et0_mm=et0, lai=orch.canopy.state.lai)
-        # Approximate actual transpiration via a storage-related proxy
-        potential_transp = comps.potential_transp_mm
-        supply_frac = 1.0
+        # Priestley-Taylor reference for context
         try:
-            avg_theta = sum(wstate.theta) / max(1, len(wstate.theta))
-            supply_frac = max(0.0, min(1.0, avg_theta / 0.30))
+            et0_pt = et_mod.priestley_taylor(temp_mean_c=tmean, net_radiation_mj_m2=rn)
         except Exception:
-            pass
-        approx_actual_transp = potential_transp * supply_frac
-        water_stress = (
-            1.0
-            if potential_transp <= 1e-9
-            else max(0.0, min(1.0, approx_actual_transp / potential_transp))
+            et0_pt = None
+        history["et0_pt_mm"].append(et0_pt)
+
+        # Potential ET components (VPD-aware) and actual ET using soil state
+        vpd = vpd_kpa(tmean, rec.relative_humidity_pct or 60.0)
+        comps = et_mod.potential_components_with_vpd(
+            et0_mm=et0, lai=orch.canopy.state.lai, vpd_kpa=vpd
         )
+        # Evaporate canopy first; reduce soil evaporation accordingly
+        canopy_evap = 0.0
+        try:
+            # Optional: if interception state is available; else skip
+            from agrogame.soil.canopy.interception import InterceptionState
+
+            _istate = InterceptionState()  # stateless use for diagnostic only
+            canopy_evap = _istate.evaporate(comps.potential_evap_mm)
+        except Exception:
+            canopy_evap = 0.0
+        comps_adj = type(comps)(
+            potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
+            potential_transp_mm=comps.potential_transp_mm,
+            et0_mm=comps.et0_mm,
+        )
+        # Root fractions if available, else uniform
+        try:
+            rf = (
+                list(getattr(orch.root_state, "layer_fractions", []))
+                if getattr(orch, "root_state", None) is not None
+                else []
+            )
+        except Exception:
+            rf = []
+        if not rf:
+            rf = [1.0 / max(1, len(profile.layers))] * max(1, len(profile.layers))
+        actual = et_mod.actual_et(
+            cast(ETWaterProfile, profile),
+            cast(ETWaterState, wstate),
+            cast(WaterActuator, water),
+            comps_adj,
+            rf,
+        )
+        history["evap_mm"].append(actual.evaporation_mm + canopy_evap)
+        history["transp_mm"].append(actual.transpiration_mm)
+
+        # Simple stress as supply/demand ratio for transpiration; ensure
+        # non-zero demand and cap minimum stress to avoid NaNs downstream
+        demand = max(1e-6, comps_adj.potential_transp_mm)
+        water_stress = max(0.05, min(1.0, actual.transpiration_mm / demand))
         history["water_stress"].append(water_stress)
+        # Stomatal proxy from VPD and model params
+        vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
+        stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
+        history["vpd_kpa"].append(vpd)
+        history["stomatal"].append(stomatal)
 
         orch.step_day(
             tmin_c=rec.tmin_c,
@@ -126,9 +206,20 @@ def _run_simulation(
             water_stress=water_stress,
             n_stress=1.0,
         )
+        # Ensure canopy growth responds to PAR and stress by doing a
+        # secondary update with current stress (for dashboard visualization)
+        try:
+            _ = orch.canopy.daily_step(
+                incident_par_mj_m2=par,
+                temp_factor=1.0,
+                water_stress=water_stress,
+                n_stress=1.0,
+            )
+        except Exception:
+            pass
 
         # Nitrogen cycle (use mean air temp as proxy for soil temp)
-        _ = ncycle.daily_step(temperature_c=tmean)
+        _ = ncycle.daily_step(temperature_c=tmean, plant_demand_kg_ha=1.0)
 
         history["day"].append(rec.day)
         history["lai"].append(orch.canopy.state.lai)
@@ -225,6 +316,58 @@ def _plot_root_depth(history: Mapping[str, Any]) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 
+def _plot_phenology(history: Mapping[str, Any]) -> None:
+    stages = [str(s) for s in history.get("stage", [])]
+    if not stages:
+        st.info("No phenology data available.")
+        return
+
+    # Build contiguous segments (stage, duration_in_days)
+    segments: list[tuple[str, int]] = []
+    current = stages[0]
+    start_idx = 0
+    for i, s in enumerate(stages[1:], start=1):
+        if s != current:
+            segments.append((current, i - start_idx))
+            current = s
+            start_idx = i
+    segments.append((current, len(stages) - start_idx))
+
+    # Colors inspired by plot_full_integration.py
+    color_map: dict[str, str] = {
+        "planted": "#9ecae1",
+        "emerged": "#a1d99b",
+        "vegetative": "#74c476",
+        "flowering": "#fd8d3c",
+        "grain_fill": "#fdd0a2",
+        "maturity": "#bcbddc",
+    }
+
+    fig = go.Figure()
+    for name, duration in segments:
+        fig.add_trace(
+            go.Bar(
+                x=[max(1, int(duration))],
+                y=["Stage"],
+                orientation="h",
+                marker_color=color_map.get(name, "#6272a4"),
+                name=name,
+                text=[name],
+                textposition="inside",
+                hovertemplate="%{text} · %{x} days<extra></extra>",
+            )
+        )
+    fig.update_layout(
+        barmode="stack",
+        xaxis_title="Day",
+        yaxis={"visible": False, "showticklabels": False},
+        showlegend=True,
+        height=140,
+        margin={"l": 10, "r": 10, "t": 10, "b": 10},
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
 def _plot_weather(history: Mapping[str, Any]) -> None:
     fig = go.Figure()
     fig.add_trace(
@@ -237,9 +380,89 @@ def _plot_weather(history: Mapping[str, Any]) -> None:
         go.Bar(x=history["day"], y=history["rain_mm"], name="Rain (mm)", opacity=0.4)
     )
     fig.add_trace(
-        go.Scatter(x=history["day"], y=history["et0_mm"], mode="lines", name="ET0")
+        go.Scatter(x=history["day"], y=history["et0_mm"], mode="lines", name="ET0 PM")
     )
+    if any(history.get("et0_pt_mm", [])):
+        fig.add_trace(
+            go.Scatter(
+                x=history["day"],
+                y=history["et0_pt_mm"],
+                mode="lines",
+                name="ET0 PT",
+            )
+        )
     fig.update_layout(yaxis_title="Temp (°C) / Rain & ET0 (mm)")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_et(history: Mapping[str, Any]) -> None:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=history["day"],
+            y=history.get("evap_mm", []),
+            mode="lines",
+            name="Evap (mm)",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=history["day"],
+            y=history.get("transp_mm", []),
+            mode="lines",
+            name="Transp (mm)",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=history["day"],
+            y=history.get("et0_mm", []),
+            mode="lines",
+            name="ET0 PM (mm)",
+        )
+    )
+    if any(history.get("et0_pt_mm", [])):
+        fig.add_trace(
+            go.Scatter(
+                x=history["day"],
+                y=history.get("et0_pt_mm", []),
+                mode="lines",
+                name="ET0 PT (mm)",
+            )
+        )
+    fig.update_layout(yaxis_title="mm")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_vpd_stomatal(history: Mapping[str, Any]) -> None:
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=history["day"],
+            y=history.get("vpd_kpa", []),
+            mode="lines",
+            name="VPD (kPa)",
+            yaxis="y1",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=history["day"],
+            y=history.get("stomatal", []),
+            mode="lines",
+            name="Stomatal (-)",
+            yaxis="y2",
+        )
+    )
+    fig.update_layout(
+        yaxis={"title": "VPD (kPa)", "side": "left"},
+        yaxis2={
+            "title": "Stomatal (-)",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+        },
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -302,16 +525,24 @@ def main(argv: Optional[list[str]] = None) -> None:
         try:
             tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
             with tab1:
-                st.subheader("Soil moisture by layer")
-                _plot_soil_moisture(history, profile)
-                st.subheader("Soil nitrogen by layer")
-                _plot_nitrogen(history, profile)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Soil moisture by layer")
+                    _plot_soil_moisture(history, profile)
+                with col2:
+                    st.subheader("Soil nitrogen by layer")
+                    _plot_nitrogen(history, profile)
 
             with tab2:
-                st.subheader("Biomass accumulation")
-                _plot_biomass(history)
-                st.subheader("Root depth")
-                _plot_root_depth(history)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.subheader("Biomass accumulation")
+                    _plot_biomass(history)
+                with c2:
+                    st.subheader("Root depth")
+                    _plot_root_depth(history)
+                st.subheader("Phenology timeline")
+                _plot_phenology(history)
                 if history["stage"]:
                     st.metric("Phenology stage", history["stage"][-1])
 
@@ -335,10 +566,22 @@ def main(argv: Optional[list[str]] = None) -> None:
                     st.write("Fertilizer: none")
 
             with tab4:
-                st.subheader("Weather overview")
-                _plot_weather(history)
+                w1, w2 = st.columns(2)
+                with w1:
+                    st.subheader("Weather overview")
+                    _plot_weather(history)
+                with w2:
+                    st.subheader("ET components")
+                    _plot_et(history)
+                st.subheader("VPD and stomatal factor")
+                _plot_vpd_stomatal(history)
         except Exception as e:  # Show rendering errors in the UI
             st.error("Rendering failed.")
             st.exception(e)
     else:
         st.info("Set parameters in the sidebar and click 'Run Simulation'.")
+
+
+# Ensure Streamlit executes the app when running this file directly
+if __name__ == "__main__":  # pragma: no cover
+    main()
