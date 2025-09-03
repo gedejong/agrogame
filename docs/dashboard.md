@@ -18,3 +18,7 @@ Notes:
 - The dashboard uses a lightweight heuristic for water stress for display only
 - Data sources align with the event-driven modules; no core logic is modified
 
+Preview:
+
+![Dashboard Screenshot](images/dashboard.png)
+
