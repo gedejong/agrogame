@@ -998,20 +998,13 @@ def _plot_weather(history: Mapping[str, Any], *, upto_idx: int | None = None) ->
             st.caption("Forecast uses recent-week persistence; replace with API.")
     except Exception:
         pass
-    # CSV export button
+    # CSV export button (no pandas dependency)
     try:
-        import pandas as pd
-
-        buf = __import__("io").StringIO()
-        pd.DataFrame(
-            {
-                "day": history["day"],
-                "tmin_c": history["tmin_c"],
-                "tmax_c": history["tmax_c"],
-                "rain_mm": history["rain_mm"],
-                "et0_mm": history["et0_mm"],
-            }
-        ).to_csv(buf, index=False)
+        buf = StringIO()
+        buf.write("day,tmin_c,tmax_c,rain_mm,et0_mm\n")
+        n = len(x)
+        for i in range(n):
+            buf.write(f"{x[i]},{tmin[i]},{tmax[i]},{rain[i]},{et0[i]}\n")
         st.download_button(
             "Download weather CSV",
             data=buf.getvalue(),
