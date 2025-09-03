@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+description: Jira operating rules for AgroGame
+---
+# Jira Operating Rules
+
+- For each story: fetch acceptance criteria, post brief implementation plan, transition to In Progress with branch name, keep compliance comment before PR and after merge.
+- Prefer highest-priority To Do; branch from `develop` with `feat/<JIRA-KEY>-<kebab-summary>`.
+- Link PR in Jira; include issue key in branch and PR title.
+
+MCP integration available; prefer MCP over raw API.

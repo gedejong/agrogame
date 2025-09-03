@@ -1,0 +1,9 @@
+---
+alwaysApply: true
+description: Repository structure and ownership notes for AgroGame
+---
+# Repository Structure & Ownership
+
+- Key directories: `agrogame/` (modules), `docs/` (MkDocs), `scripts/`, `tests/`, `data/`.
+- CODEOWNERS: ensure `edwin.dejong@databuildcompany.com` is listed as code owner.
+- Prefer absolute paths in tools; respect .gitignore and avoid committing local artifacts.

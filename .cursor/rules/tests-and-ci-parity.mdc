@@ -1,0 +1,10 @@
+---
+alwaysApply: true
+description: Tests and CI parity rules for AgroGame
+---
+# Tests & CI Parity
+
+- Run: black, ruff, flake8, mypy, pytest with coverage before pushing.
+- Mirror CI locally; investigate xenon/importlinter/deptry failures.
+- Skip optional-extras tests when deps absent (e.g., streamlit/plotly).
+- After triggering CI, wait ~2 minutes before checking status.
