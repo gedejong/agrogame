@@ -27,7 +27,7 @@ def _run_simulation(
     *,
     fertilizer_ops: list[tuple[int, float, str, int]] | None = None,
 ) -> tuple[Dict[str, Any], SoilProfile]:
-    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
 
     bus = EventBus()
@@ -245,6 +245,7 @@ def _plot_weather(history: Mapping[str, Any]) -> None:
 
 def main(argv: Optional[list[str]] = None) -> None:
     st.set_page_config(page_title="AgroGame Dashboard", layout="wide")
+    st.title("AgroGame Dashboard")
 
     st.sidebar.header("Scenario")
     weather_path = st.sidebar.text_input(
@@ -285,48 +286,59 @@ def main(argv: Optional[list[str]] = None) -> None:
                 (int(fert_day), float(fert_kgha), str(fert_type), int(fert_layer))
             )
 
-        history, profile = _run_simulation(
-            days=days,
-            weather_file=Path(weather_path),
-            irrigation_schedule=irrigation_schedule,
-            fertilizer_schedule=fertilizer_schedule,
-            fertilizer_ops=fertilizer_ops,
-        )
+        try:
+            history, profile = _run_simulation(
+                days=days,
+                weather_file=Path(weather_path),
+                irrigation_schedule=irrigation_schedule,
+                fertilizer_schedule=fertilizer_schedule,
+                fertilizer_ops=fertilizer_ops,
+            )
+        except Exception as e:  # Show load errors in the UI
+            st.error("Simulation failed to load inputs or run.")
+            st.exception(e)
+            return
 
-        tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
-        with tab1:
-            st.subheader("Soil moisture by layer")
-            _plot_soil_moisture(history, profile)
-            st.subheader("Soil nitrogen by layer")
-            _plot_nitrogen(history, profile)
+        try:
+            tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
+            with tab1:
+                st.subheader("Soil moisture by layer")
+                _plot_soil_moisture(history, profile)
+                st.subheader("Soil nitrogen by layer")
+                _plot_nitrogen(history, profile)
 
-        with tab2:
-            st.subheader("Biomass accumulation")
-            _plot_biomass(history)
-            st.subheader("Root depth")
-            _plot_root_depth(history)
-            if history["stage"]:
-                st.metric("Phenology stage", history["stage"][-1])
+            with tab2:
+                st.subheader("Biomass accumulation")
+                _plot_biomass(history)
+                st.subheader("Root depth")
+                _plot_root_depth(history)
+                if history["stage"]:
+                    st.metric("Phenology stage", history["stage"][-1])
 
-        with tab3:
-            st.write("Management actions applied in this run:")
-            if irrigation_schedule:
-                st.write(
-                    "Irrigation: day "
-                    + f"{irrigation_schedule[0][0]}, "
-                    + f"{irrigation_schedule[0][1]} mm"
-                )
-            else:
-                st.write("Irrigation: none")
-            if fertilizer_schedule:
-                st.write(
-                    "Fertilizer (AN): day "
-                    + f"{fertilizer_schedule[0][0]}, "
-                    + f"{fertilizer_schedule[0][1]} kg/ha"
-                )
-            else:
-                st.write("Fertilizer: none")
+            with tab3:
+                st.write("Management actions applied in this run:")
+                if irrigation_schedule:
+                    st.write(
+                        "Irrigation: day "
+                        + f"{irrigation_schedule[0][0]}, "
+                        + f"{irrigation_schedule[0][1]} mm"
+                    )
+                else:
+                    st.write("Irrigation: none")
+                if fertilizer_schedule:
+                    st.write(
+                        "Fertilizer (AN): day "
+                        + f"{fertilizer_schedule[0][0]}, "
+                        + f"{fertilizer_schedule[0][1]} kg/ha"
+                    )
+                else:
+                    st.write("Fertilizer: none")
 
-        with tab4:
-            st.subheader("Weather overview")
-            _plot_weather(history)
+            with tab4:
+                st.subheader("Weather overview")
+                _plot_weather(history)
+        except Exception as e:  # Show rendering errors in the UI
+            st.error("Rendering failed.")
+            st.exception(e)
+    else:
+        st.info("Set parameters in the sidebar and click 'Run Simulation'.")
