@@ -260,7 +260,19 @@ def main(argv: Optional[list[str]] = None) -> None:
     )
     fert_type = st.sidebar.selectbox("Fertilizer type", ["ammonium_nitrate", "urea"])
     fert_layer = st.sidebar.number_input("Fertilizer layer index", min_value=0, value=0)
-    run = st.sidebar.button("Run Simulation")
+    # Autorun support via query param or checkbox
+    autorun_param = "0"
+    try:
+        # streamlit >= 1.27
+        autorun_param = str(getattr(st, "query_params", {}).get("autorun", "0"))
+    except Exception:
+        try:
+            autorun_param = st.experimental_get_query_params().get("autorun", ["0"])[0]
+        except Exception:
+            autorun_param = "0"
+    autorun_default = autorun_param == "1"
+    autorun = st.sidebar.checkbox("Auto-run on load", value=autorun_default or True)
+    run = st.sidebar.button("Run Simulation") or autorun
 
     if run:
         irrigation_schedule = []
