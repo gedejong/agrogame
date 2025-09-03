@@ -11,6 +11,7 @@ nav:
       - Nitrogen: nitrogen.md
       - Phenology: phenology.md
       - Canopy: canopy.md
+      - Dashboard: dashboard.md
       - Events & Debugging: events.md
       - Architecture (compressed): architecture.md
       - Quality Bar: quality-bar.md

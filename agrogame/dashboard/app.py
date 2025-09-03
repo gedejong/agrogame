@@ -51,6 +51,7 @@ def _run_simulation(
         "tmin_c": [],
         "tmax_c": [],
         "et0_mm": [],
+        "water_stress": [],
     }
 
     irrig_map = dict(irrigation_schedule or [])
@@ -86,11 +87,31 @@ def _run_simulation(
         )
         history["et0_mm"].append(et0)
 
+        # Compute potential components and approximate water stress
+        # (supply/demand). This is a dashboard-only heuristic and does not
+        # affect core simulation logic.
+        comps = et_mod.potential_components(et0_mm=et0, lai=orch.canopy.state.lai)
+        # Approximate actual transpiration via a storage-related proxy
+        potential_transp = comps.potential_transp_mm
+        supply_frac = 1.0
+        try:
+            avg_theta = sum(wstate.theta) / max(1, len(wstate.theta))
+            supply_frac = max(0.0, min(1.0, avg_theta / 0.30))
+        except Exception:
+            pass
+        approx_actual_transp = potential_transp * supply_frac
+        water_stress = (
+            1.0
+            if potential_transp <= 1e-9
+            else max(0.0, min(1.0, approx_actual_transp / potential_transp))
+        )
+        history["water_stress"].append(water_stress)
+
         orch.step_day(
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
             par_mj_m2=par,
-            water_stress=1.0,
+            water_stress=water_stress,
             n_stress=1.0,
         )
 
@@ -180,6 +201,8 @@ def _plot_biomass(history: Mapping[str, Any]) -> None:
     )
     fig.update_layout(yaxis_title="Biomass (g m⁻²)")
     st.plotly_chart(fig, use_container_width=True)
+    if history.get("water_stress"):
+        st.metric("Water Stress (0-1)", f"{history['water_stress'][-1]:.2f}")
 
 
 def _plot_root_depth(history: Mapping[str, Any]) -> None:
