@@ -24,6 +24,8 @@ def _run_simulation(
     weather_file: Path,
     irrigation_schedule: list[tuple[int, float]] | None = None,
     fertilizer_schedule: list[tuple[int, float]] | None = None,
+    *,
+    fertilizer_ops: list[tuple[int, float, str, int]] | None = None,
 ) -> tuple[Dict[str, Any], SoilProfile]:
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
@@ -56,16 +58,26 @@ def _run_simulation(
 
     irrig_map = dict(irrigation_schedule or [])
     fert_map = dict(fertilizer_schedule or [])
+    fert_ops = list(fertilizer_ops or [])
 
     for i in range(min(days, len(weather.records))):
         rec = weather.records[i]
         rain = rec.precip_mm or 0.0
         irrigation = irrig_map.get(i, 0.0)
 
-        # Optional fertilization (top layer simple split)
-        fert_amt = fert_map.get(i, 0.0)
-        if fert_amt > 0.0:
-            ncycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=fert_amt)
+        # Optional fertilization (supports type and layer)
+        if fert_ops:
+            for d, amt, ftype, layer_idx in fert_ops:
+                if d == i and amt > 0.0:
+                    if ftype == "urea":
+                        ncycle.apply_urea(layer=layer_idx, amount_kg_ha=amt)
+                    else:
+                        ncycle.apply_ammonium_nitrate(layer=layer_idx, amount_kg_ha=amt)
+        else:
+            # Backward compatibility with simple schedule (AN to top layer)
+            fert_amt = fert_map.get(i, 0.0)
+            if fert_amt > 0.0:
+                ncycle.apply_ammonium_nitrate(layer=0, amount_kg_ha=fert_amt)
 
         _ = water.update_daily(
             profile,
@@ -244,8 +256,10 @@ def main(argv: Optional[list[str]] = None) -> None:
     irr_mm = st.sidebar.number_input("Irrigation amount (mm)", min_value=0.0, value=0.0)
     fert_day = st.sidebar.number_input("Fertilizer day index", min_value=0, value=0)
     fert_kgha = st.sidebar.number_input(
-        "Fertilizer (kg N/ha, AN)", min_value=0.0, value=0.0
+        "Fertilizer amount (kg N/ha)", min_value=0.0, value=0.0
     )
+    fert_type = st.sidebar.selectbox("Fertilizer type", ["ammonium_nitrate", "urea"])
+    fert_layer = st.sidebar.number_input("Fertilizer layer index", min_value=0, value=0)
     run = st.sidebar.button("Run Simulation")
 
     if run:
@@ -253,14 +267,18 @@ def main(argv: Optional[list[str]] = None) -> None:
         if irr_mm > 0:
             irrigation_schedule.append((int(irr_day), float(irr_mm)))
         fertilizer_schedule = []
+        fertilizer_ops = []
         if fert_kgha > 0:
-            fertilizer_schedule.append((int(fert_day), float(fert_kgha)))
+            fertilizer_ops.append(
+                (int(fert_day), float(fert_kgha), str(fert_type), int(fert_layer))
+            )
 
         history, profile = _run_simulation(
             days=days,
             weather_file=Path(weather_path),
             irrigation_schedule=irrigation_schedule,
             fertilizer_schedule=fertilizer_schedule,
+            fertilizer_ops=fertilizer_ops,
         )
 
         tab1, tab2, tab3, tab4 = st.tabs(["Soil", "Crop", "Management", "Weather"])
