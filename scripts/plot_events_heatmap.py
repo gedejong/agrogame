@@ -6,23 +6,10 @@ from typing import List
 
 import matplotlib.pyplot as plt
 
-from agrogame.events import EventBus
 from agrogame.events.recorder import EventRecorder
-from agrogame.soil.phenology import (
-    CropPhenologyParams,
-    GrowthStageThresholds,
-    PhenologyModule,
-)
-from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
-from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
-from agrogame.soil.nitrogen import SoilNitrogenState
-from agrogame.soil.nitrogen.cycle import NitrogenCycle
-from agrogame.plant.roots import RootModule, RootParams, RootState
-from agrogame.atmosphere.et import Evapotranspiration, EtParams
-from agrogame.soil.canopy.interception import InterceptionState
+from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.weather.module import WeatherModule
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.weather.utils import sanitize_weather_series
@@ -43,40 +30,10 @@ def main() -> None:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    bus = EventBus()
-    rec = EventRecorder(bus)
-
-    phen = PhenologyModule(
-        CropPhenologyParams(
-            base_temperature_c=8.0,
-            max_temperature_c=35.0,
-            thresholds=GrowthStageThresholds(
-                emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
-            ),
-        ),
-        event_bus=bus,
-    )
-    canopy = CanopyModule(
-        CanopyParams(
-            extinction_coefficient_k=0.6,
-            radiation_use_efficiency_g_per_mj=3.0,
-            specific_leaf_area_m2_per_g=0.02,
-            lai_max=6.0,
-            senescence_rate_per_day=0.01,
-        ),
-        event_bus=bus,
-    )
-    # Wire additional modules to surface more events
-    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
-    profile = soil_lib.soils["loam_temperate"]
-    water = CascadingBucketWaterModel(event_bus=bus)
-    wstate = SoilWaterState(profile)
-    nstate = SoilNitrogenState(profile)
-    ncycle = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
-    roots = RootModule(RootParams(), event_bus=bus)
-    rstate = RootState()
-    etmod = Evapotranspiration(EtParams())
-    istate = InterceptionState()
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    orch = FullSimulationOrchestrator(profile)
+    rec = EventRecorder(orch.event_bus)
 
     series = get_weather_series(args, args.days)
     if series is not None:
@@ -84,7 +41,9 @@ def main() -> None:
         total = min(args.days, len(series.records))
     else:
         total = args.days
-    weather_module = WeatherModule(series, bus) if series is not None else None
+    weather_module = (
+        WeatherModule(series, orch.event_bus) if series is not None else None
+    )
 
     # Simulate minimal loop to generate events (phenology+canopy)
     for day in range(total):
@@ -98,29 +57,28 @@ def main() -> None:
         else:
             tmin, tmax, rad = 10.0, 22.0, 12.0
             rain = 0.0
-        phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
-        _ = canopy.daily_step(
-            incident_par_mj_m2=rad, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        orch.step_day(
+            drivers=DailyDrivers(
+                rainfall_mm=rain, irrigation_mm=0.0, evaporation_mm=0.0
+            ),
+            tmin_c=tmin,
+            tmax_c=tmax,
+            par_mj_m2=rad,
+            target_ph=6.8,
         )
-        _ = roots.daily_step(rstate, profile, phen.state.stage)
-        root_fracs = (
-            tuple(rstate.layer_fractions)
-            if rstate.layer_fractions is not None
-            else tuple([1.0 / len(profile.layers)] * len(profile.layers))
-        )
-        intercepted, throughfall = istate.intercept(canopy.state.lai, rain)
-        _ = water.update_daily(
-            profile, wstate, DailyDrivers(rainfall_mm=throughfall, evaporation_mm=0.0)
-        )
-        et0 = etmod.priestley_taylor(
-            temp_mean_c=0.5 * (tmin + tmax), net_radiation_mj_m2=rad
-        )
-        comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
-        _ = etmod.actual_et(profile, wstate, water, comps, root_fracs)
-        _ = ncycle.daily_step(temperature_c=0.5 * (tmin + tmax), plant_demand_kg_ha=1.0)
 
     # Aggregate counts per module (by event type prefix heuristics)
-    row_names = ["Weather", "Soil", "ET", "Plant", "Nitrogen", "Root", "Canopy"]
+    row_names = [
+        "Weather",
+        "Soil",
+        "ET",
+        "Plant",
+        "Nitrogen",
+        "Root",
+        "Canopy",
+        "Phosphorus",
+        "Chemistry",
+    ]
     row_index = {n: i for i, n in enumerate(row_names)}
     mat: List[List[int]] = [[0 for _ in range(total)] for _ in range(len(row_names))]
 
@@ -140,6 +98,10 @@ def main() -> None:
             or "agrogame.soil.nitrogen" in mn
         ):
             return "Nitrogen"
+        if "phosph" in et or "agrogame.soil.phosphorus" in mn:
+            return "Phosphorus"
+        if "soilph" in et or "chemistry" in mn or "agrogame.soil.chemistry" in mn:
+            return "Chemistry"
         if "root" in et:
             return "Root"
         if "canopy" in et or "lai" in et or "biomass" in et:

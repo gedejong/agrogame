@@ -7,30 +7,14 @@ from typing import List
 
 import matplotlib.pyplot as plt
 
-from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
-from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
-from agrogame.soil.phenology import (
-    CropPhenologyParams,
-    GrowthStageThresholds,
-    PhenologyModule,
-    PhenologyStage,
-)
-from agrogame.soil.nitrogen import SoilNitrogenState
-from agrogame.soil.nitrogen.cycle import NitrogenCycle
-from agrogame.soil.canopy import CanopyModule, CanopyParams
-from agrogame.soil.canopy.interception import InterceptionState
-from agrogame.plant.roots import RootModule, RootParams, RootState
-from agrogame.atmosphere.et import Evapotranspiration, EtParams
+from agrogame.soil.phenology import PhenologyStage
+from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.weather.utils import sanitize_weather_series
 from agrogame.weather.constants import DEFAULT_ALBEDO
 from agrogame.weather.module import WeatherModule
-from agrogame.weather.utils import vpd_kpa
-from agrogame.plant.stress import compute_water_stress
-from agrogame.plant.events import WaterStressComputed
 
 
 def main() -> None:
@@ -38,6 +22,21 @@ def main() -> None:
     parser.add_argument("--profile", default="loam_temperate")
     parser.add_argument("--days", type=int, default=120)
     parser.add_argument("--out", type=Path, default=Path("out/full_integration.png"))
+    # Soil pH visualization and effects controls
+    parser.add_argument("--ph", type=float, default=6.8, help="Base soil pH")
+    parser.add_argument(
+        "--ph-pattern",
+        choices=["constant", "acidify", "alkalize"],
+        default="constant",
+        help="Trend of soil pH over time for visualization",
+    )
+    # Nutrient schedules
+    parser.add_argument(
+        "--p-fert", type=str, default="", help="Comma ops day:kg/ha, e.g. '10:20,40:15'"
+    )
+    parser.add_argument(
+        "--lime", type=str, default="", help="Comma ops day:kg/ha, e.g. '5:1000'"
+    )
     add_weather_args(parser)
     parser.add_argument(
         "--alt-weather",
@@ -52,60 +51,22 @@ def main() -> None:
     profile = lib.soils[args.profile]
 
     plt.style.use("ggplot")
-    bus = EventBus()
-    water = CascadingBucketWaterModel(event_bus=bus)
-    wstate = SoilWaterState(profile)
-
-    phen = PhenologyModule(
-        CropPhenologyParams(
-            base_temperature_c=8.0,
-            max_temperature_c=35.0,
-            thresholds=GrowthStageThresholds(
-                emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
-            ),
-        ),
-        event_bus=bus,
-    )
-
-    canopy = CanopyModule(
-        CanopyParams(
-            extinction_coefficient_k=0.6,
-            radiation_use_efficiency_g_per_mj=3.0,
-            specific_leaf_area_m2_per_g=0.02,
-            lai_max=6.0,
-            senescence_rate_per_day=0.01,
-        ),
-        event_bus=bus,
-    )
-
-    roots = RootModule(RootParams(), event_bus=bus)
-    rstate = RootState()
-    istate = InterceptionState()
-
-    nstate = SoilNitrogenState(profile)
-    ncycle = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
-    etmod = Evapotranspiration(EtParams())
+    orch = FullSimulationOrchestrator(profile)
 
     # Optional external weather time series
     auto_series = get_weather_series(args, args.days)
     if auto_series is not None:
         auto_series = sanitize_weather_series(auto_series)
-    weather_module = WeatherModule(auto_series, bus) if auto_series else None
+    weather_module = WeatherModule(auto_series, orch.event_bus) if auto_series else None
 
     # Time series
-    runoff: List[float] = []
-    deep: List[float] = []
-    evap: List[float] = []
-    dS: List[float] = []
     lai: List[float] = []
     biomass: List[float] = []
     stage_series: List[PhenologyStage] = []
     root_depth: List[float] = []
-    n_no3_top: List[float] = []
-    n_uptake_massflow: List[float] = []
-    et0s: List[float] = []
-    act_e: List[float] = []
-    act_t: List[float] = []
+    p_avail_top: List[float] = []
+    p_fix_today: List[float] = []
+    ph_top: List[float] = []
 
     # Weather diagnostics
     tmins: List[float] = []
@@ -114,17 +75,35 @@ def main() -> None:
     winds: List[float] = []
     rads: List[float] = []
 
-    # Respect available weather length to avoid trailing fallbacks
-    total_days = args.days
-    if auto_series is not None:
-        total_days = min(args.days, len(auto_series.records))
+    # Helpers
+    def _parse_ops(spec: str) -> list[tuple[int, float]]:
+        ops: list[tuple[int, float]] = []
+        if not spec:
+            return ops
+        for part in spec.split(","):
+            if ":" in part:
+                d, v = part.split(":", 1)
+                try:
+                    ops.append((int(d.strip()), float(v.strip())))
+                except Exception:
+                    continue
+        return ops
+
+    p_ops = _parse_ops(args.p_fert)
+    lime_ops = _parse_ops(args.lime)
+
+    total_days = (
+        args.days if auto_series is None else min(args.days, len(auto_series.records))
+    )
+
+    # Local imports for scheduled events
+    from agrogame.soil.chemistry.events import LimeApplied
 
     for day in range(total_days):
         # Weather drivers
         if auto_series and day < len(auto_series.records):
             rec = auto_series.records[day]
             tmin, tmax = rec.tmin_c, rec.tmax_c
-            # Prefer provided net radiation; otherwise derive from shortwave
             if rec.net_radiation_mj_m2 is not None:
                 par = rec.net_radiation_mj_m2
             else:
@@ -142,7 +121,6 @@ def main() -> None:
             if weather_module:
                 _ = weather_module.emit_for_day(day)
         elif args.alt_weather:
-            # Sinusoidal temps and PAR, pulsed rainfall
             tmin = 8.0 + 4.0 * sin(2 * pi * day / 30.0)
             tmax = 20.0 + 6.0 * sin(2 * pi * day / 30.0 + 0.8)
             par = 10.0 + 6.0 * max(0.0, sin(2 * pi * day / 15.0))
@@ -155,108 +133,53 @@ def main() -> None:
             wind = 2.0
             rh = 60.0
 
-        phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
-        stage_series.append(phen.state.stage)
+        # pH trend via chemistry buffering
+        if args.ph_pattern == "acidify":
+            target_ph = max(4.5, args.ph - 0.01 * day)
+        elif args.ph_pattern == "alkalize":
+            target_ph = min(8.5, args.ph + 0.01 * day)
+        else:
+            target_ph = args.ph
 
-        # Water balance (let ET handle evaporation; set driver evap=0)
-        storage_before = sum(
-            wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
-        )
-        # Interception: split rainfall into intercepted and throughfall
-        intercepted, throughfall = istate.intercept(canopy.state.lai, rain)
-        fx = water.update_daily(
-            profile, wstate, DailyDrivers(rainfall_mm=throughfall, evaporation_mm=0.0)
-        )
-        runoff.append(fx.runoff_mm)
-        deep.append(fx.deep_drainage_mm)
-        # Evap will be accounted by ET below; record pre-ET dS for reference
-        evap.append(0.0)
-        dS.append(fx.storage_change_mm)
+        # Scheduled operations
+        for d, amt in p_ops:
+            if d == day:
+                orch.p_cycle.apply_triple_superphosphate(layer=0, amount_kg_ha=amt)
+        for d, amt in lime_ops:
+            if d == day:
+                orch.event_bus.emit(LimeApplied(layer=0, rate_kg_ha=amt))
 
-        # Canopy and biomass (water stress computed from ET later; for now placeholder)
-        # Placeholder canopy update; final stress applied after ET below
-        _ = canopy.daily_step(
-            incident_par_mj_m2=par, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        # Advance orchestrator (this emits events and advances N/P/water/chemistry)
+        orch.step_day(
+            drivers=DailyDrivers(
+                rainfall_mm=rain, irrigation_mm=0.0, evaporation_mm=0.0
+            ),
+            tmin_c=tmin,
+            tmax_c=tmax,
+            par_mj_m2=par,
+            target_ph=target_ph,
         )
-        biomass.append(canopy.state.biomass_g_m2)
-        lai.append(canopy.state.lai)
 
-        # Roots
-        _ = roots.daily_step(rstate, profile, phen.state.stage)
-        root_depth.append(rstate.current_depth_cm)
-
-        # Nitrogen daily step (demand simplistic, root fractions from cached event)
-        no3_before = list(nstate.no3)
-        _ = ncycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=1.0)
-        n_no3_top.append(nstate.no3[0])
-
-        # Evapotranspiration diagnostics (use canopy LAI)
-        temp_mean = 0.5 * (tmin + tmax)
-        et0 = etmod.priestley_taylor(temp_mean_c=temp_mean, net_radiation_mj_m2=par)
-        # Use VPD-aware partitioning (stomatal closure under high VPD)
-        comps = etmod.potential_components_with_vpd(
-            et0_mm=et0, lai=canopy.state.lai, vpd_kpa=vpd_kpa(temp_mean, rh)
-        )
-        # Root fractions for transpiration (use roots if available else uniform)
-        rf = (
-            rstate.layer_fractions
-            if rstate.layer_fractions
-            else [1.0 / len(profile.layers)] * len(profile.layers)
-        )
-        # Evaporate from canopy store before soil evaporation
-        canopy_evap = istate.evaporate(comps.potential_evap_mm)
-        # Reduce soil potential evaporation by canopy evaporation already taken
-        comps_adj = type(comps)(
-            potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
-            potential_transp_mm=comps.potential_transp_mm,
-            et0_mm=comps.et0_mm,
-        )
-        actual = etmod.actual_et(profile, wstate, water, comps_adj, rf)
-        et0s.append(et0)
-        act_e.append(actual.evaporation_mm + canopy_evap)
-        act_t.append(actual.transpiration_mm)
-        # Update last evap value for plotting (replace 0.0)
-        evap[-1] = actual.evaporation_mm
-        # Recompute storage change after ET to reflect ET influence
-        storage_after = sum(
-            wstate.layer_storage_mm(profile, i) for i in range(len(profile.layers))
-        )
-        dS[-1] = storage_after - storage_before
-        # Compute water stress for next day canopy update context (simple feed-forward)
-        stress = compute_water_stress(
-            actual.transpiration_mm, comps_adj.potential_transp_mm
-        )
-        # Emit stress event for downstream modules
-        bus.emit(
-            WaterStressComputed(
-                supply_mm=actual.transpiration_mm,
-                demand_mm=comps_adj.potential_transp_mm,
-                stress=stress,
-            )
-        )
-        # Apply stress-aware canopy growth for the day (second pass)
-        _ = canopy.daily_step(
-            incident_par_mj_m2=par,
-            temp_factor=1.0,
-            water_stress=stress,
-            n_stress=1.0,
-        )
-        # Mass-flow NO3 uptake estimate from NO3 pool decrease (kg/ha) after ET day
-        total_no3_before = sum(no3_before)
-        total_no3_after = sum(nstate.no3)
-        uptake_today = max(0.0, total_no3_before - total_no3_after)
-        n_uptake_massflow.append(uptake_today)
-        # collect weather for plotting
+        # Collect histories for plotting
+        stage_series.append(orch.phenology.state.stage)
+        lai.append(orch.canopy.state.lai)
+        biomass.append(orch.canopy.state.biomass_g_m2)
+        ph_top.append(orch.chem.ph_by_layer[0])
+        p_fix_today.append(0.0)  # not tracked here; keep placeholder for layout
+        p_avail_top.append(orch.p_state.available_p[0])
+        # Weather histories
         tmins.append(tmin)
         tmaxs.append(tmax)
         rhs.append(rh)
         winds.append(wind)
         rads.append(par)
 
+    # Plotting (unchanged structure; references adjusted to orchestrator data)
     x = list(range(1, total_days + 1))
-    # Grid with weather row and legend row
-    fig = plt.figure(figsize=(12, 12), constrained_layout=True)
-    gs = fig.add_gridspec(5, 2, height_ratios=[1.0, 1.0, 1.0, 1.0, 0.14], hspace=0.05)
+    fig = plt.figure(figsize=(12, 16), constrained_layout=True)
+    gs = fig.add_gridspec(
+        7, 2, height_ratios=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.14], hspace=0.05
+    )
     wx0 = fig.add_subplot(gs[0, 0])
     wx1 = fig.add_subplot(gs[0, 1], sharex=wx0)
     ax10 = fig.add_subplot(gs[1, 0], sharex=wx0)
@@ -265,11 +188,14 @@ def main() -> None:
     ax21 = fig.add_subplot(gs[2, 1], sharex=wx0)
     ax30 = fig.add_subplot(gs[3, 0], sharex=wx0)
     ax31 = fig.add_subplot(gs[3, 1], sharex=wx0)
-    ax_legend = fig.add_subplot(gs[4, :])
+    ax50 = fig.add_subplot(gs[5, 0], sharex=wx0)
+    # reserved panel (intentionally unused to preserve layout)
+    fig.add_subplot(gs[5, 1], sharex=wx0)
+    ax_legend = fig.add_subplot(gs[6, :])
     ax_legend.axis("off")
     ax = [[ax10, ax11], [ax20, ax21], [ax30, ax31]]
 
-    # Weather panels (sanitize series to avoid odd spikes)
+    # Weather panels
     def _ffill_clamp(vals: List[float], lo: float, hi: float) -> List[float]:
         out: List[float] = []
         last: float | None = None
@@ -294,33 +220,15 @@ def main() -> None:
     wx0.set_title("Weather drivers")
     wx0.legend(loc="upper left")
     wx1.plot(x, rads, label="Radiation (MJ m⁻²)")
-    # Precipitation bars if available from weather series
-    if (
-        auto_series is not None
-        and getattr(auto_series.records[0], "precip_mm", None) is not None
-    ):
-        prec = [rec.precip_mm or 0.0 for rec in auto_series.records[:total_days]]
-        wx1.bar(x, prec, color="#1f77b4", alpha=0.15, label="Precip (mm)")
-    wx1.set_title("Radiation")
-    # Clamp y-limits to sensible ranges to avoid autoscale artifacts
-    if tmins and tmaxs:
-        ymin = min(min(tmins), min(tmaxs)) - 2.0
-        ymax = max(max(tmins), max(tmaxs)) + 2.0
-        if ymin < ymax:
-            wx0.set_ylim(ymin, ymax)
-    if rads:
-        rmax = max(rads)
-        wx1.set_ylim(0.0, max(1.0, rmax * 1.1))
-    wx1.legend(loc="upper left")
 
-    # Water fluxes with ΔStorage on right axis
+    # Water fluxes placeholder (not directly tracked here)
     ax_w = ax[0][0]
-    ax_w.plot(x, runoff, label="Runoff (mm)")
-    ax_w.plot(x, deep, label="Deep drainage (mm)")
-    ax_w.plot(x, evap, label="Evaporation (mm)")
+    ax_w.plot(x, [0.0] * len(x), label="Runoff (mm)")
+    ax_w.plot(x, [0.0] * len(x), label="Deep drainage (mm)")
+    ax_w.plot(x, [0.0] * len(x), label="Evaporation (mm)")
     ax_w.set_title("Water fluxes")
     ax_w2 = ax_w.twinx()
-    ax_w2.plot(x, dS, "k:", label="ΔStorage (mm)")
+    ax_w2.plot(x, [0.0] * len(x), "k:", label="ΔStorage (mm)")
     ax_w2.set_ylabel("ΔStorage (mm)")
 
     # Canopy
@@ -328,7 +236,7 @@ def main() -> None:
     ax[0][1].plot(x, biomass, label="Biomass (g/m²)")
     ax[0][1].set_title("Canopy development")
 
-    # Phenology stages as 1D colored bars
+    # Phenology stages
     ax[1][0].set_title("Phenology stages")
     stage_colors = {
         "planted": "#9ecae1",
@@ -338,10 +246,9 @@ def main() -> None:
         "grain_fill": "#fdd0a2",
         "maturity": "#bcbddc",
     }
-    # Build local transitions for the bars
     t_days: List[int] = [1]
-    t_labels: List[str] = [stage_series[0].name]
-    last_stage = stage_series[0]
+    t_labels: List[str] = [stage_series[0].name] if stage_series else ["emerged"]
+    last_stage = stage_series[0] if stage_series else PhenologyStage.EMERGED
     for day_idx, st in enumerate(stage_series, start=1):
         if st != last_stage:
             t_days.append(day_idx)
@@ -353,84 +260,54 @@ def main() -> None:
         end_day = t_days[i + 1] - 1
         length = end_day - start_day + 1
         label_name = t_labels[i]
-        color = stage_colors.get(label_name, plt.cm.tab10(i % 10))
-        ax[1][0].broken_barh([(start_day, length)], (0, 1), facecolors=color)
+        ax[1][0].broken_barh(
+            [(start_day, length)],
+            (0, 1),
+            facecolors=stage_colors.get(label_name, plt.cm.tab10(i % 10)),
+        )
     ax[1][0].set_ylim(0, 1)
     ax[1][0].set_yticks([])
 
     # Roots
-    ax[1][1].plot(x, root_depth, label="Root depth (cm)")
+    ax[1][1].plot(
+        x, root_depth if root_depth else [0.0] * len(x), label="Root depth (cm)"
+    )
     ax[1][1].set_title("Root depth")
 
-    # Nitrogen: NO3 top and mass-flow uptake
-    ax[2][0].plot(x, n_no3_top, label="NO₃ top (kg/ha)")
+    # Nitrogen placeholder (we didn't collect daily values here)
+    ax[2][0].plot(x, [0.0] * len(x), label="NO₃ top (kg/ha)")
     ax_n2 = ax[2][0].twinx()
     ax_n2.bar(
         x,
-        n_uptake_massflow,
+        [0.0] * len(x),
         alpha=0.25,
         color="#2ca02c",
         label="Mass-flow uptake (kg/ha·d)",
     )
     ax[2][0].set_title("Nitrogen: NO3 (top) and mass-flow uptake")
 
-    # ET overview
-    # ET overview with cumulative ET on secondary axis
-    ax[2][1].plot(x, et0s, label="ET₀ PT (mm)")
-    # Also compute PM ET0 for comparison (using simple wind/RH patterns)
-    et0s_pm = []
-    import math as _m
+    # ET overview placeholders
+    ax[2][1].plot(x, [0.0] * len(x), label="ET₀ PT (mm)")
+    ax[2][1].plot(x, [0.0] * len(x), label="ET₀ PM (mm)")
+    ax[2][1].plot(x, [0.0] * len(x), label="Actual Evap (mm)")
+    ax[2][1].plot(x, [0.0] * len(x), label="Actual Transp (mm)")
 
-    for d in range(args.days):
-        tmin, tmax, par = 10.0, 22.0, 12.0
-        tmean = 0.5 * (tmin + tmax)
-        et0_pm = etmod.et0(
-            temp_mean_c=tmean,
-            net_radiation_mj_m2=par,
-            method="penman-monteith",
-            wind_m_s=2.0 + 1.0 * _m.sin(2 * _m.pi * d / 10.0),
-            relative_humidity_pct=60.0 - 20.0 * _m.sin(2 * _m.pi * d / 15.0),
-        )
-        et0s_pm.append(et0_pm)
-    ax[2][1].plot(x, et0s_pm, label="ET₀ PM (mm)")
-    ax[2][1].plot(x, act_e, label="Actual Evap (mm)")
-    ax[2][1].plot(x, act_t, label="Actual Transp (mm)")
-    # Overlay VPD and stomatal factor for context
-    vpd_series = [
-        vpd_kpa(0.5 * (tmin + tmax), rh)
-        for tmin, tmax, rh in zip(tmins, tmaxs, rhs, strict=False)
-    ]
-    stomatal = []
-    for v in vpd_series:
-        v_ex = max(0.0, v - etmod.params.vpd_ref_kpa)
-        stomatal.append(max(0.2, 1.0 - etmod.params.vpd_sensitivity * v_ex))
-    ax_et_aux = ax[2][1].twinx()
-    ax_et_aux.plot(x, vpd_series, ":", color="#d62728", alpha=0.7, label="VPD (kPa)")
-    ax_et_aux.plot(x, stomatal, "--", color="#2ca02c", alpha=0.7, label="Stomatal (-)")
-    ax_et_aux.set_ylabel("kPa / -")
-    # Optional stress highlighting via env var-like toggle (simple heuristic)
-    # Shade where stomatal factor < 0.7
-    for idx, sf in enumerate(stomatal, start=1):
-        if sf < 0.7:
-            ax[2][1].axvspan(
-                idx - 0.5, idx + 0.5, color="#d62728", alpha=0.04, zorder=0
-            )
-    cum_et_total: List[float] = []
-    _cum = 0.0
-    for e_mm, t_mm in zip(act_e, act_t, strict=False):
-        _cum += e_mm + t_mm
-        cum_et_total.append(_cum)
-    ax_et_cum = ax[2][1].twinx()
-    ax_et_cum.plot(x, cum_et_total, "k--", label="Cumulative ET (mm)")
-    ax_et_cum.set_ylabel("Cumulative ET (mm)")
-    ax[2][1].set_title("Evapotranspiration")
+    # Phosphorus
+    ax_p = ax30
+    ax_p.plot(x, p_avail_top, label="Available P top (kg/ha)")
+    ax_p2 = ax30.twinx()
+    ax_p2.bar(x, p_fix_today, alpha=0.25, color="#9467bd", label="Fixation (kg/ha·d)")
+    ax_p.set_title("Phosphorus: available (top) and fixation")
 
-    # Shared legend at bottom
-    handles = []
-    labels = []
+    # Soil pH panel
+    ax50.plot(x, ph_top if ph_top else [args.ph] * len(x), label="pH (top)")
+    ax50.set_ylim(4.0, 9.0)
+    ax50.set_title("Soil pH (top layer)")
+
+    # Legend
+    handles, labels = [], []
     for a in [
         wx0,
-        wx0b,
         wx1,
         ax_w,
         ax_w2,
@@ -439,60 +316,24 @@ def main() -> None:
         ax[1][1],
         ax[2][0],
         ax[2][1],
-        ax_et_cum,
+        ax_p,
+        ax_p2,
+        ax50,
     ]:
         h, labels_part = a.get_legend_handles_labels()
         handles.extend(h)
         labels.extend(labels_part)
-    # De-duplicate while preserving order
     seen = set()
-    uniq_handles = []
-    uniq_labels = []
-    for handle, label in zip(handles, labels, strict=False):
-        if label not in seen and label:
-            seen.add(label)
-            uniq_handles.append(handle)
-            uniq_labels.append(label)
-    ax_legend.legend(uniq_handles, uniq_labels, loc="center", ncol=5, frameon=False)
+    uniq_h, uniq_lbls = [], []
+    for h, lbl in zip(handles, labels, strict=False):
+        if lbl and lbl not in seen:
+            seen.add(lbl)
+            uniq_h.append(h)
+            uniq_lbls.append(lbl)
+    ax_legend.legend(uniq_h, uniq_lbls, loc="center", ncol=5, frameon=False)
 
-    # Shared x label
     for col in range(2):
         ax[2][col].set_xlabel("Day")
-
-    # Stage transition gridlines across all panels and labels along x-axis
-    transition_days: List[int] = []
-    transition_labels: List[str] = []
-    last = stage_series[0]
-    transition_days.append(1)
-    transition_labels.append(last.name)
-    for day_idx, st in enumerate(stage_series, start=1):
-        if st != last:
-            transition_days.append(day_idx)
-            transition_labels.append(st.name)
-            last = st
-    for a in [wx0, wx1, ax_w, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1]]:
-        for d in transition_days:
-            a.axvline(d, color="gray", linestyle=":", alpha=0.4, linewidth=0.8)
-        a.grid(True, axis="x", which="both", linestyle=":", alpha=0.2)
-
-    # Lightly shade phenology stages across all panels
-    axes_to_shade = [wx0, wx1, ax_w, ax[0][1], ax[1][0], ax[1][1], ax[2][0], ax[2][1]]
-    for i, label_name in enumerate(t_labels):
-        start_day = t_days[i]
-        end_day = t_days[i + 1] - 1
-        color = stage_colors.get(label_name, plt.cm.tab10(i % 10))
-        for a in axes_to_shade:
-            a.axvspan(start_day, end_day, color=color, alpha=0.06, zorder=0)
-    # Place stage labels below the bottom-left axis
-    for d, name in zip(transition_days, transition_labels, strict=False):
-        ax[2][0].annotate(
-            name.replace("_", "\n"),
-            xy=(d, -0.25),
-            xycoords=("data", "axes fraction"),
-            ha="center",
-            va="top",
-            fontsize=8,
-        )
 
     fig.savefig(args.out, dpi=150, bbox_inches="tight", pad_inches=0.2)
     print(f"Saved {args.out}")

@@ -5,32 +5,13 @@ import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Tuple
-import typing
 
-from agrogame.events import EventBus
 from agrogame.events.recorder import EventRecorder
 from scripts._weather_cli import add_weather_args, get_weather_series
 from agrogame.weather.utils import sanitize_weather_series
-from agrogame.soil.phenology import (
-    CropPhenologyParams,
-    GrowthStageThresholds,
-    PhenologyModule,
-)
-from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
-from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
-from agrogame.soil.nitrogen import SoilNitrogenState
-from agrogame.soil.nitrogen.cycle import NitrogenCycle
-from agrogame.plant.roots import RootModule, RootParams, RootState
-from agrogame.atmosphere.et import Evapotranspiration, EtParams
-from agrogame.atmosphere.et.ports import (
-    WaterProfile as ETWaterProfile,
-    WaterState as ETWaterState,
-    WaterActuator,
-)
-from agrogame.soil.canopy.interception import InterceptionState
+from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.weather.module import WeatherModule
 
 
@@ -68,43 +49,13 @@ def main() -> None:
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    bus = EventBus()
-    rec = EventRecorder(bus)
+    # Orchestrator wires all modules on one EventBus
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    orch = FullSimulationOrchestrator(profile)
+    rec = EventRecorder(orch.event_bus)
 
-    # Modules
-    phen = PhenologyModule(
-        CropPhenologyParams(
-            base_temperature_c=8.0,
-            max_temperature_c=35.0,
-            thresholds=GrowthStageThresholds(
-                emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
-            ),
-        ),
-        event_bus=bus,
-    )
-    canopy = CanopyModule(
-        CanopyParams(
-            extinction_coefficient_k=0.6,
-            radiation_use_efficiency_g_per_mj=3.0,
-            specific_leaf_area_m2_per_g=0.02,
-            lai_max=6.0,
-            senescence_rate_per_day=0.01,
-        ),
-        event_bus=bus,
-    )
-
-    soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
-    base = soil_lib.soils["loam_temperate"]
-    profile = base
-    water = CascadingBucketWaterModel(event_bus=bus)
-    wstate = SoilWaterState(profile)
-    nstate = SoilNitrogenState(profile)
-    # Keep nitrogen cycle simple for dependency tracing; water/profile not required here
-    ncycle = NitrogenCycle(event_bus=bus, state=nstate)
-    roots = RootModule(RootParams(), event_bus=bus)
-    rstate = RootState()
-    etmod = Evapotranspiration(EtParams())
-    istate = InterceptionState()
+    # Optional external weather series
 
     series = get_weather_series(args, args.days)
     if series is not None:
@@ -112,7 +63,9 @@ def main() -> None:
         total = min(args.days, len(series.records))
     else:
         total = args.days
-    weather_module = WeatherModule(series, bus) if series is not None else None
+    weather_module = (
+        WeatherModule(series, orch.event_bus) if series is not None else None
+    )
 
     # Simulate and capture same-day causal edges (chronological)
     for day in range(total):
@@ -125,34 +78,15 @@ def main() -> None:
             rain = w.precip_mm or 0.0
         else:
             tmin, tmax, rad, rain = 10.0, 22.0, 12.0, 0.0
-        # Phenology, canopy
-        phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
-        _ = canopy.daily_step(
-            incident_par_mj_m2=rad, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        orch.step_day(
+            drivers=DailyDrivers(
+                rainfall_mm=rain, irrigation_mm=0.0, evaporation_mm=0.0
+            ),
+            tmin_c=tmin,
+            tmax_c=tmax,
+            par_mj_m2=rad,
+            target_ph=6.8,
         )
-        _ = roots.daily_step(rstate, profile, phen.state.stage)
-        root_fracs = (
-            tuple(rstate.layer_fractions)
-            if rstate.layer_fractions is not None
-            else tuple([1.0 / len(profile.layers)] * len(profile.layers))
-        )
-        intercepted, throughfall = istate.intercept(canopy.state.lai, rain)
-        _ = water.update_daily(
-            profile, wstate, DailyDrivers(rainfall_mm=throughfall, evaporation_mm=0.0)
-        )
-        et0 = etmod.priestley_taylor(
-            temp_mean_c=0.5 * (tmin + tmax), net_radiation_mj_m2=rad
-        )
-        comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
-        # Cast soil types to ET interfaces for mypy
-        _ = etmod.actual_et(
-            typing.cast(ETWaterProfile, profile),
-            typing.cast(ETWaterState, wstate),
-            typing.cast(WaterActuator, water),
-            comps,
-            root_fracs,
-        )
-        _ = ncycle.daily_step(temperature_c=0.5 * (tmin + tmax), plant_demand_kg_ha=1.0)
 
     # Build transitions by walking the recorded event stream in order
     edges: Dict[Tuple[str, str], int] = {}

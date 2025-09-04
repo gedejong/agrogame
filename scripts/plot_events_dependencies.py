@@ -37,6 +37,8 @@ MODULE_BUCKET = {
     "Nitrogen": ["Nitrogen", "NO3", "N_"],
     "Root": ["Root"],
     "Canopy": ["Canopy", "LAI", "Biomass"],
+    "Phosphorus": ["Phosph", "P_"],
+    "Chemistry": ["SoilPH", "Chemistry"],
 }
 
 
@@ -47,6 +49,10 @@ def bucket(event_type: str, module_name: str = "") -> str:
         for k in keys:
             if k.lower() in et:
                 return name
+    if "phosph" in et or "agrogame.soil.phosphorus" in mn:
+        return "Phosphorus"
+    if "soilph" in et or "chemistry" in mn or "agrogame.soil.chemistry" in mn:
+        return "Chemistry"
     if "nutrient" in et or "agrogame.soil.nitrogen" in mn:
         return "Nitrogen"
     return "Plant"

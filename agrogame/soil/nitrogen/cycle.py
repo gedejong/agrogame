@@ -15,6 +15,7 @@ AGRO-17 acceptance criteria:
 from __future__ import annotations
 from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootDistributionUpdated
+from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
 from typing import Protocol, Sequence
@@ -68,6 +69,9 @@ class NitrogenCycle:
         # Subscribe to root distribution updates to cache latest fractions
         self._root_fractions_cached: list[float] | None = None
         event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
+        # Cache per-layer pH updates from chemistry
+        self._ph_by_layer_cached: list[float] = [7.0] * self._n_layers
+        event_bus.subscribe(SoilPHUpdated, self._on_soil_ph_updated)
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -148,6 +152,10 @@ class NitrogenCycle:
             pad = [0.0] * (self._n_layers - len(fracs))
             self._root_fractions_cached = fracs + pad
 
+    def _on_soil_ph_updated(self, event: SoilPHUpdated) -> None:
+        if 0 <= event.layer < self._n_layers:
+            self._ph_by_layer_cached[event.layer] = float(event.ph)
+
     # --- Daily update ---------------------------------------------------
     def daily_step(
         self,
@@ -171,7 +179,7 @@ class NitrogenCycle:
                 else [1.0 / self._n_layers] * self._n_layers
             )
         if ph_by_layer is None:
-            ph_by_layer = [7.0] * self._n_layers
+            ph_by_layer = self._ph_by_layer_cached
 
         temp_factor = 2.0 ** ((temperature_c - 20.0) / 10.0)
 
