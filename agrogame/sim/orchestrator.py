@@ -24,6 +24,8 @@ from agrogame.atmosphere.et.ports import (
     WaterActuator as ETWaterActuator,
 )
 from typing import cast, Any
+from datetime import date
+from agrogame.sim.calendar import Calendar
 
 
 class SimulationOrchestrator:
@@ -150,6 +152,8 @@ class FullSimulationOrchestrator:
         self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
         # ET model (emits transpiration/evaporation related events via water model)
         self.et = Evapotranspiration(EtParams())
+        # Calendar for phased daily progression
+        self.calendar = Calendar(self.event_bus)
 
     def step_day(
         self,
@@ -165,25 +169,28 @@ class FullSimulationOrchestrator:
         # Update phenology first (can influence canopy later)
         self.phenology.update_daily(tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=12.0)
 
-        # Chemistry buffering towards target pH (emits SoilPHUpdated per layer)
+        # Delegate daily progression to Calendar via DayTick phases
+        self.calendar.tick(sim_date=date.today(), drivers=drivers, target_ph=target_ph)
+
+        # Backwards-compat shim: keep direct calls for now to maintain behavior
+        # as modules migrate to phase listeners. This can be removed once all
+        # modules fully respond to DayTick phases.
         self.chem.daily_buffering(target_ph=target_ph)
-
-        # Water model progresses storage (rain/evap placeholder handled via ET below)
         _ = self.water_model.update_daily(self.profile, self.water_state, drivers)
-
-        # Roots update first to obtain fractions for ET
         _ = self.roots.daily_step(
-            self.root_state, self.profile, self.phenology.state.stage
+            self.root_state,
+            self.profile,
+            self.phenology.state.stage,
         )
         root_fracs = (
             self.root_state.layer_fractions
             if self.root_state.layer_fractions
             else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
         )
-        # ET actuals to trigger transpiration extraction events
         temp_mean = 0.5 * (tmin_c + tmax_c)
         et0 = self.et.priestley_taylor(
-            temp_mean_c=temp_mean, net_radiation_mj_m2=par_mj_m2
+            temp_mean_c=temp_mean,
+            net_radiation_mj_m2=par_mj_m2,
         )
         comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
         _ = self.et.actual_et(
@@ -193,8 +200,6 @@ class FullSimulationOrchestrator:
             comps,
             root_fracs,
         )
-
-        # Nutrients daily steps; pH is already provided via events
         _ = self.n_cycle.daily_step(
             temperature_c=0.5 * (tmin_c + tmax_c),
             plant_demand_kg_ha=plant_n_demand_kg_ha,
@@ -203,8 +208,6 @@ class FullSimulationOrchestrator:
             temperature_c=0.5 * (tmin_c + tmax_c),
             plant_demand_kg_ha=plant_p_demand_kg_ha,
         )
-
-        # Canopy growth step to emit canopy events
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par_mj_m2,
             temp_factor=1.0,

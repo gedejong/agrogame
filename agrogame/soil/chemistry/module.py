@@ -14,6 +14,7 @@ from agrogame.events import EventBus
 from agrogame.soil.nitrogen.events import NutrientLeached
 from agrogame.soil.phosphorus.events import PhosphorusFixationOccurred
 from .events import SoilPHUpdated, LimeApplied, AcidifyingFertilizerApplied
+from agrogame.sim.calendar_events import DayTick
 
 
 class SoilChemistryModule:
@@ -25,6 +26,8 @@ class SoilChemistryModule:
         event_bus.subscribe(PhosphorusFixationOccurred, self._on_p_fix)
         event_bus.subscribe(LimeApplied, self._on_lime)
         event_bus.subscribe(AcidifyingFertilizerApplied, self._on_acid_fert)
+        # Subscribe to calendar ticks to run daily buffering in a phased manner
+        event_bus.subscribe(DayTick, self._on_day_tick)
 
     def _emit_all(self) -> None:
         for i, ph in enumerate(self._ph):
@@ -55,6 +58,17 @@ class SoilChemistryModule:
         idx = ev.layer
         self._ph[idx] = max(4.0, self._ph[idx] - 0.0005 * ev.rate_kg_ha)
         self._emit_all()
+
+    def _on_day_tick(self, ev: DayTick) -> None:
+        """Handle calendar DayTick events.
+
+        Runs daily buffering during the 'chemistry' phase using the provided
+        target_ph if available, otherwise defaults to 6.8.
+        """
+        if ev.phase != "chemistry":
+            return
+        target = 6.8 if ev.target_ph is None else float(ev.target_ph)
+        self.daily_buffering(target_ph=target)
 
     def daily_buffering(self, target_ph: float = 6.8, rate: float = 0.001) -> None:
         """Apply a weak buffering tendency towards target_pH each day."""
