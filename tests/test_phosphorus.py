@@ -143,3 +143,69 @@ def test_fertilizer_apis_increase_available_p():
     cycle.apply_slow_release_p(layer=0, amount_kg_ha=20.0, release_days=30)
     # Immediate fraction of slow-release applied
     assert state.available_p[0] >= before + 4.0
+
+
+def test_slow_release_schedule_releases_full_amount_over_days() -> None:
+    # Build a profile with zero organic matter to avoid mineralization confounding
+    layers = [
+        SoilLayer(
+            depth_cm=40,
+            texture="loam",
+            field_capacity=0.30,
+            wilting_point=0.12,
+            saturation=0.45,
+            bulk_density_g_cm3=1.3,
+            ksat_mm_per_hour=20,
+            organic_matter_pct=0.0,
+            initial_no3_kg_ha=0.0,
+            initial_nh4_kg_ha=0.0,
+            initial_p_kg_ha=0.0,
+        ),
+        SoilLayer(
+            depth_cm=30,
+            texture="loam",
+            field_capacity=0.28,
+            wilting_point=0.11,
+            saturation=0.42,
+            bulk_density_g_cm3=1.35,
+            ksat_mm_per_hour=18,
+            organic_matter_pct=0.0,
+            initial_no3_kg_ha=0.0,
+            initial_nh4_kg_ha=0.0,
+            initial_p_kg_ha=0.0,
+        ),
+        SoilLayer(
+            depth_cm=40,
+            texture="loam",
+            field_capacity=0.27,
+            wilting_point=0.10,
+            saturation=0.40,
+            bulk_density_g_cm3=1.4,
+            ksat_mm_per_hour=15,
+            organic_matter_pct=0.0,
+            initial_no3_kg_ha=0.0,
+            initial_nh4_kg_ha=0.0,
+            initial_p_kg_ha=0.0,
+        ),
+    ]
+    profile = SoilProfile(name="slow-release", layers=layers)
+    bus = EventBus()
+    state = SoilPhosphorusState(profile)
+    water = SoilWaterState(profile)
+    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+
+    baseline_total = state.total_phosphorus_kg_ha()
+
+    # Apply 20 kg/ha slow-release over 5 days → 4 immediate + 16 scheduled
+    cycle.apply_slow_release_p(layer=0, amount_kg_ha=20.0, release_days=5)
+
+    # Advance 5 days with neutral pH to minimize fixation rate
+    for _ in range(5):
+        cycle.daily_step(
+            temperature_c=20.0, plant_demand_kg_ha=0.0, ph_by_layer=[7.0, 7.0, 7.0]
+        )
+
+    # After full release period, total P in the profile should have increased by ~20
+    # (accounting for fixation moving within pools but preserving mass)
+    total_after = state.total_phosphorus_kg_ha()
+    assert total_after == baseline_total + 20.0

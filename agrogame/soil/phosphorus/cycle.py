@@ -14,6 +14,7 @@ AGRO-25 acceptance criteria:
 from __future__ import annotations
 
 from typing import Protocol, Sequence
+from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootDistributionUpdated
@@ -66,6 +67,11 @@ class PhosphorusCycle:
         self._water_state = water_state
         self._profile = profile
 
+        # Pending slow-release fertilizer schedules per layer
+        self._slow_release_schedules: list[list[_SlowReleaseSchedule]] = [
+            [] for _ in range(self._n_layers)
+        ]
+
         # Subscribe to water movement events (minimal P movement)
         event_bus.subscribe(WaterDrained, self._on_water_drained)
         # Cache root distribution
@@ -113,6 +119,8 @@ class PhosphorusCycle:
         root_fractions: list[float] | None = None,
         ph_by_layer: list[float] | None = None,
     ) -> PhosphorusFluxes:
+        # First, release any scheduled slow-release fertilizer for the day
+        self._release_slow_fertilizer_for_day()
         if root_fractions is None:
             root_fractions = (
                 self._root_fractions_cached
@@ -153,10 +161,16 @@ class PhosphorusCycle:
 
     # --- Internal helpers ----------------------------------------------
     def _total_p(self) -> float:
+        # Include pending slow-release fertilizer to maintain mass balance
+        pending = 0.0
+        for schedules in self._slow_release_schedules:
+            for s in schedules:
+                pending += s.remaining_amount_kg_ha
         return (
             sum(self.state.available_p)
             + sum(self.state.fixed_p)
             + sum(self.state.organic_p)
+            + pending
         )
 
     def _moisture_factor(self, idx: int) -> float:
@@ -240,7 +254,59 @@ class PhosphorusCycle:
     def apply_slow_release_p(
         self, layer: int, amount_kg_ha: float, release_days: int
     ) -> None:
-        # Apply 20% immediately; remaining is handled externally over time.
-        if 0 <= layer < self._n_layers and amount_kg_ha > 0.0:
-            immediate = 0.2 * amount_kg_ha
-            self.state.available_p[layer] += immediate
+        # Apply 20% immediately; schedule the remainder evenly over release_days.
+        if not (0 <= layer < self._n_layers) or amount_kg_ha <= 0.0:
+            return
+        immediate = 0.2 * amount_kg_ha
+        self.state.available_p[layer] += immediate
+        remaining = max(0.0, amount_kg_ha - immediate)
+        # If release_days <= 0, release all immediately
+        if remaining <= 0.0:
+            return
+        if release_days <= 0:
+            self.state.available_p[layer] += remaining
+            return
+        daily = remaining / float(release_days)
+        self._slow_release_schedules[layer].append(
+            _SlowReleaseSchedule(
+                remaining_days=release_days,
+                daily_release_kg_ha=daily,
+                remaining_amount_kg_ha=remaining,
+            )
+        )
+
+    # --- Slow-release internal mechanics -------------------------------
+    def _release_slow_fertilizer_for_day(self) -> None:
+        """Move scheduled slow-release fertilizer into available pool for today.
+
+        Releases a fixed daily amount for each active schedule. On the final day,
+        releases any remaining amount to avoid rounding accumulation.
+        """
+        for layer_idx, schedules in enumerate(self._slow_release_schedules):
+            if not schedules:
+                continue
+            next_schedules: list[_SlowReleaseSchedule] = []
+            for s in schedules:
+                if s.remaining_days > 1:
+                    release = min(s.daily_release_kg_ha, s.remaining_amount_kg_ha)
+                    if release > 0.0:
+                        self.state.available_p[layer_idx] += release
+                        s.remaining_amount_kg_ha -= release
+                    s.remaining_days -= 1
+                    if s.remaining_amount_kg_ha > 1e-9 and s.remaining_days > 0:
+                        next_schedules.append(s)
+                else:
+                    # Final day: release all remaining
+                    release = s.remaining_amount_kg_ha
+                    if release > 0.0:
+                        self.state.available_p[layer_idx] += release
+                    # Do not append; schedule is completed
+            self._slow_release_schedules[layer_idx] = next_schedules
+
+
+# --- Private helper structures -----------------------------------------
+@dataclass
+class _SlowReleaseSchedule:
+    remaining_days: int
+    daily_release_kg_ha: float
+    remaining_amount_kg_ha: float
