@@ -15,6 +15,7 @@ from agrogame.atmosphere.et.ports import (
 )
 from agrogame.plant.roots.types import RootState
 from agrogame.soil.canopy.module import CanopyModule
+from typing import cast
 
 
 @dataclass
@@ -46,9 +47,9 @@ class ETRuntime:
         et0 = self.et.priestley_taylor(temp_mean_c=temp_mean, net_radiation_mj_m2=12.0)
         comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
         _ = self.et.actual_et(
-            ETWaterProfile(self.profile),
-            ETWaterState(self.water_state),
-            ETWaterActuator(self.water_model),
+            cast(ETWaterProfile, self.profile),
+            cast(ETWaterState, self.water_state),
+            cast(ETWaterActuator, self.water_model),
             comps,
             root_fracs,
         )

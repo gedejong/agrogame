@@ -21,6 +21,7 @@ from agrogame.soil.phenology import (
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 
 from .calendar import Calendar
+from typing import cast, Any
 
 
 @dataclass
@@ -44,15 +45,15 @@ class SimulationBuilder:
         _ = NitrogenCycle(
             self._event_bus,
             n_state,
-            water_state=water_state,
-            profile=profile,
+            water_state=cast(Any, water_state),
+            profile=cast(Any, profile),
         )
         p_state = SoilPhosphorusState(profile)
         _ = PhosphorusCycle(
             self._event_bus,
             p_state,
-            water_state=water_state,
-            profile=profile,
+            water_state=cast(Any, water_state),
+            profile=cast(Any, profile),
         )
 
         # Plant structure and canopy
