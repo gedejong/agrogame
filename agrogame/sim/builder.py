@@ -22,6 +22,13 @@ from agrogame.soil.canopy import CanopyModule, CanopyParams
 
 from .calendar import Calendar
 from typing import cast, Any
+from agrogame.soil.water.runtime import WaterRuntime
+from agrogame.plant.roots.runtime import RootsRuntime
+from agrogame.atmosphere.et.runtime import ETRuntime
+from agrogame.soil.nitrogen.runtime import NitrogenRuntime
+from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
+from agrogame.soil.phenology.runtime import PhenologyRuntime
+from agrogame.soil.canopy.runtime import CanopyRuntime
 
 
 @dataclass
@@ -77,11 +84,28 @@ class SimulationBuilder:
             ),
             event_bus=self._event_bus,
         )
-        _ = RootModule(RootParams(), event_bus=self._event_bus)
-        _ = RootState()  # kept if downstream needs state observers
+        roots = RootModule(RootParams(), event_bus=self._event_bus)
+        roots_state = RootState()
 
         # ET constructed (ports wired by listeners at runtime)
-        _ = Evapotranspiration(EtParams())
+        et = Evapotranspiration(EtParams())
 
         calendar = Calendar(self._event_bus)
+
+        # Runtime listeners wiring
+        _ = WaterRuntime(self._event_bus, cast(Any, _), profile, water_state)
+        _ = PhenologyRuntime(self._event_bus, cast(Any, _))
+        _ = RootsRuntime(self._event_bus, roots, roots_state, profile, cast(Any, _))
+        _ = ETRuntime(
+            self._event_bus,
+            et,
+            profile,
+            water_state,
+            cast(Any, _),
+            roots_state,
+            cast(Any, _),
+        )
+        _ = NitrogenRuntime(self._event_bus, cast(Any, _))
+        _ = PhosphorusRuntime(self._event_bus, cast(Any, _))
+        _ = CanopyRuntime(self._event_bus, cast(Any, _))
         return SimulationApp(event_bus=self._event_bus, calendar=calendar)

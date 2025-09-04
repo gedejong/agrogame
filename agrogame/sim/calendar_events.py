@@ -26,3 +26,6 @@ class DayTick(BaseEvent):
     phase: Phase
     drivers: Optional[DailyDrivers] = None
     target_ph: Optional[float] = None
+    tmin_c: Optional[float] = None
+    tmax_c: Optional[float] = None
+    par_mj_m2: Optional[float] = None

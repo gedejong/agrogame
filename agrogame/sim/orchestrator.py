@@ -18,14 +18,16 @@ from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
-from agrogame.atmosphere.et.ports import (
-    WaterProfile as ETWaterProfile,
-    WaterState as ETWaterState,
-    WaterActuator as ETWaterActuator,
-)
 from typing import cast, Any
 from datetime import date
 from agrogame.sim.calendar import Calendar
+from agrogame.soil.water.runtime import WaterRuntime
+from agrogame.plant.roots.runtime import RootsRuntime
+from agrogame.atmosphere.et.runtime import ETRuntime
+from agrogame.soil.nitrogen.runtime import NitrogenRuntime
+from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
+from agrogame.soil.phenology.runtime import PhenologyRuntime
+from agrogame.soil.canopy.runtime import CanopyRuntime
 
 
 class SimulationOrchestrator:
@@ -155,6 +157,27 @@ class FullSimulationOrchestrator:
         # Calendar for phased daily progression
         self.calendar = Calendar(self.event_bus)
 
+        # Runtime listeners for DayTick phases
+        _ = WaterRuntime(
+            self.event_bus, self.water_model, self.profile, self.water_state
+        )
+        _ = PhenologyRuntime(self.event_bus, self.phenology)
+        _ = RootsRuntime(
+            self.event_bus, self.roots, self.root_state, self.profile, self.phenology
+        )
+        _ = ETRuntime(
+            self.event_bus,
+            self.et,
+            self.profile,
+            self.water_state,
+            self.water_model,
+            self.root_state,
+            self.canopy,
+        )
+        _ = NitrogenRuntime(self.event_bus, self.n_cycle)
+        _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
+        _ = CanopyRuntime(self.event_bus, self.canopy)
+
     def step_day(
         self,
         drivers: DailyDrivers,
@@ -166,53 +189,14 @@ class FullSimulationOrchestrator:
         plant_p_demand_kg_ha: float = 0.5,
         target_ph: float = 6.8,
     ) -> None:
-        # Update phenology first (can influence canopy later)
-        self.phenology.update_daily(tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=12.0)
-
-        # Delegate daily progression to Calendar via DayTick phases
-        self.calendar.tick(sim_date=date.today(), drivers=drivers, target_ph=target_ph)
-
-        # Backwards-compat shim: keep direct calls for now to maintain behavior
-        # as modules migrate to phase listeners. This can be removed once all
-        # modules fully respond to DayTick phases.
-        self.chem.daily_buffering(target_ph=target_ph)
-        _ = self.water_model.update_daily(self.profile, self.water_state, drivers)
-        _ = self.roots.daily_step(
-            self.root_state,
-            self.profile,
-            self.phenology.state.stage,
-        )
-        root_fracs = (
-            self.root_state.layer_fractions
-            if self.root_state.layer_fractions
-            else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
-        )
-        temp_mean = 0.5 * (tmin_c + tmax_c)
-        et0 = self.et.priestley_taylor(
-            temp_mean_c=temp_mean,
-            net_radiation_mj_m2=par_mj_m2,
-        )
-        comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
-        _ = self.et.actual_et(
-            cast(ETWaterProfile, self.profile),
-            cast(ETWaterState, self.water_state),
-            cast(ETWaterActuator, self.water_model),
-            comps,
-            root_fracs,
-        )
-        _ = self.n_cycle.daily_step(
-            temperature_c=0.5 * (tmin_c + tmax_c),
-            plant_demand_kg_ha=plant_n_demand_kg_ha,
-        )
-        _ = self.p_cycle.daily_step(
-            temperature_c=0.5 * (tmin_c + tmax_c),
-            plant_demand_kg_ha=plant_p_demand_kg_ha,
-        )
-        _ = self.canopy.daily_step(
-            incident_par_mj_m2=par_mj_m2,
-            temp_factor=1.0,
-            water_stress=1.0,
-            n_stress=1.0,
+        # Drive daily progression solely via DayTick phases
+        self.calendar.tick(
+            sim_date=date.today(),
+            drivers=drivers,
+            target_ph=target_ph,
+            tmin_c=tmin_c,
+            tmax_c=tmax_c,
+            par_mj_m2=par_mj_m2,
         )
 
 

@@ -17,6 +17,10 @@ class Calendar:
         drivers: DailyDrivers,
         target_ph: float,
         phases: list[Phase] | None = None,
+        *,
+        tmin_c: float | None = None,
+        tmax_c: float | None = None,
+        par_mj_m2: float | None = None,
     ) -> None:
         emit = self.event_bus.emit
         order: list[Phase] = (
@@ -40,5 +44,8 @@ class Calendar:
                     phase=ph,
                     drivers=drivers if ph in ("water", "et") else None,
                     target_ph=target_ph,
+                    tmin_c=tmin_c,
+                    tmax_c=tmax_c,
+                    par_mj_m2=par_mj_m2,
                 )
             )
