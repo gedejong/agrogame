@@ -209,3 +209,35 @@ def test_slow_release_schedule_releases_full_amount_over_days() -> None:
     # (accounting for fixation moving within pools but preserving mass)
     total_after = state.total_phosphorus_kg_ha()
     assert total_after == baseline_total + 20.0
+
+
+def test_temperature_sensitivity_increases_mineralization() -> None:
+    profile = make_profile()
+    bus = EventBus()
+    state = SoilPhosphorusState(profile)
+    water = SoilWaterState(profile)
+    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+
+    # Lower temperature should mineralize less than higher temperature
+    cold = cycle.daily_step(
+        temperature_c=10.0, plant_demand_kg_ha=0.0, ph_by_layer=[7.0, 7.0, 7.0]
+    )
+    warm = cycle.daily_step(
+        temperature_c=25.0, plant_demand_kg_ha=0.0, ph_by_layer=[7.0, 7.0, 7.0]
+    )
+    assert warm.mineralized_kg_ha > cold.mineralized_kg_ha
+
+
+def test_mass_balance_conserved_without_inputs_or_outputs() -> None:
+    profile = make_profile()
+    bus = EventBus()
+    state = SoilPhosphorusState(profile)
+    water = SoilWaterState(profile)
+    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+
+    total_before = state.total_phosphorus_kg_ha()
+    _ = cycle.daily_step(
+        temperature_c=20.0, plant_demand_kg_ha=0.0, ph_by_layer=[7.0, 7.0, 7.0]
+    )
+    total_after = state.total_phosphorus_kg_ha()
+    assert abs(total_after - total_before) < 1e-6
