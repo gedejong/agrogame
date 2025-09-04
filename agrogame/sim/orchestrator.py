@@ -18,6 +18,12 @@ from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
+from agrogame.atmosphere.et.ports import (
+    WaterProfile as ETWaterProfile,
+    WaterState as ETWaterState,
+    WaterActuator as ETWaterActuator,
+)
+from typing import cast, Any
 
 
 class SimulationOrchestrator:
@@ -128,11 +134,17 @@ class FullSimulationOrchestrator:
 
         self.n_state = SoilNitrogenState(profile)
         self.n_cycle = NitrogenCycle(
-            self.event_bus, self.n_state, water_state=self.water_state, profile=profile
+            self.event_bus,
+            self.n_state,
+            water_state=cast(Any, self.water_state),
+            profile=cast(Any, profile),
         )
         self.p_state = SoilPhosphorusState(profile)
         self.p_cycle = PhosphorusCycle(
-            self.event_bus, self.p_state, water_state=self.water_state, profile=profile
+            self.event_bus,
+            self.p_state,
+            water_state=cast(Any, self.water_state),
+            profile=cast(Any, profile),
         )
         # Chemistry emits pH events used by N/P
         self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
@@ -175,7 +187,11 @@ class FullSimulationOrchestrator:
         )
         comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
         _ = self.et.actual_et(
-            self.profile, self.water_state, self.water_model, comps, root_fracs
+            cast(ETWaterProfile, self.profile),
+            cast(ETWaterState, self.water_state),
+            cast(ETWaterActuator, self.water_model),
+            comps,
+            root_fracs,
         )
 
         # Nutrients daily steps; pH is already provided via events
