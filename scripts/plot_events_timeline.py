@@ -189,7 +189,7 @@ def main() -> None:
                         ev.event_type,
                         ev.module_name,
                         ts,
-                        json.dumps(ev.data),
+                        json.dumps(ev.data, default=str),
                     ]
                 )
         print(f"Saved {args.csv_out}")
