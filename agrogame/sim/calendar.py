@@ -21,6 +21,8 @@ class Calendar:
         tmin_c: float | None = None,
         tmax_c: float | None = None,
         par_mj_m2: float | None = None,
+        plant_n_demand_kg_ha: float | None = None,
+        plant_p_demand_kg_ha: float | None = None,
     ) -> None:
         emit = self.event_bus.emit
         order: list[Phase] = (
@@ -47,5 +49,7 @@ class Calendar:
                     tmin_c=tmin_c,
                     tmax_c=tmax_c,
                     par_mj_m2=par_mj_m2,
+                    plant_n_demand_kg_ha=plant_n_demand_kg_ha,
+                    plant_p_demand_kg_ha=plant_p_demand_kg_ha,
                 )
             )

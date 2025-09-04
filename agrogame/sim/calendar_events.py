@@ -29,3 +29,5 @@ class DayTick(BaseEvent):
     tmin_c: Optional[float] = None
     tmax_c: Optional[float] = None
     par_mj_m2: Optional[float] = None
+    plant_n_demand_kg_ha: Optional[float] = None
+    plant_p_demand_kg_ha: Optional[float] = None

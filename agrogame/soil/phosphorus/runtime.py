@@ -18,4 +18,7 @@ class PhosphorusRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":
             return
-        _ = self.cycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=0.5)
+        demand = 0.5
+        if ev.plant_p_demand_kg_ha is not None:
+            demand = float(ev.plant_p_demand_kg_ha)
+        _ = self.cycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=demand)

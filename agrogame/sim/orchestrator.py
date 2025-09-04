@@ -197,6 +197,8 @@ class FullSimulationOrchestrator:
             tmin_c=tmin_c,
             tmax_c=tmax_c,
             par_mj_m2=par_mj_m2,
+            plant_n_demand_kg_ha=plant_n_demand_kg_ha,
+            plant_p_demand_kg_ha=plant_p_demand_kg_ha,
         )
 
 

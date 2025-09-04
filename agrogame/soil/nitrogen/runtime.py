@@ -19,4 +19,7 @@ class NitrogenRuntime:
         if ev.phase != "nutrients":
             return
         # Temperature to daily_step can be derived from weather later; fallback 18C
-        _ = self.cycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=1.0)
+        demand = 1.0
+        if ev.plant_n_demand_kg_ha is not None:
+            demand = float(ev.plant_n_demand_kg_ha)
+        _ = self.cycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=demand)
