@@ -24,8 +24,8 @@ Implementation Notes
 
 Visualizations
 
-- `scripts/plot_et_timeseries.py`: compares PT vs PM and overlays VPD (kPa) and the stomatal factor.
-- `scripts/plot_full_integration.py`: overlays VPD and stomatal factor in the ET panel for integrated runs.
+- `scripts/plot_et_timeseries.py`: compares PT vs PM and overlays VPD (kPa) and the stomatal factor. Supports `--calendar` path via the `Calendar` and `DayTick` orchestrator.
+- `scripts/plot_full_integration.py`: overlays VPD and stomatal factor in the ET panel for integrated runs, driven by `Calendar`/`DayTick` in the integrated orchestrator.
 
 Acceptance Behaviours
 

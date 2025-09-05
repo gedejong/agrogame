@@ -13,9 +13,9 @@ This project uses an event-driven architecture built on `agrogame.events.EventBu
 
 ### Visualizations
 
-- `scripts/plot_events_timeline.py`: daily swimlanes
-- `scripts/plot_events_heatmap.py`: daily event density per module
-- `scripts/plot_events_dependencies.py`: circular dependency from same-day transitions
+- `scripts/plot_events_timeline.py`: daily swimlanes (driven by `Calendar` ticks)
+- `scripts/plot_events_heatmap.py`: daily event density per module (uses the shared `EventBus` with `Calendar`)
+- `scripts/plot_events_dependencies.py`: circular dependency from same-day transitions (now uses `FullSimulationOrchestrator` and `DayTick` to stage updates)
 
 Common flags:
 
@@ -24,7 +24,7 @@ Common flags:
 - `--grep Transpir` filter on event type substring (case-insensitive)
 - `--csv-out out/events.csv` export data for further analysis
 
-Example:
+Example (Calendar-driven):
 
 ```bash
 poetry run python scripts/plot_events_timeline.py \
