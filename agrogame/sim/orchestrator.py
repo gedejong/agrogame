@@ -182,7 +182,13 @@ class FullSimulationOrchestrator:
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
-        _ = MicrobesRuntime(self.event_bus, self.microbes)
+        _ = MicrobesRuntime(
+            self.event_bus,
+            self.microbes,
+            profile=self.profile,
+            water_state=self.water_state,
+            chemistry=self.chem,
+        )
         _ = CanopyRuntime(self.event_bus, self.canopy)
 
     def step_day(

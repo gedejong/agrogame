@@ -109,10 +109,16 @@ class SimulationBuilder:
         )
         _ = NitrogenRuntime(self._event_bus, cast(Any, _))
         _ = PhosphorusRuntime(self._event_bus, cast(Any, _))
-        # Microbes wiring for lightweight builder as well
+        # Microbes wiring for lightweight builder as well (with depth context)
         microbes = MicrobialBiomassModule(
             MicrobialParams(n_layers=len(profile.layers)), event_bus=self._event_bus
         )
-        _ = MicrobesRuntime(self._event_bus, microbes)
+        _ = MicrobesRuntime(
+            self._event_bus,
+            microbes,
+            profile=profile,
+            water_state=water_state,
+            chemistry=cast(Any, _),
+        )
         _ = CanopyRuntime(self._event_bus, cast(Any, _))
         return SimulationApp(event_bus=self._event_bus, calendar=calendar)
