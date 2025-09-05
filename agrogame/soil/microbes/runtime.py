@@ -6,9 +6,9 @@ from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .biomass import MicrobialBiomassModule
 from .events import MicrobialSnapshot
-from agrogame.soil.water.state import SoilWaterState  # type: ignore
-from agrogame.soil.models import SoilProfile  # type: ignore
-from agrogame.soil.chemistry.module import SoilChemistryModule  # type: ignore
+from agrogame.soil.water.state import SoilWaterState
+from agrogame.soil.models import SoilProfile
+from agrogame.soil.chemistry.module import SoilChemistryModule
 
 
 @dataclass
