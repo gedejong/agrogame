@@ -28,6 +28,8 @@ from agrogame.soil.nitrogen.runtime import NitrogenRuntime
 from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
 from agrogame.soil.phenology.runtime import PhenologyRuntime
 from agrogame.soil.canopy.runtime import CanopyRuntime
+from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
+from agrogame.soil.microbes.runtime import MicrobesRuntime
 
 
 class SimulationOrchestrator:
@@ -150,6 +152,10 @@ class FullSimulationOrchestrator:
             water_state=cast(Any, self.water_state),
             profile=cast(Any, profile),
         )
+        # Microbial biomass/enzymes (initial scaffold)
+        self.microbes = MicrobialBiomassModule(
+            MicrobialParams(n_layers=len(profile.layers)), event_bus=self.event_bus
+        )
         # Chemistry emits pH events used by N/P
         self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
         # ET model (emits transpiration/evaporation related events via water model)
@@ -176,6 +182,7 @@ class FullSimulationOrchestrator:
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
+        _ = MicrobesRuntime(self.event_bus, self.microbes)
         _ = CanopyRuntime(self.event_bus, self.canopy)
 
     def step_day(
