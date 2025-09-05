@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .biomass import MicrobialBiomassModule
+from .events import MicrobialSnapshot
 
 
 @dataclass
@@ -25,3 +26,9 @@ class MicrobesRuntime:
         wfps = 0.6
         ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
         self.microbes.daily_step(temperature_c=temperature, wfps=wfps, ph=ph)
+        # Emit snapshot for visualization
+        total_c = sum(layer.c_kg_ha for layer in self.microbes.state.layers)
+        total_n = sum(layer.n_kg_ha for layer in self.microbes.state.layers)
+        self.event_bus.emit(
+            MicrobialSnapshot(total_c_kg_ha=total_c, total_n_kg_ha=total_n)
+        )

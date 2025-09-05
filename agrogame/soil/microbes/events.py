@@ -26,3 +26,11 @@ class EnzymeProduced(BaseEvent):
     enzyme_group: str
     production_cost_c_kg_ha: float
     params: Dict[str, float]
+
+
+@dataclass(frozen=True)
+class MicrobialSnapshot(BaseEvent):
+    """Daily snapshot for visualization convenience."""
+
+    total_c_kg_ha: float
+    total_n_kg_ha: float

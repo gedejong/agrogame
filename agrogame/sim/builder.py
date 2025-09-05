@@ -29,6 +29,8 @@ from agrogame.soil.nitrogen.runtime import NitrogenRuntime
 from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
 from agrogame.soil.phenology.runtime import PhenologyRuntime
 from agrogame.soil.canopy.runtime import CanopyRuntime
+from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
+from agrogame.soil.microbes.runtime import MicrobesRuntime
 
 
 @dataclass
@@ -107,5 +109,10 @@ class SimulationBuilder:
         )
         _ = NitrogenRuntime(self._event_bus, cast(Any, _))
         _ = PhosphorusRuntime(self._event_bus, cast(Any, _))
+        # Microbes wiring for lightweight builder as well
+        microbes = MicrobialBiomassModule(
+            MicrobialParams(n_layers=len(profile.layers)), event_bus=self._event_bus
+        )
+        _ = MicrobesRuntime(self._event_bus, microbes)
         _ = CanopyRuntime(self._event_bus, cast(Any, _))
         return SimulationApp(event_bus=self._event_bus, calendar=calendar)

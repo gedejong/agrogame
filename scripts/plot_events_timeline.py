@@ -90,6 +90,7 @@ def main() -> None:
         "Soil",
         "ET",
         "Plant",
+        "Microbes",
         "Nitrogen",
         "Root",
         "Canopy",
@@ -102,6 +103,7 @@ def main() -> None:
         "Soil": "#17becf",
         "ET": "#2ca02c",
         "Plant": "#bcbd22",
+        "Microbes": "#7f7f7f",
         "Nitrogen": "#8c564b",
         "Root": "#9467bd",
         "Canopy": "#ff7f0e",
@@ -125,6 +127,8 @@ def main() -> None:
             or "agrogame.soil.nitrogen" in mn
         ):
             return "Nitrogen"
+        if "agrogame.soil.microbes" in mn or "microbial" in et:
+            return "Microbes"
         if "phosph" in et or "agrogame.soil.phosphorus" in mn:
             return "Phosphorus"
         if "soilph" in et or "chemistry" in mn or "agrogame.soil.chemistry" in mn:

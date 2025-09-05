@@ -67,6 +67,10 @@ def main() -> None:
     p_avail_top: List[float] = []
     p_fix_today: List[float] = []
     ph_top: List[float] = []
+    # Microbes
+    micro_c: List[float] = []
+    micro_n: List[float] = []
+    enzyme_cost: List[float] = []
 
     # Weather diagnostics
     tmins: List[float] = []
@@ -167,6 +171,14 @@ def main() -> None:
         ph_top.append(orch.chem.ph_by_layer[0])
         p_fix_today.append(0.0)  # not tracked here; keep placeholder for layout
         p_avail_top.append(orch.p_state.available_p[0])
+        # Microbes
+        micro_c.append(
+            sum(layer_state.c_kg_ha for layer_state in orch.microbes.state.layers)
+        )
+        micro_n.append(
+            sum(layer_state.n_kg_ha for layer_state in orch.microbes.state.layers)
+        )
+        enzyme_cost.append(0.1 * 5.0)  # matches placeholder in module
         # Weather histories
         tmins.append(tmin)
         tmaxs.append(tmax)
@@ -299,6 +311,16 @@ def main() -> None:
     ax_p2.bar(x, p_fix_today, alpha=0.25, color="#9467bd", label="Fixation (kg/ha·d)")
     ax_p.set_title("Phosphorus: available (top) and fixation")
 
+    # Microbes panel
+    ax_m = ax31
+    ax_m.plot(x, micro_c, label="Microbial C (kg/ha)")
+    ax_m.plot(x, micro_n, label="Microbial N (kg/ha)")
+    ax_m2 = ax_m.twinx()
+    ax_m2.bar(
+        x, enzyme_cost, alpha=0.25, color="#7f7f7f", label="Enzyme cost C (kg/ha·d)"
+    )
+    ax_m.set_title("Microbes: biomass and enzyme cost")
+
     # Soil pH panel
     ax50.plot(x, ph_top if ph_top else [args.ph] * len(x), label="pH (top)")
     ax50.set_ylim(4.0, 9.0)
@@ -318,6 +340,8 @@ def main() -> None:
         ax[2][1],
         ax_p,
         ax_p2,
+        ax_m,
+        ax_m2,
         ax50,
     ]:
         h, labels_part = a.get_legend_handles_labels()
