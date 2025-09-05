@@ -26,6 +26,8 @@ Preview:
 
 ![Dashboard Screenshot](images/dashboard.png)
 
+Calendar-driven runtime: The dashboard now builds simulations with `SimulationBuilder` and drives days via `Calendar.tick`, with modules reacting through `DayTick` phases. ET components are captured from events (`EvaporationTaken`, `TranspirationByLayer`).
+
 #### Indicator details
 
 - Growth stage progress bar: computed from GDD versus stage thresholds from the phenology module.
