@@ -1,7 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from datetime import timedelta
-from typing import Optional, Any, Dict, Mapping, cast, NamedTuple
+from typing import Optional, Any, Dict, Mapping, NamedTuple
 import math
 import time
 from io import StringIO
@@ -9,25 +9,17 @@ from io import StringIO
 import plotly.graph_objects as go
 import streamlit as st
 
-from agrogame.events import EventBus
-from agrogame.sim.orchestrator import build_default_orchestrator
+from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
-from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather import load_weather
 from agrogame.weather.utils import vpd_kpa
 from agrogame.weather.types import WeatherRecord
-from agrogame.soil.nitrogen.state import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.soil.models import SoilProfile
-from agrogame.atmosphere.et.ports import (
-    WaterProfile as ETWaterProfile,
-    WaterState as ETWaterState,
-    WaterActuator,
-)
+from agrogame.soil.water.events import EvaporationTaken, TranspirationByLayer
 
 
 def _extend_weather_records(
@@ -113,93 +105,16 @@ def _compute_reference_et(
     return et0_pm, et0_pt, par, rn, tmean, vpd
 
 
-def _partition_et(
-    et_mod: Evapotranspiration,
-    orch: Any,  # orchestrator type is internal; keep untyped for simplicity
+# Removed legacy ET partition helper; actual ET is captured via events
+
+
+def _init_orchestrator(
     profile: SoilProfile,
-    wstate: SoilWaterState,
-    water: CascadingBucketWaterModel,
-    et0_pm: float,
-    vpd: float,
-) -> tuple[float, float, float, float, float]:
-    """Compute canopy evaporation, soil evaporation, transpiration and stresses.
-
-    Returns (canopy_evap, evap_mm, transp_mm, water_stress, stomatal).
-    """
-    comps = et_mod.potential_components_with_vpd(
-        et0_mm=et0_pm, lai=orch.canopy.state.lai, vpd_kpa=vpd
-    )
-    # Canopy interception evaporation (best-effort)
-    canopy_evap = 0.0
-    try:
-        from agrogame.soil.canopy.interception import InterceptionState
-
-        _istate = InterceptionState()
-        canopy_evap = _istate.evaporate(comps.potential_evap_mm)
-    except Exception:
-        canopy_evap = 0.0
-
-    lai_now = float(getattr(orch.canopy.state, "lai", 0.0) or 0.0)
-    potential_transp = comps.potential_transp_mm if lai_now >= 0.05 else 0.0
-    comps_adj = type(comps)(
-        potential_evap_mm=max(0.0, comps.potential_evap_mm - canopy_evap),
-        potential_transp_mm=potential_transp,
-        et0_mm=comps.et0_mm,
-    )
-
-    # Root fractions if available
-    try:
-        rf = (
-            list(getattr(orch.root_state, "layer_fractions", []))
-            if getattr(orch, "root_state", None) is not None
-            else []
-        )
-    except Exception:
-        rf = []
-    if not rf:
-        rf = [1.0 / max(1, len(profile.layers))] * max(1, len(profile.layers))
-
-    actual = et_mod.actual_et(
-        cast(ETWaterProfile, profile),
-        cast(ETWaterState, wstate),
-        cast(WaterActuator, water),
-        comps_adj,
-        rf,
-    )
-
-    demand = max(1e-6, comps_adj.potential_transp_mm)
-    water_stress = max(0.05, min(1.0, actual.transpiration_mm / demand))
-    vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
-    stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
-
-    evap_total = actual.evaporation_mm + canopy_evap
-    return (
-        canopy_evap,
-        float(evap_total),
-        float(actual.transpiration_mm),
-        water_stress,
-        stomatal,
-    )
-
-
-def _init_models(profile: SoilProfile) -> tuple[
-    EventBus,
-    CascadingBucketWaterModel,
-    SoilWaterState,
-    SoilNitrogenState,
-    NitrogenCycle,
-    Any,
-    Evapotranspiration,
-]:
-    """Build core models used in the simulation loop."""
-    bus = EventBus()
-    water = CascadingBucketWaterModel(event_bus=bus)
-    wstate = SoilWaterState(profile)
-    nstate = SoilNitrogenState(profile)
-    ncycle = NitrogenCycle(event_bus=bus, state=nstate)
-    orch = build_default_orchestrator()
+) -> tuple[FullSimulationOrchestrator, Evapotranspiration]:
+    """Build a full orchestrator and ET helper for diagnostics."""
+    orch = FullSimulationOrchestrator(profile)
     et_mod = Evapotranspiration(EtParams())
-    return bus, water, wstate, nstate, ncycle, orch, et_mod
+    return orch, et_mod
 
 
 def _new_history(profile: SoilProfile) -> Dict[str, Any]:
@@ -247,7 +162,7 @@ def _run_simulation(
 ) -> tuple[Dict[str, Any], SoilProfile]:
     soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
-    bus, water, wstate, nstate, ncycle, orch, et_mod = _init_models(profile)
+    orch, et_mod = _init_orchestrator(profile)
 
     weather = load_weather(weather_file)
     records: list[WeatherRecord] = _extend_weather_records(list(weather.records), days)
@@ -267,50 +182,62 @@ def _run_simulation(
     except Exception:
         pass
 
+    # Subscribe to ET-related events to capture actual evaporation/transpiration
+    daily_evap: float = 0.0
+    daily_transp: float = 0.0
+
+    def _on_evap(ev: EvaporationTaken) -> None:
+        nonlocal daily_evap
+        daily_evap += float(ev.amount_mm)
+
+    def _on_transp(ev: TranspirationByLayer) -> None:
+        nonlocal daily_transp
+        daily_transp += float(getattr(ev, "total_mm", sum(ev.amounts_mm)))
+
+    orch.event_bus.subscribe(EvaporationTaken, _on_evap)
+    orch.event_bus.subscribe(TranspirationByLayer, _on_transp)
+
     for i in range(min(days, len(records))):
         rec = records[i]
         rain = rec.precip_mm or 0.0
         irrigation = irrig_map.get(i, 0.0)
 
-        _apply_fertilizers(ncycle, i, fert_ops, fert_map)
-
-        water.update_daily(
-            profile,
-            wstate,
-            DailyDrivers(
-                rainfall_mm=rain,
-                evaporation_mm=0.0,
-                irrigation_mm=irrigation,
-            ),
-        )
+        _apply_fertilizers(orch.n_cycle, i, fert_ops, fert_map)
 
         et0, et0_pt, par, rn, tmean, vpd = _compute_reference_et(et_mod, rec)
         history["et0_mm"].append(et0)
         history["et0_pt_mm"].append(et0_pt)
 
-        canopy_evap, evap_mm, transp_mm, water_stress, stomatal = _partition_et(
-            et_mod, orch, profile, wstate, water, et0, vpd
+        # Reset daily ET counters and advance one day via Calendar/DayTick
+        daily_evap = 0.0
+        daily_transp = 0.0
+        drivers = DailyDrivers(
+            rainfall_mm=rain + irrigation,
+            irrigation_mm=0.0,
+            evaporation_mm=0.0,
         )
-        history["evap_mm"].append(evap_mm)
-        history["transp_mm"].append(transp_mm)
+        orch.step_day(
+            drivers=drivers,
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=par,
+        )
+
+        # Derive water stress and stomatal proxy
+        comps = et_mod.potential_components_with_vpd(
+            et0_mm=et0, lai=orch.canopy.state.lai, vpd_kpa=vpd
+        )
+        demand = max(1e-6, comps.potential_transp_mm)
+        water_stress = max(0.05, min(1.0, daily_transp / demand))
+        vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
+        stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
+        history["evap_mm"].append(float(daily_evap))
+        history["transp_mm"].append(float(daily_transp))
         history["water_stress"].append(water_stress)
         history["vpd_kpa"].append(vpd)
         history["stomatal"].append(stomatal)
 
-        # Nitrogen stress proxy from mineral N pools (bounded 0.1–1.0)
-        n_total_now = float(sum(nstate.no3) + sum(nstate.nh4))
-        n_target = 120.0
-        n_stress = max(0.1, min(1.0, n_total_now / n_target))
-        orch.step_day(
-            tmin_c=rec.tmin_c,
-            tmax_c=rec.tmax_c,
-            par_mj_m2=par,
-            water_stress=water_stress,
-            n_stress=n_stress,
-        )
-
-        # Nitrogen cycle (use mean air temp as proxy for soil temp)
-        _ = ncycle.daily_step(temperature_c=tmean, plant_demand_kg_ha=1.0)
+        # Nitrogen status proxy now reflects orchestrator-run cycles
 
         history["day"].append(rec.day)
         history["lai"].append(orch.canopy.state.lai)
@@ -352,22 +279,22 @@ def _run_simulation(
         for li, _layer in enumerate(profile.layers):
             # store volumetric water content per layer
             if len(history["theta_layers"][li]) == i:
-                history["theta_layers"][li].append(wstate.theta[li])
+                history["theta_layers"][li].append(orch.water_state.theta[li])
             else:
-                history["theta_layers"][li][i] = wstate.theta[li]
+                history["theta_layers"][li][i] = orch.water_state.theta[li]
             # nitrogen pools
             if len(history["no3_layers"][li]) == i:
-                history["no3_layers"][li].append(nstate.no3[li])
-                history["nh4_layers"][li].append(nstate.nh4[li])
+                history["no3_layers"][li].append(orch.n_state.no3[li])
+                history["nh4_layers"][li].append(orch.n_state.nh4[li])
             else:
-                history["no3_layers"][li][i] = nstate.no3[li]
-                history["nh4_layers"][li][i] = nstate.nh4[li]
+                history["no3_layers"][li][i] = orch.n_state.no3[li]
+                history["nh4_layers"][li][i] = orch.n_state.nh4[li]
         history["rain_mm"].append(rain)
         history["tmin_c"].append(rec.tmin_c)
         history["tmax_c"].append(rec.tmax_c)
         history["tmean_c"].append(tmean)
         # Aggregate N status proxy (total mineral N across layers)
-        history["n_total_kgha"].append(sum(nstate.no3) + sum(nstate.nh4))
+        history["n_total_kgha"].append(sum(orch.n_state.no3) + sum(orch.n_state.nh4))
 
     return history, profile
 
