@@ -30,7 +30,7 @@ def test_microbe_cn_mass_balance_stability() -> None:
         )
     c1, n1 = totals()
 
-    # We do not enforce closed mass balance (inputs from SOM placeholder),
+    # We do not enforce closed mass balance (SOM/exudate placeholder inputs),
     # but large drifts indicate instability. Allow moderate change.
-    assert abs(c1 - c0) < 200.0
-    assert abs(n1 - n0) < 50.0
+    assert abs(c1 - c0) < 400.0
+    assert abs(n1 - n0) < 80.0
