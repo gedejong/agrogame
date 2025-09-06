@@ -18,6 +18,10 @@ from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
+from agrogame.soil.microbes.events import (
+    MicrobialActivityComputed,
+    MicrobialFBUpdated,
+)
 from typing import Protocol, Sequence
 
 
@@ -72,6 +76,11 @@ class NitrogenCycle:
         # Cache per-layer pH updates from chemistry
         self._ph_by_layer_cached: list[float] = [7.0] * self._n_layers
         event_bus.subscribe(SoilPHUpdated, self._on_soil_ph_updated)
+        # Cache microbial coupling signals (activity, F:B)
+        self._microbe_activity_by_layer: list[float] = [1.0] * self._n_layers
+        self._fungal_fraction_by_layer: list[float] = [0.4] * self._n_layers
+        event_bus.subscribe(MicrobialActivityComputed, self._on_microbe_activity)
+        event_bus.subscribe(MicrobialFBUpdated, self._on_microbe_fb)
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -155,6 +164,19 @@ class NitrogenCycle:
     def _on_soil_ph_updated(self, event: SoilPHUpdated) -> None:
         if 0 <= event.layer < self._n_layers:
             self._ph_by_layer_cached[event.layer] = float(event.ph)
+
+    def _on_microbe_activity(self, event: MicrobialActivityComputed) -> None:
+        if 0 <= event.layer < self._n_layers:
+            # Clamp to [0, 1] so microbes can only dampen rates, not blow them up
+            self._microbe_activity_by_layer[event.layer] = max(
+                0.0, min(1.0, float(event.activity_index))
+            )
+
+    def _on_microbe_fb(self, event: MicrobialFBUpdated) -> None:
+        if 0 <= event.layer < self._n_layers:
+            self._fungal_fraction_by_layer[event.layer] = max(
+                0.0, min(1.0, float(event.fungal_fraction))
+            )
 
     # --- Daily update ---------------------------------------------------
     def daily_step(
@@ -291,7 +313,9 @@ class NitrogenCycle:
         org = self.state.organic_n[idx]
         if org <= 0.0:
             return 0.0
-        rate = 0.001 * temp_factor * moisture_factor
+        # Microbial activity scales mineralization (dampening only)
+        activity = self._microbe_activity_by_layer[idx]
+        rate = 0.001 * temp_factor * moisture_factor * activity
         delta = min(org, rate * org)
         if delta <= 0.0:
             return 0.0
@@ -310,7 +334,20 @@ class NitrogenCycle:
         nh4 = self.state.nh4[idx]
         if nh4 <= 0.0:
             return 0.0
-        rate = 0.15 * temp_factor * moisture_factor * nitrif_aeration * ph_factor
+        # Microbial coupling: dampen by activity and by fungal dominance
+        # (bacteria are primary nitrifiers)
+        activity = self._microbe_activity_by_layer[idx]
+        bact_share = 1.0 - self._fungal_fraction_by_layer[idx]
+        fb_weight = 0.7 + 0.3 * bact_share  # 0.7..1.0
+        rate = (
+            0.15
+            * temp_factor
+            * moisture_factor
+            * nitrif_aeration
+            * ph_factor
+            * activity
+            * fb_weight
+        )
         rate = max(0.0, min(0.20, rate))
         dn = min(nh4, rate * nh4)
         if dn <= 0.0:
