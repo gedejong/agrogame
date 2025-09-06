@@ -64,7 +64,7 @@ class MicrobesRuntime:
             original_emit(event)
 
         # Temporarily wrap emit
-        self.event_bus.emit = _emit_wrapped  # type: ignore[assignment]
+        self.event_bus.emit = _emit_wrapped  # type: ignore[method-assign]
         try:
             self.microbes.daily_step_layers(
                 temperature_c=temperature,
@@ -72,7 +72,7 @@ class MicrobesRuntime:
                 ph_by_layer=ph_by_layer,
             )
         finally:
-            self.event_bus.emit = original_emit  # type: ignore[assignment]
+            self.event_bus.emit = original_emit  # type: ignore[method-assign]
         # Emit snapshot for visualization
         total_c = sum(layer.c_kg_ha for layer in self.microbes.state.layers)
         total_n = sum(layer.n_kg_ha for layer in self.microbes.state.layers)
