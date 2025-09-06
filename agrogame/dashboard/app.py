@@ -149,6 +149,122 @@ def _calc_stress(
     return water_stress, stomatal
 
 
+def _make_drivers(total_rain_mm: float) -> DailyDrivers:
+    return DailyDrivers(
+        rainfall_mm=total_rain_mm, irrigation_mm=0.0, evaporation_mm=0.0
+    )
+
+
+def _append_day_summary(
+    history: Dict[str, Any],
+    *,
+    et0: float,
+    agg: _DailyAggregation,
+    water_stress: float,
+    vpd: float,
+    stomatal: float,
+) -> None:
+    history["et0_mm"].append(et0)
+    history["evap_mm"].append(float(agg.evap_mm))
+    history["transp_mm"].append(float(agg.transp_mm))
+    history["water_stress"].append(water_stress)
+    history["vpd_kpa"].append(vpd)
+    history["stomatal"].append(stomatal)
+
+
+def _append_biomass_and_interception(
+    history: Dict[str, Any], *, orch: FullSimulationOrchestrator, par: float
+) -> None:
+    current_biomass = orch.canopy.state.biomass_g_m2
+    prev_biomass = history["biomass_g_m2"][-1] if history["biomass_g_m2"] else 0.0
+    history["biomass_g_m2"].append(current_biomass)
+    history["biomass_inc_g_m2"].append(max(0.0, current_biomass - prev_biomass))
+    try:
+        k_ext = float(getattr(orch.canopy.params, "extinction_coefficient_k", 0.6))
+    except Exception:
+        k_ext = 0.6
+    lai_now = float(orch.canopy.state.lai or 0.0)
+    frac_int = (
+        0.0 if lai_now <= 0.0 or par <= 0.0 else (1.0 - math.exp(-k_ext * lai_now))
+    )
+    history["par_mj_m2"].append(par)
+    history["fraction_intercepted"].append(frac_int)
+    history["par_intercepted_mj_m2"].append(par * frac_int)
+
+
+def _append_root_and_stage(
+    history: Dict[str, Any], *, orch: FullSimulationOrchestrator
+) -> None:
+    try:
+        history["root_depth_cm"].append(orch.root_state.current_depth_cm)
+    except Exception:
+        history["root_depth_cm"].append(0.0)
+    stage = getattr(getattr(orch.phenology, "state", None), "stage", None)
+    history["stage"].append(
+        stage.value if isinstance(stage, PhenologyStage) else str(stage)
+    )
+    try:
+        history["gdd_accum"].append(
+            getattr(orch.phenology.state, "accumulated_gdd", None)
+        )
+    except Exception:
+        history["gdd_accum"].append(None)
+
+
+def _append_layers(
+    history: Dict[str, Any],
+    *,
+    orch: FullSimulationOrchestrator,
+    profile: SoilProfile,
+    day_index: int,
+) -> None:
+    for li, _layer in enumerate(profile.layers):
+        if len(history["theta_layers"][li]) == day_index:
+            history["theta_layers"][li].append(orch.water_state.theta[li])
+        else:
+            history["theta_layers"][li][day_index] = orch.water_state.theta[li]
+        if len(history["no3_layers"][li]) == day_index:
+            history["no3_layers"][li].append(orch.n_state.no3[li])
+            history["nh4_layers"][li].append(orch.n_state.nh4[li])
+        else:
+            history["no3_layers"][li][day_index] = orch.n_state.no3[li]
+            history["nh4_layers"][li][day_index] = orch.n_state.nh4[li]
+
+
+def _append_weather(
+    history: Dict[str, Any], *, rain: float, rec: WeatherRecord, tmean: float
+) -> None:
+    history["rain_mm"].append(rain)
+    history["tmin_c"].append(rec.tmin_c)
+    history["tmax_c"].append(rec.tmax_c)
+    history["tmean_c"].append(tmean)
+
+
+def _append_microbes(
+    history: Dict[str, Any], *, orch: FullSimulationOrchestrator
+) -> None:
+    try:
+        micro_c = sum(lc.c_kg_ha for lc in orch.microbes.state.layers)
+        micro_n = sum(lc.n_kg_ha for lc in orch.microbes.state.layers)
+        fb_avg = sum(lc.fungal_fraction for lc in orch.microbes.state.layers) / max(
+            1, len(orch.microbes.state.layers)
+        )
+    except Exception:
+        micro_c, micro_n, fb_avg = 0.0, 0.0, 0.4
+    history["micro_c_total"].append(micro_c)
+    history["micro_n_total"].append(micro_n)
+    history["micro_fb_avg"].append(fb_avg)
+
+
+def _append_enzyme_groups(history: Dict[str, Any], *, agg: _DailyAggregation) -> None:
+    snapshot = dict(agg.enzyme_totals)
+    history["enzyme_cellulase_c"].append(float(snapshot.get("cellulase", 0.0)))
+    history["enzyme_protease_c"].append(float(snapshot.get("protease", 0.0)))
+    history["enzyme_phosphatase_c"].append(float(snapshot.get("phosphatase", 0.0)))
+    history["enzyme_urease_c"].append(float(snapshot.get("urease", 0.0)))
+    agg.enzyme_totals = {}
+
+
 # Removed legacy ET partition helper; actual ET is captured via events
 
 
@@ -252,11 +368,7 @@ def _run_simulation(
         # Reset daily ET counters and advance one day via Calendar/DayTick
         agg.evap_mm = 0.0
         agg.transp_mm = 0.0
-        drivers = DailyDrivers(
-            rainfall_mm=rain + irrigation,
-            irrigation_mm=0.0,
-            evaporation_mm=0.0,
-        )
+        drivers = _make_drivers(rain + irrigation)
         orch.step_day(
             drivers=drivers,
             tmin_c=rec.tmin_c,
@@ -272,95 +384,28 @@ def _run_simulation(
             transp_mm=agg.transp_mm,
             et0_mm=et0,
         )
-        history["evap_mm"].append(float(agg.evap_mm))
-        history["transp_mm"].append(float(agg.transp_mm))
-        history["water_stress"].append(water_stress)
-        history["vpd_kpa"].append(vpd)
-        history["stomatal"].append(stomatal)
+        _append_day_summary(
+            history,
+            et0=et0,
+            agg=agg,
+            water_stress=water_stress,
+            vpd=vpd,
+            stomatal=stomatal,
+        )
 
         # Nitrogen status proxy now reflects orchestrator-run cycles
 
         history["day"].append(rec.day)
         history["lai"].append(orch.canopy.state.lai)
-        # Biomass and increment
-        current_biomass = orch.canopy.state.biomass_g_m2
-        prev_biomass = history["biomass_g_m2"][-1] if history["biomass_g_m2"] else 0.0
-        history["biomass_g_m2"].append(current_biomass)
-        history["biomass_inc_g_m2"].append(max(0.0, current_biomass - prev_biomass))
-        # PAR and interception (Beer–Lambert)
-        try:
-            k_ext = float(getattr(orch.canopy.params, "extinction_coefficient_k", 0.6))
-        except Exception:
-            k_ext = 0.6
-        lai_now2 = float(orch.canopy.state.lai or 0.0)
-        frac_int = (
-            0.0
-            if lai_now2 <= 0.0 or par <= 0.0
-            else (1.0 - math.exp(-k_ext * lai_now2))
-        )
-        history["par_mj_m2"].append(par)
-        history["fraction_intercepted"].append(frac_int)
-        history["par_intercepted_mj_m2"].append(par * frac_int)
-        # Root depth and phenology stage
-        try:
-            history["root_depth_cm"].append(orch.root_state.current_depth_cm)
-        except Exception:
-            history["root_depth_cm"].append(0.0)
-        stage = getattr(getattr(orch.phenology, "state", None), "stage", None)
-        history["stage"].append(
-            stage.value if isinstance(stage, PhenologyStage) else str(stage)
-        )
-        # Accumulated GDD for progress bar
-        try:
-            history["gdd_accum"].append(
-                getattr(orch.phenology.state, "accumulated_gdd", None)
-            )
-        except Exception:
-            history["gdd_accum"].append(None)
-        for li, _layer in enumerate(profile.layers):
-            # store volumetric water content per layer
-            if len(history["theta_layers"][li]) == i:
-                history["theta_layers"][li].append(orch.water_state.theta[li])
-            else:
-                history["theta_layers"][li][i] = orch.water_state.theta[li]
-            # nitrogen pools
-            if len(history["no3_layers"][li]) == i:
-                history["no3_layers"][li].append(orch.n_state.no3[li])
-                history["nh4_layers"][li].append(orch.n_state.nh4[li])
-            else:
-                history["no3_layers"][li][i] = orch.n_state.no3[li]
-                history["nh4_layers"][li][i] = orch.n_state.nh4[li]
-        history["rain_mm"].append(rain)
-        history["tmin_c"].append(rec.tmin_c)
-        history["tmax_c"].append(rec.tmax_c)
-        history["tmean_c"].append(tmean)
+        _append_biomass_and_interception(history, orch=orch, par=par)
+        _append_root_and_stage(history, orch=orch)
+        _append_layers(history, orch=orch, profile=profile, day_index=i)
+        _append_weather(history, rain=rain, rec=rec, tmean=tmean)
         # Aggregate N status proxy (total mineral N across layers)
         history["n_total_kgha"].append(sum(orch.n_state.no3) + sum(orch.n_state.nh4))
-        # Microbes: totals and average fungal fraction
-        try:
-            micro_c = sum(lc.c_kg_ha for lc in orch.microbes.state.layers)
-            micro_n = sum(lc.n_kg_ha for lc in orch.microbes.state.layers)
-            fb_avg = sum(lc.fungal_fraction for lc in orch.microbes.state.layers) / max(
-                1, len(orch.microbes.state.layers)
-            )
-        except Exception:
-            micro_c, micro_n, fb_avg = 0.0, 0.0, 0.4
-        history["micro_c_total"].append(micro_c)
-        history["micro_n_total"].append(micro_n)
-        history["micro_fb_avg"].append(fb_avg)
+        _append_microbes(history, orch=orch)
 
-        # Enzyme group totals (default 0)
-        enzyme_snapshot = dict(agg.enzyme_totals)
-        history["enzyme_cellulase_c"].append(
-            float(enzyme_snapshot.get("cellulase", 0.0))
-        )
-        history["enzyme_protease_c"].append(float(enzyme_snapshot.get("protease", 0.0)))
-        history["enzyme_phosphatase_c"].append(
-            float(enzyme_snapshot.get("phosphatase", 0.0))
-        )
-        history["enzyme_urease_c"].append(float(enzyme_snapshot.get("urease", 0.0)))
-        # reset daily enzyme totals for next loop
-        agg.enzyme_totals = {}
+        _append_enzyme_groups(history, agg=agg)
 
     return history, profile
 
