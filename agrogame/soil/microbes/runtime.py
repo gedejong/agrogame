@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -24,6 +24,10 @@ class MicrobesRuntime:
     profile: SoilProfile | None = None
     water_state: SoilWaterState | None = None
     chemistry: SoilChemistryModule | None = None
+    # Transient daily aggregation for enzyme costs
+    _daily_enzyme_totals: dict[str, float] = field(
+        default_factory=dict, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
