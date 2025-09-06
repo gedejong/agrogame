@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .biomass import MicrobialBiomassModule
-from .events import EnzymeGroupTotals, MicrobialSnapshot
+from .events import EnzymeGroupTotals, MicrobialSnapshot, SubstrateAvailable
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.chemistry.module import SoilChemistryModule
@@ -45,6 +45,22 @@ class MicrobesRuntime:
         else:
             base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
             ph_by_layer = [base_ph] * len(self.microbes.state.layers)
+
+        # Provide a simple SOM substrate availability placeholder
+        # (to be replaced by AGRO-71)
+        try:
+            par = float(ev.par_mj_m2) if ev.par_mj_m2 is not None else 10.0
+        except Exception:
+            par = 10.0
+        for i in range(len(self.microbes.state.layers)):
+            depth_scale = 1.0 / (1.0 + 0.5 * i)
+            base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))  # 2..4.0 scale by PAR
+            available = base * depth_scale
+            self.event_bus.emit(
+                SubstrateAvailable(
+                    layer=i, available_c_kg_ha=available, quality_index=0.8
+                )
+            )
 
         # Aggregate enzyme production by group during microbes step
         self._daily_enzyme_totals: dict[str, float] = {}
