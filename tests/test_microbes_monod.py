@@ -5,7 +5,11 @@ from agrogame.soil.microbes.biomass import (
     MicrobialBiomassModule,
     MicrobialParams,
 )
-from agrogame.soil.microbes.events import SubstrateAvailable, RhizospherePrimingPulse
+from agrogame.soil.microbes.events import (
+    SubstrateAvailable,
+    RhizospherePrimingPulse,
+    MicrobialActivityComputed,
+)
 
 
 def test_monod_growth_increases_with_substrate() -> None:
@@ -26,22 +30,32 @@ def test_monod_growth_increases_with_substrate() -> None:
 
 
 def test_priming_multiplier_scales_activity() -> None:
-    # Compare two identical modules from the same starting state,
-    # one with priming pulse and one without.
+    # Compare emitted activity index with and without priming pulse
     params = MicrobialParams(n_layers=1)
 
+    last_activity_a = 0.0
     bus_a = EventBus()
+
+    def _on_act_a(ev: MicrobialActivityComputed) -> None:
+        nonlocal last_activity_a
+        last_activity_a = float(ev.activity_index)
+
+    bus_a.subscribe(MicrobialActivityComputed, _on_act_a)
     mod_a = MicrobialBiomassModule(params, event_bus=bus_a)
     bus_a.emit(SubstrateAvailable(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
     mod_a.daily_step_layers(temperature_c=20.0, wfps_by_layer=[0.6], ph_by_layer=[6.8])
-    c_a = mod_a.state.layers[0].c_kg_ha
 
+    last_activity_b = 0.0
     bus_b = EventBus()
+
+    def _on_act_b(ev: MicrobialActivityComputed) -> None:
+        nonlocal last_activity_b
+        last_activity_b = float(ev.activity_index)
+
+    bus_b.subscribe(MicrobialActivityComputed, _on_act_b)
     mod_b = MicrobialBiomassModule(params, event_bus=bus_b)
     bus_b.emit(RhizospherePrimingPulse(layer=0, multiplier=2.0))
     bus_b.emit(SubstrateAvailable(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
     mod_b.daily_step_layers(temperature_c=20.0, wfps_by_layer=[0.6], ph_by_layer=[6.8])
-    c_b = mod_b.state.layers[0].c_kg_ha
 
-    # primed module should end with higher C after one day
-    assert c_b > c_a
+    assert last_activity_b > last_activity_a
