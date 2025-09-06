@@ -10,6 +10,8 @@ from .events import (
     MicrobialFBUpdated,
     MicrobialGrowth,
     MicrobialMortality,
+    SubstrateAvailable,
+    RhizospherePrimingPulse,
 )
 from .responses import EnvironmentalResponses
 
@@ -47,6 +49,21 @@ class MicrobialBiomassModule:
         self.state = MicrobialState(
             layers=[MicrobialLayerState() for _ in range(params.n_layers)]
         )
+        # Transient inputs each day
+        self._substrate_today: Dict[int, tuple[float, float]] = {}
+        self._priming_multiplier: Dict[int, float] = {}
+        # Subscribe to substrate and priming events (optional providers)
+        event_bus.subscribe(SubstrateAvailable, self._on_substrate)
+        event_bus.subscribe(RhizospherePrimingPulse, self._on_priming)
+
+    def _on_substrate(self, ev: SubstrateAvailable) -> None:
+        self._substrate_today[ev.layer] = (
+            float(ev.available_c_kg_ha),
+            float(ev.quality_index),
+        )
+
+    def _on_priming(self, ev: RhizospherePrimingPulse) -> None:
+        self._priming_multiplier[ev.layer] = max(0.0, float(ev.multiplier))
 
     def daily_step(self, temperature_c: float, wfps: float, ph: float) -> None:
         """Backward-compatible single-value daily step across all layers."""
@@ -90,7 +107,9 @@ class MicrobialBiomassModule:
             temp_mod = self.responses.temperature_modifier(temperature_c)
             moist_mod = self.responses.moisture_modifier(max(0.0, min(1.0, w)))
             ph_mod = self.responses.ph_modifier(p)
-            activity = max(0.0, temp_mod * moist_mod * ph_mod)
+            base_activity = max(0.0, temp_mod * moist_mod * ph_mod)
+            priming = self._priming_multiplier.get(idx, 1.0)
+            activity = base_activity * max(0.5, min(3.0, priming))
             # Emit activity index for intermodule listeners
             self.event_bus.emit(
                 MicrobialActivityComputed(
@@ -142,10 +161,18 @@ class MicrobialBiomassModule:
                     )
                 )
 
-            # Placeholder growth from substrate (to be wired to SOM)
+            # Substrate-limited growth via Monod (Michaelis–Menten-like)
+            # Retrieve available substrate C and quality (defaults)
+            available_c, quality = self._substrate_today.get(idx, (2.0, 0.8))
+            km = 1.0  # half-saturation (kg C/ha)
+            vmax = 5.0  # max potential growth scaling (kg C/ha/d)
+            monod = available_c / (km + max(1e-6, available_c))
             # Slight pathway efficiency bonus with higher fungal share
-            pathway_eff = 0.9 + 0.2 * layer.fungal_fraction  # 0.9..1.1
-            potential_growth_c = activity * 5.0 * pathway_eff  # kg C/ha/day placeholder
+            # and substrate quality
+            pathway_eff = (0.9 + 0.2 * layer.fungal_fraction) * (
+                0.7 + 0.3 * max(0.0, min(1.0, quality))
+            )
+            potential_growth_c = activity * vmax * monod * pathway_eff
             enzyme_cost = potential_growth_c * self.params.enzyme_cost_fraction
             net_growth_c = max(0.0, potential_growth_c - enzyme_cost)
             if net_growth_c > 0.0:
@@ -172,6 +199,10 @@ class MicrobialBiomassModule:
                                 "wfps": w,
                                 "ph": p,
                                 "weight": wgt,
+                                "monod": monod,
                             },
                         )
                     )
+        # Reset transient inputs after completing daily step
+        self._substrate_today.clear()
+        self._priming_multiplier.clear()

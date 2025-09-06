@@ -60,3 +60,27 @@ class EnzymeGroupTotals(BaseEvent):
     """Profile-wide enzyme production cost totals by group for a day."""
 
     totals_c_kg_ha_by_group: Dict[str, float]
+
+
+@dataclass(frozen=True)
+class SubstrateAvailable(BaseEvent):
+    """SOM-derived substrate availability for a soil layer (per day).
+
+    available_c_kg_ha: labile carbon available to microbes today.
+    quality_index: optional quality factor (0..1) indicating ease of use.
+    """
+
+    layer: int
+    available_c_kg_ha: float
+    quality_index: float
+
+
+@dataclass(frozen=True)
+class RhizospherePrimingPulse(BaseEvent):
+    """Priming multiplier for a soil layer due to root exudates.
+
+    multiplier: 1.0 baseline, >1 boosts activity/substrate use transiently.
+    """
+
+    layer: int
+    multiplier: float
