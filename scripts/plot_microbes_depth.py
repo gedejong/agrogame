@@ -29,6 +29,24 @@ def main() -> None:
     profile = lib.soils[args.profile]
 
     orch = FullSimulationOrchestrator(profile)
+    # Optional overrides to test sensitivity
+    parser.add_argument("--fb-adjust", type=float, default=None)
+    parser.add_argument("--enz-weights", type=str, default=None)
+    args2, _ = parser.parse_known_args([])
+    if args2.fb_adjust is not None:
+        orch.microbes.params.fb_adjust_rate = float(args2.fb_adjust)
+    if args2.enz_weights:
+        parts = [p.strip() for p in args2.enz_weights.split(",") if p.strip()]
+        weights: dict[str, float] = {}
+        for part in parts:
+            if "=" in part:
+                k, v = part.split("=", 1)
+                try:
+                    weights[k.strip()] = float(v)
+                except Exception:
+                    continue
+        if weights:
+            orch.microbes.params.enzyme_group_weights = weights
 
     c_by_day: List[List[float]] = []
     n_by_day: List[List[float]] = []

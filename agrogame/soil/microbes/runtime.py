@@ -5,10 +5,16 @@ from dataclasses import dataclass
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .biomass import MicrobialBiomassModule
-from .events import EnzymeGroupTotals, MicrobialSnapshot, SubstrateAvailable
+from .events import (
+    EnzymeGroupTotals,
+    MicrobialSnapshot,
+    SubstrateAvailable,
+    RhizospherePrimingPulse,
+)
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.chemistry.module import SoilChemistryModule
+from agrogame.plant.roots.events import RootDistributionUpdated
 
 
 @dataclass
@@ -21,6 +27,20 @@ class MicrobesRuntime:
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
+        # Cache latest root fractions to drive priming/exudates
+        self._root_fractions: list[float] | None = None
+        self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
+
+    def _on_root_distribution(self, ev: RootDistributionUpdated) -> None:
+        fracs = [max(0.0, f) for f in ev.fractions]
+        s = sum(fracs) or 1.0
+        fracs = [f / s for f in fracs]
+        # Trim or pad to number of microbe layers if profile present
+        n = len(self.microbes.state.layers)
+        if len(fracs) >= n:
+            self._root_fractions = fracs[:n]
+        else:
+            self._root_fractions = fracs + [0.0] * (n - len(fracs))
 
     def _on_day_tick(self, ev: DayTick) -> None:
         # Run microbes during nutrients phase so it aligns with N/P
@@ -46,21 +66,34 @@ class MicrobesRuntime:
             base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
             ph_by_layer = [base_ph] * len(self.microbes.state.layers)
 
-        # Provide a simple SOM substrate availability placeholder
+        # Provide SOM/exudate substrate placeholder informed by roots
         # (to be replaced by AGRO-71)
         try:
             par = float(ev.par_mj_m2) if ev.par_mj_m2 is not None else 10.0
         except Exception:
             par = 10.0
+        root_fracs = (
+            self._root_fractions
+            if self._root_fractions is not None
+            else [0.0] * len(self.microbes.state.layers)
+        )
         for i in range(len(self.microbes.state.layers)):
-            depth_scale = 1.0 / (1.0 + 0.5 * i)
-            base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))  # 2..4.0 scale by PAR
-            available = base * depth_scale
+            rf = root_fracs[i] if i < len(root_fracs) else 0.0
+            # Base substrate scales with PAR; allocate by root presence
+            base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))  # 2..4.0
+            available = base * (0.2 + 0.8 * rf)
+            quality = 0.6 + 0.3 * rf  # better quality near roots
             self.event_bus.emit(
                 SubstrateAvailable(
-                    layer=i, available_c_kg_ha=available, quality_index=0.8
+                    layer=i, available_c_kg_ha=available, quality_index=quality
                 )
             )
+            # Rhizosphere priming pulse scales with root fraction
+            priming = 1.0 + 1.0 * rf
+            if priming > 1.0:
+                self.event_bus.emit(
+                    RhizospherePrimingPulse(layer=i, multiplier=priming)
+                )
 
         # Aggregate enzyme production by group during microbes step
         self._daily_enzyme_totals: dict[str, float] = {}
