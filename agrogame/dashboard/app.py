@@ -21,7 +21,7 @@ from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.events import EvaporationTaken, TranspirationByLayer
-from agrogame.soil.microbes.events import EnzymeGroupTotals
+from agrogame.soil.microbes.events import EnzymeGroupTotals, MicrobialActivityComputed
 
 
 def _extend_weather_records(
@@ -131,6 +131,20 @@ def _subscribe_daily_aggregators(orch: FullSimulationOrchestrator) -> _DailyAggr
         lambda ev: agg.enzyme_totals.update(ev.totals_c_kg_ha_by_group),
     )
     return agg
+
+
+def _subscribe_activity_capture(
+    orch: FullSimulationOrchestrator, n_layers: int
+) -> list[float]:
+    """Subscribe to microbial activity and keep a per-layer buffer updated daily."""
+    activity_layers: list[float] = [0.0] * n_layers
+
+    def _on_activity(ev: MicrobialActivityComputed) -> None:
+        if 0 <= ev.layer < n_layers:
+            activity_layers[ev.layer] = float(ev.activity_index)
+
+    orch.event_bus.subscribe(MicrobialActivityComputed, _on_activity)
+    return activity_layers
 
 
 def _calc_stress(
@@ -314,6 +328,9 @@ def _new_history(profile: SoilProfile) -> Dict[str, Any]:
         "enzyme_protease_c": [],
         "enzyme_phosphatase_c": [],
         "enzyme_urease_c": [],
+        # Microbial activity (average and by layer)
+        "micro_activity_avg": [],
+        "micro_activity_layers": [[] for _ in profile.layers],
         # phenology thresholds (for progress bar)
         "thr_emergence": None,
         "thr_flowering": None,
@@ -333,6 +350,7 @@ def _run_simulation(
     profile = soil_lib.soils["loam_temperate"]
     orch, et_mod = _init_orchestrator(profile)
     agg = _subscribe_daily_aggregators(orch)
+    activity_layers = _subscribe_activity_capture(orch, n_layers=len(profile.layers))
 
     weather = load_weather(weather_file)
     records: list[WeatherRecord] = _extend_weather_records(list(weather.records), days)
@@ -392,6 +410,16 @@ def _run_simulation(
             vpd=vpd,
             stomatal=stomatal,
         )
+        # Microbial activity capture (average and by layer)
+        if activity_layers:
+            history["micro_activity_avg"].append(
+                sum(activity_layers) / max(1, len(activity_layers))
+            )
+            for li, val in enumerate(activity_layers):
+                if len(history["micro_activity_layers"][li]) == i:
+                    history["micro_activity_layers"][li].append(val)
+                else:
+                    history["micro_activity_layers"][li][i] = val
 
         # Nitrogen status proxy now reflects orchestrator-run cycles
 
@@ -526,6 +554,8 @@ def _render_all_tabs(
         _plot_microbes(history, upto_idx=upto)
         st.subheader("Enzyme group totals (C cost)")
         _plot_enzyme_groups(history, upto_idx=upto)
+        st.subheader("Microbial activity (average)")
+        _plot_micro_activity(history, upto_idx=upto)
 
     with tab2:
         c1, c2 = st.columns(2)
@@ -1007,6 +1037,24 @@ def _plot_enzyme_groups(
         series = data if upto_idx is None else data[:upto_idx]
         fig.add_trace(go.Bar(x=x, y=series, name=name))
     fig.update_layout(barmode="stack", yaxis_title="C cost (kg/ha·d)")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_micro_activity(
+    history: Mapping[str, Any], *, upto_idx: int | None = None
+) -> None:
+    x = (
+        history.get("day", [])
+        if upto_idx is None
+        else history.get("day", [])[:upto_idx]
+    )
+    act = (
+        history.get("micro_activity_avg", [])
+        if upto_idx is None
+        else history.get("micro_activity_avg", [])[:upto_idx]
+    )
+    fig = go.Figure(data=[go.Scatter(x=x, y=act, mode="lines", name="Activity (-)")])
+    fig.update_layout(yaxis_title="Microbial activity (-)")
     st.plotly_chart(fig, use_container_width=True)
 
 
