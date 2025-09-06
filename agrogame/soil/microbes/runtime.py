@@ -44,80 +44,83 @@ class MicrobesRuntime:
             self._root_fractions = fracs + [0.0] * (n - len(fracs))
 
     def _on_day_tick(self, ev: DayTick) -> None:
-        # Run microbes during nutrients phase so it aligns with N/P
         if ev.phase != "nutrients":
             return
-        temperature = 18.0
+        temperature = self._compute_temperature(ev)
+        wfps_by_layer = self._compute_wfps_by_layer()
+        ph_by_layer = self._compute_ph_by_layer(ev)
+        root_fracs = self._smooth_root_fracs()
+        self._emit_substrate_and_priming(ev, root_fracs)
+        self._run_microbes_step(temperature, wfps_by_layer, ph_by_layer)
+        self._emit_snapshot_and_totals()
+
+    # --- Helpers kept small to satisfy complexity gates -----------------
+    def _compute_temperature(self, ev: DayTick) -> float:
         if ev.tmax_c is not None and ev.tmin_c is not None:
-            temperature = (float(ev.tmax_c) + float(ev.tmin_c)) / 2.0
-        # Compute per-layer WFPS if water_state and profile are available
-        if self.profile is not None and self.water_state is not None:
-            wfps_by_layer = []
-            for i, layer in enumerate(self.profile.layers):
-                theta = self.water_state.theta[i]
-                porosity = max(1e-6, layer.saturation)
-                wfps_by_layer.append(max(0.0, min(1.0, theta / porosity)))
-        else:
-            wfps_by_layer = [0.6] * len(self.microbes.state.layers)
+            return (float(ev.tmax_c) + float(ev.tmin_c)) / 2.0
+        return 18.0
 
-        # Per-layer pH from chemistry if available; otherwise uniform
+    def _compute_wfps_by_layer(self) -> list[float]:
+        if self.profile is None or self.water_state is None:
+            return [0.6] * len(self.microbes.state.layers)
+        vals: list[float] = []
+        for i, layer in enumerate(self.profile.layers):
+            theta = self.water_state.theta[i]
+            porosity = max(1e-6, layer.saturation)
+            vals.append(max(0.0, min(1.0, theta / porosity)))
+        return vals
+
+    def _compute_ph_by_layer(self, ev: DayTick) -> list[float]:
         if self.chemistry is not None:
-            ph_by_layer = list(self.chemistry.ph_by_layer)
-        else:
-            base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
-            ph_by_layer = [base_ph] * len(self.microbes.state.layers)
+            return list(self.chemistry.ph_by_layer)
+        base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
+        return [base_ph] * len(self.microbes.state.layers)
 
-        # Provide SOM/exudate substrate placeholder informed by roots
-        # (to be replaced by AGRO-71)
+    def _smooth_root_fracs(self) -> list[float]:
+        raw = self._root_fractions or [0.0] * len(self.microbes.state.layers)
+        if self._root_fractions_smoothed is None:
+            self._root_fractions_smoothed = list(raw)
+            return self._root_fractions_smoothed
+        alpha = 0.25
+        n = len(self._root_fractions_smoothed)
+        if len(raw) < n:
+            raw = list(raw) + [0.0] * (n - len(raw))
+        for i in range(min(len(raw), n)):
+            prev = self._root_fractions_smoothed[i]
+            cur = raw[i]
+            self._root_fractions_smoothed[i] = prev + alpha * (cur - prev)
+        return self._root_fractions_smoothed or raw
+
+    def _emit_substrate_and_priming(self, ev: DayTick, root_fracs: list[float]) -> None:
         try:
             par = float(ev.par_mj_m2) if ev.par_mj_m2 is not None else 10.0
         except Exception:
             par = 10.0
-        raw_root_fracs = (
-            self._root_fractions
-            if self._root_fractions is not None
-            else [0.0] * len(self.microbes.state.layers)
-        )
-        # Smooth root fractions to avoid day-to-day discontinuities
-        if self._root_fractions_smoothed is None:
-            self._root_fractions_smoothed = list(raw_root_fracs)
-        else:
-            alpha = 0.25  # smoothing factor (0..1)
-            n = len(self._root_fractions_smoothed)
-            if len(raw_root_fracs) < n:
-                raw_root_fracs = list(raw_root_fracs) + [0.0] * (
-                    n - len(raw_root_fracs)
-                )
-            for i in range(min(len(raw_root_fracs), n)):
-                prev = self._root_fractions_smoothed[i]
-                cur = raw_root_fracs[i]
-                self._root_fractions_smoothed[i] = prev + alpha * (cur - prev)
-        root_fracs = self._root_fractions_smoothed or raw_root_fracs
+        base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))
         for i in range(len(self.microbes.state.layers)):
             rf = root_fracs[i] if i < len(root_fracs) else 0.0
-            # Base substrate scales with PAR; allocate by root presence
-            base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))  # 2..4.0
             available = base * (0.2 + 0.8 * rf)
-            quality = 0.6 + 0.3 * rf  # better quality near roots
+            quality = 0.6 + 0.3 * rf
             self.event_bus.emit(
                 SubstrateAvailable(
                     layer=i, available_c_kg_ha=available, quality_index=quality
                 )
             )
-            # Rhizosphere priming pulse scales with root fraction
             priming = 1.0 + 1.0 * rf
             if priming > 1.0:
                 self.event_bus.emit(
                     RhizospherePrimingPulse(layer=i, multiplier=priming)
                 )
 
-        # Aggregate enzyme production by group during microbes step
-        self._daily_enzyme_totals: dict[str, float] = {}
+    def _run_microbes_step(
+        self, temperature: float, wfps_by_layer: list[float], ph_by_layer: list[float]
+    ) -> None:
+        self._daily_enzyme_totals = {}
         original_emit = self.event_bus.emit
 
         def _emit_wrapped(event: object) -> None:
             try:
-                from .events import EnzymeProduced  # local import
+                from .events import EnzymeProduced
 
                 if isinstance(event, EnzymeProduced):
                     grp = event.enzyme_group
@@ -128,7 +131,6 @@ class MicrobesRuntime:
                 pass
             original_emit(event)
 
-        # Temporarily wrap emit
         self.event_bus.emit = _emit_wrapped  # type: ignore[method-assign]
         try:
             self.microbes.daily_step_layers(
@@ -138,13 +140,14 @@ class MicrobesRuntime:
             )
         finally:
             self.event_bus.emit = original_emit  # type: ignore[method-assign]
-        # Emit snapshot for visualization
+
+    def _emit_snapshot_and_totals(self) -> None:
         total_c = sum(layer.c_kg_ha for layer in self.microbes.state.layers)
         total_n = sum(layer.n_kg_ha for layer in self.microbes.state.layers)
         self.event_bus.emit(
             MicrobialSnapshot(total_c_kg_ha=total_c, total_n_kg_ha=total_n)
         )
-        if self._daily_enzyme_totals:
+        if getattr(self, "_daily_enzyme_totals", None):
             self.event_bus.emit(
                 EnzymeGroupTotals(
                     totals_c_kg_ha_by_group=dict(self._daily_enzyme_totals)
