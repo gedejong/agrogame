@@ -53,3 +53,10 @@ class MicrobialActivityComputed(BaseEvent):
     wfps: float
     ph: float
     temperature_c: float
+
+
+@dataclass(frozen=True)
+class EnzymeGroupTotals(BaseEvent):
+    """Profile-wide enzyme production cost totals by group for a day."""
+
+    totals_c_kg_ha_by_group: Dict[str, float]

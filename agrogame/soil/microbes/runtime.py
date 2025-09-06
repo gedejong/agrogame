@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .biomass import MicrobialBiomassModule
-from .events import MicrobialSnapshot
+from .events import EnzymeGroupTotals, MicrobialSnapshot
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.chemistry.module import SoilChemistryModule
@@ -46,14 +46,42 @@ class MicrobesRuntime:
             base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
             ph_by_layer = [base_ph] * len(self.microbes.state.layers)
 
-        self.microbes.daily_step_layers(
-            temperature_c=temperature,
-            wfps_by_layer=wfps_by_layer,
-            ph_by_layer=ph_by_layer,
-        )
+        # Aggregate enzyme production by group during microbes step
+        self._daily_enzyme_totals: dict[str, float] = {}
+        original_emit = self.event_bus.emit
+
+        def _emit_wrapped(event: object) -> None:
+            try:
+                from .events import EnzymeProduced  # local import
+
+                if isinstance(event, EnzymeProduced):
+                    grp = event.enzyme_group
+                    self._daily_enzyme_totals[grp] = self._daily_enzyme_totals.get(
+                        grp, 0.0
+                    ) + float(event.production_cost_c_kg_ha)
+            except Exception:
+                pass
+            original_emit(event)
+
+        # Temporarily wrap emit
+        self.event_bus.emit = _emit_wrapped  # type: ignore[assignment]
+        try:
+            self.microbes.daily_step_layers(
+                temperature_c=temperature,
+                wfps_by_layer=wfps_by_layer,
+                ph_by_layer=ph_by_layer,
+            )
+        finally:
+            self.event_bus.emit = original_emit  # type: ignore[assignment]
         # Emit snapshot for visualization
         total_c = sum(layer.c_kg_ha for layer in self.microbes.state.layers)
         total_n = sum(layer.n_kg_ha for layer in self.microbes.state.layers)
         self.event_bus.emit(
             MicrobialSnapshot(total_c_kg_ha=total_c, total_n_kg_ha=total_n)
         )
+        if self._daily_enzyme_totals:
+            self.event_bus.emit(
+                EnzymeGroupTotals(
+                    totals_c_kg_ha_by_group=dict(self._daily_enzyme_totals)
+                )
+            )

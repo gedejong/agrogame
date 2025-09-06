@@ -131,6 +131,8 @@ def main() -> None:
             return "Microbes"
         if "phosph" in et or "agrogame.soil.phosphorus" in mn:
             return "Phosphorus"
+        if "enzymegrouptotals" in et or "enzymeproduced" in et:
+            return "Microbes"
         if "soilph" in et or "chemistry" in mn or "agrogame.soil.chemistry" in mn:
             return "Chemistry"
         if "root" in et:
