@@ -139,9 +139,10 @@ class RootModule:
             z0 = top
             z1 = min(bot, depth_cm)
             if continuous:
-                # Increasing-depth kernel k(z) = exp(z/scale), integrated over [z0, z1]
-                inv_s = 1.0 / max(1e-6, scale_cm)
-                w = max(0.0, (1.0 / inv_s) * (exp(z1 * inv_s) - exp(z0 * inv_s)))
+                # Use mid-depth kernel biased to depth bottom without length penalty
+                mid = 0.5 * (z0 + z1)
+                dist_from_bottom = max(0.0, depth_cm - mid)
+                w = exp(-dist_from_bottom / max(1.0, scale_cm))
             else:
                 mid = 0.5 * (z0 + z1)
                 dist_from_bottom = max(0.0, depth_cm - mid)
