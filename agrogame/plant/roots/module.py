@@ -54,42 +54,74 @@ class RootModule:
         return new - prev
 
     @staticmethod
-    def _uniform_distribution(profile: SoilProfile, depth_cm: float) -> List[float]:
+    def _uniform_distribution(
+        profile: SoilProfile, depth_cm: float, *, continuous: bool
+    ) -> List[float]:
         fracs: List[float] = []
-        cum = 0.0
-        rooted_layers: List[int] = []
+        cum_top = 0.0
+        rooted_count = 0.0
         for i, layer in enumerate(profile.layers):
-            cum += layer.depth_cm
-            if cum <= depth_cm:
-                rooted_layers.append(i)
-                fracs.append(0.0)  # placeholder
-            else:
+            top = cum_top
+            bot = cum_top + layer.depth_cm
+            cum_top = bot
+            if depth_cm <= top:
                 fracs.append(0.0)
-        n = len(rooted_layers) or 1
-        for i in rooted_layers:
-            fracs[i] = 1.0 / n
-        return fracs
+                continue
+            if depth_cm >= bot:
+                # fully rooted layer
+                fracs.append(1.0)
+                rooted_count += 1.0
+            else:
+                # boundary layer
+                rooted_len = max(0.0, depth_cm - top)
+                if continuous and layer.depth_cm > 0:
+                    frac = max(0.0, min(1.0, rooted_len / layer.depth_cm))
+                else:
+                    frac = 0.0
+                fracs.append(frac)
+                rooted_count += frac
+                # remaining deeper layers get 0
+                # fill zeros for remaining quickly
+                for _ in range(i + 1, len(profile.layers)):
+                    fracs.append(0.0)
+                break
+        # Normalize equally across rooted part
+        s = rooted_count or 1.0
+        return [f / s for f in fracs]
 
     @staticmethod
-    def _exponential_distribution(profile: SoilProfile, depth_cm: float) -> List[float]:
-        # Simple decaying weight with depth; more mass near surface
+    def _exponential_distribution(
+        profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
+    ) -> List[float]:
+        # Depth-decay kernel exp(-z/scale) integrated over rooted portion of each layer
         weights: List[float] = []
         cum_top = 0.0
         for layer in profile.layers:
-            cum_top_next = cum_top + layer.depth_cm
-            if cum_top_next <= depth_cm:
-                # use layer midpoint depth as proxy
-                mid = cum_top + 0.5 * layer.depth_cm
-                w = exp(-mid / max(1.0, depth_cm * 0.5))
-                weights.append(w)
-            else:
+            top = cum_top
+            bot = cum_top + layer.depth_cm
+            cum_top = bot
+            if depth_cm <= top:
                 weights.append(0.0)
-            cum_top = cum_top_next
+                continue
+            z0 = top
+            z1 = min(bot, depth_cm)
+            if continuous:
+                # integral exp(-z/scale) dz = -scale * e^{-z/scale}
+                w = scale_cm * (
+                    exp(-z0 / max(1e-6, scale_cm)) - exp(-z1 / max(1e-6, scale_cm))
+                )
+            else:
+                # midpoint proxy within rooted portion
+                mid = 0.5 * (z0 + z1)
+                w = exp(-mid / max(1.0, scale_cm)) * (z1 - z0)
+            weights.append(max(0.0, w))
         s = sum(weights) or 1.0
         return [w / s for w in weights]
 
     @staticmethod
-    def _taproot_distribution(profile: SoilProfile, depth_cm: float) -> List[float]:
+    def _taproot_distribution(
+        profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
+    ) -> List[float]:
         """Increasing weight with depth to mimic taproot dominance.
 
         Uses an inverted exponential so that deeper layers get higher weight
@@ -98,17 +130,25 @@ class RootModule:
         weights: List[float] = []
         cum_top = 0.0
         for layer in profile.layers:
-            cum_top_next = cum_top + layer.depth_cm
-            if cum_top_next <= depth_cm:
-                # distance from bottom of rooted zone
-                mid = cum_top + 0.5 * layer.depth_cm
-                dist_from_bottom = max(0.0, depth_cm - mid)
-                # invert: larger weight when dist_from_bottom small (i.e., near bottom)
-                w = exp(-dist_from_bottom / max(1.0, depth_cm * 0.5))
-                weights.append(w)
-            else:
+            top = cum_top
+            bot = cum_top + layer.depth_cm
+            cum_top = bot
+            if depth_cm <= top:
                 weights.append(0.0)
-            cum_top = cum_top_next
+                continue
+            z0 = top
+            z1 = min(bot, depth_cm)
+            if continuous:
+                # Use an increasing depth kernel; mid-depth proxy ensures deeper layers
+                # within the rooted zone get higher weight than shallow ones.
+                mid = 0.5 * (z0 + z1)
+                dz = z1 - z0
+                w = max(0.0, dz * (1e-6 + mid / max(1e-6, depth_cm)))
+            else:
+                mid = 0.5 * (z0 + z1)
+                dist_from_bottom = max(0.0, depth_cm - mid)
+                w = exp(-dist_from_bottom / max(1.0, scale_cm)) * (z1 - z0)
+            weights.append(max(0.0, w))
         s = sum(weights) or 1.0
         return [w / s for w in weights]
 
@@ -135,11 +175,33 @@ class RootModule:
         if profile is None:
             return
         if self.params.distribution == "uniform":
-            fracs = self._uniform_distribution(profile, state.current_depth_cm)
+            fracs = self._uniform_distribution(
+                profile,
+                state.current_depth_cm,
+                continuous=self.params.continuous_distribution,
+            )
         elif self.params.distribution == "taproot":
-            fracs = self._taproot_distribution(profile, state.current_depth_cm)
+            scale = max(
+                1.0,
+                state.current_depth_cm * max(0.05, self.params.kernel_scale_fraction),
+            )
+            fracs = self._taproot_distribution(
+                profile,
+                state.current_depth_cm,
+                scale_cm=scale,
+                continuous=self.params.continuous_distribution,
+            )
         else:
-            fracs = self._exponential_distribution(profile, state.current_depth_cm)
+            scale = max(
+                1.0,
+                state.current_depth_cm * max(0.05, self.params.kernel_scale_fraction),
+            )
+            fracs = self._exponential_distribution(
+                profile,
+                state.current_depth_cm,
+                scale_cm=scale,
+                continuous=self.params.continuous_distribution,
+            )
         fracs = self._apply_proliferation(
             fracs, nutrient_signal, self.params.proliferation_strength
         )
