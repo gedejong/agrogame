@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List
 
 from agrogame.events import EventBus
 from .events import EnzymeProduced, MicrobialGrowth, MicrobialMortality
@@ -15,6 +15,10 @@ class MicrobialParams:
     bacteria_turnover_days: float = 30.0
     fungi_turnover_days: float = 120.0
     enzyme_cost_fraction: float = 0.1  # fraction of C uptake
+    # Optional relative weights for enzyme groups; default is set at runtime
+    enzyme_group_weights: Dict[str, float] | None = None
+    # Daily adjustment rate for fungal:bacterial ratio (0 = static)
+    fb_adjust_rate: float = 0.05
 
 
 @dataclass
@@ -62,6 +66,18 @@ class MicrobialBiomassModule:
             wfps_by_layer: Water-filled pore space per layer in [0, 1].
             ph_by_layer: Soil pH per layer.
         """
+        # Normalize enzyme group weights once per call
+        group_weights: Dict[str, float] = self.params.enzyme_group_weights or {
+            "cellulase": 0.35,
+            "protease": 0.25,
+            "phosphatase": 0.25,
+            "urease": 0.15,
+        }
+        weight_sum = sum(v for v in group_weights.values() if v > 0.0) or 1.0
+        norm_weights: Dict[str, float] = {
+            k: max(0.0, v) / weight_sum for k, v in group_weights.items()
+        }
+
         for idx, layer in enumerate(self.state.layers):
             w = wfps_by_layer[idx if idx < len(wfps_by_layer) else -1]
             p = ph_by_layer[idx if idx < len(ph_by_layer) else -1]
@@ -69,6 +85,17 @@ class MicrobialBiomassModule:
             moist_mod = self.responses.moisture_modifier(max(0.0, min(1.0, w)))
             ph_mod = self.responses.ph_modifier(p)
             activity = max(0.0, temp_mod * moist_mod * ph_mod)
+
+            # Dynamic F:B adjustment (fungi favored by moderate dryness, slight acidity)
+            if self.params.fb_adjust_rate > 0.0:
+                target_fungal = 0.4
+                target_fungal += 0.25 * (0.6 - max(0.0, min(1.0, w)))
+                target_fungal += 0.15 * ((6.5 - p) / 2.0)
+                target_fungal = max(0.1, min(0.9, target_fungal))
+                layer.fungal_fraction += self.params.fb_adjust_rate * (
+                    target_fungal - layer.fungal_fraction
+                )
+                layer.fungal_fraction = max(0.05, min(0.95, layer.fungal_fraction))
 
             # Turnover
             bacterial_fraction = 1.0 - layer.fungal_fraction
@@ -96,7 +123,9 @@ class MicrobialBiomassModule:
                 )
 
             # Placeholder growth from substrate (to be wired to SOM)
-            potential_growth_c = activity * 5.0  # kg C/ha/day placeholder
+            # Slight pathway efficiency bonus with higher fungal share
+            pathway_eff = 0.9 + 0.2 * layer.fungal_fraction  # 0.9..1.1
+            potential_growth_c = activity * 5.0 * pathway_eff  # kg C/ha/day placeholder
             enzyme_cost = potential_growth_c * self.params.enzyme_cost_fraction
             net_growth_c = max(0.0, potential_growth_c - enzyme_cost)
             if net_growth_c > 0.0:
@@ -109,11 +138,20 @@ class MicrobialBiomassModule:
                     )
                 )
             if enzyme_cost > 0.0:
-                self.event_bus.emit(
-                    EnzymeProduced(
-                        layer=idx,
-                        enzyme_group="pooled",
-                        production_cost_c_kg_ha=enzyme_cost,
-                        params={"activity": activity, "wfps": w, "ph": p},
+                for group, wgt in norm_weights.items():
+                    group_cost = enzyme_cost * wgt
+                    if group_cost <= 0.0:
+                        continue
+                    self.event_bus.emit(
+                        EnzymeProduced(
+                            layer=idx,
+                            enzyme_group=group,
+                            production_cost_c_kg_ha=group_cost,
+                            params={
+                                "activity": activity,
+                                "wfps": w,
+                                "ph": p,
+                                "weight": wgt,
+                            },
+                        )
                     )
-                )
