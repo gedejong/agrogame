@@ -139,11 +139,9 @@ class RootModule:
             z0 = top
             z1 = min(bot, depth_cm)
             if continuous:
-                # Use an increasing depth kernel; mid-depth proxy ensures deeper layers
-                # within the rooted zone get higher weight than shallow ones.
-                mid = 0.5 * (z0 + z1)
-                dz = z1 - z0
-                w = max(0.0, dz * (1e-6 + mid / max(1e-6, depth_cm)))
+                # Increasing-depth kernel k(z) = exp(z/scale), integrated over [z0, z1]
+                inv_s = 1.0 / max(1e-6, scale_cm)
+                w = max(0.0, (1.0 / inv_s) * (exp(z1 * inv_s) - exp(z0 * inv_s)))
             else:
                 mid = 0.5 * (z0 + z1)
                 dist_from_bottom = max(0.0, depth_cm - mid)
