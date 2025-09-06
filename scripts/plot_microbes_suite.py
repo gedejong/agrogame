@@ -102,6 +102,14 @@ def main() -> None:
                 str(args.out_dir / "microbes_diagnostics.png"),
             ]
         )
+        # Activity response surface (temperature x WFPS)
+        run_cmd(
+            [
+                "scripts/plot_microbes_activity_surface.py",
+                "--out",
+                str(args.out_dir / "microbes_activity_surface.png"),
+            ]
+        )
 
     print("Microbes visualization suite generated in", args.out_dir)
 

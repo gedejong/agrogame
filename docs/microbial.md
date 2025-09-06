@@ -14,6 +14,11 @@ This module simulates microbial biomass dynamics with environmental controls and
 - Depth heatmaps: microbial C, N, fungal vs. bacterial split, enzyme cost, and activity index.
 - Dashboard: interactive plot tabs for biomass, enzyme costs, and activity by layer.
 
+Diagnostics:
+
+- Substrate, WFPS, pH depth diagnostics: `out/microbes_diagnostics.png`.
+- Activity response surface (T x WFPS at pH 6.8): `out/microbes_activity_surface.png`.
+
 To reproduce images:
 
 ```bash

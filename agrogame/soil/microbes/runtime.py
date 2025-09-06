@@ -29,6 +29,7 @@ class MicrobesRuntime:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         # Cache latest root fractions to drive priming/exudates
         self._root_fractions: list[float] | None = None
+        self._root_fractions_smoothed: list[float] | None = None
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
 
     def _on_root_distribution(self, ev: RootDistributionUpdated) -> None:
@@ -72,11 +73,26 @@ class MicrobesRuntime:
             par = float(ev.par_mj_m2) if ev.par_mj_m2 is not None else 10.0
         except Exception:
             par = 10.0
-        root_fracs = (
+        raw_root_fracs = (
             self._root_fractions
             if self._root_fractions is not None
             else [0.0] * len(self.microbes.state.layers)
         )
+        # Smooth root fractions to avoid day-to-day discontinuities
+        if self._root_fractions_smoothed is None:
+            self._root_fractions_smoothed = list(raw_root_fracs)
+        else:
+            alpha = 0.25  # smoothing factor (0..1)
+            n = len(self._root_fractions_smoothed)
+            if len(raw_root_fracs) < n:
+                raw_root_fracs = list(raw_root_fracs) + [0.0] * (
+                    n - len(raw_root_fracs)
+                )
+            for i in range(min(len(raw_root_fracs), n)):
+                prev = self._root_fractions_smoothed[i]
+                cur = raw_root_fracs[i]
+                self._root_fractions_smoothed[i] = prev + alpha * (cur - prev)
+        root_fracs = self._root_fractions_smoothed or raw_root_fracs
         for i in range(len(self.microbes.state.layers)):
             rf = root_fracs[i] if i < len(root_fracs) else 0.0
             # Base substrate scales with PAR; allocate by root presence
