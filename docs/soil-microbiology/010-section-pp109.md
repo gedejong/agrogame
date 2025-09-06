@@ -1,0 +1,258 @@
+### Section pp109
+
+are selective and designed to detect microorganisms with particular growth forms
+or biochemical capabilities. Bacterial cells from surfaces of soil particles andaggregates are liberated in sterile water, Windogradsky’s solution, or physiologicalsaline (0.85% NaCl). After extraction soil suspensions are diluted to an appropriateconcentration. The degree of dilution required is related to the initial number oforganisms (or propagules) in the soil. Serial dilutions, usually 1:10, stepwise, aremade, beginning with a known weight of wet soil. Aggregates are broken by briefmixing in a Waring blender, often in the presence of a dispersing agent such asNa
+4P2O7, prior to performing serial dilutions. Replicate 0.1-ml portions of appro-
+priate suspensions are transferred to solid or liquid medium in which individualpropagules develop into visible growth. After appropriate incubation, single colonieson solid media are counted, and each colony is equated with a single propagule inthe soil suspension (colony-forming unit).
+The plate count of bacteria in soil, water, and sediment usually represents 1 to
+5% of the number determined by direct microscopy, leading to many discussionsconcerning viable but nonculturable bacteria in nature (Kjelleberg, 1993) and theusefulness of this method for quantitative soil microbiology. Plate count methodsare not suitable for enumerating fungal populations or densities because both indi-vidual spores and fragments of hyphae develop into colonies that are counted.Due to these strong limitations, many researchers doubt whether plate counts canbe used for quantiﬁcation of soil microbiota.
+Population densities of various groups of bacteria can be estimated by the most
+probable number (MPN) technique. This method uses a liquid medium to supportgrowth of soil microorganisms. The resulting dilution count is based on determiningthe highest soil dilution that will still provide visible growth in a suitable medium.An actual count of single cells or colonies is not necessary. Inoculating replicatetubes (10 usually, 5 minimum) from each of three successive serial dilutions at theestimated extinction boundary for growth enables resultant visual growth to be con-verted to numbers within statistical limits of reliability (Gerhardt et al. , 1994). Com-
+puter software has been developed to determine MPN and related conﬁdence limitsas well as to correct for biases (Klee, 1993). MPN methodology is useful because itallows a bacterial population to be estimated based on process-related attributessuch as nitriﬁcation by Nitrosomonas and Nitrobacter spp., denitriﬁcation by deni-
+triﬁers, or nitrogen ﬁxation by free-living aerobic and microaerophilic N
+2-ﬁxing
+bacteria. The MPN technique requires an appropriate choice of growth medium andaccurate serial dilutions to obtain quantitative data. In general, the results are usuallyless precise than those obtained with direct plating methods and suffer from similarbiases due to the ability of cells to grow in artiﬁcial media.
+ISOLATION AND CHARACTERIZATION OF 
+SPECIFIC ORGANISMS
+Speciﬁc, culturable organisms are usually isolated from soil by using liquid or
+solid substrates. These can involve very general substrates from which individualcolonies are picked for further characterization. Also useful are media containing66 Chapter 3 Physiological and Biochemical MethodsCh03-P546807.qxd  11/18/06  6:16 PM  Page 66
+inhibitors such as chloramphenicol, tetracycline, and streptomycin, which inhibit
+protein synthesis by binding to the 50S ribosomal subunit, or nalidixic acid, whichinhibits DNA synthesis of G
+/H11002bacteria. Speciﬁc growth conditions include high or
+low pH, aerobic or anaerobic, or high salinity. Plants are used to identify and enrichspeciﬁc soil populations. Growing compatible legumes in test soils makes it pos-sible to isolate and identify rhizobia from root nodules. Root or leaf pathogens andmycorrhizal fungi are often similarly enriched and identiﬁed. Isolations can beperformed without growth media by microscopic examination combined withmicromanipulators or optical laser tweezers, which can separate single cells,spores, or hyphal fragments.
+Genetic markers that are incorporated into isolated organisms before soil
+reinoculation include antibiotic resistance, the lux operon for light emission, andgenes that code for speciﬁc enzyme activities. Resistance to most currently usedantibiotics is usually carried on a plasmid (see Chap. 5). The use of an appropri-ate vector makes it possible to transfer a plasmid containing an antibiotic resistancegene to soil isolates. These isolates can then be reintroduced into soil and recoveredby placing soil dilutions on the appropriate medium containing that antibiotic. Onlyorganisms carrying the antibiotic resistance gene(s) will be capable of growth.
+Automated, multisubstrate approaches have been used as metabolic ﬁngerprint-
+ing system. For example, the Biolog system makes it possible to test growth reac-tions of many isolates on a broad range of sole C substrate and to analyze thecommunity level respiratory response of culturable organisms in a soil sample. This,combined with the use of a broad range of known organisms and mathematical clus-tering techniques, allows researchers to characterize unknown organisms by sortingthem into afﬁnity types occurring in a particular habitat. Because of their generallyoxidative and mycelial nature, it is not possible to characterize fungi using substrate-utilizing clustering analyses. A community-level physiological approach is based on soil dilutions into microtiter plates in which redoxdyes are added to multiple, single C substrates. This approach bypasses the need to work with isolated cultur-able organisms but still requires growth (reduction) on the appropriate substrate.Multiple substrate ﬁngerprinting has limitations (like measuring an enzyme activityof a growing microbial population or the selectivity of the microbial response) andis controversial in soil microbiology.
+SOIL ORGANIC MATTER DECOMPOSITION 
+AND RESPIRATION
+Heterotrophic microbial communities oxidize naturally occurring organic mate-
+rial such as carbohydrates according to the generalized equation
+CH 2O/H11001O2→CO 2/H11001H2O/H11001intermediates /H11001cellular material /H11001energy.
+Under anaerobic conditions, the most common heterotrophic metabolic pathway
+is that of fermentation, which in its simplest form is described as
+C6H12O6→2 CH 3CH 2OH/H110012 CO 2/H11001intermediates
+/H11001cellular material /H11001energy.Physiological Analyses 67Ch03-P546807.qxd  11/18/06  6:16 PM  Page 67
+Measuring microbial activity is complex under anaerobic conditions. Fermen-
+tation products and CH 4produced within anaerobic microsites can diffuse to aer-
+obic areas, where oxidation to CO 2and H 2O can occur. Microbial respiration is
+determined by measuring either the release of CO 2or the uptake of O 2. Because
+the atmospheric CO 2concentration is only 0.036%, versus 20% for O 2, measure-
+ments of CO 2production are more sensitive than those for O 2. One method of CO 2
+measurement involves aeration trains; here, NaOH is used to trap evolved CO 2
+in an airstream from which CO 2is removed before the air is exposed to the soil
+sample. The reaction occurs as follows:
+2 NaOH /H11001CO 2→Na2CO 3/H11001H2O.
+Before titration, BaCl 2or SrCl 2is added to precipitate the CO 32/H11002as BaCO 3 or
+SrCO 3, and excess NaOH is backtitrated with acid. The use of carbonic anhydrase
+and a double endpoint titration provides greater accuracy when CO 2concentra-
+tions are low. In the laboratory, NaOH containers placed in sealed jars are con-venient and effective for CO
+2absorption. The jar must be opened at intervals so
+that the O 2concentration does not drop below 10%. After incubation, the NaOH
+trap is titrated as described above or the electric conductivity of the alkali trap ismeasured to calculate CO
+2evolved. Gas chromatography can also be used to measure
+soil respiration by placing soil samples in airtight, sealed containers and periodicallysampling the headspace gas to measure CO
+2evolved. A gas chromatograph, with
+a thermal conductivity detector, is used to measure the CO 2concentration after CO 2
+is separated from other constituents on column materials such as Poropak Q.Computer-operated valves in conjunction with GC allow time-sequence studies tobe conducted automatically. Infrared gas analyzers are sensitive to CO
+2and can be
+used for both static and ﬂow systems in the laboratory and in the ﬁeld after H 2O,
+which adsorbs in the same general wavelength, has been removed. The results areexpressed either per unit of soil dry weight ( µg CO
+2–C g/H110021soil h/H110021) or per unit of
+microbial biomass (mg CO 2–C g/H110021Cmich/H110021). The ratio of respiration to microbial
+biomass is termed the metabolic quotient ( qCO 2) and is in the range of 0.5–3 mg
+CO 2–C g/H110021Cmich/H110021. The metabolic quotient is particularly useful in differentiating
+the response of soil biota to sustainable soil management practices. For example,stress, heavy metal pollution, and nutrient deﬁciency increase qCO
+2because
+microbial biomass decreases and respiration increases.
+The measurement of CO 2can also be augmented by incorporating 14C or 13C
+into chosen substrates. The tracer may be known molecules such as glucose, cel-lulose, amino acids, or herbicides or complex materials such as microbial cells orplant residues. The CO
+2respired is trapped in alkali as described above. The
+measurement of 14CO 2or 13CO 2allows the calculation of the decomposition rate
+of soil organic matter as well as establishing a balance of the C used in growth rel-ative to substrate decomposition and microbial by-products. A mass spectrometer68 Chapter 3 Physiological and Biochemical MethodsCh03-P546807.qxd  11/18/06  6:16 PM  Page 68
+capable of directly analyzing a gaseous sample for 13CO 2is preferable to the pre-
+cipitation procedure.
+Field studies can be performed by placing an airtight chamber on the soil surface
+to measure CO 2in situ. This procedure does not alter the soil structure and, therefore,
+ﬁeld respiration rates of the indigenous microbial population are more reliablymeasured. Gas samples are taken from the ﬁeld chamber using a gastight syringe andthen injected into a gas chromatograph or infrared analyzer. Measurement of N
+2O
+and CH 4from the same samples is possible. Recently, a new sampling technique was
+developed to monitor trace gases (CO 2, CH 4, and N 2O) below the soil surface at
+well-deﬁned depths (Kammann et al. , 2001). Probes are constructed from silicone
+tubing closed with silicone septa on both ends, thereby separating an inner air spacefrom the outer soil atmosphere without direct contact (Fig. 3.2). Gas exchangebetween the inner and the outer atmosphere takes place by diffusion through thewalls of the silicone tube. The advantage of this method is that the silicone probeenables trace gas sampling in wet and waterlogged soils. In general, respirationmeasurements in the ﬁeld show much higher analytical variability than those inthe laboratory. This is due to higher spatial variability of chemical and physicalsoil properties and to more variable environmental conditions. Since both soilmicroorganisms and plant roots contribute to the overall CO
+2production in ﬁelds,
+CO 2release in the ﬁeld has been viewed as a measure of the gross soil metabolic
+activity.
+The net ecosystem exchange (NEE) rate of CO 2represents the balance of gross
+primary productivity and respiration in an ecosystem. The eddy covariance tech-nique is used to measure the NEE. The covariance between ﬂuctuations in verticalwind velocity and CO
+2mixing ratio across the interface between the atmosphere
+and a plant canopy is measured at a ﬂux tower (Baldocchi, 2003). Although ﬂuxtower data represent point measurements with a footprint of typically 1 /H110031 km they
+can be used to validate models and to spatialize biospheric ﬂuxes at the regional scale(Papale and Valentini, 2003).
+Soil organic matter decomposition in the ﬁeld can be examined by following
+the decay process (i.e., weight loss) of added litter. Site-speciﬁc litter or standardlitter (e.g., wheat straw) is placed in nylon mesh bags, which are placed on or justbelow the soil surface. Organic matter decomposition can also be followed easilyby using a minicontainer-system (Fig. 3.3). The system consists of polyvinylchlo-ride bars as carriers and minicontainers enclosing the straw material, which can beexposed horizontally or vertically in topsoils as well as on the soil surface. Theminicontainers are ﬁlled with 150 to 300 mg of organic substrate and closed bynylon mesh of variable sizes (20 µm, 250µm, 500µm, or 2 mm) to exclude or
+include the faunal contribution to organic matter decomposition. After an expo-sure time of several weeks to months, organic matter decomposition is calculatedbased on the weight loss of the oven-dried material, taking into consideration theash content of the substrate. An analysis of the time series allows the dynamics ofdecomposition processes to be investigated.Physiological Analyses 69Ch03-P546807.qxd  11/18/06  6:16 PM  Page 69
+70 Chapter 3 Physiological and Biochemical Methods605040302010Stopper
+Flexible side wall of the septumSilicone septum, side wall rolled upSilicone coiled tubeThree-way stopcock, closed
+Stainless steel tube
+(3.175 mm outer diameter)
+(A)
+(B)Steel tool with knife blade
+Horizontal cavity
+Soil air probe Probe in place and
+soil partly restored
+12 3
+FIGURE 3.2 (A) Sampling technique to monitor concentrations of CH 4, NO 2, and CO 2in air at
+well-deﬁned depths using a silicone soil air probe ﬁtted with one stainless steel tube connection. Theﬂat silicone coil is ﬁxed with wire mesh (not shown) to maintain the ﬂat “snail” form. The silicone sep-tum used for the steel tube connection has ﬂexible side walls that can be rolled up and pulled over thesilicone tubing to ensure better ﬁxing. (B) Insertion of silicone probe into the soil. After a hole of ade-quate size is dug (1), the silicone probe is inserted into the hole. After insertion the pit is ﬁlled with pre-viously removed soil. Silicone probes can be installed at different soil depths and can also be used inwet or even waterlogged soils (with permission from Kammann et al. , 2001).Ch03-P546807.qxd  11/18/06  6:16 PM  Page 70
+Physiological Analyses 71
+Ap
+(A)
+(C)
+(D) (E)(B)21mm360 mm or
+255 mm20 mm
+16.5
+∅=
+16 mm
+FIGURE 3.3 The decomposition of organic substrates can be estimated by exposing minicon-
+tainers ﬁlled with site-speciﬁc or standard material (e.g., maize straw) for a certain period of time (fromweeks to several months) (with permission from Eisenbeis et al. , 1999). (A) Minicontainer can be
+exposed in the top layers of agricultural soils (Ap, ploughed A horizon) and forest soils for severalweeks up to years. Vertical insertion of the bars will give information about gradients of decompositionwithin a soil proﬁle; horizontal exposure of the bars helps to explain spatial variation of decompositionwithin one horizon. (B) Polyvinylchloride bars are used as carriers for 6 or 12 minicontainers that canbe removed from the bar by a rod after exposure (C). (D) A minicontainer in side view, of which the leftend is closed with a gauze disc that is ﬁxed with a ring. The mesh size of the gauze will allow or inhibitthe colonization of organic substrates by mesofauna (20 µm, 250µm, 500µm, or 2 mm). (E)
+Minicontainers can be ﬁlled with organic material of different quality (straw, litter, cellulose, etc.).Ch03-P546807.qxd  11/18/06  6:16 PM  Page 71
+NITROGEN MINERALIZATION
+Nitrogen mineralization is estimated in ﬁeld or laboratory experiments as the
+release of inorganic N from organic residues of soil organic matter. Alternatively,speciﬁc steps of the N mineralization can be estimated (e.g., arginine deaminase,urease, ammonia monooxygenase). Nitrogen availability is measured using aero-bic and anaerobic incubation tests as well as soil inorganic N measurements. Therecommended methods differ in incubation time and temperature, moisture con-tent, and extraction of ammonium and nitrate. Frequently, soils are incubatedunder aerobic conditions and analyzed for ammonium, nitrite, and nitrate beforeand after incubation. Since ammonium is partly immobilized into the microbialbiomass during incubation, these incubation methods yield the net production ofammonium and nitrate. Isotope pool dilution techniques enable gross rates ofnitriﬁcation (or mineralization) to be determined by monitoring the decline in the
+15N abundance in a nitrate or ammonium pool, labeled at t/H110050, and receiving
+unlabeled nitrogen via nitriﬁcation or mineralization, respectively (Murphy et al.,
+2003). Labeled N can be applied as 15NH 4/H11001solution or injected as 15NH 3gas into
+soil. The use of 15N pool dilution and enrichment can also be used to separate the
+heterotrophic and autotrophic pathways of nitriﬁcation. An isotopic dilutionexperiment using 
+14NH 415NO 3yielded rates of nitriﬁcation by the combined auto-
+trophic and heterotrophic paths. A parallel isotope dilution experiment with
+15NH 415NO 3provided the gross mineralization rate and the size and 15N abundance
+of the nitrate pool at different time intervals. Spatial variability of the tracer additionand extraction must be taken into account in interpreting such data.
+ACTIVITIES AND LOCATIONS OF ENZYMES
+Enzymes are specialized proteins that combine with a speciﬁc substrate and act
+to catalyze a biochemical reaction. In soils, enzyme activities are essential forenergy transformation and nutrient cycling. The enzymes commonly extractedfrom soil, and their range of activities, are given in Table 3.7. Some enzymes (e.g.,urease) are constitutive and routinely produced by cells; others such as cellulaseare adaptive or induced, being formed only in the presence of a compatible sub-strate or some other initiator or in the absence of an inhibitor. Dehydrogenases areoften measured because they are found only in living systems. Enzymes associ-ated with proliferating cells occur in the c ytoplasm, the periplasm, and the cell
+membrane. Figure 3.4 shows that soil enzymes are not only associated with prolif-
+erating cells but also associated, as extracellular enzymes, with humic colloidsand clay minerals.
+Standardized methods for a broad range of enzymes are described by Tabatabai
+(1994), Alef and Nannipieri (1995), and Schinner et al. (1996). A general intro-
+duction to enzymes in the environment and their activity, ecology, and applica-tions is given by Burns and Dick (2002). This section will focus primarily on72 Chapter 3 Physiological and Biochemical MethodsCh03-P546807.qxd  11/18/06  6:16 PM  Page 72
+colorimetric and ﬂuorimetric techniques to measure enzyme activities in soils and
+on some approaches to visualize the location of soil enzymes. Since many of theenzymes that are frequently measured can be intracellular, extracellular, bound,and/or stabilized within their microhabitat, assay results must be interpreted withcaution. Therefore, most assays determine enzymatic potential and not necessar-ily the activity of proliferating microorganisms.
+SPECTROPHOTOMETRIC METHODS
+Many substrates and products of enzymatic reactions absorb light either in the
+visible or in the ultraviolet region of the spectrum or can be measured by a simplecolor reaction. Due to their higher sensitivity, methods based on the analysis of thereleased product are more frequently used than methods based on the analysis ofsubstrate depletion. Analyzing enzyme activities involves incubating soils withActivities and Locations of Enzymes 73
+TABLE 3.7 Some Enzymes Extracted from Soils, the Reactions They Catalyze, and Their
+Ranges of Activitya
+Enzyme Reaction Range of activity
+Cellulase Endohydrolysis of 1,4- β-glucosidic 0.4–80.0 µM glucose g–124 h–1
+linkages in cellulose, lichenin, and
+cereal β-glucose
+β-Fructofuranosidase Hydrolysis of terminal nonreducing 0.61–130 µM glucose g–1h–1
+(invertase) β-D-fructofuranoside residues in 
+β-fructofuranosides
+β-Glucosidase Hydrolysis of terminal, nonreducing 0.09–405 µM p-nitrophenol g–1h–1
+β-D-glucose residues with release
+of β-D-glucose
+Proteinase Hydrolysis of proteins to peptides 0.5–2.7 µM tyrosine g–1h–1
+and amino acids
+Urease Hydrolysis of urea to CO 2and NH 4/H110010.14–14.3µM N–NH 3g–1h–1
+Alkaline phosphatase Orthophosphoric monoester /H11001 6.76–27.3 µM p-nitrophenol g–1h–1
+H2O →an alcohol /H11001
+orthophosphate
+Acid phosphatase Orthophosphoric monoester /H11001 0.05–86.3 µM p-nitrophenol g–1h–1
+H2O →an alcohol /H11001
+orthophosphate
+Arylsulfatase A phenol sulfate /H11001H2O → 0.01–42.5 µM p-nitrophenol g–1h–1
+a phenol /H11001sulfate
+Catalase 2 H 2O2→O2/H110012H2O 61.2–73.9 µM O 2g–124 h–1
+aAdapted from Tabatabai and Fung (1992) and Nannipieri et al. (2002).Ch03-P546807.qxd  11/18/06  6:16 PM  Page 73
+Resting structure
+Living cellDead intact cell
+Dead disintegrated
+cell
+Clay-enzyme complex Humus-enzyme complexExtracellular enzymesEnzyme-substrate
+complex(v)
+(ii)
+(l)(i)
+(vii)SecretionGrowth/Div
+ision(iii)(vii)(vi)
+(vi)
+(vii)
+Clay minerals
+Adsorbed enzymesEntrapped enzymes(viii)
+(ix) (x)Humic acidsLiving cellsRelease(iv)LysisDeathLysis
+FIGURE 3.4 Locations of enzymes (from Burns, 1982, adapted by Klose, 2003). (i) Intracellular enzymes. (ii) Periplasmatic
+enzymes. (iii) Enzymes attached to outer surface of cell membranes. (iv) Enzymes released during cell growth and division. (v)Enzymes within nonproliferating cells (spores, cysts, seeds, endospores). (vi) Enzymes attached to dead cells and cell debris. (vii)
+Enzymes leaking from intact cells or released from lysed cells. (viii) Enzymes temporarily associated in enzyme– substrate comp lexes.
+(ix) Enzymes absorbed to surfaces of clay minerals. (x) Enzymes complexed with humic colloids. (Reproduced with permission fromTaylor & Francis Group, LLC.)Ch03-P546807.qxd  11/18/06  6:16 PM  Page 74
+the respective substrate at speciﬁc temperature, pH, and time; subsequently
+extracting the product; and then colorimetrically determining its concentration.
+Dehydrogenases, which are intracellular enzymes catalyzing oxidation–reduction
+reactions, can be detected using a water-soluble, almost colorless tetrazolium salt,which forms a reddish formazan product after an incubation period of severalhours. A commonly used tetrazolium salt is 2-( p-iodophenyl)-3-( p-nitrophenyl)-
+5-phenyltetrazolium chloride (INT), which is transformed into an intensely col-ored, water-insoluble formazan (INT-formazan). The production of INT-formazancan be detected spectrophotometrically by quantifying total INT-formazan produc-tion. Another enzyme assay system used to reﬂect general or total microbial activ-ity in soil samples is based on the hydrolysis of ﬂuorescein diacetate. Fluoresceindiacetate is hydrolyzed by a wide variety of enzymes including esterases, pro-teases, and lipases.
+Enzymes involved in C cycling (xylanase, cellulase, invertase, and trehalase)
+are measured based on the release of sugars after incubating soils with a bufferedsolution (pH 5.5) containing their corresponding substrates (xylan, carboxymethyl-cellulose, sucrose, or trehalose). The incubation period depends on the substrateused: high-molecular-weight substrates are incubated for 24 h, whereas low-
+molecular-weight substrates are incubated for only 1 to 3 h. Reducing sugarsreleased during the incubation period cause the reduction of potassium hexa-cyanoferrate(III) in an alkaline solution. Reduced potassium hexacyanofer rate(II)
+reacts with ferric ammonium sulfate in an acid solution to form a complex of ferric
+hexacyanoferrate(II) (Prussian blue), which is determined colorimetrically.
+Enzymes involved in P cycling (phosphomonoesterase, phosphodiesterase,
+phosphotriesterase) are preferably determined after the addition of a substrateanalog, p-nitrophenyl phosphate. Phosphomonoesterase hydrolyzes the phosphate–
+ester bond of the p-nitrophenyl phosphate, and the p-nitrophenol released is yellow
+under alkaline conditions. The concentration can be determined spectrophotomet-rically against a standard curve. For determining arylsulfatase, which catalyzesthe hydrolysis of organic sulfate esters, p-nitrophenyl sulfate is used as a substrate
+analog. The widespread use of p-nitrophenyl substrates for different enzyme
+assays is due to the possibility of quantitati vely extracting the released product p-
+nitrophenol. Urease is an important extracellular enzyme that hydrolyzes urea into
+CO
+2and NH 3. The urease assay involv es measuring the released ammonia either by
+a colorimetric procedure or by steam distillation followed by a titration assay ofammonia.
+FLUORESCENCE METHODS
+Fluorogenic substrates are used to assay extracellular enzymes in aquatic and
+terrestrial environments. These substrates contain an artiﬁcial ﬂuorescent mole-cule and one or more natural molecules (e.g., glucose, amino acids) and they arelinked by a speciﬁc binding (e.g., peptide binding, ester binding). The substratesused are conjugates of the highly ﬂuorescent compounds 4-methylumbelliferoneActivities and Locations of Enzymes 75Ch03-P546807.qxd  11/18/06  6:16 PM  Page 75
+(MUB) and 7-amino-4-methyl coumarin (AMC). Marx et al. (2001) used this
+method to measure the activities of enzymes involved in C cycling ( β-D-glucosidase,
+β-D-galactosidase, β-cellobiase, β-xylosidase), N cycling (leucine aminopeptidase,
+alanine aminopeptidase, lysine–alanine aminopeptidase), P cycling (acid phos-phatase), and S cycling (arylsulfatase). Fluorogenic model substrates are not toxicand they are supplied to soil suspensions in high or increasing quantities to meas-ure the maximum velocity of hydrolysis ( V
+max). Fluorescence is observed after
+enzymatic splitting of the complex molecules (Fig. 3.5). The increasing interest of
+soil microbiologists in the use of ﬂuorogenic substrates to measure soil enzymeactivities is mainly because of their high sensitivity. A comparative study betweena ﬂuorimetric and a standard colorimetric enzyme assay based on p-nitrophenyl
+substrates generated similar values for the maximum rate of phosphatase and β-
+glucosidase ( V
+max), but the afﬁnity for their respective substrates (as indicated by
+Kmvalues, Michaelis–Menten constant) was up to two orders of magnitude greater
+for the 4-methylumbelliferyl substrates compared to the p-nitrophenyl substrates
+(Marx et al. , 2001). This high sensitivity of ﬂuorimetric enzyme assays provides an76 Chapter 3 Physiological and Biochemical Methods
+OO
+O OCH3
+HOCH2
+HO
+HO NH CH3 C
+O
+4-MUF N-Acetyl- β-D-Glucosaminide
+4-MUF PhosphateO O OCH3
+HO PO
+OH4-MUF β-D-XylopyranosideOO O OCH3
+OH
+OHHOHO O OCH3
+MUF
+PhosphataseChitinase
+β-D-Xylosidase
+FIGURE 3.5 Enzyme assays using different nonﬂuorescent substrates and measuring highly
+ﬂuorescent products after a short-term incubation.Ch03-P546807.qxd  11/18/06  6:16 PM  Page 76
+opportunity to detect enzyme activities of small sample sizes (e.g., microaggre-
+gates and rhizosphere samples) and/or low activity (e.g., samples of subsoil, peat, and soil solutions). The development of an improved automated assay usinga 96-well microplate reader provides a convenient system for processing largenumbers of different samples; it also allows the activity rates to be measured for arange of enzymes in a number of soils with an appropriate number of replicates
+(Vepsäläinen et al. , 2001). Alternatively, a multiple-substrate approach is avail-
+able, which is based on the simultaneous measurement of seven enzyme activitiesestimated after incubation, separation of the nonhydrolyzed 4-MUF and 7-AMCsubstrates by HPLC, and quantiﬁcation by UV-absorption at 320 nm (Stemmer,2004).
+TECHNIQUES FOR IMAGING THE 
+LOCATION OF ENZYMES
+Thin-section techniques are combined with histochemical and imaging tech-
+niques to visualize the location of enzymes and their activities. Early papers byFoster et al. (1983) showed peroxidase, succinic dehydrogenase, and acid phos-
+phatase bound to roots, bacterial cell walls, and organic matter in soil by usingeither transmission electron microscopy or scanning electron microscopy. In thefuture, atomic force microscopy, which measures small-scale surface topographicalfeatures, will help us to understand enzyme–clay interactions. Confocal microscopyhas the potential to reconstruct the detailed three-dimensional distribution ofenzyme proteins in soils.
+Enzymatic properties of single cells have been screened in the aquatic environ-
+ment, bioﬁlms, and activated sludge by a new type of ﬂuorogenic compound, ELF-
+97 (Molecular Probes, Eugene, OR, USA), which is combined with sugar, aminoacid, fatty acid, or inorganic compounds such as sulfate or phosphate. This substrateis converted to a water-insoluble, crystalline, ﬂuorescent product at the site of enzy-matic h ydrolysis, thus reporting the location of active enzymes when viewed by
+ﬂuorescence microscopy. Kloeke and Geesey (1999) combined this technique witha 16S rRNA oligonucleotide probe speciﬁc for the Cytophaga–Flavobacteria group
+to prove the importance of these microorganisms in liberating inorganic orthophos-phate in discrete, bacteria-containing areas of the ﬂoc matrix in aerobic activated
+sludge (Fig. 3.6). Phosphatase activity was primarily localized in the immediatevicinity of the bacterial cells rather than dispersed throughout the ﬂoc or associatedwith rotifers (see Figs. 3.6A and 3.6B). These new substrates have the potential to beused for visualizing the location of enzyme activities in microenvironments in soil.
+FUNCTIONAL DIVERSITY
+Microbial diversity reﬂects the variation in species assemblages within a com-
+munity. A broader view of functional diversity has advanced our understanding ofFunctional Diversity 77Ch03-P546807.qxd  11/18/06  6:16 PM  Page 77
