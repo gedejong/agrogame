@@ -9,7 +9,7 @@ from io import StringIO
 import plotly.graph_objects as go
 import streamlit as st
 
-from agrogame.sim.orchestrator import FullSimulationOrchestrator
+from agrogame.sim import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather import load_weather
@@ -1160,6 +1160,14 @@ def _plot_vpd_stomatal(
 def main(argv: Optional[list[str]] = None) -> None:
     st.set_page_config(page_title="AgroGame Dashboard", layout="wide")
     st.title("AgroGame Dashboard")
+    # App readiness marker for e2e tests (present regardless of run state)
+    try:
+        st.markdown(
+            '<div id="agrogame-loaded" data-testid="agrogame-loaded">loaded</div>',
+            unsafe_allow_html=True,
+        )
+    except Exception:
+        pass
     cfg = _collect_sidebar_inputs()
     (
         weather_path,
@@ -1213,6 +1221,14 @@ def main(argv: Optional[list[str]] = None) -> None:
         except Exception as e:  # Show rendering errors in the UI
             st.error("Rendering failed.")
             st.exception(e)
+        # Deterministic readiness marker for e2e
+        try:
+            st.markdown(
+                '<div id="agrogame-ready" data-testid="agrogame-ready">ready</div>',
+                unsafe_allow_html=True,
+            )
+        except Exception:
+            pass
     else:
         st.info("Set parameters in the sidebar and click 'Run Simulation'.")
 
