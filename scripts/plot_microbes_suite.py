@@ -78,6 +78,18 @@ def main() -> None:
                 str(args.out_dir / "microbes_enzyme_depth.png"),
             ]
         )
+        # Depth heatmap: microbial activity
+        run_cmd(
+            [
+                "scripts/plot_microbes_activity_depth.py",
+                "--profile",
+                args.profile,
+                "--days",
+                str(args.days),
+                "--out",
+                str(args.out_dir / "microbes_activity_depth.png"),
+            ]
+        )
 
     print("Microbes visualization suite generated in", args.out_dir)
 
