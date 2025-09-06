@@ -20,6 +20,10 @@ from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained
+from agrogame.soil.microbes.events import (
+    MicrobialActivityComputed,
+    MicrobialFBUpdated,
+)
 
 from agrogame.soil.nitrogen.events import NutrientLeached
 
@@ -80,6 +84,11 @@ class PhosphorusCycle:
         # Cache per-layer pH from chemistry
         self._ph_by_layer_cached: list[float] = [6.8] * self._n_layers
         event_bus.subscribe(SoilPHUpdated, self._on_soil_ph_updated)
+        # Cache microbe signals
+        self._microbe_activity_by_layer: list[float] = [1.0] * self._n_layers
+        self._fungal_fraction_by_layer: list[float] = [0.4] * self._n_layers
+        event_bus.subscribe(MicrobialActivityComputed, self._on_microbe_activity)
+        event_bus.subscribe(MicrobialFBUpdated, self._on_microbe_fb)
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -110,6 +119,18 @@ class PhosphorusCycle:
     def _on_soil_ph_updated(self, event: SoilPHUpdated) -> None:
         if 0 <= event.layer < self._n_layers:
             self._ph_by_layer_cached[event.layer] = float(event.ph)
+
+    def _on_microbe_activity(self, event: MicrobialActivityComputed) -> None:
+        if 0 <= event.layer < self._n_layers:
+            self._microbe_activity_by_layer[event.layer] = max(
+                0.0, min(1.0, float(event.activity_index))
+            )
+
+    def _on_microbe_fb(self, event: MicrobialFBUpdated) -> None:
+        if 0 <= event.layer < self._n_layers:
+            self._fungal_fraction_by_layer[event.layer] = max(
+                0.0, min(1.0, float(event.fungal_fraction))
+            )
 
     # --- Daily update ---------------------------------------------------
     def daily_step(
@@ -201,7 +222,15 @@ class PhosphorusCycle:
         # 0.5–2% per month at 25°C → per day range ≈ (0.005/30 .. 0.02/30)
         base_daily = (0.005 / 30.0, 0.02 / 30.0)
         # Use mid value scaled by temp and moisture
-        rate = 0.5 * (base_daily[0] + base_daily[1]) * temp_factor * moisture_factor
+        # Microbial activity scales mineralization (dampening only)
+        activity = self._microbe_activity_by_layer[idx]
+        rate = (
+            0.5
+            * (base_daily[0] + base_daily[1])
+            * temp_factor
+            * moisture_factor
+            * activity
+        )
         om = self.state.organic_p[idx]
         m = max(0.0, min(om, om * rate))
         if m > 0.0:
@@ -238,8 +267,13 @@ class PhosphorusCycle:
         for i, want in enumerate(wants):
             if want <= 0.0:
                 continue
-            avail_eff = self.state.available_p[i] * self._ph_availability(
-                ph_by_layer[i]
+            # Fungi can enhance P acquisition via enzymes/mycorrhizae;
+            # apply modest boost with fungal share
+            fb_boost = 1.0 + 0.15 * self._fungal_fraction_by_layer[i]
+            avail_eff = (
+                self.state.available_p[i]
+                * self._ph_availability(ph_by_layer[i])
+                * fb_boost
             )
             take_p = min(avail_eff, want)
             self.state.available_p[i] -= take_p
