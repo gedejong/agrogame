@@ -20,6 +20,7 @@ from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.events import EvaporationTaken, TranspirationByLayer
+from agrogame.soil.microbes.events import EnzymeGroupTotals
 
 
 def _extend_weather_records(
@@ -145,6 +146,15 @@ def _new_history(profile: SoilProfile) -> Dict[str, Any]:
         "stomatal": [],
         "water_stress": [],
         "n_total_kgha": [],
+        # Microbes totals and proxies
+        "micro_c_total": [],
+        "micro_n_total": [],
+        "micro_fb_avg": [],
+        # Enzyme group totals (C cost per day)
+        "enzyme_cellulase_c": [],
+        "enzyme_protease_c": [],
+        "enzyme_phosphatase_c": [],
+        "enzyme_urease_c": [],
         # phenology thresholds (for progress bar)
         "thr_emergence": None,
         "thr_flowering": None,
@@ -185,6 +195,8 @@ def _run_simulation(
     # Subscribe to ET-related events to capture actual evaporation/transpiration
     daily_evap: float = 0.0
     daily_transp: float = 0.0
+    # Subscribe to microbes enzyme totals for the day
+    daily_enzyme_totals: Dict[str, float] = {}
 
     def _on_evap(ev: EvaporationTaken) -> None:
         nonlocal daily_evap
@@ -196,6 +208,10 @@ def _run_simulation(
 
     orch.event_bus.subscribe(EvaporationTaken, _on_evap)
     orch.event_bus.subscribe(TranspirationByLayer, _on_transp)
+    orch.event_bus.subscribe(
+        EnzymeGroupTotals,
+        lambda ev: daily_enzyme_totals.update(ev.totals_c_kg_ha_by_group),
+    )
 
     for i in range(min(days, len(records))):
         rec = records[i]
@@ -295,6 +311,31 @@ def _run_simulation(
         history["tmean_c"].append(tmean)
         # Aggregate N status proxy (total mineral N across layers)
         history["n_total_kgha"].append(sum(orch.n_state.no3) + sum(orch.n_state.nh4))
+        # Microbes: totals and average fungal fraction
+        try:
+            micro_c = sum(lc.c_kg_ha for lc in orch.microbes.state.layers)
+            micro_n = sum(lc.n_kg_ha for lc in orch.microbes.state.layers)
+            fb_avg = sum(lc.fungal_fraction for lc in orch.microbes.state.layers) / max(
+                1, len(orch.microbes.state.layers)
+            )
+        except Exception:
+            micro_c, micro_n, fb_avg = 0.0, 0.0, 0.4
+        history["micro_c_total"].append(micro_c)
+        history["micro_n_total"].append(micro_n)
+        history["micro_fb_avg"].append(fb_avg)
+
+        # Enzyme group totals (default 0)
+        enzyme_snapshot = dict(daily_enzyme_totals)
+        history["enzyme_cellulase_c"].append(
+            float(enzyme_snapshot.get("cellulase", 0.0))
+        )
+        history["enzyme_protease_c"].append(float(enzyme_snapshot.get("protease", 0.0)))
+        history["enzyme_phosphatase_c"].append(
+            float(enzyme_snapshot.get("phosphatase", 0.0))
+        )
+        history["enzyme_urease_c"].append(float(enzyme_snapshot.get("urease", 0.0)))
+        # reset daily enzyme totals for next loop
+        daily_enzyme_totals = {}
 
     return history, profile
 
@@ -411,6 +452,10 @@ def _render_all_tabs(
         with col2:
             st.subheader("Soil nitrogen by layer")
             _plot_nitrogen(history, profile, upto_idx=upto)
+        st.subheader("Microbial biomass (totals)")
+        _plot_microbes(history, upto_idx=upto)
+        st.subheader("Enzyme group totals (C cost)")
+        _plot_enzyme_groups(history, upto_idx=upto)
 
     with tab2:
         c1, c2 = st.columns(2)
@@ -828,6 +873,71 @@ def _plot_phenology(history: Mapping[str, Any], *, upto_idx: int | None = None) 
             frac = 1.0
     if frac is not None:
         st.progress(frac, text=f"Stage {last_stage}: {int(frac*100)}%")
+
+
+def _plot_microbes(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
+    x = (
+        history.get("day", [])
+        if upto_idx is None
+        else history.get("day", [])[:upto_idx]
+    )
+    mc = (
+        history.get("micro_c_total", [])
+        if upto_idx is None
+        else history.get("micro_c_total", [])[:upto_idx]
+    )
+    mn = (
+        history.get("micro_n_total", [])
+        if upto_idx is None
+        else history.get("micro_n_total", [])[:upto_idx]
+    )
+    fb = (
+        history.get("micro_fb_avg", [])
+        if upto_idx is None
+        else history.get("micro_fb_avg", [])[:upto_idx]
+    )
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(x=x, y=mc, mode="lines", name="Microbial C (kg/ha)", yaxis="y1")
+    )
+    fig.add_trace(
+        go.Scatter(x=x, y=mn, mode="lines", name="Microbial N (kg/ha)", yaxis="y1")
+    )
+    fig.add_trace(
+        go.Scatter(x=x, y=fb, mode="lines", name="Fungal fraction (-)", yaxis="y2")
+    )
+    fig.update_layout(
+        yaxis={"title": "C/N (kg/ha)", "side": "left"},
+        yaxis2={
+            "title": "Fungal fraction (-)",
+            "overlaying": "y",
+            "side": "right",
+            "rangemode": "tozero",
+        },
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def _plot_enzyme_groups(
+    history: Mapping[str, Any], *, upto_idx: int | None = None
+) -> None:
+    x = (
+        history.get("day", [])
+        if upto_idx is None
+        else history.get("day", [])[:upto_idx]
+    )
+    groups = [
+        ("Cellulase", history.get("enzyme_cellulase_c", [])),
+        ("Protease", history.get("enzyme_protease_c", [])),
+        ("Phosphatase", history.get("enzyme_phosphatase_c", [])),
+        ("Urease", history.get("enzyme_urease_c", [])),
+    ]
+    fig = go.Figure()
+    for name, data in groups:
+        series = data if upto_idx is None else data[:upto_idx]
+        fig.add_trace(go.Bar(x=x, y=series, name=name))
+    fig.update_layout(barmode="stack", yaxis_title="C cost (kg/ha·d)")
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def _plot_weather(history: Mapping[str, Any], *, upto_idx: int | None = None) -> None:
