@@ -34,3 +34,22 @@ class MicrobialSnapshot(BaseEvent):
 
     total_c_kg_ha: float
     total_n_kg_ha: float
+
+
+@dataclass(frozen=True)
+class MicrobialFBUpdated(BaseEvent):
+    """Fungal:bacterial fraction updated for a soil layer."""
+
+    layer: int
+    fungal_fraction: float
+
+
+@dataclass(frozen=True)
+class MicrobialActivityComputed(BaseEvent):
+    """Activity index computed for a soil layer given environment."""
+
+    layer: int
+    activity_index: float
+    wfps: float
+    ph: float
+    temperature_c: float

@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from agrogame.events import EventBus
-from .events import EnzymeProduced, MicrobialGrowth, MicrobialMortality
+from .events import (
+    EnzymeProduced,
+    MicrobialActivityComputed,
+    MicrobialFBUpdated,
+    MicrobialGrowth,
+    MicrobialMortality,
+)
 from .responses import EnvironmentalResponses
 
 
@@ -85,6 +91,16 @@ class MicrobialBiomassModule:
             moist_mod = self.responses.moisture_modifier(max(0.0, min(1.0, w)))
             ph_mod = self.responses.ph_modifier(p)
             activity = max(0.0, temp_mod * moist_mod * ph_mod)
+            # Emit activity index for intermodule listeners
+            self.event_bus.emit(
+                MicrobialActivityComputed(
+                    layer=idx,
+                    activity_index=activity,
+                    wfps=w,
+                    ph=p,
+                    temperature_c=temperature_c,
+                )
+            )
 
             # Dynamic F:B adjustment (fungi favored by moderate dryness, slight acidity)
             if self.params.fb_adjust_rate > 0.0:
@@ -96,6 +112,10 @@ class MicrobialBiomassModule:
                     target_fungal - layer.fungal_fraction
                 )
                 layer.fungal_fraction = max(0.05, min(0.95, layer.fungal_fraction))
+                # Emit FB update for interested modules (e.g., SOM pathways)
+                self.event_bus.emit(
+                    MicrobialFBUpdated(layer=idx, fungal_fraction=layer.fungal_fraction)
+                )
 
             # Turnover
             bacterial_fraction = 1.0 - layer.fungal_fraction
