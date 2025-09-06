@@ -2,6 +2,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import timedelta
 from typing import Optional, Any, Dict, Mapping, NamedTuple
+from dataclasses import dataclass, field
 import math
 import time
 from io import StringIO
@@ -106,6 +107,48 @@ def _compute_reference_et(
     return et0_pm, et0_pt, par, rn, tmean, vpd
 
 
+@dataclass
+class _DailyAggregation:
+    evap_mm: float = 0.0
+    transp_mm: float = 0.0
+    enzyme_totals: Dict[str, float] = field(default_factory=dict)
+
+
+def _subscribe_daily_aggregators(orch: FullSimulationOrchestrator) -> _DailyAggregation:
+    agg = _DailyAggregation()
+
+    def _on_evap(ev: EvaporationTaken) -> None:
+        agg.evap_mm += float(ev.amount_mm)
+
+    def _on_transp(ev: TranspirationByLayer) -> None:
+        total = float(getattr(ev, "total_mm", sum(ev.amounts_mm)))
+        agg.transp_mm += total
+
+    orch.event_bus.subscribe(EvaporationTaken, _on_evap)
+    orch.event_bus.subscribe(TranspirationByLayer, _on_transp)
+    orch.event_bus.subscribe(
+        EnzymeGroupTotals,
+        lambda ev: agg.enzyme_totals.update(ev.totals_c_kg_ha_by_group),
+    )
+    return agg
+
+
+def _calc_stress(
+    et_mod: Evapotranspiration,
+    *,
+    vpd: float,
+    lai: float,
+    transp_mm: float,
+    et0_mm: float,
+) -> tuple[float, float]:
+    comps = et_mod.potential_components_with_vpd(et0_mm=et0_mm, lai=lai, vpd_kpa=vpd)
+    demand = max(1e-6, comps.potential_transp_mm)
+    water_stress = max(0.05, min(1.0, transp_mm / demand))
+    vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
+    stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
+    return water_stress, stomatal
+
+
 # Removed legacy ET partition helper; actual ET is captured via events
 
 
@@ -173,6 +216,7 @@ def _run_simulation(
     soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
     orch, et_mod = _init_orchestrator(profile)
+    agg = _subscribe_daily_aggregators(orch)
 
     weather = load_weather(weather_file)
     records: list[WeatherRecord] = _extend_weather_records(list(weather.records), days)
@@ -192,26 +236,7 @@ def _run_simulation(
     except Exception:
         pass
 
-    # Subscribe to ET-related events to capture actual evaporation/transpiration
-    daily_evap: float = 0.0
-    daily_transp: float = 0.0
-    # Subscribe to microbes enzyme totals for the day
-    daily_enzyme_totals: Dict[str, float] = {}
-
-    def _on_evap(ev: EvaporationTaken) -> None:
-        nonlocal daily_evap
-        daily_evap += float(ev.amount_mm)
-
-    def _on_transp(ev: TranspirationByLayer) -> None:
-        nonlocal daily_transp
-        daily_transp += float(getattr(ev, "total_mm", sum(ev.amounts_mm)))
-
-    orch.event_bus.subscribe(EvaporationTaken, _on_evap)
-    orch.event_bus.subscribe(TranspirationByLayer, _on_transp)
-    orch.event_bus.subscribe(
-        EnzymeGroupTotals,
-        lambda ev: daily_enzyme_totals.update(ev.totals_c_kg_ha_by_group),
-    )
+    # Aggregation now handled by helper; keep code flatter for complexity
 
     for i in range(min(days, len(records))):
         rec = records[i]
@@ -225,8 +250,8 @@ def _run_simulation(
         history["et0_pt_mm"].append(et0_pt)
 
         # Reset daily ET counters and advance one day via Calendar/DayTick
-        daily_evap = 0.0
-        daily_transp = 0.0
+        agg.evap_mm = 0.0
+        agg.transp_mm = 0.0
         drivers = DailyDrivers(
             rainfall_mm=rain + irrigation,
             irrigation_mm=0.0,
@@ -240,15 +265,15 @@ def _run_simulation(
         )
 
         # Derive water stress and stomatal proxy
-        comps = et_mod.potential_components_with_vpd(
-            et0_mm=et0, lai=orch.canopy.state.lai, vpd_kpa=vpd
+        water_stress, stomatal = _calc_stress(
+            et_mod,
+            vpd=vpd,
+            lai=orch.canopy.state.lai,
+            transp_mm=agg.transp_mm,
+            et0_mm=et0,
         )
-        demand = max(1e-6, comps.potential_transp_mm)
-        water_stress = max(0.05, min(1.0, daily_transp / demand))
-        vpd_excess = max(0.0, vpd - et_mod.params.vpd_ref_kpa)
-        stomatal = max(0.2, 1.0 - et_mod.params.vpd_sensitivity * vpd_excess)
-        history["evap_mm"].append(float(daily_evap))
-        history["transp_mm"].append(float(daily_transp))
+        history["evap_mm"].append(float(agg.evap_mm))
+        history["transp_mm"].append(float(agg.transp_mm))
         history["water_stress"].append(water_stress)
         history["vpd_kpa"].append(vpd)
         history["stomatal"].append(stomatal)
@@ -325,7 +350,7 @@ def _run_simulation(
         history["micro_fb_avg"].append(fb_avg)
 
         # Enzyme group totals (default 0)
-        enzyme_snapshot = dict(daily_enzyme_totals)
+        enzyme_snapshot = dict(agg.enzyme_totals)
         history["enzyme_cellulase_c"].append(
             float(enzyme_snapshot.get("cellulase", 0.0))
         )
@@ -335,7 +360,7 @@ def _run_simulation(
         )
         history["enzyme_urease_c"].append(float(enzyme_snapshot.get("urease", 0.0)))
         # reset daily enzyme totals for next loop
-        daily_enzyme_totals = {}
+        agg.enzyme_totals = {}
 
     return history, profile
 
