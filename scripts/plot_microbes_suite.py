@@ -90,6 +90,18 @@ def main() -> None:
                 str(args.out_dir / "microbes_activity_depth.png"),
             ]
         )
+        # Diagnostics: WFPS, pH, substrate
+        run_cmd(
+            [
+                "scripts/plot_microbes_diagnostics.py",
+                "--profile",
+                args.profile,
+                "--days",
+                str(args.days),
+                "--out",
+                str(args.out_dir / "microbes_diagnostics.png"),
+            ]
+        )
 
     print("Microbes visualization suite generated in", args.out_dir)
 

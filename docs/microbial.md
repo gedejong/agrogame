@@ -1,18 +1,31 @@
-### Microbial biomass and enzyme activity (scaffold)
+### Microbial biomass and enzyme activity (AGRO-78)
 
-This introduces initial scaffolding for a microbial biomass module with enzyme production events. It currently:
+This module simulates microbial biomass dynamics with environmental controls and enzyme production, and exposes depth-resolved diagnostics for visualization and coupling with nutrient cycles.
 
-- Defines events `MicrobialGrowth`, `MicrobialMortality`, `EnzymeProduced`
-- Adds `MicrobialBiomassModule` with simple environmental response modifiers
-- Wires a `MicrobesRuntime` to run on the `nutrients` phase of the daily calendar
+- Events: `MicrobialGrowth`, `MicrobialMortality`, `EnzymeProduced`, `EnzymeGroupTotals`, `MicrobialActivityComputed`, `MicrobialFBUpdated`, `SubstrateAvailable`, `RhizospherePrimingPulse`.
+- Core: `MicrobialBiomassModule` integrates temperature, WFPS, and pH response modifiers via `EnvironmentalResponses` and computes growth/turnover per soil layer each day.
+- Kinetics: Monod substrate limitation is applied to growth, with an enzyme production cost fraction. A rhizosphere priming multiplier scales activity transiently.
+- Coupling: Nitrogen/Phosphorus cycles subscribe to `MicrobialActivityComputed` and `MicrobialFBUpdated` to modulate mineralization and nitrification/uptake.
+- Orchestration: `MicrobesRuntime` runs on the `nutrients` phase of the daily calendar and aggregates enzyme totals by group.
 
-Planned next steps (AGRO-78 acceptance criteria):
+#### Visualizations
 
-- Separate bacterial/fungal pools and validated turnover ranges
-- Michaelis–Menten kinetics for enzyme-mediated decomposition
-- Temperature–moisture–pH response surfaces (AGRO-70)
-- Coupling to SOM substrate supply and N cycling
+- Timeseries: total microbial C/N and enzyme group costs.
+- Depth heatmaps: microbial C, N, fungal vs. bacterial split, enzyme cost, and activity index.
+- Dashboard: interactive plot tabs for biomass, enzyme costs, and activity by layer.
 
-See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md)
+To reproduce images:
 
+```bash
+poetry run python scripts/plot_microbes_suite.py --profile loam_temperate --days 120 --out-dir out
+poetry run python scripts/plot_full_integration.py --profile loam_temperate --days 120 --out out/full_integration.png
+```
+
+#### Interpretation
+
+- Activity rises with favorable temperature, intermediate WFPS, and near-neutral pH; depth gradients arise from water and chemistry profiles.
+- Higher substrate availability and quality (via `SubstrateAvailable`) increases growth through Monod response; enzyme costs reduce net growth.
+- Rhizosphere priming pulses (`RhizospherePrimingPulse`) transiently amplify activity and growth near active root layers.
+
+See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md), and extracted notes under [Soil Microbiology](mdc:docs/soil-microbiology/index.md).
 
