@@ -8,6 +8,7 @@ from .orchestrator import (
 )
 from .calendar import Calendar
 from .calendar_events import DayTick
+from .engine import SimulationEngine
 
 __all__ = [
     "SimulationOrchestrator",
@@ -16,4 +17,5 @@ __all__ = [
     "build_full_orchestrator",
     "Calendar",
     "DayTick",
+    "SimulationEngine",
 ]
