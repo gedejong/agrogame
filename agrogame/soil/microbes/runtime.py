@@ -10,6 +10,7 @@ from .events import (
     MicrobialSnapshot,
     SubstrateAvailable,
     RhizospherePrimingPulse,
+    EnzymeProduced,
 )
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.models import SoilProfile
@@ -35,6 +36,8 @@ class MicrobesRuntime:
         self._root_fractions: list[float] | None = None
         self._root_fractions_smoothed: list[float] | None = None
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
+        # Subscribe to enzyme production events for daily aggregation
+        self.event_bus.subscribe(EnzymeProduced, self._on_enzyme_produced)
 
     def _on_root_distribution(self, ev: RootDistributionUpdated) -> None:
         fracs = [max(0.0, f) for f in ev.fractions]
@@ -50,6 +53,8 @@ class MicrobesRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":
             return
+        # reset daily totals at the start of nutrients phase
+        self._daily_enzyme_totals = {}
         temperature = self._compute_temperature(ev)
         wfps_by_layer = self._compute_wfps_by_layer()
         ph_by_layer = self._compute_ph_by_layer(ev)
@@ -119,31 +124,17 @@ class MicrobesRuntime:
     def _run_microbes_step(
         self, temperature: float, wfps_by_layer: list[float], ph_by_layer: list[float]
     ) -> None:
-        self._daily_enzyme_totals = {}
-        original_emit = self.event_bus.emit
+        self.microbes.daily_step_layers(
+            temperature_c=temperature,
+            wfps_by_layer=wfps_by_layer,
+            ph_by_layer=ph_by_layer,
+        )
 
-        def _emit_wrapped(event: object) -> None:
-            try:
-                from .events import EnzymeProduced
-
-                if isinstance(event, EnzymeProduced):
-                    grp = event.enzyme_group
-                    self._daily_enzyme_totals[grp] = self._daily_enzyme_totals.get(
-                        grp, 0.0
-                    ) + float(event.production_cost_c_kg_ha)
-            except Exception:
-                pass
-            original_emit(event)
-
-        self.event_bus.emit = _emit_wrapped  # type: ignore[method-assign]
-        try:
-            self.microbes.daily_step_layers(
-                temperature_c=temperature,
-                wfps_by_layer=wfps_by_layer,
-                ph_by_layer=ph_by_layer,
-            )
-        finally:
-            self.event_bus.emit = original_emit  # type: ignore[method-assign]
+    def _on_enzyme_produced(self, ev: EnzymeProduced) -> None:
+        grp = ev.enzyme_group
+        self._daily_enzyme_totals[grp] = self._daily_enzyme_totals.get(
+            grp, 0.0
+        ) + float(ev.production_cost_c_kg_ha)
 
     def _emit_snapshot_and_totals(self) -> None:
         total_c = sum(layer.c_kg_ha for layer in self.microbes.state.layers)
