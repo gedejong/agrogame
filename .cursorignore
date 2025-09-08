@@ -1,0 +1,16 @@
+# Ignore heavy or irrelevant directories for AI context
+site/
+.cache/
+.hypothesis/
+.import_linter_cache/
+.mypy_cache/
+.playwright-mcp/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+__pycache__/
+dist/
+build/
+.eggs/
+.venv/
+.env

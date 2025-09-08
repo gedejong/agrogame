@@ -30,6 +30,7 @@ from agrogame.soil.phenology.runtime import PhenologyRuntime
 from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
+from agrogame.soil.som.runtime import SimpleSOMRuntime
 
 
 class SimulationOrchestrator:
@@ -182,6 +183,8 @@ class FullSimulationOrchestrator:
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
+        # Temporary SOM runtime to emit substrate/priming until AGRO-71 is available
+        _ = SimpleSOMRuntime(self.event_bus, self.profile, self.water_state, self.chem)
         _ = MicrobesRuntime(
             self.event_bus,
             self.microbes,
