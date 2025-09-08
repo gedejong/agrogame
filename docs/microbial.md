@@ -34,3 +34,13 @@ poetry run python scripts/plot_full_integration.py --profile loam_temperate --da
 
 See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md), and extracted notes under [Soil Microbiology](mdc:docs/soil-microbiology/index.md).
 
+
+## Calibration notes (AGRO-80)
+
+The environmental response functions (temperature, moisture as WFPS, pH) are currently modeled as bounded triangular modifiers with optima near typical literature values: temperature ≈ 30°C, WFPS ≈ 0.6, pH ≈ 6.8. Unit tests verify bounds, optima, and monotonic segments to guard against regressions. A Q10-based temperature option may be added and compared in a future iteration; for now the triangular form offers transparency and ease of calibration.
+
+References
+- Davidson, E. A., Janssens, I. A. (2006). Temperature sensitivity of soil carbon decomposition and feedbacks to climate change.
+- Allison, S. D., Vitousek, P. M. (2005). Responses of soil microorganisms to moisture and temperature.
+- Sinsabaugh, R. L. (2010). Phenol oxidase, peroxidase and organic matter dynamics of soil.
+

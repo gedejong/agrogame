@@ -16,23 +16,27 @@ class EnvironmentalResponses:
     """
 
     # Temperature triangular response (normalized 0..1)
-    t_min_c: float = 0.0
-    t_opt_c: float = 30.0
-    t_max_c: float = 45.0
+    temp_min_c: float = 0.0
+    temp_opt_c: float = 30.0
+    temp_max_c: float = 45.0
     # Moisture optimum (WFPS fraction 0..1)
     moisture_opt_wfps: float = 0.6
     # pH response parameters
-    ph_optimum: float = 6.8
+    ph_opt: float = 6.8
     ph_width: float = 1.5
 
     def temperature_modifier(self, temperature_c: float) -> float:
-        # Piecewise linear peak at t_opt_c; 0 outside [t_min_c, t_max_c]
+        # Piecewise linear peak at temp_opt_c; 0 outside [temp_min_c, temp_max_c]
         t = float(temperature_c)
-        if t <= self.t_min_c or t >= self.t_max_c:
+        if t <= self.temp_min_c or t >= self.temp_max_c:
             return 0.0
-        if t <= self.t_opt_c:
-            return float((t - self.t_min_c) / max(1e-6, (self.t_opt_c - self.t_min_c)))
-        return float((self.t_max_c - t) / max(1e-6, (self.t_max_c - self.t_opt_c)))
+        if t <= self.temp_opt_c:
+            return float(
+                (t - self.temp_min_c) / max(1e-6, (self.temp_opt_c - self.temp_min_c))
+            )
+        return float(
+            (self.temp_max_c - t) / max(1e-6, (self.temp_max_c - self.temp_opt_c))
+        )
 
     def moisture_modifier(self, wfps: float) -> float:
         # Triangular response with optimum at moisture_opt_wfps
@@ -48,8 +52,8 @@ class EnvironmentalResponses:
         )
 
     def ph_modifier(self, ph: float) -> float:
-        # Triangular peak at ph_optimum with full width ph_width (0 at edges)
-        diff = abs(float(ph) - self.ph_optimum)
+        # Triangular peak at ph_opt with full width ph_width (0 at edges)
+        diff = abs(float(ph) - self.ph_opt)
         if diff >= self.ph_width:
             return 0.0
         return float(1.0 - diff / max(1e-6, self.ph_width))
