@@ -200,7 +200,7 @@ class SimulationEngine:
             rain = rec.precip_mm or 0.0
             irrigation = self._irrigation_for_day(self.current_day)
             drivers = DailyDrivers(
-                rainfall_mm=rain + irrigation, irrigation_mm=0.0, evaporation_mm=0.0
+                rainfall_mm=rain, irrigation_mm=irrigation, evaporation_mm=0.0
             )
             par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
             self.orchestrator.step_day(
