@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from time import perf_counter
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, cast
 
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.types import DailyDrivers
@@ -168,9 +168,8 @@ class SimulationEngine:
         self.current_day = int(state.get("current_day", 0))
         self.is_running = bool(state.get("is_running", False))
         self.days_per_step = int(state.get("days_per_step", 1))
-        self.scheduler = EventScheduler.from_snapshot(
-            state.get("scheduler", {})  # type: ignore[arg-type]
-        )
+        snap = cast(Dict[int, List[Tuple[str, float, int]]], state.get("scheduler", {}))
+        self.scheduler = EventScheduler.from_snapshot(snap)
 
     # --- Main loop ---------------------------------------------------
     def run_season(self) -> SeasonResults:
