@@ -50,6 +50,18 @@ def test_cli_engine_subcommand_runs(monkeypatch, capsys) -> None:
     assert "Days processed" in out
 
 
+def test_benchmarks_mode_min_cov() -> None:
+    # Lightweight smoke to include engine path in bench profile
+    from agrogame.sim.engine import SimulationEngine
+    from agrogame.soil.loader import load_soil_presets
+
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    eng = SimulationEngine(lib.soils["loam_temperate"], Path("data/weather/sample.csv"))
+    # Run a single step to exercise code paths covered in bench job
+    eng.set_speed(1)
+    eng.advance_day()
+
+
 def test_cli_run_subcommand_runs(monkeypatch) -> None:
     from agrogame.cli import main
     import sys
