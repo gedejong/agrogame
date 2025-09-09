@@ -35,16 +35,29 @@ class ETRuntime:
         if ev.phase != "et":
             return
         # Compute ET0 and actual ET using current canopy LAI and root fractions
-        # We approximate root fractions from roots_state if available
+        # Use DayTick weather (tmin/tmax, PAR) when available to avoid constants
         root_fracs = (
             self.roots_state.layer_fractions
             if self.roots_state.layer_fractions
             else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
         )
-        # Derive mean temp if weather module placed it in DayTick in future;
-        # fallback 18C
+        # Derive mean temperature and net radiation from event payloads when possible
         temp_mean = 18.0
-        et0 = self.et.priestley_taylor(temp_mean_c=temp_mean, net_radiation_mj_m2=12.0)
+        if ev.tmin_c is not None and ev.tmax_c is not None:
+            try:
+                temp_mean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
+            except Exception:
+                temp_mean = 18.0
+        # Convert PAR to net radiation using typical conversion if provided
+        net_radiation = 12.0
+        if ev.par_mj_m2 is not None:
+            try:
+                net_radiation = float(ev.par_mj_m2) / 0.48
+            except Exception:
+                net_radiation = 12.0
+        et0 = self.et.priestley_taylor(
+            temp_mean_c=temp_mean, net_radiation_mj_m2=net_radiation
+        )
         comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
         _ = self.et.actual_et(
             cast(ETWaterProfile, self.profile),

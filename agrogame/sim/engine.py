@@ -155,6 +155,16 @@ class SimulationEngine:
             )
         )
 
+    def schedule_harvest(self, day_index: int) -> None:
+        self.scheduler.schedule(
+            ScheduledAction(
+                day_index=day_index,
+                action=ActionType.HARVEST,
+                amount=0.0,
+                layer=0,
+            )
+        )
+
     # --- Persistence -------------------------------------------------
     def checkpoint(self) -> dict:
         return {
@@ -202,7 +212,8 @@ class SimulationEngine:
             drivers = DailyDrivers(
                 rainfall_mm=rain, irrigation_mm=irrigation, evaporation_mm=0.0
             )
-            par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+            # Prefer net radiation when available; convert to PAR using ~0.48
+            par = (rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0) * 0.48
             self.orchestrator.step_day(
                 drivers=drivers,
                 tmin_c=rec.tmin_c,
@@ -247,9 +258,14 @@ class SimulationEngine:
             )
             return
         if action.action is ActionType.HARVEST:
-            # Early stop: set current_day to max and pause engine
-            self.current_day = max(self.current_day, self.max_days)
-            self.pause()
+            # Emit a harvest event to cause canopy LAI (and biomass) drop
+            try:
+                from agrogame.soil.canopy.events import Harvested  # local import
+
+                self.orchestrator.event_bus.emit(Harvested(fraction_remaining=0.1))
+            except Exception:
+                pass
+            # Do not force-stop; allow post-harvest days to be simulated
 
     def _irrigation_for_day(self, day_index: int) -> float:
         total = 0.0

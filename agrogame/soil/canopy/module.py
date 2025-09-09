@@ -8,7 +8,7 @@ from agrogame.plant.stress import compute_water_stress
 
 from .params import CanopyParams
 from .types import CanopyState, CanopyFluxes
-from .events import LightIntercepted, BiomassAccumulated, LAIUpdated
+from .events import LightIntercepted, BiomassAccumulated, LAIUpdated, Harvested
 
 
 class CanopyModule:
@@ -33,6 +33,7 @@ class CanopyModule:
 
         if self.event_bus is not None:
             self.event_bus.subscribe(StageChanged, self._on_stage_changed)
+            self.event_bus.subscribe(Harvested, self._on_harvest)
 
         # Stage modifiers (simple): adjust senescence after flowering
         self._senescence_multiplier = 1.0
@@ -80,6 +81,16 @@ class CanopyModule:
         return CanopyFluxes(
             intercepted_par_mj_m2=intercepted, biomass_increment_g_m2=0.0
         )
+
+    def _on_harvest(self, ev: Harvested) -> None:
+        frac = max(0.0, min(1.0, float(ev.fraction_remaining)))
+        prev_lai = self.state.lai
+        self.state.lai *= frac
+        self.state.biomass_g_m2 *= frac
+        if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
+            self.event_bus.emit(
+                LAIUpdated(previous_lai=prev_lai, new_lai=self.state.lai)
+            )
 
     def calculate_biomass_growth(
         self,

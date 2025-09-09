@@ -35,3 +35,13 @@ class CanopyEvaporated(BaseEvent):
     """Water evaporated from the canopy store (mm)."""
 
     amount_mm: float
+
+
+@dataclass(frozen=True)
+class Harvested(BaseEvent):
+    """Harvest applied to the canopy.
+
+    fraction_remaining: Fraction of LAI (and optionally biomass) left after harvest.
+    """
+
+    fraction_remaining: float = 0.1
