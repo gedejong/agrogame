@@ -1,0 +1,296 @@
+soils:
+  sandy_arid:
+    name: "Sandy Soil - Arid Region"
+    layers:
+      - depth_cm: 20
+        texture: sand
+        field_capacity: 0.10
+        wilting_point: 0.04
+        saturation: 0.35
+        bulk_density_g_cm3: 1.65
+        ksat_mm_per_hour: 50.0
+        organic_matter_pct: 0.5
+        initial_no3_kg_ha: 5.0
+        initial_nh4_kg_ha: 2.0
+        initial_p_kg_ha: 10.0
+      - depth_cm: 40
+        texture: sand
+        field_capacity: 0.10
+        wilting_point: 0.04
+        saturation: 0.35
+        bulk_density_g_cm3: 1.65
+        ksat_mm_per_hour: 45.0
+        organic_matter_pct: 0.3
+        initial_no3_kg_ha: 3.0
+        initial_nh4_kg_ha: 1.0
+        initial_p_kg_ha: 6.0
+      - depth_cm: 50
+        texture: sand
+        field_capacity: 0.09
+        wilting_point: 0.04
+        saturation: 0.34
+        bulk_density_g_cm3: 1.70
+        ksat_mm_per_hour: 40.0
+        organic_matter_pct: 0.2
+        initial_no3_kg_ha: 2.0
+        initial_nh4_kg_ha: 0.8
+        initial_p_kg_ha: 5.0
+
+  loam_temperate:
+    name: "Loam - Temperate"
+    layers:
+      - depth_cm: 25
+        texture: loam
+        field_capacity: 0.25
+        wilting_point: 0.12
+        saturation: 0.45
+        bulk_density_g_cm3: 1.45
+        ksat_mm_per_hour: 15.0
+        organic_matter_pct: 2.0
+        initial_no3_kg_ha: 10.0
+        initial_nh4_kg_ha: 4.0
+        initial_p_kg_ha: 20.0
+      - depth_cm: 35
+        texture: loam
+        field_capacity: 0.24
+        wilting_point: 0.12
+        saturation: 0.44
+        bulk_density_g_cm3: 1.50
+        ksat_mm_per_hour: 12.0
+        organic_matter_pct: 1.5
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 12.0
+      - depth_cm: 40
+        texture: loam
+        field_capacity: 0.22
+        wilting_point: 0.11
+        saturation: 0.42
+        bulk_density_g_cm3: 1.55
+        ksat_mm_per_hour: 10.0
+        organic_matter_pct: 1.0
+        initial_no3_kg_ha: 5.0
+        initial_nh4_kg_ha: 2.0
+        initial_p_kg_ha: 10.0
+
+  clay_temperate:
+    name: "Clay - Temperate"
+    layers:
+      - depth_cm: 30
+        texture: clay
+        field_capacity: 0.36
+        wilting_point: 0.20
+        saturation: 0.55
+        bulk_density_g_cm3: 1.35
+        ksat_mm_per_hour: 4.0
+        organic_matter_pct: 3.0
+        initial_no3_kg_ha: 12.0
+        initial_nh4_kg_ha: 5.0
+        initial_p_kg_ha: 22.0
+      - depth_cm: 35
+        texture: clay
+        field_capacity: 0.35
+        wilting_point: 0.19
+        saturation: 0.54
+        bulk_density_g_cm3: 1.40
+        ksat_mm_per_hour: 3.0
+        organic_matter_pct: 2.2
+        initial_no3_kg_ha: 8.0
+        initial_nh4_kg_ha: 3.0
+        initial_p_kg_ha: 15.0
+      - depth_cm: 40
+        texture: clay
+        field_capacity: 0.34
+        wilting_point: 0.18
+        saturation: 0.53
+        bulk_density_g_cm3: 1.45
+        ksat_mm_per_hour: 2.0
+        organic_matter_pct: 1.5
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 12.0
+
+  clay_netherlands:
+    name: "Clay - Netherlands"
+    layers:
+      - depth_cm: 30
+        texture: clay
+        field_capacity: 0.37
+        wilting_point: 0.21
+        saturation: 0.56
+        bulk_density_g_cm3: 1.33
+        ksat_mm_per_hour: 5.0
+        organic_matter_pct: 3.5
+        initial_no3_kg_ha: 14.0
+        initial_nh4_kg_ha: 5.0
+        initial_p_kg_ha: 24.0
+      - depth_cm: 35
+        texture: clay
+        field_capacity: 0.35
+        wilting_point: 0.19
+        saturation: 0.54
+        bulk_density_g_cm3: 1.38
+        ksat_mm_per_hour: 3.5
+        organic_matter_pct: 2.5
+        initial_no3_kg_ha: 9.0
+        initial_nh4_kg_ha: 3.5
+        initial_p_kg_ha: 16.0
+      - depth_cm: 40
+        texture: clay
+        field_capacity: 0.33
+        wilting_point: 0.18
+        saturation: 0.52
+        bulk_density_g_cm3: 1.45
+        ksat_mm_per_hour: 2.5
+        organic_matter_pct: 1.8
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 12.0
+
+  sandy_loam_temperate:
+    name: "Sandy Loam - Temperate"
+    layers:
+      - depth_cm: 25
+        texture: sandy_loam
+        field_capacity: 0.20
+        wilting_point: 0.09
+        saturation: 0.42
+        bulk_density_g_cm3: 1.55
+        ksat_mm_per_hour: 22.0
+        organic_matter_pct: 1.6
+        initial_no3_kg_ha: 9.0
+        initial_nh4_kg_ha: 3.0
+        initial_p_kg_ha: 18.0
+      - depth_cm: 35
+        texture: sandy_loam
+        field_capacity: 0.19
+        wilting_point: 0.09
+        saturation: 0.40
+        bulk_density_g_cm3: 1.60
+        ksat_mm_per_hour: 18.0
+        organic_matter_pct: 1.2
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.0
+        initial_p_kg_ha: 12.0
+      - depth_cm: 40
+        texture: sandy_loam
+        field_capacity: 0.18
+        wilting_point: 0.08
+        saturation: 0.39
+        bulk_density_g_cm3: 1.62
+        ksat_mm_per_hour: 15.0
+        organic_matter_pct: 0.9
+        initial_no3_kg_ha: 4.0
+        initial_nh4_kg_ha: 1.5
+        initial_p_kg_ha: 9.0
+
+  clay_loam_temperate:
+    name: "Clay Loam - Temperate"
+    layers:
+      - depth_cm: 25
+        texture: clay_loam
+        field_capacity: 0.30
+        wilting_point: 0.16
+        saturation: 0.50
+        bulk_density_g_cm3: 1.40
+        ksat_mm_per_hour: 8.0
+        organic_matter_pct: 2.5
+        initial_no3_kg_ha: 11.0
+        initial_nh4_kg_ha: 4.0
+        initial_p_kg_ha: 20.0
+      - depth_cm: 35
+        texture: clay_loam
+        field_capacity: 0.29
+        wilting_point: 0.15
+        saturation: 0.49
+        bulk_density_g_cm3: 1.43
+        ksat_mm_per_hour: 6.0
+        organic_matter_pct: 1.8
+        initial_no3_kg_ha: 8.0
+        initial_nh4_kg_ha: 3.0
+        initial_p_kg_ha: 14.0
+      - depth_cm: 40
+        texture: clay_loam
+        field_capacity: 0.28
+        wilting_point: 0.14
+        saturation: 0.48
+        bulk_density_g_cm3: 1.46
+        ksat_mm_per_hour: 5.0
+        organic_matter_pct: 1.2
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 11.0
+
+  peat_cool_wet:
+    name: "Peat - Cool Wet"
+    layers:
+      - depth_cm: 30
+        texture: peat
+        field_capacity: 0.55
+        wilting_point: 0.30
+        saturation: 0.80
+        bulk_density_g_cm3: 0.35
+        ksat_mm_per_hour: 12.0
+        organic_matter_pct: 40.0
+        initial_no3_kg_ha: 6.0
+        initial_nh4_kg_ha: 3.0
+        initial_p_kg_ha: 8.0
+      - depth_cm: 35
+        texture: peat
+        field_capacity: 0.52
+        wilting_point: 0.28
+        saturation: 0.78
+        bulk_density_g_cm3: 0.38
+        ksat_mm_per_hour: 10.0
+        organic_matter_pct: 35.0
+        initial_no3_kg_ha: 5.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 7.0
+      - depth_cm: 40
+        texture: peat
+        field_capacity: 0.50
+        wilting_point: 0.26
+        saturation: 0.76
+        bulk_density_g_cm3: 0.40
+        ksat_mm_per_hour: 9.0
+        organic_matter_pct: 30.0
+        initial_no3_kg_ha: 4.0
+        initial_nh4_kg_ha: 2.0
+        initial_p_kg_ha: 6.0
+
+  sandy_subsaharan:
+    name: "Sandy - Sub-Saharan Variant"
+    layers:
+      - depth_cm: 20
+        texture: sand
+        field_capacity: 0.09
+        wilting_point: 0.03
+        saturation: 0.34
+        bulk_density_g_cm3: 1.68
+        ksat_mm_per_hour: 55.0
+        organic_matter_pct: 0.3
+        initial_no3_kg_ha: 3.0
+        initial_nh4_kg_ha: 1.0
+        initial_p_kg_ha: 6.0
+      - depth_cm: 40
+        texture: sand
+        field_capacity: 0.09
+        wilting_point: 0.03
+        saturation: 0.34
+        bulk_density_g_cm3: 1.70
+        ksat_mm_per_hour: 48.0
+        organic_matter_pct: 0.2
+        initial_no3_kg_ha: 2.0
+        initial_nh4_kg_ha: 0.8
+        initial_p_kg_ha: 4.0
+      - depth_cm: 50
+        texture: sand
+        field_capacity: 0.08
+        wilting_point: 0.03
+        saturation: 0.33
+        bulk_density_g_cm3: 1.72
+        ksat_mm_per_hour: 42.0
+        organic_matter_pct: 0.1
+        initial_no3_kg_ha: 1.0
+        initial_nh4_kg_ha: 0.5
+        initial_p_kg_ha: 3.0

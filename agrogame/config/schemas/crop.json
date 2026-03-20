@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crop.json",
+  "title": "Crop Parameter Library",
+  "type": "object",
+  "required": ["crops"],
+  "properties": {
+    "crops": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/cropParameters"
+      }
+    }
+  },
+  "definitions": {
+    "cropParameters": {
+      "type": "object",
+      "required": ["name", "thermal_time", "roots", "biomass"],
+      "properties": {
+        "name": { "type": "string" },
+        "thermal_time": {
+          "type": "object",
+          "required": ["base_temp_c", "emergence_dd", "flowering_dd", "maturity_dd"],
+          "properties": {
+            "base_temp_c": { "type": "number", "minimum": 0, "maximum": 15 },
+            "emergence_dd": { "$ref": "common.json#/definitions/positiveFloat" },
+            "flowering_dd": { "$ref": "common.json#/definitions/positiveFloat" },
+            "maturity_dd": { "$ref": "common.json#/definitions/positiveFloat" }
+          },
+          "additionalProperties": true
+        },
+        "roots": {
+          "type": "object",
+          "required": ["max_depth_cm", "growth_rate_cm_per_day", "distribution"],
+          "properties": {
+            "max_depth_cm": { "$ref": "common.json#/definitions/positiveFloat" },
+            "growth_rate_cm_per_day": { "$ref": "common.json#/definitions/positiveFloat" },
+            "distribution": {
+              "type": "array",
+              "minItems": 3,
+              "items": { "type": "number", "minimum": 0 }
+            }
+          }
+        },
+        "biomass": {
+          "type": "object",
+          "required": ["rue_g_per_mj", "harvest_index", "partition_vegetative", "partition_reproductive"],
+          "properties": {
+            "rue_g_per_mj": { "$ref": "common.json#/definitions/positiveFloat" },
+            "harvest_index": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+            "partition_vegetative": {
+              "type": "object",
+              "additionalProperties": { "type": "number", "minimum": 0 }
+            },
+            "partition_reproductive": {
+              "type": "object",
+              "additionalProperties": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+

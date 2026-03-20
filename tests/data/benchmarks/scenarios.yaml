@@ -1,0 +1,76 @@
+maize_iowa:
+  crop: maize
+  lat: 41.878
+  lon: -93.097
+  start: 2020-04-01
+  end: 2020-10-15
+  rue_g_per_mj: 2.6
+  harvest_index: 0.50
+  planting_lai: 0.0
+  soil_id: loam_temperate
+  expected_yield_t_ha: 11.5
+  yield_tol_t_ha: 6.0
+  phenology:
+    flowering_gdd_min: 800
+    flowering_gdd_max: 1100
+    maturity_gdd_min: 1600
+  wue:
+    min: 1.0
+    max: 12.0
+  n_uptake_kg_ha:
+    min: 0
+    max: 250
+  series_metrics:
+    r2_min: 0.3
+    nse_min: -0.3
+wheat_kansas:
+  crop: wheat
+  lat: 39.0119
+  lon: -98.4842
+  start: 2020-10-01
+  end: 2021-07-01
+  rue_g_per_mj: 1.4
+  harvest_index: 0.38
+  planting_lai: 0.0
+  soil_id: sandy_loam_temperate
+  vernalization_required_units: 45.0
+  expected_yield_t_ha: 4.2
+  yield_tol_t_ha: 2.0
+  phenology:
+    flowering_gdd_min: 700
+    flowering_gdd_max: 1100
+    maturity_gdd_min: 1500
+  wue:
+    min: 0.8
+    max: 10.0
+  n_uptake_kg_ha:
+    min: 0
+    max: 220
+  series_metrics:
+    r2_min: 0.25
+    nse_min: -0.4
+maize_kenya_drought:
+  crop: maize
+  lat: -1.286389
+  lon: 36.817223
+  start: 2019-03-01
+  end: 2019-09-01
+  rue_g_per_mj: 2.7
+  harvest_index: 0.55
+  planting_lai: 0.0
+  soil_id: sandy_arid
+  expected_yield_t_ha: 3.5
+  yield_tol_t_ha: 1.5
+  phenology:
+    flowering_gdd_min: 800
+    flowering_gdd_max: 1100
+    maturity_gdd_min: 1600
+  wue:
+    min: 0.5
+    max: 8.0
+  n_uptake_kg_ha:
+    min: 0
+    max: 180
+  series_metrics:
+    r2_min: 0.25
+    nse_min: -0.4

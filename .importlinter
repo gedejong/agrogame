@@ -1,0 +1,100 @@
+[importlinter]
+root_package = agrogame
+include_external_packages = False
+
+# Minimal pragmatic contract: keep the event system isolated from domain modules
+[contract:events_isolated]
+name = Events package must not depend on domain modules
+type = forbidden
+source_modules =
+    agrogame.events
+forbidden_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.weather
+    agrogame.atmosphere
+    agrogame.sim
+
+
+# Plant may depend on Soil phenology types, but Soil must not import Plant
+[contract:soil_plant_direction]
+name = Soil must not depend on Plant
+type = forbidden
+source_modules =
+    agrogame.soil
+forbidden_modules =
+    agrogame.plant
+
+# Atmosphere ET can depend on Weather constants, but Weather must stay independent
+[contract:weather_independence]
+name = Weather should be independent of domain modules
+type = forbidden
+source_modules =
+    agrogame.weather
+forbidden_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.atmosphere
+    agrogame.sim
+
+# Atmosphere must not depend directly on Soil (use ports/adapters or events)
+[contract:atmosphere_independence]
+name = Atmosphere should be independent of Soil
+type = forbidden
+source_modules =
+    agrogame.atmosphere
+forbidden_modules =
+    agrogame.soil
+
+# Plant should be independent of Atmosphere (decouple via params/events)
+[contract:plant_independence]
+name = Plant should be independent of Atmosphere
+type = forbidden
+source_modules =
+    agrogame.plant
+forbidden_modules =
+    agrogame.atmosphere
+
+# Orchestrator must not be imported by domain modules
+[contract:sim_isolation]
+name = Simulation orchestrator is top-level only
+type = forbidden
+source_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.weather
+    agrogame.atmosphere
+forbidden_modules =
+    agrogame.sim
+
+# Soil subdomains should not cross-reference each other (prefer events)
+[contract:soil_subdomain_independence]
+name = Soil subdomains are independent (use events)
+type = independence
+modules =
+    agrogame.soil.water
+    agrogame.soil.nitrogen
+    agrogame.soil.canopy
+    agrogame.soil.phenology
+
+# Plant must not import Soil subdomains directly; use events or ports
+[contract:plant_vs_soil]
+name = Plant independent of Soil subdomains
+type = forbidden
+source_modules =
+    agrogame.plant
+forbidden_modules =
+    agrogame.soil.water
+    agrogame.soil.nitrogen
+    agrogame.soil.canopy
+    agrogame.soil.phenology
+
+# Domain layering to ensure dependency direction (should be KEPT)
+[contract:domain_layers]
+name = Domain layers direction
+type = layers
+layers =
+    agrogame.weather
+    agrogame.atmosphere
+    agrogame.soil
+    agrogame.plant

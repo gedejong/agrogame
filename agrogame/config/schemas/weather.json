@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "weather.json",
+  "title": "Weather Series JSON",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["date", "tmin_c", "tmax_c"],
+    "properties": {
+      "date": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" },
+      "tmin_c": { "type": "number" },
+      "tmax_c": { "type": "number" },
+      "rh_pct": { "type": ["number", "null"] },
+      "wind_m_s": { "type": ["number", "null"] },
+      "rs_mj_m2": { "type": ["number", "null"] },
+      "rn_mj_m2": { "type": ["number", "null"] },
+      "albedo": { "type": ["number", "null"] },
+      "precip_mm": { "type": ["number", "null"] }
+    }
+  }
+}
+
+

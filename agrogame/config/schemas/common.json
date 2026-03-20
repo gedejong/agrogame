@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "common.json",
+  "title": "Common definitions",
+  "type": "object",
+  "definitions": {
+    "positiveFloat": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "soilTexture": {
+      "type": "string",
+      "enum": [
+        "sand",
+        "sandy_loam",
+        "loam",
+        "clay_loam",
+        "clay",
+        "peat"
+      ]
+    }
+  }
+}
+
+

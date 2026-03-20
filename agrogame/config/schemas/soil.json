@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "soil.json",
+  "title": "Soil Library",
+  "type": "object",
+  "required": ["soils"],
+  "properties": {
+    "soils": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/soilProfile" }
+    }
+  },
+  "definitions": {
+    "soilProfile": {
+      "type": "object",
+      "required": ["name", "layers"],
+      "properties": {
+        "name": { "type": "string" },
+        "layers": {
+          "type": "array",
+          "minItems": 3,
+          "items": { "$ref": "#/definitions/soilLayer" }
+        }
+      }
+    },
+    "soilLayer": {
+      "type": "object",
+      "required": [
+        "depth_cm",
+        "texture",
+        "field_capacity",
+        "wilting_point",
+        "saturation",
+        "bulk_density_g_cm3",
+        "ksat_mm_per_hour",
+        "organic_matter_pct",
+        "initial_no3_kg_ha",
+        "initial_nh4_kg_ha",
+        "initial_p_kg_ha"
+      ],
+      "properties": {
+        "depth_cm": { "$ref": "common.json#/definitions/positiveFloat" },
+        "texture": { "$ref": "common.json#/definitions/soilTexture" },
+        "field_capacity": { "type": "number", "minimum": 0, "maximum": 0.8 },
+        "wilting_point": { "type": "number", "minimum": 0, "maximum": 0.8 },
+        "saturation": { "type": "number", "minimum": 0, "maximum": 0.8 },
+        "bulk_density_g_cm3": { "$ref": "common.json#/definitions/positiveFloat" },
+        "ksat_mm_per_hour": { "$ref": "common.json#/definitions/positiveFloat" },
+        "organic_matter_pct": { "type": "number", "minimum": 0 },
+        "initial_no3_kg_ha": { "type": "number" },
+        "initial_nh4_kg_ha": { "type": "number" },
+        "initial_p_kg_ha": { "type": "number" }
+      }
+    }
+  }
+}
+
+

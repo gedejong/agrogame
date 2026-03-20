@@ -1,0 +1,41 @@
+name: Playwright E2E
+
+on:
+  push:
+    branches: [ develop, feat/** ]
+  pull_request:
+    branches: [ develop ]
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install Python deps
+        run: |
+          poetry install -E dashboard
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install Playwright deps
+        run: |
+          npm ci
+          npx playwright install --with-deps
+      - name: Run Playwright tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          STREAMLIT_BROWSER_GATHER_USAGE_STATS: 'false'
+        run: |
+          npx playwright test --config=playwright.config.ts
+

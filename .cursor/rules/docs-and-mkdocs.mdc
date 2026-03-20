@@ -1,0 +1,11 @@
+---
+alwaysApply: true
+description: Documentation practices and MkDocs navigation for AgroGame
+---
+# Documentation Practice
+
+- Keep concise, high-signal docs in `docs/` per module (water, nitrogen, phenology, canopy, architecture).
+- Update MkDocs navigation when adding docs; prefer equations/links where helpful.
+- Use RAG on markdown when cross-referencing; reference local files with `[file](mdc:file)`.
+
+Key files: [mkdocs.yml](mdc:mkdocs.yml), [docs/](mdc:docs/index.md)

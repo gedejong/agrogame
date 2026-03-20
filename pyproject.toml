@@ -1,0 +1,118 @@
+[tool.poetry]
+name = "agrogame-simulation"
+version = "0.1.0"
+description = "Soil-plant-atmosphere simulation engine for farming game"
+authors = ["Data Build Company <edwin.dejong@databuildcompany.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{ include = "agrogame" }]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pydantic = "^2.0"
+pyyaml = "^6.0"
+jsonschema = "^4.23"
+watchdog = "^4.0"
+plotly = {version = "^5.22", optional = true}
+streamlit = {version = "^1.36", optional = true}
+
+[tool.poetry.group.dev.dependencies]
+mkdocs = "^1.6"
+mkdocs-material = "^9.5"
+mkdocstrings = "^0.26"
+mkdocstrings-python = "^1.10"
+mkdocs-autorefs = "^1.2"
+pytest = "^7.0"
+pytest-cov = "^4.0"
+black = "^24.3"
+flake8 = "^6.0"
+mypy = "^1.0"
+pre-commit = "^3.0"
+flake8-bugbear = "*"
+flake8-comprehensions = "*"
+types-PyYAML = "*"
+hypothesis = "^6.0"
+ruff = "^0.5.0"
+matplotlib = "^3.9"
+xenon = "^0.9.1"
+radon = "^6.0.1"
+import-linter = "^2.0"
+deptry = "^0.20.0"
+vulture = "^2.11"
+numpy = "^1.24"
+pandas = "^2.0"
+pypdf = "^6.0.0"
+
+[tool.poetry.scripts]
+simulate = "agrogame.cli:main"
+agrogame = "agrogame.config.cli:main"
+arch-check = "importlinter.cli:main"
+complexity-check = "xenon.__main__:main"
+dep-check = "deptry.__main__:main"
+dashboard = "agrogame.dashboard.app:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.flake8]
+max-line-length = 88
+extend-ignore = ["E203", "W503"]
+extend-exclude = [
+    ".cache",
+    ".cache/*",
+    "site",
+    "site/*",
+]
+
+[tool.mypy]
+files = ["agrogame"]
+ignore_missing_imports = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+warn_return_any = true
+python_version = "3.10"
+warn_unused_ignores = true
+warn_redundant_casts = true
+check_untyped_defs = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "C4"]
+ignore = []
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pytest.ini_options]
+addopts = "--maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing --cov-config=.coveragerc --cov-fail-under=92"
+testpaths = ["tests"]
+
+[tool.radon]
+exclude = ["tests", "build", "dist", "docs", "out"]
+
+[tool.xenon]
+max-average = "B"
+max-modules = "B"
+max-absolute = "C"
+ignore = ["tests/*", "docs/*", "out/*"]
+
+[tool.deptry]
+known_first_party = ["agrogame"]
+exclude = ["tests", "docs", "build", "dist", "out", ".cache", "scripts", "agrogame/plots"]
+ignore_notebooks = true
+
+[build-system]
+requires = ["poetry-core>=2.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+# Include non-Python assets (schemas) in the package
+[[tool.poetry.include]]
+path = "agrogame/config/schemas/*.json"
+
+[tool.poetry.extras]
+dashboard = ["plotly", "streamlit"]

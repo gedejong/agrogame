@@ -1,0 +1,27 @@
+{
+  "name": "agrogame",
+  "version": "1.0.0",
+  "description": "[![CI](https://github.com/databuildcompany/agrogame/actions/workflows/ci.yml/badge.svg)](https://github.com/databuildcompany/agrogame/actions/workflows/ci.yml)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/databuildcompany/agrogame.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/databuildcompany/agrogame/issues"
+  },
+  "homepage": "https://github.com/databuildcompany/agrogame#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

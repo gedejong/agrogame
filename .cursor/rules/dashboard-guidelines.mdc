@@ -1,0 +1,11 @@
+---
+description: Streamlit/Plotly dashboard guidelines for AgroGame
+globs: agrogame/dashboard/*.py
+---
+# Dashboard Guidelines
+
+- Keep dashboard imports optional; import heavy deps locally in functions if possible.
+- Ensure accessibility: high-contrast toggle, informative tooltips, responsive layout.
+- Provide CSV exports; PNG export optional via kaleido.
+- Guard pre-emergence ET and wire to model outputs; avoid hard-coded hacks.
+- Add smoke tests that import the module; skip when extras missing.

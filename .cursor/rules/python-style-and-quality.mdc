@@ -1,0 +1,12 @@
+---
+globs: *.py
+description: Python style, typing, and quality gates for AgroGame
+---
+# Python Style & Quality
+
+- Write readable, explicit code; prefer meaningful names; annotate public APIs.
+- Enforce ruff/flake8; type-check with mypy; maintain test coverage (see `.coveragerc`).
+- Keep functions focused; avoid deep nesting; handle edge cases early.
+- Do not add import-time side effects; optional deps must be guarded/imported locally.
+
+Quality tools also include xenon, deptry, and importlinter where configured.

@@ -9,8 +9,26 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .coverage*
+!.coveragerc
 dist/
 build/
 .DS_Store
 .idea/
 .vscode/
+
+# MkDocs build output
+site/
+.cache/
+# Hypothesis
+.hypothesis/
+
+# Local automation artifacts
+.playwright-mcp/
+
+# Linter and tool caches
+.ruff_cache/
+.import_linter_cache/
+
+# Node modules and test artifacts
+node_modules/
+test-results/
