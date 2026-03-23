@@ -7,6 +7,7 @@ nav:
   - Quick Context:
       - Water: water.md
       - ET (PT/PM + VPD): et.md
+      - Evaporation & Residue: evaporation-residue.md
       - Interception: interception.md
       - Nitrogen: nitrogen.md
       - Phosphorus: phosphorus.md

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -13,11 +14,14 @@ from agrogame.atmosphere.et.ports import (
     WaterState as ETWaterState,
     WaterActuator as ETWaterActuator,
 )
+from agrogame.atmosphere.et.types import EtState, ResidueState
 from agrogame.plant.roots.types import RootState
 from agrogame.soil.canopy.module import CanopyModule
 from typing import cast
 from agrogame.plant.stress import StressCalculator
 from agrogame.plant.events import WaterStressComputed
+
+_LN2 = math.log(2.0)
 
 
 @dataclass
@@ -30,6 +34,8 @@ class ETRuntime:
     roots_state: RootState
     canopy: CanopyModule
     _stress: StressCalculator | None = None
+    _evap_state: EtState = field(default_factory=EtState)
+    _residue: ResidueState = field(default_factory=ResidueState)
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
@@ -38,26 +44,40 @@ class ETRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "et":
             return
+
+        # Rainfall/irrigation wetting reset
+        wetting_mm = 0.0
+        if ev.drivers is not None:
+            wetting_mm = ev.drivers.rainfall_mm + ev.drivers.irrigation_mm
+        if wetting_mm >= self.et.params.wetting_reset_threshold_mm:
+            self._evap_state.cumulative_evap_mm = 0.0
+
+        # Residue decay
+        if (
+            self._residue.decay_half_life_days > 0.0
+            and self._residue.cover_fraction > 0.0
+        ):
+            self._residue.cover_fraction *= math.exp(
+                -_LN2 / self._residue.decay_half_life_days
+            )
+
         # Compute ET0 and actual ET using current canopy LAI and root fractions
-        # Use DayTick weather (tmin/tmax, PAR) when available to avoid constants
         root_fracs = (
             self.roots_state.layer_fractions
             if self.roots_state.layer_fractions
             else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
         )
-        # Derive mean temperature and net radiation from event payloads when possible
         temp_mean = 18.0
         if ev.tmin_c is not None and ev.tmax_c is not None:
             try:
                 temp_mean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
-            except Exception:
+            except (TypeError, ValueError):
                 temp_mean = 18.0
-        # Convert PAR to net radiation using typical conversion if provided
         net_radiation = 12.0
         if ev.par_mj_m2 is not None:
             try:
                 net_radiation = float(ev.par_mj_m2) / 0.48
-            except Exception:
+            except (TypeError, ValueError):
                 net_radiation = 12.0
         et0 = self.et.priestley_taylor(
             temp_mean_c=temp_mean, net_radiation_mj_m2=net_radiation
@@ -69,6 +89,8 @@ class ETRuntime:
             cast(ETWaterActuator, self.water_model),
             comps,
             root_fracs,
+            evap_state=self._evap_state,
+            residue_cover_fraction=self._residue.cover_fraction,
         )
         # Emit water stress based on actual vs potential transpiration
         if self._stress is not None:

@@ -19,3 +19,8 @@ class EtParams:
     rs_min_s_m: float = 70.0  # reference surface resistance (s/m)
     vpd_ref_kpa: float = 1.0
     vpd_sensitivity: float = 0.15  # linear reduction per kPa above ref
+    # Residue/mulch evaporation reduction (DSSAT-style linear)
+    residue_cover_fraction: float = 0.0  # 0-1 surface coverage
+    residue_stage1_reduction: float = 0.6  # max fractional reduction at full cover
+    residue_stage2_reduction: float = 0.4  # max fractional reduction at full cover
+    wetting_reset_threshold_mm: float = 10.0  # rainfall that resets to Stage 1

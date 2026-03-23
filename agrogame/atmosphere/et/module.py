@@ -170,21 +170,47 @@ class Evapotranspiration:
         # default
         return self.priestley_taylor(temp_mean_c, net_radiation_mj_m2)
 
+    @staticmethod
+    def residue_adjusted_params(
+        stage1_limit_mm: float,
+        ritchie_coef: float,
+        cover_fraction: float,
+        stage1_reduction: float = 0.6,
+        stage2_reduction: float = 0.4,
+    ) -> tuple[float, float]:
+        """Return (adjusted_stage1, adjusted_coef) given residue cover fraction."""
+        frac = max(0.0, min(1.0, cover_fraction))
+        adj_stage1 = stage1_limit_mm * (1.0 - stage1_reduction * frac)
+        adj_coef = ritchie_coef * (1.0 - stage2_reduction * frac)
+        return max(0.0, adj_stage1), max(0.0, adj_coef)
+
     def ritchie_evaporation(
-        self, state: EtState, potential_evap_mm: float, topsoil_available_mm: float
+        self,
+        state: EtState,
+        potential_evap_mm: float,
+        topsoil_available_mm: float,
+        *,
+        stage1_limit_mm: float | None = None,
+        ritchie_coef: float | None = None,
     ) -> float:
         if potential_evap_mm <= 0.0:
             return 0.0
+        s1_limit = (
+            stage1_limit_mm
+            if stage1_limit_mm is not None
+            else self.params.stage1_limit_mm
+        )
+        coef = ritchie_coef if ritchie_coef is not None else self.params.ritchie_coef
         taken = 0.0
-        if state.cumulative_evap_mm < self.params.stage1_limit_mm:
+        if state.cumulative_evap_mm < s1_limit:
             take1 = min(potential_evap_mm, topsoil_available_mm)
             taken += take1
             state.cumulative_evap_mm += take1
             potential_evap_mm -= take1
             topsoil_available_mm -= take1
         if potential_evap_mm > 0.0 and topsoil_available_mm > 0.0:
-            t = max(0.0, state.cumulative_evap_mm - self.params.stage1_limit_mm)
-            stage2 = self.params.ritchie_coef * (t + 1.0) ** -0.5
+            t = max(0.0, state.cumulative_evap_mm - s1_limit)
+            stage2 = coef * (t + 1.0) ** -0.5
             take2 = min(stage2, potential_evap_mm, topsoil_available_mm)
             taken += take2
             state.cumulative_evap_mm += take2
@@ -197,19 +223,36 @@ class Evapotranspiration:
         water_model: WaterActuator,
         et: EtComponents,
         root_fractions: tuple[float, ...] | list[float],
+        *,
+        evap_state: EtState | None = None,
+        residue_cover_fraction: float = 0.0,
     ) -> EtActual:
         # Soil evaporation from top layer availability
         top_current = water_state.layer_storage_mm(profile, 0)
         top_wp = profile.layers[0].wilting_point * profile.layers[0].depth_cm * 10.0
         top_avail = max(0.0, top_current - top_wp)
-        st = EtState()
-        evap_taken = self.ritchie_evaporation(st, et.potential_evap_mm, top_avail)
+        st = evap_state if evap_state is not None else EtState()
+        # Compute residue-adjusted Ritchie parameters
+        adj_s1, adj_coef = self.residue_adjusted_params(
+            self.params.stage1_limit_mm,
+            self.params.ritchie_coef,
+            residue_cover_fraction,
+            self.params.residue_stage1_reduction,
+            self.params.residue_stage2_reduction,
+        )
+        evap_taken = self.ritchie_evaporation(
+            st,
+            et.potential_evap_mm,
+            top_avail,
+            stage1_limit_mm=adj_s1,
+            ritchie_coef=adj_coef,
+        )
         if evap_taken > 0.0:
-            # Delegate to water actuator to mutate state and emit events
             _ = water_model.apply_evaporation(profile, water_state, evap_taken)
 
-        # Transpiration extraction across rooted layers
+        # Transpiration extraction across rooted layers (clamped to potential)
         transp_supplied = water_model.extract_transpiration_by_roots(
             profile, water_state, et.potential_transp_mm, root_fractions
         )
+        transp_supplied = min(transp_supplied, et.potential_transp_mm)
         return EtActual(evaporation_mm=evap_taken, transpiration_mm=transp_supplied)

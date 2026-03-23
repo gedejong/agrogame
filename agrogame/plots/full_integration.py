@@ -41,6 +41,12 @@ def main() -> None:
     parser.add_argument(
         "--lime", type=str, default="", help="Comma ops day:kg/ha, e.g. '5:1000'"
     )
+    parser.add_argument(
+        "--residue",
+        type=float,
+        default=0.0,
+        help="Residue cover fraction (0-1) to reduce soil evaporation",
+    )
     add_weather_args(parser)
     parser.add_argument(
         "--alt-weather",
@@ -67,7 +73,8 @@ def main() -> None:
     profile = lib.soils[args.profile]
 
     plt.style.use("ggplot")
-    orch = FullSimulationOrchestrator(profile)
+    et_params = EtParams(residue_cover_fraction=max(0.0, min(1.0, args.residue)))
+    orch = FullSimulationOrchestrator(profile, et_params=et_params)
     # Subscribe to stress events
     ws_last: float | None = None
     n_last: float | None = None
