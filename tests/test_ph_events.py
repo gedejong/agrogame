@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, cast
+
 from agrogame.events import EventBus
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.soil.chemistry.events import SoilPHUpdated
@@ -9,6 +11,21 @@ from agrogame.soil.nitrogen import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
+
+if TYPE_CHECKING:
+    from agrogame.soil.nitrogen.cycle import (
+        _WaterState as _NWaterState,
+        _WaterProfile as _NWaterProfile,
+    )
+    from agrogame.soil.phosphorus.cycle import (
+        _WaterState as _PWaterState,
+        _WaterProfile as _PWaterProfile,
+    )
+else:
+    _NWaterState = Any
+    _NWaterProfile = Any
+    _PWaterState = Any
+    _PWaterProfile = Any
 
 
 def _profile() -> SoilProfile:
@@ -63,8 +80,18 @@ def test_ph_events_flow_into_n_and_p_cycles() -> None:
     nstate = SoilNitrogenState(profile)
     pstate = SoilPhosphorusState(profile)
 
-    _ = NitrogenCycle(bus, nstate, water_state=water, profile=profile)
-    _ = PhosphorusCycle(bus, pstate, water_state=water, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
+    _ = PhosphorusCycle(
+        bus,
+        pstate,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     chem = SoilChemistryModule(bus, n_layers=len(profile.layers), base_ph=7.0)
 
@@ -86,13 +113,23 @@ def test_ph_events_flow_into_n_and_p_cycles() -> None:
     # Step with acidic pH
     from agrogame.soil.nitrogen.cycle import NitrogenCycle as NC
 
-    nc_acid = NC(bus, nstate2, water_state=water, profile=profile)
+    nc_acid = NC(
+        bus,
+        nstate2,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
     flux_acid = nc_acid.daily_step(temperature_c=25.0)
 
     # Reset and set neutral pH via buffering then step
     chem.daily_buffering(target_ph=7.0)
     nstate3 = deepcopy(nstate)
-    nc_neutral = NC(bus, nstate3, water_state=water, profile=profile)
+    nc_neutral = NC(
+        bus,
+        nstate3,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
     flux_neutral = nc_neutral.daily_step(temperature_c=25.0)
 
     assert (

@@ -36,7 +36,8 @@ def test_constraints_reduce_growth_increment() -> None:
 def test_distribution_skip_when_profile_none() -> None:
     roots = RootModule(RootParams())
     state = RootState(current_depth_cm=10.0)
-    # type: ignore[arg-type]
-    _ = roots.daily_step(state, None, PhenologyStage.VEGETATIVE)
+    _ = roots.daily_step(
+        state, None, PhenologyStage.VEGETATIVE  # type: ignore[arg-type]
+    )
     # No exception and layer_fractions may remain None
     assert state.current_depth_cm >= 10.0

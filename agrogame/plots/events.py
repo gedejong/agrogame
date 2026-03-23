@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
@@ -35,34 +35,90 @@ LANES = [
 ]
 
 
+_ET_KEYWORD_LANES: list[tuple[tuple[str, ...], str]] = [
+    (("water", "soil"), "Soil"),
+    (("evap", "transpir"), "ET"),
+    (("nitrogen", "n_", "no3"), "Nitrogen"),
+    (("microbial",), "Microbes"),
+    (("phosph",), "Phosphorus"),
+    (("soilph",), "Chemistry"),
+    (("root",), "Root"),
+    (("canopy", "lai", "biomass"), "Canopy"),
+]
+
+_MN_KEYWORD_LANES: list[tuple[str, str]] = [
+    ("agrogame.soil.nitrogen", "Nitrogen"),
+    ("agrogame.soil.microbes", "Microbes"),
+    ("agrogame.soil.phosphorus", "Phosphorus"),
+    ("agrogame.soil.chemistry", "Chemistry"),
+]
+
+
+def _match_from_module_name(mn: str) -> str | None:
+    for prefix, lane in _MN_KEYWORD_LANES:
+        if prefix in mn:
+            return lane
+    return None
+
+
+def _match_event_type(et: str) -> str | None:
+    for keywords, lane in _ET_KEYWORD_LANES:
+        if any(kw in et for kw in keywords):
+            return lane
+    return None
+
+
 def bucket(event_type: str, module_name: str = "") -> str:
     et = event_type.lower()
-    mn = module_name.lower()
     if "weather" in et:
         return "Weather"
-    if "water" in et or "soil" in et:
-        return "Soil"
-    if "evap" in et or "transpir" in et:
-        return "ET"
-    if "nitrogen" in et or "n_" in et or "no3" in et or "agrogame.soil.nitrogen" in mn:
-        return "Nitrogen"
-    if "agrogame.soil.microbes" in mn or "microbial" in et:
-        return "Microbes"
-    if "phosph" in et or "agrogame.soil.phosphorus" in mn:
-        return "Phosphorus"
-    if "soilph" in et or "chemistry" in mn or "agrogame.soil.chemistry" in mn:
-        return "Chemistry"
-    if "root" in et:
-        return "Root"
-    if "canopy" in et or "lai" in et or "biomass" in et:
-        return "Canopy"
+    et_match = _match_event_type(et)
+    if et_match is not None:
+        return et_match
+    mn = module_name.lower()
+    if mn:
+        return _match_from_module_name(mn) or (
+            "Chemistry" if "chemistry" in mn else "Plant"
+        )
     return "Plant"
+
+
+def _parse_filter_sets(
+    include: str, exclude: str, grep: str
+) -> tuple[set[str], set[str], str]:
+    inc = {s.strip() for s in include.split(",") if s.strip()}
+    exc = {s.strip() for s in exclude.split(",") if s.strip()}
+    grep_l = (grep or "").lower()
+    return inc, exc, grep_l
+
+
+def _allow_event(ev: Any, inc: set[str], exc: set[str], grep_l: str) -> bool:
+    lane = bucket(ev.event_type, ev.module_name)
+    passes_include = not inc or lane in inc
+    passes_exclude = lane not in exc
+    passes_grep = not grep_l or grep_l in ev.event_type.lower()
+    return passes_include and passes_exclude and passes_grep
+
+
+def _filter_events(
+    events: Sequence[Any], include: str, exclude: str, grep: str
+) -> list:
+    inc, exc, grep_l = _parse_filter_sets(include, exclude, grep)
+    return [ev for ev in events if _allow_event(ev, inc, exc, grep_l)]
 
 
 @dataclass
 class EventRunConfig:
     days: int
     profile: str = "loam_temperate"
+
+
+def _day_weather_from_series(
+    series: Any, day: int
+) -> tuple[float, float, float, float]:
+    """Extract (tmin, tmax, rad, rain) from weather series for a given day."""
+    w = series.records[day]
+    return w.tmin_c, w.tmax_c, (w.net_radiation_mj_m2 or 12.0), (w.precip_mm or 0.0)
 
 
 def simulate_and_record(
@@ -86,14 +142,11 @@ def simulate_and_record(
     for day in range(total):
         rec.set_day(day + 1)
         if series is not None:
-            w = series.records[day]
+            tmin, tmax, rad, rain = _day_weather_from_series(series, day)
             if weather_module is not None:
                 _ = weather_module.emit_for_day(day)
-            tmin, tmax, rad = w.tmin_c, w.tmax_c, (w.net_radiation_mj_m2 or 12.0)
-            rain = w.precip_mm or 0.0
         else:
-            tmin, tmax, rad = 10.0, 22.0, 12.0
-            rain = 0.0
+            tmin, tmax, rad, rain = 10.0, 22.0, 12.0, 0.0
         orch.step_day(
             drivers=DailyDrivers(
                 rainfall_mm=rain, irrigation_mm=0.0, evaporation_mm=0.0
@@ -134,21 +187,7 @@ def plot_timeline(
     ax.set_yticklabels(LANES)
     ax.set_xlabel("Day")
     ax.set_title("Event timeline (daily swimlanes)")
-    inc = {s.strip() for s in include.split(",") if s.strip()}
-    exc = {s.strip() for s in exclude.split(",") if s.strip()}
-    grep_l = (grep or "").lower()
-
-    def allow(ev: Any) -> bool:
-        lane = bucket(ev.event_type, ev.module_name)
-        if inc and lane not in inc:
-            return False
-        if lane in exc:
-            return False
-        if grep_l and grep_l not in ev.event_type.lower():
-            return False
-        return True
-
-    filtered = [ev for ev in rec.events if allow(ev)]
+    filtered = _filter_events(rec.events, include, exclude, grep)
     for ev in filtered:
         x = ev.day_index or 1
         lane = bucket(ev.event_type, ev.module_name)
@@ -171,23 +210,8 @@ def plot_heatmap(
     rec, total = simulate_and_record(days, "loam_temperate", weather_args)
     row_index = {n: i for i, n in enumerate(LANES)}
     mat: List[List[int]] = [[0 for _ in range(total)] for _ in range(len(LANES))]
-    inc = {s.strip() for s in include.split(",") if s.strip()}
-    exc = {s.strip() for s in exclude.split(",") if s.strip()}
-    grep_l = (grep or "").lower()
-
-    def allow(ev: Any) -> bool:
-        lane = bucket(ev.event_type, ev.module_name)
-        if inc and lane not in inc:
-            return False
-        if lane in exc:
-            return False
-        if grep_l and grep_l not in ev.event_type.lower():
-            return False
-        return True
-
-    for ev in rec.events:
-        if not allow(ev):
-            continue
+    filtered = _filter_events(rec.events, include, exclude, grep)
+    for ev in filtered:
         r = row_index.get(bucket(ev.event_type, ev.module_name))
         c_idx = (ev.day_index or 1) - 1
         if r is not None and 0 <= r < len(LANES) and 0 <= c_idx < total:
@@ -205,7 +229,10 @@ def plot_heatmap(
     return mat
 
 
-def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) -> None:
+def _setup_dependency_modules(
+    fc_scale: float,
+) -> tuple:
+    """Set up all simulation modules for dependency plotting."""
     from agrogame.events import EventBus
     from agrogame.events.recorder import EventRecorder
     from agrogame.soil.phenology import (
@@ -256,12 +283,46 @@ def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) 
     water = CascadingBucketWaterModel(event_bus=bus)
     wstate = SoilWaterState(profile)
     nstate = SoilNitrogenState(profile)
-    # Type: ignore to satisfy protocol expectations without widening soil types here
     ncycle = NitrogenCycle(bus, nstate)
     roots = RootModule(RootParams(), event_bus=bus)
     rstate = RootState()
     etmod = Evapotranspiration(EtParams())
     istate = InterceptionState()
+
+    return (
+        profile,
+        bus,
+        rec,
+        phen,
+        canopy,
+        water,
+        wstate,
+        ncycle,
+        roots,
+        rstate,
+        etmod,
+        istate,
+    )
+
+
+def _run_dependency_sim(
+    days: int,
+    weather_args: Any,
+    profile: Any,
+    bus: Any,
+    rec: Any,
+    phen: Any,
+    canopy: Any,
+    water: Any,
+    wstate: Any,
+    ncycle: Any,
+    roots: Any,
+    rstate: Any,
+    etmod: Any,
+    istate: Any,
+) -> int:
+    """Run the dependency simulation loop and return total days."""
+    from typing import cast
 
     series = get_weather_series(weather_args, days)
     if series is not None:
@@ -299,7 +360,6 @@ def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) 
             temp_mean_c=0.5 * (tmin + tmax), net_radiation_mj_m2=rad
         )
         comps = etmod.potential_components(et0_mm=et0, lai=canopy.state.lai)
-        from typing import cast
 
         _ = etmod.actual_et(
             cast(ETWaterProfile, profile),
@@ -310,7 +370,11 @@ def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) 
         )
         _ = ncycle.daily_step(temperature_c=0.5 * (tmin + tmax), plant_demand_kg_ha=1.0)
 
-    # Chronological edges per day across inferred module buckets
+    return total
+
+
+def _build_edges(rec: Any) -> Dict[Tuple[str, str], int]:
+    """Build chronological edges per day across bucketed modules."""
     edges: Dict[Tuple[str, str], int] = {}
     day_events: Dict[int, list] = {}
     for ev in rec.events:
@@ -318,15 +382,18 @@ def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) 
     for _, evs in day_events.items():
         modules = [bucket(e.event_type, e.module_name) for e in evs]
         for a, b in zip(modules, modules[1:], strict=False):
-            if a == b:
-                continue
-            edges[(a, b)] = edges.get((a, b), 0) + 1
+            if a != b:
+                edges[(a, b)] = edges.get((a, b), 0) + 1
+    return edges
 
-    nodes = list(LANES)
-    N = len(nodes)
+
+def _draw_dependency_graph(edges: Dict[Tuple[str, str], int], out: Path) -> None:
+    """Draw and save the dependency graph."""
     import math
 
-    angles = [2 * math.pi * i / N for i in range(N)]
+    nodes = list(LANES)
+    n_nodes = len(nodes)
+    angles = [2 * math.pi * i / n_nodes for i in range(n_nodes)]
     pos = {nodes[i]: (math.cos(ang), math.sin(ang)) for i, ang in enumerate(angles)}
     plt.style.use("ggplot")
     fig, ax = plt.subplots(figsize=(10, 10), constrained_layout=True)
@@ -371,3 +438,38 @@ def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) 
     ax.set_aspect("equal")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=180)
+
+
+def plot_dependencies(days: int, out: Path, fc_scale: float, weather_args: Any) -> None:
+    (
+        profile,
+        bus,
+        rec,
+        phen,
+        canopy,
+        water,
+        wstate,
+        ncycle,
+        roots,
+        rstate,
+        etmod,
+        istate,
+    ) = _setup_dependency_modules(fc_scale)
+    _run_dependency_sim(
+        days,
+        weather_args,
+        profile,
+        bus,
+        rec,
+        phen,
+        canopy,
+        water,
+        wstate,
+        ncycle,
+        roots,
+        rstate,
+        etmod,
+        istate,
+    )
+    edges = _build_edges(rec)
+    _draw_dependency_graph(edges, out)

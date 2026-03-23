@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from agrogame.sim import SimulationEngine
 from agrogame.soil.loader import load_soil_presets
 
@@ -17,7 +19,7 @@ def test_engine_runs_three_days(tmp_path: Path) -> None:
     assert res.finished is True
 
 
-def test_cli_stub_prints(capsys) -> None:
+def test_cli_stub_prints(capsys: pytest.CaptureFixture[str]) -> None:
     from agrogame.cli import main
 
     code = main()
@@ -26,7 +28,9 @@ def test_cli_stub_prints(capsys) -> None:
     assert "AgroGame simulation CLI stub" in out
 
 
-def test_cli_engine_subcommand_runs(monkeypatch, capsys) -> None:
+def test_cli_engine_subcommand_runs(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     from agrogame.cli import main
     import sys
 
@@ -62,7 +66,7 @@ def test_benchmarks_mode_min_cov() -> None:
     eng.advance_day()
 
 
-def test_cli_run_subcommand_runs(monkeypatch) -> None:
+def test_cli_run_subcommand_runs(monkeypatch: pytest.MonkeyPatch) -> None:
     from agrogame.cli import main
     import sys
 

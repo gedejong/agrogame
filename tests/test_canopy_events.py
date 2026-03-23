@@ -14,7 +14,7 @@ from agrogame.soil.canopy.interception import InterceptionState
 from agrogame.soil.canopy.events import CanopyIntercepted, CanopyEvaporated
 
 
-def test_canopy_daily_step_and_events():
+def test_canopy_daily_step_and_events() -> None:
     bus = EventBus()
     params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.0)
     canopy = CanopyModule(params, event_bus=bus)
@@ -49,7 +49,7 @@ def test_canopy_daily_step_and_events():
     assert seen["light"] == 1 and seen["biomass"] == 1 and seen["lai"] == 1
 
 
-def test_canopy_senescence_increases_after_grain_fill():
+def test_canopy_senescence_increases_after_grain_fill() -> None:
     bus = EventBus()
     params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.05)
     canopy = CanopyModule(params, event_bus=bus)
@@ -74,7 +74,7 @@ def test_canopy_senescence_increases_after_grain_fill():
     assert (2.0 - lai_after) > (2.0 - lai_before)
 
 
-def test_lai_bootstraps_on_emergence():
+def test_lai_bootstraps_on_emergence() -> None:
     bus = EventBus()
     params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.01)
     canopy = CanopyModule(params, event_bus=bus)
@@ -89,15 +89,15 @@ def test_lai_bootstraps_on_emergence():
     assert canopy.state.lai >= 0.1
 
 
-def test_water_stress_event_emitted():
+def test_water_stress_event_emitted() -> None:
     bus = EventBus()
-    seen = {"stress": None}
+    seen: dict[str, float | None] = {"stress": None}
     bus.subscribe(WaterStressComputed, lambda e: seen.__setitem__("stress", e.stress))
     bus.emit(WaterStressComputed(supply_mm=2.0, demand_mm=4.0, stress=0.5))
     assert seen["stress"] == 0.5
 
 
-def test_interception_events_and_mass_balance():
+def test_interception_events_and_mass_balance() -> None:
     bus = EventBus()
     seen = {"int": 0.0, "evap": 0.0}
     bus.subscribe(

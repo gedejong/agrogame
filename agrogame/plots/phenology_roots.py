@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import matplotlib.pyplot as plt
 
@@ -16,6 +16,38 @@ from agrogame.soil.phenology import (
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.soil.loader import load_soil_presets
 from agrogame.plant.roots import RootModule, RootParams, RootState
+
+
+_STAGE_LABELS = {
+    PhenologyStage.PLANTED: "Planted",
+    PhenologyStage.EMERGED: "Emergence",
+    PhenologyStage.VEGETATIVE: "Vegetative",
+    PhenologyStage.FLOWERING: "Flowering",
+    PhenologyStage.GRAIN_FILL: "Grain fill",
+    PhenologyStage.MATURITY: "Maturity",
+}
+
+
+def _stage_label(stage: PhenologyStage) -> str:
+    return _STAGE_LABELS.get(stage, str(getattr(stage, "name", stage)))
+
+
+def _generate_weather_series(
+    days: int, tmin: float, tmax: float, par: float, pattern: str
+) -> Tuple[List[float], List[float], List[float]]:
+    if pattern == "seasonal":
+        import math
+
+        tmins = [tmin + 5.0 * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)]
+        tmaxs = [tmax + 7.0 * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)]
+        pars = [
+            par + 0.5 * par * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)
+        ]
+    else:
+        tmins = [tmin] * days
+        tmaxs = [tmax] * days
+        pars = [par] * days
+    return tmins, tmaxs, pars
 
 
 def simulate_phenology_canopy(
@@ -54,34 +86,12 @@ def simulate_phenology_canopy(
     intercepted_series: List[float] = []
     biomass_inc_series: List[float] = []
 
-    def _label(stage: PhenologyStage) -> str:
-        mapping = {
-            PhenologyStage.PLANTED: "Planted",
-            PhenologyStage.EMERGED: "Emergence",
-            PhenologyStage.VEGETATIVE: "Vegetative",
-            PhenologyStage.FLOWERING: "Flowering",
-            PhenologyStage.GRAIN_FILL: "Grain fill",
-            PhenologyStage.MATURITY: "Maturity",
-        }
-        return mapping.get(stage, str(getattr(stage, "name", stage)))
-
     bus.subscribe(
         StageChanged,
-        lambda e: stage_marks.append((len(lai) + 1, _label(e.to_stage))),
+        lambda e: stage_marks.append((len(lai) + 1, _stage_label(e.to_stage))),
     )
 
-    if pattern == "seasonal":
-        import math
-
-        tmins = [tmin + 5.0 * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)]
-        tmaxs = [tmax + 7.0 * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)]
-        pars = [
-            par + 0.5 * par * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)
-        ]
-    else:
-        tmins = [tmin] * days
-        tmaxs = [tmax] * days
-        pars = [par] * days
+    tmins, tmaxs, pars = _generate_weather_series(days, tmin, tmax, par, pattern)
 
     for i in range(days):
         state = pheno.update_daily(tmin_c=tmins[i], tmax_c=tmaxs[i], photoperiod_h=12.0)
@@ -98,6 +108,50 @@ def simulate_phenology_canopy(
         biomass.append(canopy.state.biomass_g_m2)
 
     return lai, biomass, stages, stage_marks, intercepted_series, biomass_inc_series
+
+
+_STAGE_COLORS = {
+    PhenologyStage.PLANTED: "#f0f0f0",
+    PhenologyStage.EMERGED: "#e0ffe0",
+    PhenologyStage.VEGETATIVE: "#c8f7c5",
+    PhenologyStage.FLOWERING: "#ffe6a3",
+    PhenologyStage.GRAIN_FILL: "#ffd6cc",
+    PhenologyStage.MATURITY: "#dddddd",
+}
+
+
+def _draw_stage_ribbon(ax: Any, stages: List[PhenologyStage]) -> None:
+    start = 0
+    for i in range(1, len(stages) + 1):
+        if i == len(stages) or stages[i] != stages[start]:
+            ax.axvspan(
+                start + 1,
+                i,
+                color=_STAGE_COLORS.get(stages[start], "#eeeeee"),
+                alpha=0.25,
+                linewidth=0,
+            )
+            start = i
+
+
+def _save_efficiency_plot(
+    x: List[int], intercepted: List[float], biomass_inc: List[float], out: Path
+) -> None:
+    import numpy as np
+
+    intercepted_np = np.array(intercepted)
+    biomass_inc_np = np.array(biomass_inc)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        eff = np.where(intercepted_np > 1e-9, biomass_inc_np / intercepted_np, 0.0)
+    kernel = np.ones(7) / 7.0
+    eff_ma = np.convolve(eff, kernel, mode="same")
+    plt.figure(figsize=(10, 4))
+    plt.plot(x, eff_ma, label="RUE effective (g/MJ)")
+    plt.ylabel("g biomass per MJ PAR")
+    plt.xlabel("Day")
+    plt.title("Effective RUE (7-day MA)")
+    plt.tight_layout()
+    plt.savefig(out, dpi=150)
 
 
 def plot_phenology_canopy(
@@ -128,28 +182,7 @@ def plot_phenology_canopy(
     ax2.set_ylabel("Biomass (g m^-2)", color="tab:blue")
     ax2.tick_params(axis="y", labelcolor="tab:blue")
     if show_ribbon and stages:
-
-        def stage_color(s: PhenologyStage) -> str:
-            return {
-                PhenologyStage.PLANTED: "#f0f0f0",
-                PhenologyStage.EMERGED: "#e0ffe0",
-                PhenologyStage.VEGETATIVE: "#c8f7c5",
-                PhenologyStage.FLOWERING: "#ffe6a3",
-                PhenologyStage.GRAIN_FILL: "#ffd6cc",
-                PhenologyStage.MATURITY: "#dddddd",
-            }.get(s, "#eeeeee")
-
-        start = 0
-        for i in range(1, len(stages) + 1):
-            if i == len(stages) or stages[i] != stages[start]:
-                ax1.axvspan(
-                    start + 1,
-                    i,
-                    color=stage_color(stages[start]),
-                    alpha=0.25,
-                    linewidth=0,
-                )
-                start = i
+        _draw_stage_ribbon(ax1, stages)
     y_top = max(lai) if lai else 1.0
     for d, label in stage_marks:
         if 1 <= d <= days:
@@ -167,24 +200,7 @@ def plot_phenology_canopy(
     fig.suptitle(f"Phenology & Canopy – {pattern}")
     fig.tight_layout()
     plt.savefig(out, dpi=150)
-    # Efficiency plot
-    import numpy as np
-
-    intercepted_np = np.array(intercepted)
-    biomass_inc_np = np.array(biomass_inc)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        eff = np.where(intercepted_np > 1e-9, biomass_inc_np / intercepted_np, 0.0)
-    win = 7
-    kernel = np.ones(win) / win
-    eff_ma = np.convolve(eff, kernel, mode="same")
-    plt.figure(figsize=(10, 4))
-    plt.plot(x, eff_ma, label="RUE effective (g/MJ)")
-    plt.ylabel("g biomass per MJ PAR")
-    plt.xlabel("Day")
-    plt.title("Effective RUE (7-day MA)")
-    plt.tight_layout()
-    plt.savefig(efficiency_out, dpi=150)
-    # Phase plot
+    _save_efficiency_plot(x, intercepted, biomass_inc, efficiency_out)
     plt.figure(figsize=(6, 6))
     plt.plot(lai, biomass, marker=".")
     plt.xlabel("LAI")
@@ -239,6 +255,24 @@ def simulate_roots(
     return depths, top_frac, fractions_over_time
 
 
+def _plot_layer_fractions(
+    ax: Any, x: List[int], fractions_over_time: List[List[float]]
+) -> None:
+    if not any(frac for frac in fractions_over_time):
+        return
+    max_layers = max((len(f) for f in fractions_over_time), default=0)
+    show_layers = min(5, max_layers)
+    stacked = [
+        [(f[i] if i < len(f) else 0.0) for f in fractions_over_time]
+        for i in range(show_layers)
+    ]
+    labels = [f"layer {i}" for i in range(show_layers)]
+    ax.stackplot(x, *stacked, labels=labels)
+    ax.set_ylabel("Layer fraction")
+    ax.set_xlabel("Day")
+    ax.legend(loc="upper right", ncol=min(5, show_layers))
+
+
 def plot_roots_timeseries(
     profile: str,
     days: int,
@@ -265,18 +299,7 @@ def plot_roots_timeseries(
     ax[1].set_ylabel("Fraction (0-1)")
     ax[1].set_xlabel("Day")
     ax[1].legend()
-    if any(frac for frac in fractions_over_time):
-        max_layers = max((len(f) for f in fractions_over_time), default=0)
-        show_layers = min(5, max_layers)
-        stacked = [
-            [(f[i] if i < len(f) else 0.0) for f in fractions_over_time]
-            for i in range(show_layers)
-        ]
-        labels = [f"layer {i}" for i in range(show_layers)]
-        ax[2].stackplot(x, *stacked, labels=labels)
-        ax[2].set_ylabel("Layer fraction")
-        ax[2].set_xlabel("Day")
-        ax[2].legend(loc="upper right", ncol=min(5, show_layers))
+    _plot_layer_fractions(ax[2], x, fractions_over_time)
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     print("Saved", out)

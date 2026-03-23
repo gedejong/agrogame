@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, cast
+
 from agrogame.soil.models import SoilLayer, SoilProfile
 from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained
@@ -10,6 +12,15 @@ from agrogame.soil.nitrogen import (
     NitrificationOccurred,
     NutrientLeached,
 )
+
+if TYPE_CHECKING:
+    from agrogame.soil.nitrogen.cycle import (
+        _WaterState as _NWaterState,
+        _WaterProfile as _NWaterProfile,
+    )
+else:
+    _NWaterState = Any
+    _NWaterProfile = Any
 
 
 def make_profile() -> SoilProfile:
@@ -57,12 +68,17 @@ def make_profile() -> SoilProfile:
     return SoilProfile(name="test", layers=layers)
 
 
-def test_nitrogen_event_wiring_and_daily_step():
+def test_nitrogen_event_wiring_and_daily_step() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
     water = SoilWaterState(profile)
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    cycle = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     # Capture nitrogen events
     nitrif = []
@@ -85,13 +101,18 @@ def test_nitrogen_event_wiring_and_daily_step():
     assert len(nitrif) >= 1
 
 
-def test_nitrification_depends_on_temperature_and_ph():
+def test_nitrification_depends_on_temperature_and_ph() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
     state.nh4[0] = 10.0
     water = SoilWaterState(profile)
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    cycle = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     # Low temperature and acidic pH reduce nitrification
     flux_cold_acid = cycle.daily_step(temperature_c=5.0, ph_by_layer=[5.0, 7.0, 7.0])
@@ -105,7 +126,7 @@ def test_nitrification_depends_on_temperature_and_ph():
     assert flux_warm_neutral.nitrified_kg_ha > flux_cold_acid.nitrified_kg_ha
 
 
-def test_denitrification_under_anaerobic_conditions():
+def test_denitrification_under_anaerobic_conditions() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
@@ -113,20 +134,30 @@ def test_denitrification_under_anaerobic_conditions():
     water = SoilWaterState(profile)
     # Force near-saturation to trigger anaerobic factor
     water.theta[0] = profile.layers[0].saturation
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    cycle = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     flux = cycle.daily_step(temperature_c=25.0)
     assert flux.denitrified_kg_ha > 0.0
 
 
-def test_plant_uptake_allocation_by_roots():
+def test_plant_uptake_allocation_by_roots() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
     state.no3 = [10.0, 10.0, 10.0]
     state.nh4 = [0.0, 0.0, 0.0]
     water = SoilWaterState(profile)
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    cycle = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     root_fracs = [0.6, 0.3, 0.1]
     demand = 6.0
@@ -138,12 +169,17 @@ def test_plant_uptake_allocation_by_roots():
     assert state.no3[0] < state.no3[2]
 
 
-def test_fertilizer_application_updates_pools():
+def test_fertilizer_application_updates_pools() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
     water = SoilWaterState(profile)
-    cycle = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    cycle = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     cycle.apply_urea(layer=0, amount_kg_ha=20.0)
     assert state.nh4[0] >= 20.0
@@ -155,14 +191,19 @@ def test_fertilizer_application_updates_pools():
     )
 
 
-def test_within_profile_leaching_transfers_no3_downward():
+def test_within_profile_leaching_transfers_no3_downward() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilNitrogenState(profile)
     state.no3[0] = 40.0
     state.no3[1] = 0.0
     water = SoilWaterState(profile)
-    _ = NitrogenCycle(bus, state, water_state=water, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        state,
+        water_state=cast(_NWaterState, water),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     storage0 = water.layer_storage_mm(profile, 0)
     # Drain 50% of storage from layer 0 to layer 1

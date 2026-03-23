@@ -41,18 +41,13 @@ class ETRuntime:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self._stress = StressCalculator("liebig")
 
-    def _on_day_tick(self, ev: DayTick) -> None:
-        if ev.phase != "et":
-            return
-
-        # Rainfall/irrigation wetting reset
+    def _update_wetting_and_residue(self, ev: DayTick) -> None:
         wetting_mm = 0.0
         if ev.drivers is not None:
             wetting_mm = ev.drivers.rainfall_mm + ev.drivers.irrigation_mm
         if wetting_mm >= self.et.params.wetting_reset_threshold_mm:
             self._evap_state.cumulative_evap_mm = 0.0
 
-        # Residue decay
         if (
             self._residue.decay_half_life_days > 0.0
             and self._residue.cover_fraction > 0.0
@@ -61,12 +56,7 @@ class ETRuntime:
                 -_LN2 / self._residue.decay_half_life_days
             )
 
-        # Compute ET0 and actual ET using current canopy LAI and root fractions
-        root_fracs = (
-            self.roots_state.layer_fractions
-            if self.roots_state.layer_fractions
-            else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
-        )
+    def _resolve_climate(self, ev: DayTick) -> tuple[float, float]:
         temp_mean = 18.0
         if ev.tmin_c is not None and ev.tmax_c is not None:
             try:
@@ -79,6 +69,20 @@ class ETRuntime:
                 net_radiation = float(ev.par_mj_m2) / 0.48
             except (TypeError, ValueError):
                 net_radiation = 12.0
+        return temp_mean, net_radiation
+
+    def _on_day_tick(self, ev: DayTick) -> None:
+        if ev.phase != "et":
+            return
+
+        self._update_wetting_and_residue(ev)
+
+        root_fracs = (
+            self.roots_state.layer_fractions
+            if self.roots_state.layer_fractions
+            else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
+        )
+        temp_mean, net_radiation = self._resolve_climate(ev)
         et0 = self.et.priestley_taylor(
             temp_mean_c=temp_mean, net_radiation_mj_m2=net_radiation
         )
@@ -92,7 +96,6 @@ class ETRuntime:
             evap_state=self._evap_state,
             residue_cover_fraction=self._residue.cover_fraction,
         )
-        # Emit water stress based on actual vs potential transpiration
         if self._stress is not None:
             ws = self._stress.water_from_supply_demand(
                 actual_mm=actual.transpiration_mm,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Tuple, Any
+from typing import TYPE_CHECKING, Dict, Tuple, Any, cast
 
 import os
 import csv
@@ -22,8 +22,18 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.atmosphere.et.types import EtComponents
+from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.weather import load_weather
 from agrogame.analysis.stats import r2, nse
+
+if TYPE_CHECKING:
+    from agrogame.soil.nitrogen.cycle import (
+        _WaterState as _NWaterState,
+        _WaterProfile as _NWaterProfile,
+    )
+else:
+    _NWaterState = Any
+    _NWaterProfile = Any
 
 
 pytestmark = [
@@ -38,7 +48,10 @@ pytestmark = [
 def _scenario_cfg() -> Dict[str, Any]:
     import yaml
 
-    return yaml.safe_load(Path("tests/data/benchmarks/scenarios.yaml").read_text())
+    result: Dict[str, Any] = yaml.safe_load(
+        Path("tests/data/benchmarks/scenarios.yaml").read_text()
+    )
+    return result
 
 
 SCENARIOS: Dict[str, Path] = {
@@ -95,7 +108,12 @@ def _run_one(name: str, weather_file: Path) -> Dict[str, float | int | None]:
     water = CascadingBucketWaterModel()
     wstate = SoilWaterState(profile)
     nstate = SoilNitrogenState(profile)
-    ncycle = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    ncycle = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, wstate),
+        profile=cast(_NWaterProfile, profile),
+    )
     weather = load_weather(weather_file)
     canopy.state.lai = lai0
 
@@ -128,9 +146,9 @@ def _run_one(name: str, weather_file: Path) -> Dict[str, float | int | None]:
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(
-            profile,
-            wstate,
-            water,
+            cast(WaterProfile, profile),
+            cast(WaterState, wstate),
+            cast(WaterActuator, water),
             comps,
             root_fractions=tuple(
                 [1.0 / max(1, len(profile.layers))] * len(profile.layers)
@@ -218,7 +236,7 @@ def test_end_to_end_benchmarks(name: str) -> None:
     # Yield within scenario absolute tolerance
     exp = float(cfg.get("expected_yield_t_ha", 0.0))
     tol = float(cfg.get("yield_tol_t_ha", 0.0))
-    assert abs(float(res["yield_t_ha"]) - exp) <= tol
+    assert abs(cast(float, res["yield_t_ha"]) - exp) <= tol
     # Phenology windows
     fgdd = float(res["flowering_gdd"]) if res["flowering_gdd"] is not None else None
     mgdd = float(res["maturity_gdd"]) if res["maturity_gdd"] is not None else None
@@ -236,12 +254,12 @@ def test_end_to_end_benchmarks(name: str) -> None:
     wue_cfg = cfg.get("wue", {})
     wmin = float(wue_cfg.get("min", 0.0))
     wmax = float(wue_cfg.get("max", 1e9))
-    assert wmin <= float(res["wue"]) <= wmax
+    assert wmin <= cast(float, res["wue"]) <= wmax
     # N uptake bounds (kg/ha total)
     n_cfg = cfg.get("n_uptake_kg_ha", {})
     nmin = float(n_cfg.get("min", 0.0))
     nmax = float(n_cfg.get("max", 1e9))
-    assert nmin <= float(res["total_n_uptake"]) <= nmax
+    assert nmin <= cast(float, res["total_n_uptake"]) <= nmax
     # Biomass series metrics if observed available
     metrics_cfg = cfg.get("series_metrics", {})
     r2_min = metrics_cfg.get("r2_min")

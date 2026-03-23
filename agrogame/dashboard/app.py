@@ -269,6 +269,20 @@ def _render_root_animation(history: Mapping[str, Any]) -> None:
         time.sleep(0.04)
 
 
+def _stage_fraction(
+    stage: str, gdd: float, te: float, tf: float, tm: float
+) -> float | None:
+    if stage == "planted":
+        return max(0.0, min(1.0, gdd / max(1e-6, te)))
+    if stage == "vegetative":
+        return max(0.0, min(1.0, (gdd - te) / max(1e-6, tf - te)))
+    if stage == "grain_fill":
+        return max(0.0, min(1.0, (gdd - tf) / max(1e-6, tm - tf)))
+    if stage in ("emerged", "flowering", "maturity"):
+        return 1.0
+    return None
+
+
 def _render_phenology_progress(history: Mapping[str, Any]) -> None:
     last_stage = (history.get("stage", []) or [None])[-1]
     last_gdd = (history.get("gdd_accum", []) or [None])[-1]
@@ -277,15 +291,7 @@ def _render_phenology_progress(history: Mapping[str, Any]) -> None:
     tm = history.get("thr_maturity") or tf
     frac = None
     if last_gdd is not None and isinstance(last_stage, str):
-        s = last_stage
-        if s == "planted":
-            frac = max(0.0, min(1.0, last_gdd / max(1e-6, te)))
-        elif s == "vegetative":
-            frac = max(0.0, min(1.0, (last_gdd - te) / max(1e-6, tf - te)))
-        elif s == "grain_fill":
-            frac = max(0.0, min(1.0, (last_gdd - tf) / max(1e-6, tm - tf)))
-        elif s in ("emerged", "flowering", "maturity"):
-            frac = 1.0
+        frac = _stage_fraction(last_stage, last_gdd, te, tf, tm)
     if frac is not None:
         st.progress(frac, text=f"Stage {last_stage}: {int(frac * 100)}%")
 

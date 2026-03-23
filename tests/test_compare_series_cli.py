@@ -4,7 +4,7 @@ from pathlib import Path
 import subprocess
 
 
-def test_compare_series_cli_smoke(tmp_path: Path):
+def test_compare_series_cli_smoke(tmp_path: Path) -> None:
     obs = tmp_path / "obs.csv"
     sim = tmp_path / "sim.csv"
     obs.write_text("date,val\n2024-06-01,0\n2024-06-02,1\n2024-06-03,2\n")

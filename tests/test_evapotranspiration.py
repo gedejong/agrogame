@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
+from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
@@ -44,7 +46,13 @@ def test_actual_et_limited_by_availability_and_roots() -> None:
     ws = SoilWaterState(profile)
     et = Evapotranspiration()
     comps = et.potential_components(et0_mm=5.0, lai=1.0)
-    actual = et.actual_et(profile, ws, water, comps, root_fractions=(1.0, 0.0, 0.0))
+    actual = et.actual_et(
+        cast(WaterProfile, profile),
+        cast(WaterState, ws),
+        cast(WaterActuator, water),
+        comps,
+        root_fractions=(1.0, 0.0, 0.0),
+    )
     assert actual.evaporation_mm >= 0.0 and actual.transpiration_mm >= 0.0
 
 

@@ -75,7 +75,7 @@ def _run_simple_season(days: int = 60) -> tuple[list[float], list[float]]:
     return biomass, lai
 
 
-def test_biomass_time_series_quality():
+def test_biomass_time_series_quality() -> None:
     biomass, lai = _run_simple_season(days=30)
     # Use monotonic expectation proxy: compare to linear ramp
     expected = [
@@ -87,6 +87,6 @@ def test_biomass_time_series_quality():
 
 
 @pytest.mark.skip(reason="Benchmark datasets not yet added")
-def test_yield_and_phenology_against_benchmark():
+def test_yield_and_phenology_against_benchmark() -> None:
     # Placeholder for real scenarios (e.g., maize Iowa)
     ...

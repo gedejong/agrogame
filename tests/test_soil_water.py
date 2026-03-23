@@ -6,6 +6,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.loader import load_soil_presets as _load
+from agrogame.soil.models import SoilProfile
 from agrogame.soil.water import (
     CascadingBucketWaterModel,
     DailyDrivers,
@@ -17,7 +18,7 @@ from agrogame.soil.water import SoilWaterBalance
 from agrogame.soil.water.events import CanopyIntercepted, CanopyEvaporated
 
 
-def _make_state(lib_id: str = "loam_temperate"):
+def _make_state(lib_id: str = "loam_temperate") -> tuple[SoilProfile, SoilWaterState]:
     lib = _load(Path("soils/presets.yaml"))
     profile = lib.soils[lib_id]
     state = SoilWaterState(profile)
@@ -155,7 +156,7 @@ def test_permeability_comparison() -> None:
 
 def _simulate_days(
     profile_name: str, days: int = 30, rain_mm: float = 5.0, evap_mm: float = 2.0
-):
+) -> tuple[float, float, float]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils[profile_name]
     swb = SoilWaterBalance(profile)

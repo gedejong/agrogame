@@ -3,7 +3,7 @@ from __future__ import annotations
 from agrogame.sim.orchestrator import build_default_orchestrator
 
 
-def test_orchestrator_wires_phenology_to_canopy():
+def test_orchestrator_wires_phenology_to_canopy() -> None:
     orch = build_default_orchestrator()
     # LAI should bootstrap after emergence within the first few days
     for _ in range(15):

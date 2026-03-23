@@ -40,6 +40,46 @@ class PhenologyModule:
             gdd *= max(0.0, adj)
         return gdd
 
+    def _vernalization_increment(
+        self,
+        tmin_c: float,
+        tmax_c: float,
+        vernalization_temp_range_c: tuple[float, float],
+    ) -> float:
+        if self.params.vernalization_required_units is None:
+            return 0.0
+        vmin, vmax = vernalization_temp_range_c
+        tmean = (max(tmin_c, vmin) + min(tmax_c, vmax)) / 2.0
+        return 1.0 if vmin <= tmean <= vmax else 0.0
+
+    def _vernalization_met(self) -> bool:
+        return (
+            self.params.vernalization_required_units is None
+            or self.state.vernalization_units
+            >= self.params.vernalization_required_units
+        )
+
+    def _resolve_next_stage(self) -> PhenologyStage | None:
+        thr = self.params.thresholds
+        gdd = self.state.accumulated_gdd
+        transitions: list[tuple[PhenologyStage, float, PhenologyStage]] = [
+            (PhenologyStage.PLANTED, thr.emergence_gdd, PhenologyStage.EMERGED),
+            (PhenologyStage.EMERGED, thr.emergence_gdd, PhenologyStage.VEGETATIVE),
+            (PhenologyStage.FLOWERING, thr.flowering_gdd, PhenologyStage.GRAIN_FILL),
+            (PhenologyStage.GRAIN_FILL, thr.maturity_gdd, PhenologyStage.MATURITY),
+        ]
+        for from_stage, threshold, to_stage in transitions:
+            if self.state.stage == from_stage and gdd >= threshold:
+                return to_stage
+        # Vegetative -> Flowering requires vernalization check
+        if (
+            self.state.stage == PhenologyStage.VEGETATIVE
+            and gdd >= thr.flowering_gdd
+            and self._vernalization_met()
+        ):
+            return PhenologyStage.FLOWERING
+        return None
+
     def update_daily(
         self,
         tmin_c: float,
@@ -48,13 +88,9 @@ class PhenologyModule:
         vernalization_temp_range_c: tuple[float, float] = (0.0, 10.0),
     ) -> PhenologyState:
         gdd = self._daily_gdd(tmin_c, tmax_c, photoperiod_h)
-        vernal_add = 0.0
-        if self.params.vernalization_required_units is not None:
-            vmin, vmax = vernalization_temp_range_c
-            # Simple model: add 1 unit/day if mean temp within [vmin, vmax]
-            tmean = (max(tmin_c, vmin) + min(tmax_c, vmax)) / 2.0
-            if vmin <= tmean <= vmax:
-                vernal_add = 1.0
+        vernal_add = self._vernalization_increment(
+            tmin_c, tmax_c, vernalization_temp_range_c
+        )
         self.state = PhenologyState(
             accumulated_gdd=self.state.accumulated_gdd + gdd,
             stage=self.state.stage,
@@ -65,39 +101,7 @@ class PhenologyModule:
                 GddAccumulated(daily_gdd=gdd, total_gdd=self.state.accumulated_gdd)
             )
 
-        thr = self.params.thresholds
-        next_stage: PhenologyStage | None = None
-        if (
-            self.state.stage == PhenologyStage.PLANTED
-            and self.state.accumulated_gdd >= thr.emergence_gdd
-        ):
-            next_stage = PhenologyStage.EMERGED
-        elif (
-            self.state.stage == PhenologyStage.EMERGED
-            and self.state.accumulated_gdd >= thr.emergence_gdd
-        ):
-            next_stage = PhenologyStage.VEGETATIVE
-        elif (
-            self.state.stage in (PhenologyStage.VEGETATIVE,)
-            and self.state.accumulated_gdd >= thr.flowering_gdd
-            and (
-                self.params.vernalization_required_units is None
-                or self.state.vernalization_units
-                >= self.params.vernalization_required_units
-            )
-        ):
-            next_stage = PhenologyStage.FLOWERING
-        elif (
-            self.state.stage == PhenologyStage.FLOWERING
-            and self.state.accumulated_gdd >= thr.flowering_gdd
-        ):
-            next_stage = PhenologyStage.GRAIN_FILL
-        elif (
-            self.state.stage in (PhenologyStage.GRAIN_FILL,)
-            and self.state.accumulated_gdd >= thr.maturity_gdd
-        ):
-            next_stage = PhenologyStage.MATURITY
-
+        next_stage = self._resolve_next_stage()
         if next_stage is not None:
             prev = self.state.stage
             self.state = PhenologyState(

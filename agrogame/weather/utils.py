@@ -24,69 +24,56 @@ def net_radiation_from_shortwave(
     return max(0.0, rs_mj_m2 * (1.0 - max(0.0, min(1.0, albedo))) + lw_net_mj_m2)
 
 
+def _clean_optional(
+    value: float | None, lo: float | None = None, hi: float | None = None
+) -> float | None:
+    """Return None for sentinel/missing values, else clamp to [lo, hi]."""
+    if value is None or float(value) <= -900.0:
+        return None
+    v = float(value)
+    if lo is not None:
+        v = max(lo, v)
+    if hi is not None:
+        v = min(hi, v)
+    return v
+
+
+def _sanitize_record(r: WeatherRecord) -> WeatherRecord:
+    tmin = max(-60.0, min(60.0, float(r.tmin_c)))
+    tmax = max(-60.0, min(60.0, float(r.tmax_c)))
+    rh = _clean_optional(r.relative_humidity_pct, 0.0, 100.0)
+    wind = _clean_optional(r.wind_m_s, 0.0)
+    rs = _clean_optional(r.shortwave_mj_m2, 0.0)
+    albedo = _clean_optional(r.albedo, 0.0, 1.0)
+    if albedo is None:
+        albedo = DEFAULT_ALBEDO
+    rn = _clean_optional(r.net_radiation_mj_m2)
+    if rn is None and rs is not None:
+        rn = net_radiation_from_shortwave(rs, albedo)
+    rn = None if rn is None else max(0.0, float(rn))
+    pmm = _clean_optional(r.precip_mm, 0.0)
+    return WeatherRecord(
+        day=r.day,
+        tmin_c=tmin,
+        tmax_c=tmax,
+        relative_humidity_pct=rh,
+        wind_m_s=wind,
+        shortwave_mj_m2=rs,
+        net_radiation_mj_m2=rn,
+        albedo=albedo,
+        precip_mm=pmm,
+    )
+
+
 def sanitize_weather_series(series: WeatherSeries) -> WeatherSeries:
     """Return a sanitized copy of a weather series.
 
     - Converts POWER sentinels (<= -900) to None
-    - Clamps temperatures to [-60, 60] °C
+    - Clamps temperatures to [-60, 60] deg C
     - Clamps RH to [0, 100] % if provided
     - Clamps wind to >= 0 if provided
     - Clamps radiation and precipitation to >= 0
     - Derives net radiation from shortwave if missing
     - Fills missing albedo with DEFAULT_ALBEDO
     """
-    cleaned: list[WeatherRecord] = []
-    for r in series.records:
-        tmin = max(-60.0, min(60.0, float(r.tmin_c)))
-        tmax = max(-60.0, min(60.0, float(r.tmax_c)))
-        # POWER sentinels (<= -900) treated as missing
-        rh = (
-            None
-            if (
-                r.relative_humidity_pct is None
-                or float(r.relative_humidity_pct) <= -900.0
-            )
-            else max(0.0, min(100.0, float(r.relative_humidity_pct)))
-        )
-        wind = (
-            None
-            if (r.wind_m_s is None or float(r.wind_m_s) <= -900.0)
-            else max(0.0, float(r.wind_m_s))
-        )
-        rs = (
-            None
-            if (r.shortwave_mj_m2 is None or float(r.shortwave_mj_m2) <= -900.0)
-            else max(0.0, float(r.shortwave_mj_m2))
-        )
-        albedo = (
-            DEFAULT_ALBEDO
-            if (r.albedo is None or float(r.albedo) <= -900.0)
-            else max(0.0, min(1.0, float(r.albedo)))
-        )
-        rn = (
-            None
-            if (r.net_radiation_mj_m2 is None or float(r.net_radiation_mj_m2) <= -900.0)
-            else float(r.net_radiation_mj_m2)
-        )
-        if rn is None and rs is not None:
-            rn = net_radiation_from_shortwave(rs, albedo)
-        rn = None if rn is None else max(0.0, float(rn))
-        pmm = (
-            None
-            if (r.precip_mm is None or float(r.precip_mm) <= -900.0)
-            else max(0.0, float(r.precip_mm))
-        )
-        cleaned.append(
-            WeatherRecord(
-                day=r.day,
-                tmin_c=tmin,
-                tmax_c=tmax,
-                relative_humidity_pct=rh,
-                wind_m_s=wind,
-                shortwave_mj_m2=rs,
-                net_radiation_mj_m2=rn,
-                albedo=albedo,
-                precip_mm=pmm,
-            )
-        )
-    return WeatherSeries(cleaned)
+    return WeatherSeries([_sanitize_record(r) for r in series.records])

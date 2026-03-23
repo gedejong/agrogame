@@ -4,7 +4,7 @@ from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.stress import compute_water_stress
 
 
-def test_light_interception_fraction_increases_with_lai():
+def test_light_interception_fraction_increases_with_lai() -> None:
     params = CanopyParams(
         extinction_coefficient_k=0.6,
         radiation_use_efficiency_g_per_mj=3.0,
@@ -22,7 +22,7 @@ def test_light_interception_fraction_increases_with_lai():
     assert f0 < f1 < f2
 
 
-def test_biomass_growth_linear_with_par_and_temp_and_stress():
+def test_biomass_growth_linear_with_par_and_temp_and_stress() -> None:
     params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.0)
     canopy = CanopyModule(params)
     inc_a = canopy.calculate_biomass_growth(
@@ -42,7 +42,7 @@ def test_biomass_growth_linear_with_par_and_temp_and_stress():
     assert inc_d == 0.5 * inc_a
 
 
-def test_lai_update_respects_sla_senescence_and_cap():
+def test_lai_update_respects_sla_senescence_and_cap() -> None:
     params = CanopyParams(0.6, 3.0, 0.02, 2.0, 0.1)
     canopy = CanopyModule(params)
     canopy.state.lai = 1.0
@@ -50,7 +50,7 @@ def test_lai_update_respects_sla_senescence_and_cap():
     assert new_lai <= params.lai_max
 
 
-def test_lai_scurve_and_high_interception_at_lai4():
+def test_lai_scurve_and_high_interception_at_lai4() -> None:
     params = CanopyParams(0.6, 3.0, 0.05, 6.0, 0.0)
     canopy = CanopyModule(params)
     canopy.state.lai = 0.2
@@ -67,7 +67,7 @@ def test_lai_scurve_and_high_interception_at_lai4():
     assert 0.9 <= frac <= 0.98
 
 
-def test_compute_water_stress_monotonic():
+def test_compute_water_stress_monotonic() -> None:
     s1 = compute_water_stress(
         actual_transpiration_mm=1.0, potential_transpiration_mm=4.0
     )
