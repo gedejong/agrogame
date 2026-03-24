@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -8,6 +9,7 @@ from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
+from agrogame.weather.utils import vpd_kpa
 
 
 @dataclass
@@ -18,12 +20,15 @@ class CanopyRuntime:
     _last_water: float = 1.0
     _last_n: float = 1.0
     _last_p: float = 1.0
+    _stress_history: deque[float] = field(default_factory=lambda: deque(maxlen=7))
+    _consecutive_wilt_days: int = 0
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(WaterStressComputed, self._on_water_stress)
         self.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
         self._stress_calc = StressCalculator("liebig")
+        self._stress_history = deque(maxlen=self.canopy.params.stress_memory_days)
 
     def _on_water_stress(self, ev: WaterStressComputed) -> None:
         self._last_water = max(0.0, min(1.0, float(ev.stress)))
@@ -42,6 +47,37 @@ class CanopyRuntime:
         p = self.canopy.params
         return cardinal_temp_factor(tmean, p.temp_base_c, p.temp_opt_c, p.temp_max_c)
 
+    def _vpd_rue_factor(self, ev: DayTick) -> float:
+        """Reduce RUE under high VPD (Tanner & Sinclair style)."""
+        if ev.tmin_c is None or ev.tmax_c is None:
+            return 1.0
+        tmean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
+        # Approximate RH from water stress (drier soil → drier air)
+        rh_approx = 40.0 + 40.0 * self._last_water
+        vpd = vpd_kpa(tmean, rh_approx)
+        p = self.canopy.params
+        excess = max(0.0, vpd - p.vpd_rue_ref_kpa)
+        return max(0.2, 1.0 - p.vpd_rue_slope * excess)
+
+    def _update_stress_memory(self, water_stress: float) -> float:
+        """Track stress history and return running-average stress."""
+        self._stress_history.append(water_stress)
+        if not self._stress_history:
+            return water_stress
+        return sum(self._stress_history) / len(self._stress_history)
+
+    def _check_wilt_damage(self, water_stress: float) -> None:
+        """Apply irreversible LAI loss after prolonged severe stress."""
+        p = self.canopy.params
+        if water_stress < p.wilt_stress_threshold:
+            self._consecutive_wilt_days += 1
+        else:
+            self._consecutive_wilt_days = 0
+        if self._consecutive_wilt_days >= p.wilt_days_for_damage:
+            loss = self.canopy.state.lai * p.wilt_lai_loss_fraction
+            self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
+            self._consecutive_wilt_days = 0
+
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "canopy":
             return
@@ -54,12 +90,20 @@ class CanopyRuntime:
         else:
             combined = min(water, n, p)
 
-        water_s = water
+        # Cumulative water stress (running average dampens recovery)
+        avg_water = self._update_stress_memory(water)
+        # VPD-driven RUE penalty
+        vpd_factor = self._vpd_rue_factor(ev)
+        # Apply the more limiting of instantaneous and averaged stress
+        effective_water = min(water, avg_water) * vpd_factor
+
         n_s = min(n, combined)
         tf = self._compute_temp_factor(ev)
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,
             temp_factor=tf,
-            water_stress=water_s,
+            water_stress=effective_water,
             n_stress=n_s,
         )
+        # Check for irreversible wilt damage
+        self._check_wilt_damage(water)

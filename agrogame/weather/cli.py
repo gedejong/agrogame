@@ -53,16 +53,36 @@ def add_weather_args(parser: ArgumentParser) -> None:
     )
 
 
+def _resolve_start_date(args: Any) -> _date:
+    start_str = getattr(args, "start_date", None)
+    if start_str:
+        return _dt.strptime(start_str, "%Y-%m-%d").date()
+    return _date(_date.today().year, 1, 1)
+
+
+def _generate_synthetic(args: Any, days: int) -> WeatherSeries:
+    from agrogame.weather.presets import load_climate_presets
+    from agrogame.weather.generator import SyntheticWeatherGenerator
+
+    preset_name = args.climate_preset
+    lib = load_climate_presets()
+    if preset_name not in lib.climates:
+        raise ValueError(
+            f"Unknown climate preset {preset_name!r}; "
+            f"available: {sorted(lib.climates.keys())}"
+        )
+    scenario = getattr(args, "scenario", "normal")
+    seed = getattr(args, "seed", 42)
+    gen = SyntheticWeatherGenerator(lib.climates[preset_name], seed=seed)
+    return gen.generate(days, _resolve_start_date(args), scenario)
+
+
 def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
-    # Priority 1: explicit weather file
     if getattr(args, "weather_file", None):
         return load_weather(args.weather_file)
-    # Priority 2: NASA POWER
-    if (
-        getattr(args, "power_lat", None) is not None
-        and getattr(args, "power_lon", None) is not None
-        and not getattr(args, "climate_preset", None)
-    ):
+    if getattr(args, "climate_preset", None):
+        return _generate_synthetic(args, days)
+    if getattr(args, "power_lat", None) is not None:
         if getattr(args, "power_start", None) and getattr(args, "power_end", None):
             start = _dt.strptime(args.power_start, "%Y-%m-%d").date()
             end = _dt.strptime(args.power_end, "%Y-%m-%d").date()
@@ -71,25 +91,4 @@ def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
             end = _date(today.year - 1, today.month, today.day)
             start = end - _td(days=days - 1)
         return load_weather_auto(args.power_lat, args.power_lon, start, end)
-    # Priority 3: synthetic from climate preset
-    preset_name = getattr(args, "climate_preset", None)
-    if preset_name:
-        from agrogame.weather.presets import load_climate_presets
-        from agrogame.weather.generator import SyntheticWeatherGenerator
-
-        lib = load_climate_presets()
-        if preset_name not in lib.climates:
-            raise ValueError(
-                f"Unknown climate preset {preset_name!r}; "
-                f"available: {sorted(lib.climates.keys())}"
-            )
-        scenario = getattr(args, "scenario", "normal")
-        seed = getattr(args, "seed", 42)
-        gen = SyntheticWeatherGenerator(lib.climates[preset_name], seed=seed)
-        start_str = getattr(args, "start_date", None)
-        if start_str:
-            start = _dt.strptime(start_str, "%Y-%m-%d").date()
-        else:
-            start = _date(_date.today().year, 1, 1)
-        return gen.generate(days, start, scenario)
     return None

@@ -14,6 +14,13 @@ class CanopyParams:
     temp_base_c: float = 8.0  # below this, temp_factor = 0
     temp_opt_c: float = 30.0  # at this, temp_factor = 1
     temp_max_c: float = 42.0  # above this, temp_factor = 0
+    # Water stress feedback (AGRO-82)
+    vpd_rue_ref_kpa: float = 1.5  # VPD above which RUE is reduced
+    vpd_rue_slope: float = 0.1  # fractional RUE reduction per kPa above ref
+    wilt_stress_threshold: float = 0.3  # stress below this triggers damage
+    wilt_days_for_damage: int = 5  # consecutive days below threshold
+    wilt_lai_loss_fraction: float = 0.1  # fraction of LAI lost per damage event
+    stress_memory_days: int = 7  # window for running-average stress
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:
