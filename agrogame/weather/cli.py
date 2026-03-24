@@ -45,6 +45,12 @@ def add_weather_args(parser: ArgumentParser) -> None:
         default=42,
         help="Random seed for synthetic weather (default 42 for reproducibility)",
     )
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        default=None,
+        help="Simulation start date YYYY-MM-DD (default: Jan 1 current year)",
+    )
 
 
 def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
@@ -80,7 +86,10 @@ def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
         scenario = getattr(args, "scenario", "normal")
         seed = getattr(args, "seed", 42)
         gen = SyntheticWeatherGenerator(lib.climates[preset_name], seed=seed)
-        today = _date.today()
-        start = _date(today.year, 1, 1)
+        start_str = getattr(args, "start_date", None)
+        if start_str:
+            start = _dt.strptime(start_str, "%Y-%m-%d").date()
+        else:
+            start = _date(_date.today().year, 1, 1)
         return gen.generate(days, start, scenario)
     return None

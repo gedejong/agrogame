@@ -210,13 +210,14 @@ class FullSimulationOrchestrator:
         tmin_c: float,
         tmax_c: float,
         par_mj_m2: float,
+        sim_date: date | None = None,
         plant_n_demand_kg_ha: float = 1.0,
         plant_p_demand_kg_ha: float = 0.5,
         target_ph: float = 6.8,
     ) -> None:
         # Drive daily progression solely via DayTick phases
         self.calendar.tick(
-            sim_date=date.today(),
+            sim_date=sim_date or date.today(),
             drivers=drivers,
             target_ph=target_ph,
             tmin_c=tmin_c,

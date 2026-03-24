@@ -590,7 +590,24 @@ def _run_simulation_loop(
     orch.event_bus.subscribe(EvaporationTaken, _on_evap)
     orch.event_bus.subscribe(TranspirationByLayer, _on_transp)
 
+    from datetime import timedelta
+
+    # Determine simulation start date from weather series or CLI
+    if auto_series and auto_series.records:
+        sim_start = auto_series.records[0].day
+    else:
+        start_str = getattr(args, "start_date", None)
+        if start_str:
+            from datetime import datetime as _dt
+
+            sim_start = _dt.strptime(start_str, "%Y-%m-%d").date()
+        else:
+            from datetime import date as _d
+
+            sim_start = _d(_d.today().year, 1, 1)
+
     for day in range(total_days):
+        sim_date = sim_start + timedelta(days=day)
         tmin, tmax, par, rain, wind, rh = _resolve_weather_for_day(
             day, auto_series, args.alt_weather
         )
@@ -615,6 +632,7 @@ def _run_simulation_loop(
             tmin_c=tmin,
             tmax_c=tmax,
             par_mj_m2=par,
+            sim_date=sim_date,
             target_ph=target_ph,
             plant_n_demand_kg_ha=n_demand,
             plant_p_demand_kg_ha=p_demand,
