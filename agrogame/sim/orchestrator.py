@@ -17,13 +17,14 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
-from agrogame.atmosphere.et import Evapotranspiration, EtParams
+from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
 from typing import cast, Any
 from datetime import date
 from agrogame.sim.calendar import Calendar
 from agrogame.soil.water.runtime import WaterRuntime
 from agrogame.plant.roots.runtime import RootsRuntime
 from agrogame.atmosphere.et.runtime import ETRuntime
+from agrogame.atmosphere.et.types import EtState
 from agrogame.soil.nitrogen.runtime import NitrogenRuntime
 from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
 from agrogame.soil.phenology.runtime import PhenologyRuntime
@@ -108,7 +109,13 @@ class FullSimulationOrchestrator:
     `step_day` to advance water/N/P using a shared EventBus.
     """
 
-    def __init__(self, profile: SoilProfile, event_bus: EventBus | None = None) -> None:
+    def __init__(
+        self,
+        profile: SoilProfile,
+        event_bus: EventBus | None = None,
+        et_params: EtParams | None = None,
+        latitude_deg: float = 52.0,
+    ) -> None:
         self.event_bus = event_bus or EventBus()
         # Core plant modules
         self.phenology = PhenologyModule(
@@ -160,7 +167,7 @@ class FullSimulationOrchestrator:
         # Chemistry emits pH events used by N/P
         self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
         # ET model (emits transpiration/evaporation related events via water model)
-        self.et = Evapotranspiration(EtParams())
+        self.et = Evapotranspiration(et_params or EtParams())
         # Calendar for phased daily progression
         self.calendar = Calendar(self.event_bus)
 
@@ -168,18 +175,20 @@ class FullSimulationOrchestrator:
         _ = WaterRuntime(
             self.event_bus, self.water_model, self.profile, self.water_state
         )
-        _ = PhenologyRuntime(self.event_bus, self.phenology)
+        _ = PhenologyRuntime(self.event_bus, self.phenology, latitude_deg=latitude_deg)
         _ = RootsRuntime(
             self.event_bus, self.roots, self.root_state, self.profile, self.phenology
         )
         _ = ETRuntime(
-            self.event_bus,
-            self.et,
-            self.profile,
-            self.water_state,
-            self.water_model,
-            self.root_state,
-            self.canopy,
+            event_bus=self.event_bus,
+            et=self.et,
+            profile=self.profile,
+            water_state=self.water_state,
+            water_model=self.water_model,
+            roots_state=self.root_state,
+            canopy=self.canopy,
+            _evap_state=EtState(),
+            _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)

@@ -16,7 +16,7 @@ from agrogame.analysis.stats import (
 )
 
 
-def test_basic_metrics_perfect_match():
+def test_basic_metrics_perfect_match() -> None:
     obs = [1.0, 2.0, 3.0]
     sim = [1.0, 2.0, 3.0]
     assert rmse(obs, sim) == 0.0
@@ -28,7 +28,7 @@ def test_basic_metrics_perfect_match():
     assert coverage_within(obs, sim, tol=0.0) == 1.0
 
 
-def test_basic_metrics_simple_offsets():
+def test_basic_metrics_simple_offsets() -> None:
     obs = [1.0, 2.0, 3.0]
     sim = [2.0, 3.0, 4.0]
     # Deterministic expectations
@@ -43,7 +43,7 @@ def test_basic_metrics_simple_offsets():
     assert coverage_within(obs, sim, tol=1.0) == 1.0
 
 
-def test_align_series_and_phenology_error():
+def test_align_series_and_phenology_error() -> None:
     xs = ["2020-01-01", "2020-01-02", "2020-01-03"]
     xv = [1.0, 2.0, 3.0]
     ys = ["2020-01-02", "2020-01-03", "2020-01-04"]
@@ -55,7 +55,7 @@ def test_align_series_and_phenology_error():
     assert phenology_timing_error_days([0, 10, 20], [0, 12, 18]) == (0 + 2 + 2) / 3
 
 
-def test_edge_cases_and_errors():
+def test_edge_cases_and_errors() -> None:
     # Mismatched lengths -> error
     with pytest.raises(ValueError):
         rmse([1, 2], [1])

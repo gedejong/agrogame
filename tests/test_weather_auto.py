@@ -4,6 +4,8 @@ import json
 from datetime import date
 from typing import Any
 
+import pytest
+
 from agrogame.weather.loader import load_weather_auto
 
 
@@ -14,14 +16,14 @@ class _FakeResp:
     def __enter__(self) -> "_FakeResp":  # noqa: D401
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> None:  # noqa: D401
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:  # noqa: D401
         return None
 
     def read(self) -> bytes:  # noqa: D401
         return self._data
 
 
-def test_power_auto_fetch_monkeypatched(monkeypatch) -> None:
+def test_power_auto_fetch_monkeypatched(monkeypatch: pytest.MonkeyPatch) -> None:
     # Prepare minimal NASA POWER-like payload for a single day
     day_key = "20240601"
     payload = {
@@ -36,7 +38,7 @@ def test_power_auto_fetch_monkeypatched(monkeypatch) -> None:
         }
     }
 
-    def _fake_urlopen(url: str, timeout: int = 60):  # noqa: D401
+    def _fake_urlopen(url: str, timeout: int = 60) -> _FakeResp:  # noqa: D401
         return _FakeResp(payload)
 
     import urllib.request as _u

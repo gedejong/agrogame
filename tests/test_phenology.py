@@ -8,7 +8,7 @@ from agrogame.soil.phenology import (
 )
 
 
-def test_gdd_accumulation_and_stage_changes():
+def test_gdd_accumulation_and_stage_changes() -> None:
     params = CropPhenologyParams(
         base_temperature_c=10.0,
         max_temperature_c=35.0,

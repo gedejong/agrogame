@@ -24,7 +24,7 @@ mkdocstrings-python = "^1.10"
 mkdocs-autorefs = "^1.2"
 pytest = "^7.0"
 pytest-cov = "^4.0"
-black = "^26.3"
+black = "^24.3"
 flake8 = "^6.0"
 mypy = "^1.0"
 pre-commit = "^3.0"
@@ -41,7 +41,7 @@ deptry = "^0.20.0"
 vulture = "^2.11"
 numpy = "^1.24"
 pandas = "^2.0"
-pypdf = "^6.9.1"
+pypdf = "^6.0.0"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
@@ -103,7 +103,7 @@ ignore = ["tests/*", "docs/*", "out/*"]
 
 [tool.deptry]
 known_first_party = ["agrogame"]
-exclude = ["tests", "docs", "build", "dist", "out", ".cache", "scripts"]
+exclude = ["tests", "docs", "build", "dist", "out", ".cache", "scripts", "agrogame/plots"]
 ignore_notebooks = true
 
 [build-system]

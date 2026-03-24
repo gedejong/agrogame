@@ -7,4 +7,7 @@ Nitrogen module summary
 Daily step inputs
 - temperature, plant demand, root fractions, optional per-layer pH
 
+### Stress signal
+
+After daily uptake, a nutrient stress factor `stress_N = uptake/demand` (clamped to [0, 1]) is emitted via `NutrientStressComputed(nutrient="N")`.
 

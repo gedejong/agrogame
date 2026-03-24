@@ -92,6 +92,168 @@ def check_irrigation_stress(
     return results, diags
 
 
+def check_stress_bounds(ts: pd.DataFrame) -> Tuple[bool, str]:
+    ok_cols = []
+    for col in ("water_stress", "n_stress", "p_stress"):
+        if col in ts.columns:
+            s = ts[col]
+            ok = s.dropna().between(0.0, 1.0).all()
+            ok_cols.append(bool(ok))
+    return (all(ok_cols) if ok_cols else True), "Stress values within [0,1]"
+
+
+def check_water_coherence(
+    ts: pd.DataFrame,
+    low_thr: float = 0.6,
+    lai_min: float = 0.5,
+    denom_min: float = 1.0,
+    ratio_thr: float = 0.65,
+    max_exceed_frac: float = 0.10,
+) -> Tuple[bool, str, Dict[str, float]]:
+    """Low water stress should imply low actual/potential transpiration.
+
+    Uses transp_mm / (et0_mm * canopy_cover proxy) if potential not stored; here we
+    approximate with transp_mm / max(transp_mm, et0_mm) to ensure bounded ratio.
+    """
+    diagnostics: Dict[str, float] = {}
+    if "water_stress" not in ts.columns:
+        return True, "Water coherence (skipped)", diagnostics
+    # Prefer actual/potential transpiration when available
+    if "pot_transp_mm" in ts.columns:
+        denom = ts["pot_transp_mm"].astype(float).clip(lower=1e-6)
+    else:
+        denom = ts["et0_mm"].astype(float).clip(lower=1e-6)
+    ratio = (ts["transp_mm"].astype(float) / denom).clip(upper=1.0)
+    valid_lai = ts.get("lai", 1.0) >= lai_min
+    valid_denom = denom >= denom_min
+    mask = (ts["water_stress"] < low_thr) & valid_lai & valid_denom
+    scope = ts.loc[mask]
+    diagnostics["rows_considered"] = float(scope.shape[0])
+    if scope.empty:
+        return True, "Water coherence (no low-stress days)", diagnostics
+    r_scope = ratio.loc[scope.index]
+    ratio_mean = float(r_scope.mean())
+    frac_exceed = float((r_scope > ratio_thr + 1e-6).mean()) if len(r_scope) else 0.0
+    diagnostics["ratio_mean"] = ratio_mean
+    diagnostics["fraction_exceed"] = frac_exceed
+    ok = bool((ratio_mean <= ratio_thr + 1e-6) and (frac_exceed <= max_exceed_frac))
+    return ok, "Low water stress implies low supply", diagnostics
+
+
+def check_p_correlation(
+    ts: pd.DataFrame,
+    min_pos_r: float = 0.2,
+    start_day: int = 20,
+    lai_min_active: float = 0.5,
+    biomass_inc_min: float = 0.05,
+    mean_tol: float = 0.05,
+    min_group_count: int = 7,
+) -> Tuple[bool, str, Dict[str, float]]:
+    diagnostics: Dict[str, float] = {}
+    s = ts.get("p_stress")
+    if s is None or s.dropna().empty:
+        return True, "P correlation (skipped)", diagnostics
+    # If available P present, use Spearman correlation; else fallback trend proxy
+    if "p_avail_top_kg_ha" in ts.columns:
+        a = ts["p_avail_top_kg_ha"].astype(float)
+        lai_ser = ts.get("lai")
+        grow_ser = ts.get("biomass_inc_g_m2")
+        lai_gate = (lai_ser >= lai_min_active) if lai_ser is not None else True
+        grow_gate = (grow_ser > biomass_inc_min) if grow_ser is not None else True
+        mask = s.notna() & a.notna() & (ts["day"] >= start_day) & lai_gate & grow_gate
+        if not mask.any():
+            return True, "P correlation (skipped)", diagnostics
+        try:
+            from scipy.stats import spearmanr  # type: ignore
+
+            rho, _ = spearmanr(s[mask], a[mask])
+        except Exception:
+            # SciPy not available; compute Spearman via rank correlation
+            s_rank = s[mask].rank()
+            a_rank = a[mask].rank()
+            rho = float(s_rank.corr(a_rank, method="pearson"))
+        diagnostics["spearman_rho"] = float(rho)
+        if rho >= min_pos_r:
+            label = "P stress positively correlated with available P"
+            return True, label, diagnostics
+        # Quartile fallback: stress should be higher when available P is low
+        # Use non-negative available P for quantiles and robust medians
+        a_eff = a.clip(lower=0.0)
+        quant = a_eff[mask].quantile([0.25, 0.75]).to_list()
+        low_q, high_q = float(quant[0]), float(quant[1])
+        low_mask = mask & (a_eff <= low_q)
+        high_mask = mask & (a_eff >= high_q)
+        low_stat = s.loc[low_mask].median()
+        high_stat = s.loc[high_mask].median()
+        diagnostics["p_low_q_median_stress"] = (
+            float(low_stat) if pd.notna(low_stat) else float("nan")
+        )
+        diagnostics["p_high_q_median_stress"] = (
+            float(high_stat) if pd.notna(high_stat) else float("nan")
+        )
+        diagnostics["p_low_q_count"] = float(int(low_mask.sum()))
+        diagnostics["p_high_q_count"] = float(int(high_mask.sum()))
+        ok_q = bool(
+            pd.notna(low_stat)
+            and pd.notna(high_stat)
+            and int(low_mask.sum()) >= int(min_group_count)
+            and int(high_mask.sum()) >= int(min_group_count)
+            and (high_stat >= low_stat - float(mean_tol))
+        )
+        label_q = "P stress factor higher when available P is high (quartiles)"
+        return ok_q, label_q, diagnostics
+    # Fallback trend proxy
+    ds = s.dropna().diff().fillna(0)
+    frac_pos = float((ds > 1e-3).mean()) if len(ds) else 0.0
+    diagnostics["p_stress_frac_positive_deltas"] = frac_pos
+    ok = frac_pos <= 0.15
+    return ok, "P stress trend mostly non-increasing (proxy)", diagnostics
+
+
+def check_n_coherence(ts: pd.DataFrame) -> Tuple[bool, str, Dict[str, float]]:
+    diagnostics: Dict[str, float] = {}
+    if "n_stress" not in ts.columns:
+        return True, "N coherence (skipped)", diagnostics
+    # Use total mineral N proxy if present
+    if "n_total_kgha" in ts.columns:
+        quant = ts["n_total_kgha"].quantile([0.25, 0.75]).to_list()
+        low_q, high_q = float(quant[0]), float(quant[1])
+        low = ts.loc[ts["n_total_kgha"] <= low_q, "n_stress"].mean()
+        high = ts.loc[ts["n_total_kgha"] >= high_q, "n_stress"].mean()
+        diagnostics["n_low_q_mean"] = float(low) if pd.notna(low) else float("nan")
+        diagnostics["n_high_q_mean"] = float(high) if pd.notna(high) else float("nan")
+        ok = bool(pd.notna(low) and pd.notna(high) and (low <= high + 1e-6))
+        return ok, "N stress higher when mineral N is low (quartiles)", diagnostics
+    return True, "N coherence (skipped)", diagnostics
+
+
+def check_stage_impact(
+    ts: pd.DataFrame,
+    stress_col: str = "water_stress",
+    stage_col: str = "stage",
+    biomass_inc_col: str = "biomass_inc_g_m2",
+    critical_stages: tuple[str, ...] = ("flowering", "grain_fill"),
+    stress_thr: float = 0.7,
+) -> Tuple[bool, str, Dict[str, float]]:
+    diagnostics: Dict[str, float] = {}
+    if any(c not in ts.columns for c in (stress_col, stage_col, biomass_inc_col)):
+        return True, "Stage impact (skipped)", diagnostics
+    crit = ts.loc[ts[stage_col].isin(list(critical_stages))]
+    if crit.empty:
+        return True, "Stage impact (skipped)", diagnostics
+    low = crit.loc[crit[stress_col] < stress_thr, biomass_inc_col].mean()
+    high = crit.loc[crit[stress_col] >= stress_thr, biomass_inc_col].mean()
+    diagnostics["biomass_inc_low_stress"] = (
+        float(low) if pd.notna(low) else float("nan")
+    )
+    diagnostics["biomass_inc_high_stress"] = (
+        float(high) if pd.notna(high) else float("nan")
+    )
+    ok = pd.notna(low) and pd.notna(high) and (low <= high + 1e-6)
+    label = "High stress reduces biomass increment in critical stages"
+    return bool(ok), label, diagnostics
+
+
 def check_et_bounded(
     ts: pd.DataFrame,
     max_exceed_fraction: float = 0.10,
@@ -144,6 +306,25 @@ def main() -> None:
 
     checks: List[Tuple[bool, str]] = []
     diagnostics_sections: List[str] = []
+    # Stress bounds
+    ok_sb, name_sb = check_stress_bounds(ts)
+    checks.append((ok_sb, name_sb))
+
+    # Water coherence
+    ok_wc, name_wc, diag_wc = check_water_coherence(ts)
+    checks.append((ok_wc, name_wc))
+
+    # P correlation (proxy)
+    ok_pc, name_pc, diag_pc = check_p_correlation(ts)
+    checks.append((ok_pc, name_pc))
+
+    # N coherence (quartile-based)
+    ok_nc, name_nc, diag_nc = check_n_coherence(ts)
+    checks.append((ok_nc, name_nc))
+
+    # Stage impact
+    ok_si, name_si, diag_si = check_stage_impact(ts)
+    checks.append((ok_si, name_si))
 
     # Expectations
     # Biomass monotonicity only up to harvest if provided

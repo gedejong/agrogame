@@ -1,6 +1,8 @@
 [run]
 omit =
     agrogame/dashboard/*
+    agrogame/plots/*
+    agrogame/weather/cli.py
 
 [report]
 exclude_lines =

@@ -6,6 +6,10 @@ Canopy summary
 - Phenology: higher senescence in grain fill
 - Events: `LightIntercepted`, `BiomassAccumulated`, `LAIUpdated`
 
+### Stress integration
+
+Biomass growth scales by `min(water_stress, n_stress)`. Water stress is derived from ET supply/demand via a `WaterStressComputed` event. Nutrient stress is proxied from N/P uptake vs demand via `NutrientStressComputed`. These are combined (default Liebig minimum) and applied to growth and partitioning, with heightened sensitivity during flowering and grain fill.
+
 ### Rainfall interception
 
 Capacity per day: `C = capacity_coef_mm_per_lai * LAI` (mm). The canopy stores intercepted water up to remaining capacity; any excess becomes throughfall. During the daily ET step, canopy evaporation is prioritized before soil evaporation.

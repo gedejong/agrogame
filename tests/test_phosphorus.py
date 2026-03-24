@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, cast
+
 from agrogame.soil.models import SoilLayer, SoilProfile
 from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained
@@ -11,6 +13,15 @@ from agrogame.soil.phosphorus import (
     PhosphorusFixationOccurred,
 )
 from agrogame.soil.nitrogen import NutrientLeached
+
+if TYPE_CHECKING:
+    from agrogame.soil.phosphorus.cycle import (
+        _WaterState as _PWaterState,
+        _WaterProfile as _PWaterProfile,
+    )
+else:
+    _PWaterState = Any
+    _PWaterProfile = Any
 
 
 def make_profile() -> SoilProfile:
@@ -58,12 +69,17 @@ def make_profile() -> SoilProfile:
     return SoilProfile(name="test", layers=layers)
 
 
-def test_phosphorus_event_wiring_and_minimal_leaching():
+def test_phosphorus_event_wiring_and_minimal_leaching() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    _ = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    _ = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     leached = []
     bus.subscribe(NutrientLeached, lambda e: leached.append(e))
@@ -77,12 +93,17 @@ def test_phosphorus_event_wiring_and_minimal_leaching():
     assert any(ev.nutrient == "P" for ev in leached)
 
 
-def test_daily_step_emits_fixation_and_respects_ph():
+def test_daily_step_emits_fixation_and_respects_ph() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     fix_events = []
     bus.subscribe(PhosphorusFixationOccurred, lambda e: fix_events.append(e))
@@ -98,12 +119,17 @@ def test_daily_step_emits_fixation_and_respects_ph():
     assert len(fix_events) >= 1
 
 
-def test_uptake_uses_root_fractions_and_ph_availability():
+def test_uptake_uses_root_fractions_and_ph_availability() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     # Demand focused on top layer with acidic pH reduces effective uptake
     root_fracs = [0.8, 0.15, 0.05]
@@ -117,7 +143,12 @@ def test_uptake_uses_root_fractions_and_ph_availability():
     # Reset with a fresh state to avoid prior-day side effects on OM pool
     state2 = SoilPhosphorusState(profile)
     state2.available_p = [15.0, 0.0, 0.0]
-    cycle2 = PhosphorusCycle(bus, state2, water_state=water, profile=profile)
+    cycle2 = PhosphorusCycle(
+        bus,
+        state2,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
     flux_neutral = cycle2.daily_step(
         temperature_c=20.0,
         plant_demand_kg_ha=5.0,
@@ -128,12 +159,17 @@ def test_uptake_uses_root_fractions_and_ph_availability():
     assert flux_neutral.plant_uptake_kg_ha >= flux_acid.plant_uptake_kg_ha
 
 
-def test_fertilizer_apis_increase_available_p():
+def test_fertilizer_apis_increase_available_p() -> None:
     profile = make_profile()
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     base = list(state.available_p)
     cycle.apply_triple_superphosphate(layer=0, amount_kg_ha=10.0)
@@ -192,7 +228,12 @@ def test_slow_release_schedule_releases_full_amount_over_days() -> None:
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     baseline_total = state.total_phosphorus_kg_ha()
 
@@ -216,7 +257,12 @@ def test_temperature_sensitivity_increases_mineralization() -> None:
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     # Lower temperature should mineralize less than higher temperature
     cold = cycle.daily_step(
@@ -233,7 +279,12 @@ def test_mass_balance_conserved_without_inputs_or_outputs() -> None:
     bus = EventBus()
     state = SoilPhosphorusState(profile)
     water = SoilWaterState(profile)
-    cycle = PhosphorusCycle(bus, state, water_state=water, profile=profile)
+    cycle = PhosphorusCycle(
+        bus,
+        state,
+        water_state=cast(_PWaterState, water),
+        profile=cast(_PWaterProfile, profile),
+    )
 
     total_before = state.total_phosphorus_kg_ha()
     _ = cycle.daily_step(

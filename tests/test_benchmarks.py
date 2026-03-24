@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import os
 import pytest
@@ -18,6 +19,7 @@ from agrogame.atmosphere.et.types import EtComponents
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
+from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.weather import load_weather
 
 
@@ -98,9 +100,9 @@ def _run_growth(
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(
-            profile,
-            wstate,
-            water,
+            cast(WaterProfile, profile),
+            cast(WaterState, wstate),
+            cast(WaterActuator, water),
             comps,
             root_fractions=tuple(
                 [1.0 / max(1, len(profile.layers))] * len(profile.layers)
@@ -116,7 +118,9 @@ def _run_growth(
     return _yield_t_ha_from_biomass_g_m2(canopy.state.biomass_g_m2, harvest_index=hi)
 
 
-def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 365):
+def _run_growth_with_wue_and_stages(
+    weather_file: Path, days: int = 365
+) -> tuple[float, float, int | None, int | None]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils["loam_temperate"]
     bus = EventBus()
@@ -173,9 +177,9 @@ def _run_growth_with_wue_and_stages(weather_file: Path, days: int = 365):
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
         actual = et.actual_et(
-            profile,
-            wstate,
-            water,
+            cast(WaterProfile, profile),
+            cast(WaterState, wstate),
+            cast(WaterActuator, water),
             comps,
             root_fractions=tuple(
                 [1.0 / max(1, len(profile.layers))] * len(profile.layers)

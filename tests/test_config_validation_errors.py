@@ -5,7 +5,7 @@ import pytest
 from agrogame.config.validation import validate_data
 
 
-def test_validate_crop_error_reports_path():
+def test_validate_crop_error_reports_path() -> None:
     bad = {
         "crops": {
             "x": {

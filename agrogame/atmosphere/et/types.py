@@ -15,6 +15,12 @@ class EtState:
     cumulative_evap_mm: float = 0.0
 
 
+@dataclass
+class ResidueState:
+    cover_fraction: float = 0.0
+    decay_half_life_days: float = 0.0  # 0 = no decay
+
+
 @dataclass(frozen=True)
 class EtActual:
     evaporation_mm: float

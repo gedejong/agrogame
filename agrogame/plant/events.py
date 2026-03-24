@@ -18,3 +18,20 @@ class WaterStressComputed(BaseEvent):
     supply_mm: float
     demand_mm: float
     stress: float
+
+
+@dataclass(frozen=True)
+class NutrientStressComputed(BaseEvent):
+    """Nutrient stress signals computed from uptake vs demand proxies.
+
+    Attributes:
+        nutrient: "N" or "P".
+        uptake_kg_ha: Actual plant uptake (kg/ha) during the day.
+        demand_kg_ha: Plant demand (kg/ha) requested for the day.
+        stress: Computed stress factor in 0..1 (uptake/demand clamped).
+    """
+
+    nutrient: str
+    uptake_kg_ha: float
+    demand_kg_ha: float
+    stress: float

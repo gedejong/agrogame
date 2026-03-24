@@ -7,6 +7,7 @@ This module models phosphorus (P) dynamics per soil layer and integrates with th
 - **pH availability**: Uptake uses a piecewise-linear availability modifier anchored at pH 4–9 with optimum near 6.5–7.0.
 - **Fixation**: Moves `available_p` → `fixed_p`. Daily rate derived from weekly 1–5%, scaled higher under acidic pH. Emits `PhosphorusFixationOccurred`.
 - **Uptake**: Allocated by root fractions per layer. Effective uptake is reduced by the pH availability modifier.
+  After uptake, a phosphorus stress proxy `stress_P = uptake/demand` (clamped to [0, 1]) is emitted via `NutrientStressComputed(nutrient="P")`.
 - **Slow-release fertilizer**: `apply_slow_release_p(layer, amount, release_days)` applies 20% immediately and schedules the remainder evenly across `release_days`, releasing each day before transformations. Scheduled remainder is included in mass-balance accounting.
 - **Water-driven movement**: P is largely immobile. Under very heavy drainage, a tiny fraction of `available_p` is lost as `NutrientLeached(nutrient="P")`.
 

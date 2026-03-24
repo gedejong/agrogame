@@ -173,11 +173,8 @@ def run_engine(
         def _parse_days(specs: List[str] | None) -> list[int]:
             days_list: list[int] = []
             for s in specs or []:
-                try:
-                    d = int(s.split(",")[0]) + 1
-                    days_list.append(d)
-                except Exception:
-                    continue
+                d = int(s.split(",")[0]) + 1
+                days_list.append(d)
             return days_list
 
         irr_days = _parse_days(irrig)
@@ -252,7 +249,8 @@ def run_engine(
         ax2.set_title("Timeseries correlations")
         fig2.tight_layout()
         fig2.savefig(out_dir / "timeseries_correlations.png", dpi=150)
-    except Exception:
+    except ImportError:
+        # matplotlib not installed; skip plotting
         pass
 
     return {

@@ -61,6 +61,14 @@ repos:
 
   - repo: local
     hooks:
+      - id: defensive-coding
+        name: defensive coding checks
+        entry: poetry run python scripts/check_defensive_coding.py agrogame
+        language: system
+        pass_filenames: false
+        stages: [push]
+  - repo: local
+    hooks:
       - id: pytest-with-cov
         name: pytest with coverage
         entry: poetry run pytest --maxfail=1 --disable-warnings

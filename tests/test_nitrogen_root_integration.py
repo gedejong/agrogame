@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
 
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
@@ -9,6 +10,16 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.atmosphere.et.module import Evapotranspiration
+from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
+
+if TYPE_CHECKING:
+    from agrogame.soil.nitrogen.cycle import (
+        _WaterState as _NWaterState,
+        _WaterProfile as _NWaterProfile,
+    )
+else:
+    _NWaterState = Any
+    _NWaterProfile = Any
 
 
 def test_nitrogen_cycle_uses_root_fractions_for_uptake() -> None:
@@ -22,7 +33,10 @@ def test_nitrogen_cycle_uses_root_fractions_for_uptake() -> None:
 
     bus = EventBus()
     cycle = NitrogenCycle(
-        bus, nstate, water_state=SoilWaterState(profile), profile=profile
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, SoilWaterState(profile)),
+        profile=cast(_NWaterProfile, profile),
     )
 
     uptake = cycle.daily_step(
@@ -46,7 +60,10 @@ def test_nitrogen_cycle_uses_cached_root_fractions_when_none_passed() -> None:
 
     bus = EventBus()
     cycle = NitrogenCycle(
-        bus, nstate, water_state=SoilWaterState(profile), profile=profile
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, SoilWaterState(profile)),
+        profile=cast(_NWaterProfile, profile),
     )
 
     # Cache root fractions via event (favor layer 1)
@@ -70,7 +87,12 @@ def test_massflow_uptake_increases_with_transpiration() -> None:
     bus = EventBus()
     wstate = SoilWaterState(profile)
     water = CascadingBucketWaterModel(event_bus=bus)
-    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, wstate),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     # Simulate two transpiration events with different totals but same distribution
     root_fracs = [1.0 / n_layers] * n_layers
@@ -79,12 +101,24 @@ def test_massflow_uptake_increases_with_transpiration() -> None:
     et0 = 5.0
     comps = et.potential_components(et0_mm=et0, lai=1.5)
     # First day: lower demand
-    actual1 = et.actual_et(profile, wstate, water, comps, root_fracs)
+    actual1 = et.actual_et(
+        cast(WaterProfile, profile),
+        cast(WaterState, wstate),
+        cast(WaterActuator, water),
+        comps,
+        root_fracs,
+    )
     total1 = actual1.transpiration_mm
     # Second day: increase potential to drive higher transpiration
     et0_high = et0 * 1.5
     comps_high = et.potential_components(et0_mm=et0_high, lai=1.5)
-    actual2 = et.actual_et(profile, wstate, water, comps_high, root_fracs)
+    actual2 = et.actual_et(
+        cast(WaterProfile, profile),
+        cast(WaterState, wstate),
+        cast(WaterActuator, water),
+        comps_high,
+        root_fracs,
+    )
     total2 = actual2.transpiration_mm
 
     # Expect higher total transpiration on the second day
@@ -106,14 +140,25 @@ def test_massflow_uptake_bounded_by_availability() -> None:
     bus = EventBus()
     wstate = SoilWaterState(profile)
     water = CascadingBucketWaterModel(event_bus=bus)
-    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, wstate),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     # Drive transpiration focused on layer 0
     et = Evapotranspiration()
     et0 = 8.0
     comps = et.potential_components(et0_mm=et0, lai=2.0)
     rf = [1.0] + [0.0] * (len(profile.layers) - 1)
-    _ = et.actual_et(profile, wstate, water, comps, rf)
+    _ = et.actual_et(
+        cast(WaterProfile, profile),
+        cast(WaterState, wstate),
+        cast(WaterActuator, water),
+        comps,
+        rf,
+    )
 
     # NO3 cannot go below zero
     assert nstate.no3[0] >= 0.0
@@ -128,7 +173,12 @@ def test_massflow_decreases_with_water_stress() -> None:
     bus = EventBus()
     wstate = SoilWaterState(profile)
     water = CascadingBucketWaterModel(event_bus=bus)
-    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, wstate),
+        profile=cast(_NWaterProfile, profile),
+    )
 
     et = Evapotranspiration()
     rf = [1.0 / len(profile.layers)] * len(profile.layers)
@@ -136,7 +186,13 @@ def test_massflow_decreases_with_water_stress() -> None:
     def run_once(et0: float) -> tuple[float, float]:
         comps = et.potential_components(et0_mm=et0, lai=2.0)
         no3_before = sum(nstate.no3)
-        actual = et.actual_et(profile, wstate, water, comps, rf)
+        actual = et.actual_et(
+            cast(WaterProfile, profile),
+            cast(WaterState, wstate),
+            cast(WaterActuator, water),
+            comps,
+            rf,
+        )
         uptake = max(0.0, no3_before - sum(nstate.no3))
         return actual.transpiration_mm, uptake
 
@@ -177,10 +233,21 @@ def test_zero_et_and_zero_no3_yield_zero_uptake() -> None:
     bus = EventBus()
     wstate = SoilWaterState(profile)
     water = CascadingBucketWaterModel(event_bus=bus)
-    _ = NitrogenCycle(bus, nstate, water_state=wstate, profile=profile)
+    _ = NitrogenCycle(
+        bus,
+        nstate,
+        water_state=cast(_NWaterState, wstate),
+        profile=cast(_NWaterProfile, profile),
+    )
     et = Evapotranspiration()
     rf = [1.0 / len(profile.layers)] * len(profile.layers)
     comps = et.potential_components(et0_mm=0.0, lai=1.0)
     no3_before = sum(nstate.no3)
-    _ = et.actual_et(profile, wstate, water, comps, rf)
+    _ = et.actual_et(
+        cast(WaterProfile, profile),
+        cast(WaterState, wstate),
+        cast(WaterActuator, water),
+        comps,
+        rf,
+    )
     assert sum(nstate.no3) == no3_before

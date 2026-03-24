@@ -1,0 +1,54 @@
+climates:
+  netherlands_temperate:
+    name: "Netherlands - Temperate Maritime"
+    latitude_deg: 52.0
+    longitude_deg: 5.5
+    annual_mean_tmin_c: 4.0
+    annual_mean_tmax_c: 14.0
+    annual_temp_amplitude_c: 10.0
+    annual_mean_precip_mm_day: 2.3
+    annual_mean_rh_pct: 82.0
+    annual_mean_wind_m_s: 4.5
+    annual_mean_shortwave_mj_m2: 10.0
+    heatwave_probability: 0.005
+    frost_probability: 0.02
+    heavy_rain_probability: 0.01
+    heatwave_intensity_c: 8.0
+    frost_intensity_c: -5.0
+    heavy_rain_intensity_mm: 35.0
+
+  kenya_highlands:
+    name: "Kenya Highlands - Tropical Highland"
+    latitude_deg: -0.4
+    longitude_deg: 36.9
+    annual_mean_tmin_c: 10.0
+    annual_mean_tmax_c: 24.0
+    annual_temp_amplitude_c: 2.0
+    annual_mean_precip_mm_day: 3.5
+    annual_mean_rh_pct: 65.0
+    annual_mean_wind_m_s: 2.0
+    annual_mean_shortwave_mj_m2: 20.0
+    heatwave_probability: 0.002
+    frost_probability: 0.005
+    heavy_rain_probability: 0.02
+    heatwave_intensity_c: 6.0
+    frost_intensity_c: -2.0
+    heavy_rain_intensity_mm: 50.0
+
+  sahel_arid:
+    name: "Sahel - Semi-Arid"
+    latitude_deg: 14.0
+    longitude_deg: 2.0
+    annual_mean_tmin_c: 20.0
+    annual_mean_tmax_c: 36.0
+    annual_temp_amplitude_c: 6.0
+    annual_mean_precip_mm_day: 1.2
+    annual_mean_rh_pct: 30.0
+    annual_mean_wind_m_s: 3.0
+    annual_mean_shortwave_mj_m2: 24.0
+    heatwave_probability: 0.02
+    frost_probability: 0.0
+    heavy_rain_probability: 0.005
+    heatwave_intensity_c: 10.0
+    frost_intensity_c: -3.0
+    heavy_rain_intensity_mm: 40.0

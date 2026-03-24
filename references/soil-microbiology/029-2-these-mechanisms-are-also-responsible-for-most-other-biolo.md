@@ -1,0 +1,267 @@
+### 2 These mechanisms are also responsible for most other biolo
+
+2. These mechanisms are also responsible for most other biological transfor-
+mations observed in soils.
+Transformations mediated by soil organisms result from their search for
+energy. Energy for soil organisms is obtained by passing electrons from e/H11002donors
+toe/H11002acceptors to produce ATP. Flow of e/H11002between donors and receptors changes
+the oxidation states of elements. These donors and acceptors form multiple inter-connected oxidation–reduction couples, which lead to cycles through whichelectrons ﬂow. Because of the central role of oxidation–reduction reactions,O
+2availability would be expected to be, and is, is a major control on how these
+interconnected oxid ation–reduction couples operate. Electron donors and accep-
+tors in e ach couple are often different elements. Consequently these ﬂows of e/H11002unite
+cycles of elements, alter mobility and functions of elements, and regulate soil bio-logical transformations. Flow of electrons among these cycles unites activities ofextremely diverse groups of soil organisms. Therefore, one can understand most soilbiological transformations as a simple framework of interconnected cycles of e
+/H11002.
+Such a conceptualization is a simple and robust way to unite the myriad details
+about transformations mediated by soil organisms. An electron cycle modelHow can the Microbial Contributions be Viewed 251Ch09-P546807.qxd  11/18/06  6:56 PM  Page 251
+accommodates the full spectrum of understanding from detailed presentations of
+reactions to global biogeochemical cycles and earth history. It further makes pre-dictions about what we might yet ﬁnd in nature concerning mineral transforma-tions by soil organisms.
+A MODEL OF INTERCONNECTED CYCLES 
+OF ELECTRONS
+This system of ﬂowing e/H11002is like an electrical system with two cycles, an anoxy-
+genic (not O 2-producing) cycle and an oxygenic (O 2-producing) cycle, and four
+circuits, two phototrophic, one chemoorganotrophic, and one chemolithotrophic,hooked in parallel (Fig. 9.7). The microbial component consists of four groups oforganisms described using the nutritional classiﬁcation in Table 9.1. Three groups oforganisms are responsible for C addition to the pedosphere, and only one(chemoorganotrophs) for its removal. The two cycles are distinguished on the basisof the photosynthetic mechanisms: anoxygenic or oxygenic. The chemoorgan-otrophic circuit unites the anoxygenic cycle with the oxygenic cycle.252 Chapter 9 The Physiology and Biochemistry of Soil Organisms
+hϕ hϕ
+CO2 /H11001 H2SH2S /H11001 CO2 /H11001 O2CO2 /H11001 HOH
+SO42/H11002 /H11001 CH2O
+CH2O /H11001 O2CH2O /H11001 SO42/H11002Photo
+LithotrophsChemo
+OrganotrophsChemo
+LithotrophsPhoto
+Aquatrophs
+Anoxygenic Oxygenic
+FIGURE 9.7 Schematic outline of electron ﬂow through oxygenic and anoxygenic cycles start-
+ing with anoxygenic (not oxygen-producing) on the left and oxygenic photosynthesis (oxygen-producing) on the right. Anoxygenic photosynthesis (photolithotrophs) generates oxidized S speciesfrom reduced S under anaerobic conditions, thereby maintaining anaerobic conditions. Oxygenic pho-tosynthesis (photoaquatrophs) generates oxygen from water, thereby producing aerobic conditions.Both yield CH
+2O for biomass production. In contrast, however, photolithotrophs serve the mineral-
+oxidizing function of chemolithotrophs in oxygenic cycles, but do not produce oxygen. Chemo-organotrophs unite both sets of cycles by oxidizing reduced C aerobically or anaerobically to CO
+2.
+(Reproduced from McGill (1996), with permission from SBCS and SLCS.)Ch09-P546807.qxd  11/18/06  6:56 PM  Page 252
+THE ANOXYGENIC CYCLE
+Anoxygenic photosynthesis uses energy from sunlight to couple the reduction of
+C in CO 2to the anaerobic oxidation of S in S0or H 2S. If one is accustomed to think-
+ing of S oxidation in a strictly aerobic sense, then anaerobic S oxidation appears con-tradictory. Anoxygenic photosynthesis would have been compatible with the anoxic(O
+2-free) conditions of the earth’s primordial atmosphere. It could have been medi-
+ated by anaerobic organisms like present-day photosynthetic sulfur bacteria and isbelieved to have preceded oxygenic photosynthesis (Staley and Orians, 1992).Dominance of anoxygenic photosynthesis would have favored anaerobic respirationor fermentative pathways for obtaining energy from the products of photosynthe-sis. Consequently one might expect, and certainly one ﬁnds, a wide representationof anaerobic microorganisms in soil environments. Many elements can cycleunder entirely anaerobic conditions due to the syntrophic relationships amongphotolithotrophs and anaerobic chemoorganotrophs. With the input of electromag-netic radiation to power photosynthesis by photolithotrophs that reduce C and
+oxidize ele ments such as S, combined with decomposition by anaerobic
+chemoorganotr ophs to reoxidize C and re-reduce S, one can summarize the anoxy-
+genic cycle as:
+4CO
+2/H110012H2S/H110014HOH ↔ 2SO 42/H11002/H110014CH 2O/H110014H/H11001.
+Energy trapped as organic compounds during anoxygenic photosynthesis could
+be released by oxidation of the reduced C ( e/H11002donor) coupled to reduction of the
+oxidized minerals ( e/H11002acceptor) formed during anoxygenic photosynthesis.
+THE OXYGENIC CYCLE
+Oxygenic photosynthesis can be carried out by many eukaryotes, but only by the
+cyanobacteria among the prokaryotes. Consequently, anoxygenic photosynthesisis dominantly prokaryotic and oxygenic photosynthesis dominated by eukaryotes.The oxygenic cycle has two circuits. First, a photo–chemo circuit consisting ofphotoaquatrophs to reduce C coupled with chemoorganotrophs, which may be eitheraerobic or anaerobic, to reoxidize it. Second, a chemo–chemo circuit consisting ofaerobic chemolithotrophs to oxidize minerals coupled with anaerobic (or facultative)chemoorganotrophs to oxidize C and re-reduce minerals (Fig. 9.7). Electrons ﬂowamong the cycles, thereby connecting them. For example, an electron from watermay be passed to CH
+2O during photosynthesis, proceed through the photo–chemo
+circuit, and be returned to water through aerobic oxidation. From there it may againbe passed to CO
+2(photosynthesis) to form CH 2O, proceed to the chemo–chemo
+circuit, and under anaerobic conditions be used to reduce SO 42/H11002to H 2S. In the
+presence of O 2, it proceeds through the aerobic part of the chemo–chemo circuit
+and the electron is again used to reduce CO 2to CH 2O concurrently with oxidation of
+(loss of electrons from) S2/H11002As it continues its journey, under anaerobic conditions
+the electron may again be transferred to H 2O, which brings it to the intersectionHow can the Microbial Contributions be Viewed? 253Ch09-P546807.qxd  11/18/06  6:56 PM  Page 253
+again with the photo–chemo circuit. Hence, the oxidation and reduction of many
+elements, although not conducted by photosynthetic organisms, is tied to photo-synthesis by transfers of electrons among organisms through the reduced C andO
+2produced by photosynthesis.
+Hence, the oxidation of elements is made possible by O 2from photosynthesis
+and their reduction by the reduced C from photosynthesis. This alternatingoxidation–reduction system involving chemolithotrophs requires that O
+2and
+CH 2O from photosynthesis travel separately and that there be habitats from which
+the O 2is excluded. Soils are uniquely suited to providing such habitats.
+The two chemotrophic circuits of Fig. 9.7 can be expanded to distinguish aer-
+obic, facultative, and anaerobic domains based on sensitivity to O 2(Fig. 9.8). The254 Chapter 9 The Physiology and Biochemistry of Soil Organisms
+Light (h υ)
+O2
+Substituted
+(Moles)
+By N /H11005 54 N2 /H11001 10 CO2
+/H11001 14 HOH
+By S /H11005 2
+By C /H11005 2 CH4 /H11001 CO24S/H11005 /H11001 4 CO2
+/H11001 4 HOH
+Deep Burial &
+Sequestration
+CH2O2 CH2OCO2 /H11001 H2OC(H2O) /H11001 O2N
+S
+C [O2]
+drops Eh /H11022 300 mV
+Eh 100 to 300 mV
+NO3/H11002 Reduction
+Eh /H11002100 to 100 mV
+Fe Reduction
+Eh /H11002200 to /H11002100 mV
+SO4/H11005 Reduction
+Eh /H11021 /H11002200 mV
+MethanogenesisC-L10 O2
+Completely
+AnaerobicChemo-
+organotrophs
+Anaerobic Facultative AerobicP-A
+8 NO3/H11002 /H11001
+5 CH2O /H11001 8H/H11002
+5 CH2O
+2 CH2O2 SO4/H11005 /H11001
+2 CH2O
+FIGURE 9.8 The oxygenic cycles in the pedosphere entail cyclic oxidations and reductions of
+C, N, and S (among other elements), which are driven by solar radiation and controlled by the avail-ability of O
+2. Lowering O 2availability is reﬂected in lowering Ehvalues. Oxygenic photoaquatrophs
+(P-A) produce CH 2O and release O 2; aerobic chemolithotrophs (C-L) oxidize N to NO 3/H11002or S to SO 42/H11002
+using O 2from photosynthesis and reduce CO 2to CH 2O autotrophically. Aerobic chemoorganotrophs
+oxidize CH 2O using O 2through aerobic respiration (heavy circle); and facultative anaerobic
+chemoorganotrophs oxidize CH 2O using NO 3/H11002(nitrate respiration). Anaerobic chemoorganotrophs
+oxidize CH 2O by reducing SO 42/H11002or, under extremely anaerobic conditions, by reducing a portion of
+the CH 2O itself, thereby splitting it into CO 2(oxidized) and CH 4(more reduced). For the stoichiome-
+try represented here the moles of O 2substituted by N, S, or C are designated at the left. Dinitrogen ﬁx-
+ation using reduced C ultimately from P-A is required to reduce N 2to NH 3prior to its oxidation to
+NO 3/H11002. Deep burial of CH 2O opens the oxygenic cycles thereby allowing O 2to accumulate.Ch09-P546807.qxd  11/18/06  6:56 PM  Page 254
+aerobic domain is set at Eh(oxidation–reduction potential) /H11022300 mV (see
+Fig. 15.2), comprising aerobic chemoorganotrophs and photoaquatrophs as a syn-trophic system. The facultative domain, between E
+h100 and 300 mV , comprises
+chemoorganotrophs, which may be either aerobic or anaerobic in syntrophic asso-ciations with chemolithotrophs, which are aerobic. The anaerobic domain consistsof strictly anaerobic chemoorganotrophs in association with photoaquatrophs.Anaerobic chemoorganotrophs in the anaerobic domain re-reduce oxidized mineralsgenerated by aerobic chemolithotrophs in the aerobic domain. Some energy is dissi-pated through heat loss, etc., and must be made up by subsequent photosynthesis.
+Overall control is provided by O
+2because it inhibits anaerobic processes.
+Consequently the balance among the three domains in Fig. 9.8 is a function of O 2
+availability in local environments or microsites. N 2ﬁxation is interesting in that it is
+inhibited by O 2and mediated by three of the four groups of organisms, with only
+chemolithotrophs excluded. In addition, the chemoorganotrophs are responsibleboth for removing N from the pedosphere, by reducing NO
+3/H11002to N 2, and for return-
+ing it by further reducing N 2to NH 3.
+As the Ehbecomes increasingly negative oxidants become decreasingly effec-
+tive (Fig. 9.8). Given that the energy available through a redox reaction is directlyproportional to the change in oxidation potential between the two couples, lessand less energy is released as one moves from aerobic to strictly anaerobic metab-olism. Soil organisms have evolved in an energy-limited environment so commu-nities of soil organisms use the most energetically favorable energy sources avai lable
+to them. Such a strategy favors use of O
+2as an electron acceptor followed by NO 3/H11002
+,
+then SO 42/H11002; after depletion of NO 3/H11002and SO 42/H11002a portion of the C in CH 2O is eventu-
+ally used during methanogenesis. In other words, CH 2O is allocated ﬁrst to reduc-
+tion of O 2, then NO 3/H11002followed by SO 42/H11002, and ﬁnally methanogenesis. From a
+practical perspective, then NO 3/H11002might be a useful electron acceptor for metabo-
+lism of organic contaminants under anaerobic conditions. Indeed NO 3/H11002and denitri-
+fying populations have been proposed for removal of organic contaminants underanaerobic conditions.
+The O
+2produced during photosynthesis is consumed stoichiometrically during
+complete decomposition of photosynthate (compare Eqs. [1] and [20]). It is notpossible for O
+2to accumulate in the atmosphere from photosynthesis unless large
+quantities of CH 2O are not decomposed. We are not awash in nondecomposed
+plant litter, so how can residual O 2have accumulated in the atmosphere? Disru pting
+the cycle of photosynthesis and decomposition would retain O 2in the atmosphere
+rather than consuming it in oxidation of photosynthate. Disruption occurs by deepburial and sequestration of CH
+2O as represented in Fig. 9.8. Processes yielding soil
+humus, peat, shale, coal, or petroleum and deep ocean organic sediments amongothers over geologic time all remove CH
+2O from the attention of microbes that
+would use it to reduce O 2to water (see Logan et al. , 1995). See Chap. 12 for further
+discussion on humus formation. Soil microbes may play an interesting role inpreservation of reduced C over geologic time scales. For example, Kennedy et al.
+(2006) showed a strong relation between the increase of pedogenic clay and theHow can the Microbial Contributions be Viewed? 255Ch09-P546807.qxd  11/18/06  6:56 PM  Page 255
+increases in atmospheric oxygen in the later Precambrian. They postulated that soil
+biological activity, including that of plant roots, weathered soil minerals, resulting information of pedogenic clay, which in turn was instrumental in adsorbing andsequestering C. In turn, higher O
+2concentrations appear to be related to development
+of higher animals (Kennedy et al. , 2006) and development of large placental mam-
+mals (Falkowski et al. , 2005). Might we imagine that “soil microbes rule the world”?
+Given that C storage could allow O 2accumulation, what might be the control on
+maximum O 2accumulation? Mineral weathering is a sink for O 2and participates
+in regulating atmospheric O 2concentration. In addition, oxidation–reduction
+reactions over geological time control Fe solubility and, because of its reactivitywith P, Fe controls P concentration. Fe and P concentrations in solution, espe-cially in marine environments, often limit photosynthesis and N
+2ﬁxation.
+Regulation of Fe and P solubility by the oxidation state of Fe provides a feedbackto atmospheric O
+2concentration (Van Cappellen and Ingall, 1996).
+REFERENCES
+Ehrlich, H. L. (1993). Bacterial mineralization of organic carbon under anaerobic conditions. In“Soil
+Biochemistry” (J.-M. Bollag and G. Stotzky, eds.), V ol. 8, pp. 219–247. Dekker, New York.
+Falkowski, P. G., Katz, M. E., Milligan, A. J., Fennel, K., Cramer, B. S., Aubrey, M. P., Barner, R. A.,
+Novacek, M. J., and Zapot, W. M. (2005). The rise of oxygen over the past 205 million years andthe evolution of large placental mammals. Science 309, 2202–2204.
+Gottschalk, G. (1986). “Bacterial Metabolism.” 2nd ed. Springer-Verlag, New York.Kennedy, M., Droser, M., Lawrence, M. M., Prevear, D., and Mrofka, D. (2006). Late Precambrian
+oxygenation: inception of the clay mineral factory. Science 311, 1446–1449.
+Logan, G. A., Hayes, J. M., Hieshima, G. B., and Simmons R. E. (1995). Terminal proterozoic reor-
+ganization of biogeochemical cycles. Nature 376, 53–56.
+McGill, W. B. (1996). Soil sustainability: Microorg anisms, and electrons. In Solo Suelo 96 Conference
+2, CD version, Sociedade Brasileira de Ciência do Solo (SBCS) and Sociedade Latino-Americanade Ciência do Solo (SLCS), Viçosa/MG.
+Nicholls, D. G., and Ferguson, S. J. (1992). “Bioenergetics 2.” Academic Press, Toronto.Paul, E. A., and Clark, F. E. (1989). “Soil Microbiology and Biochemistry.” Academic Press, New York.Paul, E. A., and Clark, F. E. (1996). “Soil Microbiology and Biochemistry.” 2nd ed. Academic Press,
+New York.
+Schink, B., Brune, A., and Schnell, S. (1992). Anaerobic degradation of aromatic compounds. In
+“Microbial Degradation of Natural Products” (G. Winkelmann, ed.), pp. 219–242. VCH, New York.
+Staley, J. T., and Orians, G. H. (1992). Evolution and the biosphere. In“Global Biogeochemical Cycles
+(S. M. Butcher, R. J. Charlson, G. H. Orians, and G. V . Wolfe, eds.), pp. 21–54. Academic Press,Toronto.
+Van Cappellen, P., and Ingall, E. D. (1996). Redox stabilization of the atmosphere and oceans by phos-
+phorus-limited marine productivity. Science 271, 493–496.256 Chapter 9 The Physiology and Biochemistry of Soil OrganismsCh09-P546807.qxd  11/18/06  6:56 PM  Page 256
+10
+The Ecology of
+Plant–Microbial
+Mutualisms
+Jeff Powell 
+John Klironomos
+Introduction
+Roots as an Interface for Plant–Microbial MutualismsMycorrhizal SymbiosesSymbioses Involving N-Fixing OrganismsInteractions among MutualistsInteractions with PathogensImplications for Plant Populations and CommunitiesChallenges in the Study of InteractionsConclusionsReferences and Suggested Reading
+257INTRODUCTION
+Plants interact with a multitude of soil microorganisms in many different ways that
+have important consequences for plant growth and ﬁtness. When microorganismscolonize and live within a host plant, these interactions are called “symbioses.” Inmutualistic symbioses, in which all partners beneﬁt, the plant generally suppliesits symbiont with photosynthetic C in exchange for a limiting resource (such as anutrient or water) or protection from antagonists. Mycorrhizal fungi, the mostubiquitous of root-associated plant symbioses, attain photosynthetic C from theplant partner in return for enhanced nutrient and water uptake, resulting from anincreased effective root surface area or increased uptake efﬁciency of certainnutrients. Mycorrhizal plants can have enhanced growth compared to uncolonizedCh10-P546807.qxd  11/18/06  6:56 PM  Page 257
+258 Chapter 10 The Ecology of Plant–Microbial Mutualisms
+plants under low nutrient concentrations and under conditions where movement
+of nutrients in soil is reduced (e.g., drought). Leguminous plants form rhizobialsymbioses with N
+2-ﬁxing bacteria. Rhizobia infect the roots of the host plant, which
+then initiate the development of root nodules where rhizobia ﬁx atmospheric Nin exchange for photosynthetic C. Other N
+2-ﬁxing bacteria, such as Frankia spp.,
+enter into the same type of symbiosis as rhizobia, but only with a small group ofnonleguminous plant species.
+In practice, however, it is not always easy to observe beneﬁt for all partners.
+The outcome of the symbiosis can range from mutualism to parasitism, and thiscan depend on interactions with the environment along spatial and temporal scales.One reason for this apparent contradiction is that we are not fully aware of thecomplete spectrum of ecological and evolutionary consequences of these so-calledmutualistic relationships. Plants could derive indirect beneﬁts from their microbialpartners via effects on physical and biotic soil components, interactions with path-ogenic microorganisms, or mediation of competition or herbivory. The long-termbeneﬁts of the symbiosis, derived at times of stress or disturbance, may outweighnegative consequences that are transient in nature.
+In this chapter, we will continue to refer to symbioses, in general, that have poten-
+tial to be mutualistic (mycorrhizal, rhizobial, and actinorrhizal symbioses) as “mutu-alistic,” to distinguish them from symbioses that are obviously parasitic (involving
+plant pathogens). However, when describing speciﬁc types of mutualistic symbioses,they will be referred to as “symbioses.”
+ROOTS AS AN INTERFACE FOR
+PLANT–MICROBIAL MUTUALISMS
+Mutualisms among plants and microorganisms are much more common below
+ground than above ground, even though diverse interactions between plants andmicroorganisms occur in both realms. Saprotrophs and plant–pathogenic microbesdominate in the phyllosphere and their community composition differs considerablyfrom that of the rhizosphere (Lindow and Brandl, 2003). Mutualisms among plantsand microorganisms are not entirely absent in the phylloplane but appear to be lim-ited to a few that inﬂuence plant–herbivore interactions (e.g., Clay, 1990). Functional
+aspects might explain the apparent difference in the prevalence of mutualisms inthe two environments. Soil is a heterogeneous environment in which mutualistsaid plants in exploiting ephemeral resource patches by converting organic nutrientsinto usable inorganic forms and through the production of structures that extendthe effective zone of water and nutrient uptake by roots. Above ground, the primaryresources for which plants compete are light, pollinators, and seed dispersal agents.Some fungi manipulate plant morphology and, indirectly, pollinator behavior inorder to facilitate dispersal of fungal gametes, but this interaction is detrimental toplant ﬁtness (Roy, 1993). We are not aware of any evidence that the ability of plantsto capture light is enhanced through the production of specialized structures byCh10-P546807.qxd  11/18/06  6:56 PM  Page 258
+phyllosphere microorganisms. Plants that form mutualistic symbioses with soil
+microorganisms, however, can grow larger as a result of enhanced nutrient uptake,allowing these plants to compete more vigorously for light and, possibly, achievegreater ﬁtness.
+MYCORRHIZAL SYMBIOSES
+Mycorrhizas are symbioses between nonpathogenic fungi and the roots of the host
+plant. The mycorrhizal symbiosis is ubiquitous, is present in nearly all plant species,and can provide mutual beneﬁts to the participants. Mycorrhizal classiﬁcation isbased on anatomical features of the root–fungus interface and the taxonomic clas-siﬁcation of the fungus and host plant (Table 10.1). Peterson et al. (2004) presented
+a detailed overview of the different mycorrhizal types and many spectacular imagesof plant, fungal, and mycorrhizal structures. Arbuscular mycorrhizal (AM) fungioccur in symbioses with plant taxa belonging to /H1102290% of vascular and nonvascu-
+lar plant families. The taxonomic diversity of AM fungal species is relativelylow (estimates range from /H11011150 to 200 spp.) and conﬁned to the Phylum Glom-
+eromycota (formerly the Order Glomales within the Zygomycota) based on 18SrRNA sequence data. Ectomycorrhizal (EM) fungi form symbioses with severalgymnosperm and angiosperm species and are taxonomically diverse, with approx-imately 6000 species; Kendrick (2001) notes 74 genera in the Basidiomycota and16 genera in the Ascomycota. Other types of mycorrhizas are more restricted withregard to the phylogenetic diversity of the plant species in which associations areformed. Ectendomycorrhizas can be found in roots of the conifer genera Larix and
+Pinus. Arbutoid and ericoid mycorrhizas occur for ericaceous plants, although the
+former can be found in some of the Pyrolaceae (wintergreen family) and the lattercan also occur in some bryophytes (nonvascular plants such as mosses, liverworts,and hornworts). Monotropoid and orchid mycorrhizas form only in roots of the plantfamilies Monotropaceae (e.g., Indian pipe, pinedrops) and Orchidaceae, respec-tively; the fungal partner, however, may be able to form other types of mycorrhizalassociations with other plants. Plants that associate in monotropoid mycorrhizasare achlorophyllous and nonphotosynthetic (termed mycoheterotrophic) and rely onthe fungus to form additional mycorrhizal associations, often of different types,with other plants in order to attain photosynthate. Orchid mycorrhizas function ina similar way and the presence of the fungal symbiont is required prior to seedgermination and seedling establishment.
+The formation of mycorrhizal symbioses is complex and involves recognition,
+infection, and then internal colonization of roots. The process differs dependingon the type of mycorrhiza (Figs. 10.1 and 10.2). AM fungi can colonize host plantsvia intact mycelial networks, hyphal fragments, or individual spores. Root exudatesstimulate hyphal branching and directed growth. Once a hypha contacts a root, thefungus forms an appressorium from which it attempts infection. If successful, hyphaepenetrate epidermal cells, enter the cortex, and grow intercellularly (or intracellularlyMycorrhizal Symbioses 259Ch10-P546807.qxd  11/18/06  6:56 PM  Page 259
+TABLE 10.1 The Classiﬁcation of Mycorrhizal Associations Based on Fungal Morphology (Modiﬁed from Dalpé, 2003)
+Arbuscular Ecto- Ectendo- Arbutoid Ericoid Monotropoid Orchid
+Hyphal structures Arum type Paris type
+Vesicles /H11001/H11001 –– – – – –
+Arbuscules /H11001 ––– – – – –
+Coils – /H11001 – /H11001/H11001 /H11001 – /H11001
+Pegs – – – – – /H11001 –
+Mantle – /H11001/H11001 /H11001 – /H11001 –
+Hartig net – /H11001/H11001 /H11001 – /H11001 –
+Fungal partners Glomeromycetes Zygomycetes, Ascomycetes, Basidiomycetes Ascomycetes Basidiomycetes Basidiomycetes
+Ascomycetes, Basidiomycetes
+Basidiomycetes
+Plant partners Herbaceous plants, Conifer trees, Conifer trees, Ericales, Ericales, Monotropaceae Orchidaceae
+Shrubs, Some shrubs and Some shrubs and Pyrolaceae Bryophytes
+Deciduous trees deciduous trees deciduous trees260Ch10-P546807.qxd  11/18/06  6:56 PM  Page 260
+using hyphal coils). Finally they penetrate cortical cells and form arbuscules (or
+arbuscules can form directly from hyphal coils), where most nutrient exchange isbelieved to occur. In EM, arbutoid, and monotropoid mycorrhizas, the fungus formsa fungal mantle over the surface of the root. Hyphae penetrate the root and p rolif-
+erate within the intercellular space forming a Hartig net. EM fungal colonization islimited to these intercellular spaces, while arbutoid and monotropoid fungi furtherpenetrate cells.Mycorrhizal Symbioses 261
+(A)
+(B)
+FIGURE 10.1 (A) Intercellular hyphal colonization (arrow) and intracellular arbuscular colo-
+nization of Glycine max roots by an arbuscular mycorrhizal fungus. (B) Mantle and Hartig net hyphae
+of an ectomycorrhizal fungus ( Truncocolumnella sp.) colonizing the intercellular space between the
+epidermal cells (C) of a pine root. (Image courtesy of Larry Peterson.)Ch10-P546807.qxd  11/18/06  6:56 PM  Page 261
+Mycorrhizas are ancient; fossil evidence from the Devonian (400 million years
+ago (Mya)) indicates early land plants formed endophytic associations with fungiresembling the modern AM fungi that colonize modern bryophytes. Fossils of sporesresembling AM fungi have been found in rocks from the Ordovician (460 Mya),the period during which plants ﬁrst colonized land (Fig. 10.3). Early land plantsresembled modern bryophytes, had poorly developed root systems, and wouldhave beneﬁted greatly from mycorrhizal symbioses.262 Chapter 10 The Ecology of Plant–Microbial Mutualisms
+(A)
+(B)
+FIGURE 10.2 Colonization of pine short roots by ectomycorrhizal fungi. (A) Early stage:
+hyphae ( Cenococcum sp.) are starting to proliferate on the root surface near the apex (arrow). (B) Late
+stage: mantle hyphae ( Rhizopogon sp.) cover the entire root surface. (Images courtesy of Larry Peterson.)Ch10-P546807.qxd  11/18/06  6:56 PM  Page 262
+The primary beneﬁt derived by plants involved in mycorrhizal symbioses is
+generally perceived to be enhanced nutrient uptake, achieved by the fungus expand-ing the zone of nutrient uptake farther away from the rhizosphere and/or more efﬁ-ciently taking up and transporting nutrients. The nutrients that are taken up by thefungus depend on the type of mycorrhiza. Generally, all types of mycorrhizal fungiare able to transport N and P. Ericoid mycorrhizal fungi primarily increase the plant’saccess to N, but also to P, Ca, and Fe. AM fungi have been studied mostly for theirability to enhance P nutrition, but also play a role in the uptake of N, K, and Zn.EM fungi have saprotrophic abilities and are able to access organic forms of N and P.As described above, monotropoid and orchid mycorrhizal fungi transport C, inaddition to N and P, to their mycoheterotrophic hosts.
+However, the symbiotic role of mycorrhizal fungi is not limited to enhancing
+the plant’s nutritional status (Fig. 10.4). Mycorrhizal fungi play an important rolein the formation of soil macroaggregates, which help maintain soil stability duringalternating periods of wetting and drying. Other beneﬁts accrued by the plant mayresult from altered biotic interactions and take the form of defense, with mycorrhizalroots being colonized by fewer disease-causing organisms or suffering less grazingby root herbivores than nonmycorrhizal roots. The consequences of these interac-tions are not conﬁned to the soil: plant ﬁtness may be altered by mycorrhizal colo-nization as a result of altered interactions with insects, including herbivores, natural
+enemies of herbivores, and pollinators. Performance of plants and herbivores inresponse to mycorrhizal colonization varies depending on the feeding strategy of theherbivore and differs among fungal species (Gehring and Whitham, 2002). Parasitismof a leaf-mining insect, Chromatomyia syngenesiae , by a generalist parasitoid
+Diglyphus isaea was reduced on Glomus mosseae -colonized plants but increased
+on Glomus caledonium - and Glomus fasciculatum -colonized plants, possibly dueMycorrhizal Symbioses 263
+(A) (B) (C) (D)
+(E) (F) (G) (H)
+FIGURE 10.3 (A–C, E–G) Fossil spores from the Ordovician and (D, H) spores from extant
+arbuscular mycorrhizal fungi. Scale bars, 50 µm. (Reprinted with permission from Redecker, Kodner,
+and Graham, 2000; copyright 2000, AAAS.)Ch10-P546807.qxd  11/18/06  6:56 PM  Page 263

@@ -225,16 +225,11 @@ class SimulationEngine:
     # --- Helpers -----------------------------------------------------
     def _is_done(self) -> bool:
         # Stop on maturity if available
-        try:
-            from agrogame.soil.phenology import PhenologyStage  # local import
+        from agrogame.soil.phenology import PhenologyStage  # local import
 
-            if (
-                getattr(self.orchestrator.phenology.state, "stage", None)
-                is PhenologyStage.MATURITY
-            ):
-                return True
-        except Exception:
-            pass
+        stg = getattr(getattr(self.orchestrator, "phenology", None), "state", None)
+        if getattr(stg, "stage", None) is PhenologyStage.MATURITY:
+            return True
         return self.current_day >= min(self.max_days, len(self.weather_records))
 
     def _apply_action(self, action: ScheduledAction) -> None:
@@ -259,12 +254,9 @@ class SimulationEngine:
             return
         if action.action is ActionType.HARVEST:
             # Emit a harvest event to cause canopy LAI (and biomass) drop
-            try:
-                from agrogame.soil.canopy.events import Harvested  # local import
+            from agrogame.soil.canopy.events import Harvested  # local import
 
-                self.orchestrator.event_bus.emit(Harvested(fraction_remaining=0.1))
-            except Exception:
-                pass
+            self.orchestrator.event_bus.emit(Harvested(fraction_remaining=0.1))
             # Do not force-stop; allow post-harvest days to be simulated
 
     def _irrigation_for_day(self, day_index: int) -> float:

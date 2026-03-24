@@ -6,7 +6,9 @@ nav:
   - Getting Started: getting-started.md
   - Quick Context:
       - Water: water.md
+      - Weather System: weather.md
       - ET (PT/PM + VPD): et.md
+      - Evaporation & Residue: evaporation-residue.md
       - Interception: interception.md
       - Nitrogen: nitrogen.md
       - Phosphorus: phosphorus.md
@@ -14,6 +16,7 @@ nav:
       - Microbial Tutorial: microbial_tutorial.md
       - Phenology: phenology.md
       - Canopy: canopy.md
+      - Diagnostics & Plots: plots.md
       - Dashboard: dashboard.md
       - Events & Debugging: events.md
       - Architecture (compressed): architecture.md
@@ -31,6 +34,7 @@ nav:
       - Nutrient Cycle: models/nutrient-cycle.md
       - Crop Growth: models/crop-growth.md
   - Validation: validation.md
+  - Research: research-correctness.md
   - Configuration: configuration.md
   - Contributing: contributing.md
 theme:
@@ -44,6 +48,11 @@ markdown_extensions:
   - codehilite
   - toc:
       permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
 plugins:
   - search
   - autorefs

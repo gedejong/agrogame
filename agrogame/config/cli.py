@@ -46,8 +46,8 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
             validate_data(data, schema)
             bus.emit(ConfigReloaded(files=files, schema=schema))
             print(f"Reloaded {len(files)} files; schema '{schema}' OK")
-        except Exception as e:  # noqa: BLE001
-            print(f"Reload failed: {e}")
+        except (ValueError, TypeError) as e:
+            raise RuntimeError(f"Reload failed: {e}") from e
 
     observer: Any = watch({p.parent for p in files}, on_change)
     print("Watching for changes. Press Ctrl+C to stop.")
@@ -59,12 +59,9 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
     except KeyboardInterrupt:
         pass
     finally:
-        try:
-            # Best-effort stopping without strict typing on external observer
-            observer.stop()
-            observer.join()
-        except Exception:
-            pass
+        # Best-effort stopping without strict typing on external observer
+        observer.stop()
+        observer.join()
     return 0
 
 

@@ -40,7 +40,7 @@ def _params() -> PartitioningParams:
     )
 
 
-def test_partitioning_sums_and_pools_update():
+def test_partitioning_sums_and_pools_update() -> None:
     part = BiomassPartitioner(_params())
     alloc = part.partition_daily(PhenologyStage.VEGETATIVE, daily_biomass_g_m2=100.0)
     total = alloc.leaf_g_m2 + alloc.stem_g_m2 + alloc.root_g_m2 + alloc.grain_g_m2
@@ -52,7 +52,7 @@ def test_partitioning_sums_and_pools_update():
     )
 
 
-def test_remobilization_in_grain_fill_increases_grain_and_reduces_sources():
+def test_remobilization_in_grain_fill_increases_grain_and_reduces_sources() -> None:
     part = BiomassPartitioner(_params())
     # Build some leaf/stem biomass first
     for _ in range(5):
@@ -66,7 +66,7 @@ def test_remobilization_in_grain_fill_increases_grain_and_reduces_sources():
     assert part.pools.grain_g_m2 > grain_before
 
 
-def test_harvest_index_reasonable_range():
+def test_harvest_index_reasonable_range() -> None:
     part = BiomassPartitioner(_params())
     for _ in range(10):
         part.partition_daily(PhenologyStage.VEGETATIVE, 80.0)

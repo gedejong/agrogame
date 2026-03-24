@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import functools
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -23,12 +24,17 @@ def _parse_date(s: str) -> date:
     raise ValueError(f"Unsupported date format: {s}")
 
 
-def load_weather(path: Path) -> WeatherSeries:
+@functools.lru_cache(maxsize=16)
+def _load_weather_cached(path: Path) -> WeatherSeries:
     if path.suffix.lower() == ".csv":
         return _load_csv(path)
     if path.suffix.lower() == ".json":
         return _load_json(path)
     raise ValueError(f"Unsupported weather file type: {path}")
+
+
+def load_weather(path: Path) -> WeatherSeries:
+    return _load_weather_cached(path.resolve())
 
 
 def _load_csv(path: Path) -> WeatherSeries:
@@ -60,9 +66,10 @@ def _load_json(path: Path) -> WeatherSeries:
     # Validate JSON weather structure when available
     try:
         validate_data(data, "weather")
-    except Exception:
-        # Be permissive: keep legacy support if schema not matched
-        pass
+    except Exception as e:
+        # Be permissive: keep legacy support if schema not matched, but annotate
+        # callers can choose to re-validate later if needed
+        _ = e
     rows: List[WeatherRecord] = []
     for i, r in enumerate(data, start=1):
         try:
@@ -90,8 +97,8 @@ def _opt_float(v: Optional[str | float]) -> Optional[float]:
         return None
     try:
         f = float(v)
-    except Exception:  # noqa: BLE001
-        return None
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"Invalid numeric value for weather field: {v!r}") from e
     # NASA POWER uses -999 or -99 for missing
     if f <= -900.0:
         return None

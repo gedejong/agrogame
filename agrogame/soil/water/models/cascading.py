@@ -170,6 +170,23 @@ class CascadingBucketWaterModel(SoilWaterModel):
         )
 
     # --- Plant transpiration extraction ---------------------------------
+    @staticmethod
+    def _extract_layer(
+        profile: SoilProfile,
+        state: SoilWaterState,
+        layer_idx: int,
+        desired_mm: float,
+    ) -> float:
+        """Extract water from a single layer down to wilting point."""
+        layer = profile.layers[layer_idx]
+        current = state.layer_storage_mm(profile, layer_idx)
+        wilt_storage = layer.wilting_point * layer.depth_cm * 10.0
+        available = max(0.0, current - wilt_storage)
+        take = min(desired_mm, available)
+        if take > 0.0:
+            state.set_layer_storage_mm(profile, layer_idx, current - take)
+        return take
+
     def extract_transpiration_by_roots(
         self,
         profile: SoilProfile,
@@ -195,7 +212,6 @@ class CascadingBucketWaterModel(SoilWaterModel):
         n = min(len(profile.layers), len(root_fractions))
         if n == 0:
             return 0.0
-        # Normalize defensively
         s = sum(max(0.0, f) for f in root_fractions[:n]) or 1.0
         shares = [max(0.0, f) / s for f in root_fractions[:n]]
 
@@ -203,16 +219,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
         layer_indices: list[int] = []
         layer_amounts: list[float] = []
         for i in range(n):
-            desired = demand_mm * shares[i]
-            if desired <= 0.0:
-                continue
-            layer = profile.layers[i]
-            current = state.layer_storage_mm(profile, i)
-            wilt_storage = layer.wilting_point * layer.depth_cm * 10.0
-            available = max(0.0, current - wilt_storage)
-            take = min(desired, available)
+            take = self._extract_layer(profile, state, i, demand_mm * shares[i])
             if take > 0.0:
-                state.set_layer_storage_mm(profile, i, current - take)
                 supplied += take
                 layer_indices.append(i)
                 layer_amounts.append(take)

@@ -32,3 +32,10 @@ site/
 # Node modules and test artifacts
 node_modules/
 test-results/
+
+# AI assistant config (editor-local, superseded by CLAUDE.md)
+.cursor/
+.claude/
+
+# Reference materials (large, not part of build)
+references/

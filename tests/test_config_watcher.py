@@ -3,11 +3,13 @@ from __future__ import annotations
 from types import SimpleNamespace
 from pathlib import Path
 
+import pytest
+
 from agrogame.config.watcher import _Handler
 from agrogame.config.cli import main
 
 
-def test_handler_filters_extensions(tmp_path: Path):
+def test_handler_filters_extensions(tmp_path: Path) -> None:
     seen: list[Path] = []
 
     def on_change(paths: list[Path]) -> None:
@@ -27,7 +29,7 @@ def test_handler_filters_extensions(tmp_path: Path):
     assert seen == [y]
 
 
-def test_cli_wizard(capsys):
+def test_cli_wizard(capsys: pytest.CaptureFixture[str]) -> None:
     code = main(["wizard"])  # placeholder implementation
     out = capsys.readouterr().out
     assert code == 0

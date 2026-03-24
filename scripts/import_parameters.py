@@ -7,6 +7,8 @@ from typing import Any, Dict
 
 import yaml
 import subprocess
+from pydantic import ValidationError as PydanticValidationError
+from jsonschema.exceptions import ValidationError as JSONSchemaValidationError
 
 from agrogame.params.models import (
     Biomass,
@@ -35,7 +37,7 @@ def try_parse_our_schema(payload: Dict[str, Any]) -> Dict[str, CropParameters]:
         # Validate full library against JSON Schema first
         try:
             validate_data(payload, "crop")
-        except Exception:
+        except JSONSchemaValidationError:
             # Not our schema
             return {}
         # Then coerce to models
@@ -61,8 +63,8 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
     """
     try:
         text = path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        return None
+    except (OSError, UnicodeDecodeError) as e:
+        raise RuntimeError(f"Failed reading PCSE crop file {path}") from e
     kv: Dict[str, float] = {}
     for raw in text.splitlines():
         line = raw.strip()
@@ -80,7 +82,7 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
         except ValueError:
             continue
     if not kv:
-        return None
+        raise ValueError(f"No key=value parameters parsed from {path}")
     name = path.stem.replace(".crop", "").replace("wofost_", "").replace("lintul3_", "")
     base_temp = float(kv.get("TBASE", 8.0))
     emer = float(kv.get("TSUMEM", kv.get("TSUM_EMERG", 100.0)))
@@ -112,8 +114,8 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
     )
     try:
         return CropParameters(name=name, thermal_time=tt, roots=roots, biomass=biomass)
-    except Exception:
-        return None
+    except PydanticValidationError as e:
+        raise ValueError(f"Invalid crop parameters synthesized from {path}") from e
 
 
 def import_from_directory(path: Path) -> Dict[str, CropParameters]:
@@ -151,8 +153,8 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
                 payload = json.loads(file.read_text(encoding="utf-8"))
             else:
                 continue
-        except Exception:
-            continue
+        except (OSError, yaml.YAMLError, UnicodeDecodeError, json.JSONDecodeError) as e:
+            raise RuntimeError(f"Failed to load candidate parameter file {file}") from e
 
         # Strategy 1: our schema
         crops = try_parse_our_schema(payload)
@@ -176,7 +178,7 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
             cp = CropParameters.model_validate(payload)
             collected[cp.name] = cp
             continue
-        except Exception:
+        except PydanticValidationError:
             pass
 
         # Strategy 3: PCSE/APSIM minimal key mapping (very limited)
@@ -248,9 +250,9 @@ def import_from_directory(path: Path) -> Dict[str, CropParameters]:
             collected[name] = CropParameters(
                 name=name, thermal_time=tt, roots=roots, biomass=biomass
             )
-        except Exception:
-            # Skip unknown formats silently
-            continue
+        except (TypeError, ValueError, KeyError) as e:
+            # Unknown format; escalate with context instead of silent skip
+            raise ValueError(f"Unsupported parameter format in {file}") from e
 
     return collected
 
@@ -301,8 +303,8 @@ def main() -> None:
         try:
             subprocess.run(["git", "clone", "--depth", "1", url, str(dest)], check=True)
             return dest
-        except Exception:
-            return None
+        except (subprocess.CalledProcessError, OSError) as e:
+            raise RuntimeError(f"Failed to clone repository {url} to {dest}") from e
 
     pcse_path = args.pcse_path
     cache_root = Path(".cache/imports")
