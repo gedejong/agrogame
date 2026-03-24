@@ -63,3 +63,7 @@ DELTA_NUMERATOR = 4098.0  # dimensionless
 PSYCHROMETRIC_CONST_APPROX_KPA_PER_C = 0.067  # kPa/°C
 FAO_PM_NUMERATOR_COEF = 900.0  # dimensionless (daily time step)
 ABSOLUTE_ZERO_C = 273.0  # °C
+
+# Solar declination constant for photoperiod (Spencer 1971).
+# Maximum declination in radians (~23.44°).
+EARTH_AXIAL_TILT_RAD = 0.4093

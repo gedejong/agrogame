@@ -114,6 +114,7 @@ class FullSimulationOrchestrator:
         profile: SoilProfile,
         event_bus: EventBus | None = None,
         et_params: EtParams | None = None,
+        latitude_deg: float = 52.0,
     ) -> None:
         self.event_bus = event_bus or EventBus()
         # Core plant modules
@@ -174,7 +175,7 @@ class FullSimulationOrchestrator:
         _ = WaterRuntime(
             self.event_bus, self.water_model, self.profile, self.water_state
         )
-        _ = PhenologyRuntime(self.event_bus, self.phenology)
+        _ = PhenologyRuntime(self.event_bus, self.phenology, latitude_deg=latitude_deg)
         _ = RootsRuntime(
             self.event_bus, self.roots, self.root_state, self.profile, self.phenology
         )

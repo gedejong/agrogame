@@ -6,6 +6,7 @@ nav:
   - Getting Started: getting-started.md
   - Quick Context:
       - Water: water.md
+      - Weather System: weather.md
       - ET (PT/PM + VPD): et.md
       - Evaporation & Residue: evaporation-residue.md
       - Interception: interception.md

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import functools
 import json
 from datetime import date, datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ def _parse_date(s: str) -> date:
     raise ValueError(f"Unsupported date format: {s}")
 
 
+@functools.lru_cache(maxsize=16)
 def load_weather(path: Path) -> WeatherSeries:
     if path.suffix.lower() == ".csv":
         return _load_csv(path)

@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "climate.json",
+  "title": "Climate Preset Library",
+  "type": "object",
+  "required": ["climates"],
+  "properties": {
+    "climates": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/climatePreset" }
+    }
+  },
+  "definitions": {
+    "climatePreset": {
+      "type": "object",
+      "required": [
+        "name",
+        "latitude_deg",
+        "longitude_deg",
+        "annual_mean_tmin_c",
+        "annual_mean_tmax_c",
+        "annual_temp_amplitude_c",
+        "annual_mean_precip_mm_day",
+        "annual_mean_rh_pct",
+        "annual_mean_wind_m_s",
+        "annual_mean_shortwave_mj_m2"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "latitude_deg": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude_deg": { "type": "number", "minimum": -180, "maximum": 180 },
+        "annual_mean_tmin_c": { "type": "number" },
+        "annual_mean_tmax_c": { "type": "number" },
+        "annual_temp_amplitude_c": { "type": "number", "minimum": 0 },
+        "annual_mean_precip_mm_day": { "type": "number", "minimum": 0 },
+        "annual_mean_rh_pct": { "type": "number", "minimum": 0, "maximum": 100 },
+        "annual_mean_wind_m_s": { "type": "number", "minimum": 0 },
+        "annual_mean_shortwave_mj_m2": { "type": "number", "minimum": 0 },
+        "heatwave_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "frost_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "heavy_rain_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "heatwave_intensity_c": { "type": "number", "minimum": 0 },
+        "frost_intensity_c": { "type": "number" },
+        "heavy_rain_intensity_mm": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
