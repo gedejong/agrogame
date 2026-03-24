@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from .module import CanopyModule
+from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
 
@@ -34,11 +35,17 @@ class CanopyRuntime:
         elif ev.nutrient.upper() == "P":
             self._last_p = s
 
+    def _compute_temp_factor(self, ev: DayTick) -> float:
+        if ev.tmin_c is None or ev.tmax_c is None:
+            return 1.0
+        tmean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
+        p = self.canopy.params
+        return cardinal_temp_factor(tmean, p.temp_base_c, p.temp_opt_c, p.temp_max_c)
+
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "canopy":
             return
         par = 12.0 if ev.par_mj_m2 is None else float(ev.par_mj_m2)
-        # Stage sensitivity: slightly stronger stress during flowering/grain fill
         water = self._last_water
         n = self._last_n
         p = self._last_p
@@ -47,16 +54,12 @@ class CanopyRuntime:
         else:
             combined = min(water, n, p)
 
-        # Provide separate water and N stress to canopy growth for now;
-        # P folded into combined
-        # Apply phenology sensitivity multiplier on stress for reproductive stages
-        # We approximate by reducing stress in sensitive stages (more limiting)
-        # Note: CanopyModule only accepts water_stress and n_stress
         water_s = water
         n_s = min(n, combined)
+        tf = self._compute_temp_factor(ev)
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,
-            temp_factor=1.0,
+            temp_factor=tf,
             water_stress=water_s,
             n_stress=n_s,
         )
