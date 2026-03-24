@@ -39,6 +39,12 @@ def add_weather_args(parser: ArgumentParser) -> None:
         choices=["normal", "drought", "wet", "hot", "cold"],
         help="Synthetic weather scenario",
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for synthetic weather (default 42 for reproducibility)",
+    )
 
 
 def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
@@ -72,7 +78,8 @@ def get_weather_series(args: Any, days: int) -> WeatherSeries | None:
                 f"available: {sorted(lib.climates.keys())}"
             )
         scenario = getattr(args, "scenario", "normal")
-        gen = SyntheticWeatherGenerator(lib.climates[preset_name], seed=42)
+        seed = getattr(args, "seed", 42)
+        gen = SyntheticWeatherGenerator(lib.climates[preset_name], seed=seed)
         today = _date.today()
         start = _date(today.year, 1, 1)
         return gen.generate(days, start, scenario)

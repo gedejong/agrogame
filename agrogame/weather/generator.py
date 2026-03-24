@@ -175,10 +175,11 @@ class SyntheticWeatherGenerator:
     ) -> list[WeatherRecord]:
         for j in range(start, min(start + duration, len(records))):
             r = records[j]
+            frost_tmin = r.tmin_c + intensity_c
             records[j] = WeatherRecord(
                 day=r.day,
-                tmin_c=intensity_c,
-                tmax_c=max(intensity_c + 3.0, r.tmax_c - 5.0),
+                tmin_c=frost_tmin,
+                tmax_c=max(frost_tmin + 3.0, r.tmax_c + intensity_c * 0.5),
                 relative_humidity_pct=r.relative_humidity_pct,
                 wind_m_s=r.wind_m_s,
                 shortwave_mj_m2=r.shortwave_mj_m2,

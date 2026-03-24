@@ -25,12 +25,16 @@ def _parse_date(s: str) -> date:
 
 
 @functools.lru_cache(maxsize=16)
-def load_weather(path: Path) -> WeatherSeries:
+def _load_weather_cached(path: Path) -> WeatherSeries:
     if path.suffix.lower() == ".csv":
         return _load_csv(path)
     if path.suffix.lower() == ".json":
         return _load_json(path)
     raise ValueError(f"Unsupported weather file type: {path}")
+
+
+def load_weather(path: Path) -> WeatherSeries:
+    return _load_weather_cached(path.resolve())
 
 
 def _load_csv(path: Path) -> WeatherSeries:

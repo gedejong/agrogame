@@ -39,9 +39,8 @@ _DEFAULT_PATH = Path("data/climate/presets.yaml")
 
 
 @functools.lru_cache(maxsize=4)
-def load_climate_presets(path: Path | None = None) -> ClimateLibrary:
-    """Load climate presets from YAML, validated against JSON Schema."""
-    p = path or _DEFAULT_PATH
+def _load_climate_presets_cached(p: Path) -> ClimateLibrary:
+    """Load and cache climate presets (internal, expects resolved path)."""
     with p.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     validate_data(data, "climate")
@@ -66,3 +65,9 @@ def load_climate_presets(path: Path | None = None) -> ClimateLibrary:
             heavy_rain_intensity_mm=float(raw.get("heavy_rain_intensity_mm", 40.0)),
         )
     return ClimateLibrary(climates=climates)
+
+
+def load_climate_presets(path: Path | None = None) -> ClimateLibrary:
+    """Load climate presets from YAML, validated against JSON Schema."""
+    p = (path or _DEFAULT_PATH).resolve()
+    return _load_climate_presets_cached(p)

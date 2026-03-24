@@ -6,12 +6,16 @@ from pathlib import Path
 import pytest
 
 from agrogame.weather.generator import SyntheticWeatherGenerator
-from agrogame.weather.presets import ClimatePreset, load_climate_presets
+from agrogame.weather.presets import (
+    ClimatePreset,
+    load_climate_presets,
+    _load_climate_presets_cached,
+)
 
 
 @pytest.fixture()
 def nl_preset() -> ClimatePreset:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     lib = load_climate_presets(Path("data/climate/presets.yaml"))
     return lib.climates["netherlands_temperate"]
 
@@ -113,7 +117,7 @@ def test_extreme_events_can_be_injected() -> None:
 
 
 def test_sahel_scenario() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     lib = load_climate_presets(Path("data/climate/presets.yaml"))
     sahel = lib.climates["sahel_arid"]
     gen = SyntheticWeatherGenerator(sahel, seed=99)

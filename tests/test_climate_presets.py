@@ -4,11 +4,15 @@ from pathlib import Path
 
 import pytest
 
-from agrogame.weather.presets import load_climate_presets, ClimatePreset
+from agrogame.weather.presets import (
+    ClimatePreset,
+    load_climate_presets,
+    _load_climate_presets_cached,
+)
 
 
 def test_load_three_presets() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     lib = load_climate_presets(Path("data/climate/presets.yaml"))
     assert len(lib.climates) == 3
     assert "netherlands_temperate" in lib.climates
@@ -17,7 +21,7 @@ def test_load_three_presets() -> None:
 
 
 def test_preset_fields_populated() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     lib = load_climate_presets(Path("data/climate/presets.yaml"))
     nl = lib.climates["netherlands_temperate"]
     assert isinstance(nl, ClimatePreset)
@@ -27,7 +31,7 @@ def test_preset_fields_populated() -> None:
 
 
 def test_sahel_hotter_than_netherlands() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     lib = load_climate_presets(Path("data/climate/presets.yaml"))
     nl = lib.climates["netherlands_temperate"]
     sahel = lib.climates["sahel_arid"]
@@ -35,13 +39,13 @@ def test_sahel_hotter_than_netherlands() -> None:
 
 
 def test_missing_file_raises() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     with pytest.raises(FileNotFoundError):
         load_climate_presets(Path("nonexistent.yaml"))
 
 
 def test_caching_returns_same_object() -> None:
-    load_climate_presets.cache_clear()
+    _load_climate_presets_cached.cache_clear()
     p = Path("data/climate/presets.yaml")
     a = load_climate_presets(p)
     b = load_climate_presets(p)
