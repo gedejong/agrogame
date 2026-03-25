@@ -9,7 +9,7 @@ from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
-from agrogame.weather.utils import vpd_kpa
+from agrogame.weather.utils import saturation_vapor_pressure_kpa
 
 
 @dataclass
@@ -20,7 +20,8 @@ class CanopyRuntime:
     _last_water: float = 1.0
     _last_n: float = 1.0
     _last_p: float = 1.0
-    _stress_history: deque[float] = field(default_factory=lambda: deque(maxlen=7))
+    # Initialized properly in __post_init__ using configurable window size
+    _stress_history: deque[float] = field(init=False)
     _consecutive_wilt_days: int = 0
 
     def __post_init__(self) -> None:
@@ -48,13 +49,19 @@ class CanopyRuntime:
         return cardinal_temp_factor(tmean, p.temp_base_c, p.temp_opt_c, p.temp_max_c)
 
     def _vpd_rue_factor(self, ev: DayTick) -> float:
-        """Reduce RUE under high VPD (Tanner & Sinclair style)."""
+        """Reduce RUE under high VPD using FAO-56 tmin-based dewpoint.
+
+        VPD ≈ SVP(tmean) - SVP(tmin), following FAO-56 recommendation
+        that tmin approximates dewpoint temperature. No circular
+        dependency on water stress.
+        """
         if ev.tmin_c is None or ev.tmax_c is None:
             return 1.0
         tmean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
-        # Approximate RH from water stress (drier soil → drier air)
-        rh_approx = 40.0 + 40.0 * self._last_water
-        vpd = vpd_kpa(tmean, rh_approx)
+        vpd = saturation_vapor_pressure_kpa(tmean) - saturation_vapor_pressure_kpa(
+            float(ev.tmin_c)
+        )
+        vpd = max(0.0, vpd)
         p = self.canopy.params
         excess = max(0.0, vpd - p.vpd_rue_ref_kpa)
         return max(0.2, 1.0 - p.vpd_rue_slope * excess)
@@ -67,7 +74,12 @@ class CanopyRuntime:
         return sum(self._stress_history) / len(self._stress_history)
 
     def _check_wilt_damage(self, water_stress: float) -> None:
-        """Apply irreversible LAI loss after prolonged severe stress."""
+        """Apply irreversible LAI loss after prolonged severe stress.
+
+        Fires repeatedly every wilt_days_for_damage consecutive days
+        of severe stress — intentional compounding to model progressive
+        leaf death during extended drought.
+        """
         p = self.canopy.params
         if water_stress < p.wilt_stress_threshold:
             self._consecutive_wilt_days += 1
@@ -90,11 +102,8 @@ class CanopyRuntime:
         else:
             combined = min(water, n, p)
 
-        # Cumulative water stress (running average dampens recovery)
         avg_water = self._update_stress_memory(water)
-        # VPD-driven RUE penalty
         vpd_factor = self._vpd_rue_factor(ev)
-        # Apply the more limiting of instantaneous and averaged stress
         effective_water = min(water, avg_water) * vpd_factor
 
         n_s = min(n, combined)
@@ -105,5 +114,6 @@ class CanopyRuntime:
             water_stress=effective_water,
             n_stress=n_s,
         )
-        # Check for irreversible wilt damage
+        # Wilt check after growth: damage represents end-of-day leaf death,
+        # so today's growth uses pre-damage LAI. Next day sees reduced canopy.
         self._check_wilt_damage(water)
