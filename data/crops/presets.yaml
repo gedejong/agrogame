@@ -39,8 +39,8 @@ crops:
       lai_max: 7.0
       senescence_rate_per_day: 0.008
       temp_base_c: 0.0
-      temp_opt_c: 20.0         # C3 crop, lower optimum
-      temp_max_c: 35.0
+      temp_opt_c: 16.0         # C3 crop, European varieties optimum 15-18C
+      temp_max_c: 32.0
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
