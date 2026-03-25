@@ -55,6 +55,10 @@ def _build_canopy(raw: dict) -> CanopyParams:
         temp_base_c=float(c.get("temp_base_c", 8.0)),
         temp_opt_c=float(c.get("temp_opt_c", 30.0)),
         temp_max_c=float(c.get("temp_max_c", 42.0)),
+        initial_lai_at_emergence=float(c.get("initial_lai_at_emergence", 0.1)),
+        senescence_vegetative_fraction=float(
+            c.get("senescence_vegetative_fraction", 0.1)
+        ),
     )
 
 

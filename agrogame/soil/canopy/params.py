@@ -10,6 +10,10 @@ class CanopyParams:
     specific_leaf_area_m2_per_g: float  # SLA
     lai_max: float
     senescence_rate_per_day: float = 0.0
+    initial_lai_at_emergence: float = 0.1  # LAI bootstrap at emergence
+    senescence_vegetative_fraction: float = (
+        0.1  # fraction of senescence rate during veg stage
+    )
     # Cardinal temperatures for RUE scaling (DSSAT/APSIM style)
     temp_base_c: float = 8.0  # below this, temp_factor = 0
     temp_opt_c: float = 30.0  # at this, temp_factor = 1

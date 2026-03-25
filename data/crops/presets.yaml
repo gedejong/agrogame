@@ -28,9 +28,9 @@ crops:
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
-      emergence_gdd: 80.0
-      flowering_gdd: 700.0
-      maturity_gdd: 1500.0
+      emergence_gdd: 120.0       # emerges ~2 weeks after sowing
+      flowering_gdd: 1200.0      # late May in NL (AHDB/APSIM: 1100-1300)
+      maturity_gdd: 2200.0       # late July in NL (APSIM: 2000-2500)
       vernalization_required_units: 40.0
     canopy:
       extinction_coefficient_k: 0.55
@@ -41,6 +41,8 @@ crops:
       temp_base_c: 0.0
       temp_opt_c: 16.0         # C3 crop, European varieties optimum 15-18C
       temp_max_c: 32.0
+      initial_lai_at_emergence: 0.3   # winter cereals establish rosette
+      senescence_vegetative_fraction: 0.05  # minimal leaf loss before flowering
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5

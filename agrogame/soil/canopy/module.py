@@ -41,9 +41,11 @@ class CanopyModule:
     def _on_stage_changed(self, event: StageChanged) -> None:
         # Bootstrap canopy at emergence
         if event.to_stage == PhenologyStage.EMERGED and self.state.lai <= 0.0:
-            self.state.lai = max(self.state.lai, 0.1)
+            self.state.lai = max(self.state.lai, self.params.initial_lai_at_emergence)
         if event.to_stage in (PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY):
             self._senescence_multiplier = 2.0
+        elif event.to_stage in (PhenologyStage.EMERGED, PhenologyStage.VEGETATIVE):
+            self._senescence_multiplier = self.params.senescence_vegetative_fraction
         else:
             self._senescence_multiplier = 1.0
 
