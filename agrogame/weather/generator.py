@@ -91,7 +91,7 @@ class SyntheticWeatherGenerator:
                 * (1.0 + 0.3 * seasonal)
                 + self._rng.gauss(0.0, 1.5),
             )
-            precip = self._generate_daily_precip(p, mods)
+            precip = self._generate_daily_precip(p, mods, d.month)
             records.append(
                 WeatherRecord(
                     day=d,
@@ -108,10 +108,14 @@ class SyntheticWeatherGenerator:
         return records
 
     def _generate_daily_precip(
-        self, p: ClimatePreset, mods: _ScenarioModifiers
+        self, p: ClimatePreset, mods: _ScenarioModifiers, month: int
     ) -> float:
-        """Exponential distribution for daily rainfall (realistic skew)."""
+        """Exponential distribution for daily rainfall with monthly seasonality."""
         mean = p.annual_mean_precip_mm_day * mods.precip_mult
+        # Apply monthly weight if defined (12 values, mean-normalized)
+        if p.rainfall_monthly_weights and len(p.rainfall_monthly_weights) == 12:
+            weight = p.rainfall_monthly_weights[month - 1]
+            mean *= weight
         if mean <= 0.01:
             return 0.0
         return max(0.0, self._rng.expovariate(1.0 / mean))
