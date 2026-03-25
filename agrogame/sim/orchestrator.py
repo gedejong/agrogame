@@ -8,6 +8,7 @@ from agrogame.soil.phenology import (
 )
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
+from agrogame.plant.presets import CropPreset
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
@@ -115,30 +116,37 @@ class FullSimulationOrchestrator:
         event_bus: EventBus | None = None,
         et_params: EtParams | None = None,
         latitude_deg: float = 52.0,
+        crop: CropPreset | None = None,
     ) -> None:
         self.event_bus = event_bus or EventBus()
-        # Core plant modules
-        self.phenology = PhenologyModule(
-            CropPhenologyParams(
+        # Crop parameters (use preset or defaults)
+        phen_params = (
+            crop.phenology
+            if crop
+            else CropPhenologyParams(
                 base_temperature_c=8.0,
                 max_temperature_c=35.0,
                 thresholds=GrowthStageThresholds(
                     emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
                 ),
-            ),
-            event_bus=self.event_bus,
+            )
         )
-        self.canopy = CanopyModule(
-            CanopyParams(
+        canopy_params = (
+            crop.canopy
+            if crop
+            else CanopyParams(
                 extinction_coefficient_k=0.6,
                 radiation_use_efficiency_g_per_mj=3.0,
                 specific_leaf_area_m2_per_g=0.02,
                 lai_max=6.0,
                 senescence_rate_per_day=0.01,
-            ),
-            event_bus=self.event_bus,
+            )
         )
-        self.roots = RootModule(RootParams(), event_bus=self.event_bus)
+        root_params = crop.roots if crop else RootParams()
+        # Core plant modules
+        self.phenology = PhenologyModule(phen_params, event_bus=self.event_bus)
+        self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
+        self.roots = RootModule(root_params, event_bus=self.event_bus)
         self.root_state = RootState()
 
         # Soil/water/chemistry/nutrients
