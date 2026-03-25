@@ -25,15 +25,21 @@ def test_at_max_returns_zero() -> None:
 
 
 def test_midpoint_below_opt() -> None:
-    # Halfway between base (8) and opt (30) → 0.5
+    # Halfway between base (8) and opt (30): x=0.5, sqrt(0.5) ≈ 0.707
     tf = cardinal_temp_factor(19.0, base=8.0, opt=30.0, tmax=42.0)
-    assert abs(tf - 0.5) < 0.01
+    assert abs(tf - 0.707) < 0.01
 
 
 def test_midpoint_above_opt() -> None:
     # Halfway between opt (30) and max (42) → 0.5
     tf = cardinal_temp_factor(36.0, base=8.0, opt=30.0, tmax=42.0)
     assert abs(tf - 0.5) < 0.01
+
+
+def test_maize_at_20c_in_target_range() -> None:
+    # AC: maize at 20°C (base=8, opt=30) should give factor 0.6-0.8
+    tf = cardinal_temp_factor(20.0, base=8.0, opt=30.0, tmax=42.0)
+    assert 0.6 <= tf <= 0.8
 
 
 def test_warm_reduces_below_one() -> None:

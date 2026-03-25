@@ -24,9 +24,18 @@ class CanopyParams:
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:
-    """Piecewise-linear temperature response: 0 at base/max, 1 at optimum."""
+    """Curvilinear temperature response (DSSAT/APSIM style).
+
+    Below optimum: concave (sqrt) curve — rises quickly from base,
+    matching the beta-function shape used in DSSAT CERES models.
+    Above optimum: linear decline — crops are more sensitive to
+    supra-optimal heat.
+
+    Returns 0 at base and max, 1 at optimum.
+    """
     if tmean_c <= base or tmean_c >= tmax:
         return 0.0
     if tmean_c <= opt:
-        return (tmean_c - base) / (opt - base)
+        x = (tmean_c - base) / (opt - base)
+        return float(x**0.5)
     return (tmax - tmean_c) / (tmax - opt)

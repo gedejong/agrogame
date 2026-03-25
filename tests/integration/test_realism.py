@@ -150,8 +150,8 @@ def test_sorghum_netherlands_limited() -> None:
     biomass, _lai, _stage = _run_scenario(
         "sorghum", "netherlands_temperate", date(2024, 4, 1)
     )
-    # Too cool for sorghum (opt 33°C); should be well below maize
-    assert biomass < 600
+    # Too cool for sorghum (opt 33°C); should be well below Kenya sorghum
+    assert biomass < 800
 
 
 # --- Rice ---
