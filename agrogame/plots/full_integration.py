@@ -47,6 +47,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=0.0,
         help="Residue cover fraction (0-1) to reduce soil evaporation",
     )
+    parser.add_argument(
+        "--crop",
+        type=str,
+        default=None,
+        help="Crop preset name (e.g. maize, wheat, grape)",
+    )
     add_weather_args(parser)
     parser.add_argument(
         "--alt-weather",
@@ -672,7 +678,18 @@ def main() -> None:
 
     plt.style.use("ggplot")
     et_params = EtParams(residue_cover_fraction=max(0.0, min(1.0, args.residue)))
-    orch = FullSimulationOrchestrator(profile, et_params=et_params)
+    crop_preset = None
+    if getattr(args, "crop", None):
+        from agrogame.plant.presets import load_crop_presets
+
+        crop_lib = load_crop_presets()
+        if args.crop not in crop_lib.crops:
+            raise ValueError(
+                f"Unknown crop {args.crop!r}; "
+                f"available: {sorted(crop_lib.crops.keys())}"
+            )
+        crop_preset = crop_lib.crops[args.crop]
+    orch = FullSimulationOrchestrator(profile, et_params=et_params, crop=crop_preset)
 
     auto_series = get_weather_series(args, args.days)
     if auto_series is not None:

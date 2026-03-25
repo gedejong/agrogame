@@ -1,0 +1,60 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "crop_preset.json",
+  "title": "Crop Preset Library",
+  "type": "object",
+  "required": ["crops"],
+  "properties": {
+    "crops": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/cropPreset" }
+    }
+  },
+  "definitions": {
+    "cropPreset": {
+      "type": "object",
+      "required": ["name", "phenology", "canopy"],
+      "properties": {
+        "name": { "type": "string" },
+        "phenology": { "$ref": "#/definitions/phenologyParams" },
+        "canopy": { "$ref": "#/definitions/canopyParams" },
+        "roots": { "$ref": "#/definitions/rootParams" }
+      }
+    },
+    "phenologyParams": {
+      "type": "object",
+      "required": ["base_temperature_c", "max_temperature_c", "emergence_gdd", "flowering_gdd", "maturity_gdd"],
+      "properties": {
+        "base_temperature_c": { "type": "number" },
+        "max_temperature_c": { "type": "number" },
+        "emergence_gdd": { "type": "number", "minimum": 0 },
+        "flowering_gdd": { "type": "number", "minimum": 0 },
+        "maturity_gdd": { "type": "number", "minimum": 0 },
+        "photoperiod_sensitivity": { "type": ["number", "null"] },
+        "vernalization_required_units": { "type": ["number", "null"] }
+      }
+    },
+    "canopyParams": {
+      "type": "object",
+      "required": ["extinction_coefficient_k", "rue_g_per_mj", "sla_m2_per_g", "lai_max"],
+      "properties": {
+        "extinction_coefficient_k": { "type": "number", "minimum": 0, "maximum": 1 },
+        "rue_g_per_mj": { "type": "number", "minimum": 0 },
+        "sla_m2_per_g": { "type": "number", "minimum": 0 },
+        "lai_max": { "type": "number", "minimum": 0 },
+        "senescence_rate_per_day": { "type": "number", "minimum": 0 },
+        "temp_base_c": { "type": "number" },
+        "temp_opt_c": { "type": "number" },
+        "temp_max_c": { "type": "number" }
+      }
+    },
+    "rootParams": {
+      "type": "object",
+      "properties": {
+        "max_depth_cm": { "type": "number", "minimum": 0 },
+        "growth_rate_cm_per_day": { "type": "number", "minimum": 0 },
+        "distribution": { "type": "string", "enum": ["exponential", "uniform", "taproot"] }
+      }
+    }
+  }
+}

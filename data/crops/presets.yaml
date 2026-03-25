@@ -1,0 +1,114 @@
+# Crop parameter presets
+# Sources: DSSAT CERES, APSIM, WOFOST/PCSE, FAO-56
+crops:
+  maize:
+    name: "Maize (Zea mays)"
+    phenology:
+      base_temperature_c: 8.0
+      max_temperature_c: 35.0
+      emergence_gdd: 100.0
+      flowering_gdd: 900.0
+      maturity_gdd: 1700.0
+    canopy:
+      extinction_coefficient_k: 0.65
+      rue_g_per_mj: 3.0        # DSSAT CERES-Maize typical
+      sla_m2_per_g: 0.02
+      lai_max: 6.0
+      senescence_rate_per_day: 0.01
+      temp_base_c: 8.0
+      temp_opt_c: 30.0
+      temp_max_c: 42.0
+    roots:
+      max_depth_cm: 150.0
+      growth_rate_cm_per_day: 2.0
+      distribution: exponential
+
+  wheat:
+    name: "Wheat (Triticum aestivum)"
+    phenology:
+      base_temperature_c: 0.0
+      max_temperature_c: 30.0
+      emergence_gdd: 80.0
+      flowering_gdd: 700.0
+      maturity_gdd: 1500.0
+      vernalization_required_units: 40.0
+    canopy:
+      extinction_coefficient_k: 0.55
+      rue_g_per_mj: 2.5        # APSIM wheat typical
+      sla_m2_per_g: 0.022
+      lai_max: 7.0
+      senescence_rate_per_day: 0.008
+      temp_base_c: 0.0
+      temp_opt_c: 20.0         # C3 crop, lower optimum
+      temp_max_c: 35.0
+    roots:
+      max_depth_cm: 120.0
+      growth_rate_cm_per_day: 1.5
+      distribution: exponential
+
+  rice:
+    name: "Rice (Oryza sativa)"
+    phenology:
+      base_temperature_c: 10.0
+      max_temperature_c: 40.0
+      emergence_gdd: 80.0
+      flowering_gdd: 800.0
+      maturity_gdd: 1400.0
+      photoperiod_sensitivity: 0.3
+    canopy:
+      extinction_coefficient_k: 0.6
+      rue_g_per_mj: 2.8        # DSSAT CERES-Rice
+      sla_m2_per_g: 0.024
+      lai_max: 8.0
+      senescence_rate_per_day: 0.008
+      temp_base_c: 10.0
+      temp_opt_c: 28.0
+      temp_max_c: 40.0
+    roots:
+      max_depth_cm: 60.0       # shallow-rooted
+      growth_rate_cm_per_day: 1.0
+      distribution: uniform
+
+  sorghum:
+    name: "Sorghum (Sorghum bicolor)"
+    phenology:
+      base_temperature_c: 10.0
+      max_temperature_c: 40.0
+      emergence_gdd: 80.0
+      flowering_gdd: 800.0
+      maturity_gdd: 1600.0
+    canopy:
+      extinction_coefficient_k: 0.6
+      rue_g_per_mj: 3.2        # C4 crop, high RUE
+      sla_m2_per_g: 0.018
+      lai_max: 5.0
+      senescence_rate_per_day: 0.01
+      temp_base_c: 10.0
+      temp_opt_c: 33.0         # heat-tolerant C4
+      temp_max_c: 45.0
+    roots:
+      max_depth_cm: 180.0      # deep-rooted, drought-adapted
+      growth_rate_cm_per_day: 2.5
+      distribution: exponential
+
+  grape:
+    name: "Grape (Vitis vinifera)"
+    phenology:
+      base_temperature_c: 10.0
+      max_temperature_c: 35.0
+      emergence_gdd: 50.0      # bud break
+      flowering_gdd: 400.0
+      maturity_gdd: 1800.0     # long season to harvest
+    canopy:
+      extinction_coefficient_k: 0.45   # open canopy, trained vines
+      rue_g_per_mj: 1.5        # perennial, lower RUE than cereals
+      sla_m2_per_g: 0.015
+      lai_max: 4.0
+      senescence_rate_per_day: 0.005
+      temp_base_c: 10.0
+      temp_opt_c: 25.0         # Mediterranean optimum
+      temp_max_c: 35.0
+    roots:
+      max_depth_cm: 200.0      # very deep-rooted perennial
+      growth_rate_cm_per_day: 0.8
+      distribution: exponential
