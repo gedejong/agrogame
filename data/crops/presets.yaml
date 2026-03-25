@@ -23,8 +23,8 @@ crops:
       growth_rate_cm_per_day: 2.0
       distribution: exponential
 
-  wheat:
-    name: "Wheat (Triticum aestivum)"
+  winter_wheat:
+    name: "Winter Wheat (Triticum aestivum)"
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
@@ -43,6 +43,28 @@ crops:
       temp_max_c: 32.0
     roots:
       max_depth_cm: 120.0
+      growth_rate_cm_per_day: 1.5
+      distribution: exponential
+
+  spring_wheat:
+    name: "Spring Wheat (Triticum aestivum)"
+    phenology:
+      base_temperature_c: 0.0
+      max_temperature_c: 30.0
+      emergence_gdd: 80.0
+      flowering_gdd: 600.0      # shorter cycle than winter wheat
+      maturity_gdd: 1300.0      # matures faster
+    canopy:
+      extinction_coefficient_k: 0.55
+      rue_g_per_mj: 2.3        # slightly lower than winter wheat
+      sla_m2_per_g: 0.022
+      lai_max: 6.0             # lower peak LAI
+      senescence_rate_per_day: 0.008
+      temp_base_c: 0.0
+      temp_opt_c: 18.0         # spring varieties tolerate slightly warmer
+      temp_max_c: 32.0
+    roots:
+      max_depth_cm: 100.0      # shallower than winter wheat
       growth_rate_cm_per_day: 1.5
       distribution: exponential
 

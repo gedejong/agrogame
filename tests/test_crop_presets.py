@@ -11,11 +11,11 @@ from agrogame.plant.presets import (
 )
 
 
-def test_load_five_crops() -> None:
+def test_load_six_crops() -> None:
     _load_crop_presets_cached.cache_clear()
     lib = load_crop_presets(Path("data/crops/presets.yaml"))
-    assert len(lib.crops) == 5
-    for name in ["maize", "wheat", "rice", "sorghum", "grape"]:
+    assert len(lib.crops) == 6
+    for name in ["maize", "winter_wheat", "spring_wheat", "rice", "sorghum", "grape"]:
         assert name in lib.crops
 
 
@@ -29,12 +29,27 @@ def test_preset_types() -> None:
         assert crop.roots.max_depth_cm > 0
 
 
-def test_wheat_has_vernalization() -> None:
+def test_winter_wheat_has_vernalization() -> None:
     _load_crop_presets_cached.cache_clear()
     lib = load_crop_presets(Path("data/crops/presets.yaml"))
-    wheat = lib.crops["wheat"]
-    assert wheat.phenology.vernalization_required_units is not None
-    assert wheat.phenology.vernalization_required_units > 0
+    ww = lib.crops["winter_wheat"]
+    assert ww.phenology.vernalization_required_units is not None
+    assert ww.phenology.vernalization_required_units > 0
+
+
+def test_spring_wheat_no_vernalization() -> None:
+    _load_crop_presets_cached.cache_clear()
+    lib = load_crop_presets(Path("data/crops/presets.yaml"))
+    sw = lib.crops["spring_wheat"]
+    assert sw.phenology.vernalization_required_units is None
+
+
+def test_spring_wheat_shorter_cycle_than_winter() -> None:
+    _load_crop_presets_cached.cache_clear()
+    lib = load_crop_presets(Path("data/crops/presets.yaml"))
+    sw = lib.crops["spring_wheat"]
+    ww = lib.crops["winter_wheat"]
+    assert sw.phenology.thresholds.maturity_gdd < ww.phenology.thresholds.maturity_gdd
 
 
 def test_grape_lower_rue_than_maize() -> None:
@@ -78,7 +93,6 @@ def test_different_phenology_timelines() -> None:
     maturity_gdds = {
         name: crop.phenology.thresholds.maturity_gdd for name, crop in lib.crops.items()
     }
-    # All should be different (or at least not all the same)
     assert len(set(maturity_gdds.values())) >= 3
 
 
@@ -93,7 +107,7 @@ def test_orchestrator_accepts_crop_preset() -> None:
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
 
-    for crop_name in ["maize", "wheat", "grape"]:
+    for crop_name in ["maize", "winter_wheat", "spring_wheat", "grape"]:
         crop = lib.crops[crop_name]
         orch = FullSimulationOrchestrator(profile, crop=crop)
         orch.step_day(
@@ -103,5 +117,4 @@ def test_orchestrator_accepts_crop_preset() -> None:
             par_mj_m2=12.0,
             sim_date=date(2024, 6, 1),
         )
-        # Should run without error
         assert orch.canopy.state.biomass_g_m2 >= 0.0
