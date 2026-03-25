@@ -9,7 +9,7 @@ climates:
     annual_mean_precip_mm_day: 2.3
     annual_mean_rh_pct: 82.0
     annual_mean_wind_m_s: 4.5
-    annual_mean_shortwave_mj_m2: 10.0
+    annual_mean_shortwave_mj_m2: 14.0
     heatwave_probability: 0.005
     frost_probability: 0.02
     heavy_rain_probability: 0.01
@@ -27,7 +27,7 @@ climates:
     annual_mean_precip_mm_day: 3.5
     annual_mean_rh_pct: 65.0
     annual_mean_wind_m_s: 2.0
-    annual_mean_shortwave_mj_m2: 20.0
+    annual_mean_shortwave_mj_m2: 18.0
     heatwave_probability: 0.002
     frost_probability: 0.005
     heavy_rain_probability: 0.02
