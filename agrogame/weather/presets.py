@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 import yaml
 
@@ -22,6 +22,10 @@ class ClimatePreset:
     annual_mean_rh_pct: float
     annual_mean_wind_m_s: float
     annual_mean_shortwave_mj_m2: float
+    # Monthly rainfall weights (12 values, normalized so mean=1.0).
+    # E.g., [0.5, 0.5, 1.5, 2.0, 1.5, 0.3, ...] for bimodal pattern.
+    # Empty list means uniform distribution.
+    rainfall_monthly_weights: List[float] = field(default_factory=list)
     heatwave_probability: float = 0.0
     frost_probability: float = 0.0
     heavy_rain_probability: float = 0.0
@@ -57,6 +61,9 @@ def _load_climate_presets_cached(p: Path) -> ClimateLibrary:
             annual_mean_rh_pct=float(raw["annual_mean_rh_pct"]),
             annual_mean_wind_m_s=float(raw["annual_mean_wind_m_s"]),
             annual_mean_shortwave_mj_m2=float(raw["annual_mean_shortwave_mj_m2"]),
+            rainfall_monthly_weights=[
+                float(w) for w in raw.get("rainfall_monthly_weights", [])
+            ],
             heatwave_probability=float(raw.get("heatwave_probability", 0.0)),
             frost_probability=float(raw.get("frost_probability", 0.0)),
             heavy_rain_probability=float(raw.get("heavy_rain_probability", 0.0)),

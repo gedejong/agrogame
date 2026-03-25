@@ -36,6 +36,12 @@
         "annual_mean_rh_pct": { "type": "number", "minimum": 0, "maximum": 100 },
         "annual_mean_wind_m_s": { "type": "number", "minimum": 0 },
         "annual_mean_shortwave_mj_m2": { "type": "number", "minimum": 0 },
+        "rainfall_monthly_weights": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 12,
+          "maxItems": 12
+        },
         "heatwave_probability": { "type": "number", "minimum": 0, "maximum": 1 },
         "frost_probability": { "type": "number", "minimum": 0, "maximum": 1 },
         "heavy_rain_probability": { "type": "number", "minimum": 0, "maximum": 1 },
