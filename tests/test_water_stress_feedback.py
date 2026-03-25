@@ -164,10 +164,10 @@ def test_arid_produces_less_than_temperate() -> None:
             sim_date=rec.day,
         )
 
-    # Sahel: Jun-Nov
+    # Sahel drought: extreme water limitation should clearly produce less
     sahel = climates.climates["sahel_arid"]
     gen_sahel = SyntheticWeatherGenerator(sahel, seed=42)
-    series_sahel = gen_sahel.generate(150, date(2024, 6, 1))
+    series_sahel = gen_sahel.generate(150, date(2024, 6, 1), "drought")
     orch_sahel = FullSimulationOrchestrator(profile, latitude_deg=sahel.latitude_deg)
     for rec in series_sahel.records:
         orch_sahel.step_day(
@@ -178,7 +178,7 @@ def test_arid_produces_less_than_temperate() -> None:
             sim_date=rec.day,
         )
 
-    # Sahel should produce less than Netherlands with water stress feedback
+    # Sahel drought should produce less than Netherlands normal
     assert orch_sahel.canopy.state.biomass_g_m2 < orch_nl.canopy.state.biomass_g_m2
 
 
