@@ -25,6 +25,14 @@ class CanopyParams:
     wilt_days_for_damage: int = 5  # consecutive days below threshold
     wilt_lai_loss_fraction: float = 0.1  # fraction of LAI lost per damage event
     stress_memory_days: int = 7  # window for running-average stress
+    # Biomass partitioning: fraction of daily biomass allocated to leaves
+    leaf_fraction_vegetative: float = 0.7
+    leaf_fraction_flowering: float = 0.4
+    leaf_fraction_grain_fill: float = 0.15
+    # Stage-gated senescence multipliers
+    senescence_flowering_fraction: float = 0.5  # moderate senescence at flowering
+    senescence_grain_fill_max: float = 2.0  # peak multiplier at end of grain fill
+    grain_fill_duration_gdd: float = 900.0  # GDD span over which senescence ramps
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:

@@ -45,7 +45,19 @@
         "senescence_rate_per_day": { "type": "number", "minimum": 0 },
         "temp_base_c": { "type": "number" },
         "temp_opt_c": { "type": "number" },
-        "temp_max_c": { "type": "number" }
+        "temp_max_c": { "type": "number" },
+        "initial_lai_at_emergence": { "type": "number", "minimum": 0 },
+        "senescence_vegetative_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "leaf_fraction_vegetative": { "type": "number", "minimum": 0, "maximum": 1 },
+        "leaf_fraction_flowering": { "type": "number", "minimum": 0, "maximum": 1 },
+        "leaf_fraction_grain_fill": { "type": "number", "minimum": 0, "maximum": 1 },
+        "senescence_flowering_fraction": { "type": "number", "minimum": 0 },
+        "senescence_grain_fill_max": { "type": "number", "minimum": 0 },
+        "grain_fill_duration_gdd": { "type": "number", "minimum": 0 },
+        "stress_memory_days": { "type": "integer", "minimum": 1 },
+        "wilt_stress_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "wilt_days_for_damage": { "type": "integer", "minimum": 1 },
+        "wilt_lai_loss_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "rootParams": {

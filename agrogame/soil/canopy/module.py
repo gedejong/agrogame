@@ -4,6 +4,7 @@ import math
 
 from agrogame.events import EventBus
 from agrogame.soil.phenology import StageChanged, PhenologyStage
+from agrogame.soil.phenology.events import GddAccumulated
 from agrogame.plant.stress import compute_water_stress
 
 from .params import CanopyParams
@@ -15,10 +16,11 @@ class CanopyModule:
     """Canopy growth and light interception.
 
     Responsibilities:
-    - Compute intercepted PAR via Beer–Lambert law (k, LAI)
+    - Compute intercepted PAR via Beer-Lambert law (k, LAI)
     - Convert intercepted PAR to biomass using RUE and stress/temperature factors
-    - Update LAI from new leaf biomass with SLA and senescence, with logistic taper
-    - Integrate with phenology to increase senescence during grain fill
+    - Partition biomass into leaf and stem fractions by growth stage
+    - Update LAI from leaf biomass only, with SLA and senescence
+    - Smooth senescence ramp during grain fill (not a step function)
 
     Units:
     - PAR: MJ m^-2 day^-1
@@ -34,20 +36,65 @@ class CanopyModule:
         if self.event_bus is not None:
             self.event_bus.subscribe(StageChanged, self._on_stage_changed)
             self.event_bus.subscribe(Harvested, self._on_harvest)
+            self.event_bus.subscribe(GddAccumulated, self._on_gdd_accumulated)
 
-        # Stage modifiers (simple): adjust senescence after flowering
-        self._senescence_multiplier = 1.0
+        self._current_stage: PhenologyStage = PhenologyStage.PLANTED
+        self._grain_fill_start_gdd: float = 0.0
+        self._current_gdd: float = 0.0
+
+    def _on_gdd_accumulated(self, event: GddAccumulated) -> None:
+        self._current_gdd = event.total_gdd
 
     def _on_stage_changed(self, event: StageChanged) -> None:
+        self._current_stage = event.to_stage
         # Bootstrap canopy at emergence
         if event.to_stage == PhenologyStage.EMERGED and self.state.lai <= 0.0:
             self.state.lai = max(self.state.lai, self.params.initial_lai_at_emergence)
-        if event.to_stage in (PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY):
-            self._senescence_multiplier = 2.0
-        elif event.to_stage in (PhenologyStage.EMERGED, PhenologyStage.VEGETATIVE):
-            self._senescence_multiplier = self.params.senescence_vegetative_fraction
-        else:
-            self._senescence_multiplier = 1.0
+        if event.to_stage == PhenologyStage.GRAIN_FILL:
+            self._grain_fill_start_gdd = event.at_gdd
+
+    @property
+    def _senescence_multiplier(self) -> float:
+        """Compute senescence multiplier based on current phenological stage.
+
+        Vegetative/emerged: reduced fraction (slow leaf turnover).
+        Flowering: moderate (lower canopy leaves begin dying).
+        Grain fill: smooth linear ramp from flowering level to
+        senescence_grain_fill_max over the grain fill GDD duration.
+        Maturity: peak senescence.
+        """
+        stage = self._current_stage
+        if stage in (PhenologyStage.EMERGED, PhenologyStage.VEGETATIVE):
+            return self.params.senescence_vegetative_fraction
+        if stage == PhenologyStage.FLOWERING:
+            return self.params.senescence_flowering_fraction
+        if stage == PhenologyStage.GRAIN_FILL:
+            duration = self.params.grain_fill_duration_gdd
+            if duration <= 0.0:
+                return self.params.senescence_grain_fill_max
+            progress = (self._current_gdd - self._grain_fill_start_gdd) / duration
+            progress = max(0.0, min(1.0, progress))
+            start = self.params.senescence_flowering_fraction
+            return start + progress * (self.params.senescence_grain_fill_max - start)
+        if stage == PhenologyStage.MATURITY:
+            return self.params.senescence_grain_fill_max
+        return 1.0
+
+    @property
+    def _leaf_fraction(self) -> float:
+        """Fraction of daily biomass allocated to leaves, by growth stage."""
+        stage = self._current_stage
+        if stage in (
+            PhenologyStage.PLANTED,
+            PhenologyStage.EMERGED,
+            PhenologyStage.VEGETATIVE,
+        ):
+            return self.params.leaf_fraction_vegetative
+        if stage == PhenologyStage.FLOWERING:
+            return self.params.leaf_fraction_flowering
+        if stage in (PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY):
+            return self.params.leaf_fraction_grain_fill
+        return self.params.leaf_fraction_vegetative
 
     def calculate_light_interception(self, incident_par_mj_m2: float) -> CanopyFluxes:
         """Compute intercepted PAR and emit a LightIntercepted event.
@@ -89,6 +136,7 @@ class CanopyModule:
         prev_lai = self.state.lai
         self.state.lai *= frac
         self.state.biomass_g_m2 *= frac
+        self.state.stem_biomass_g_m2 *= frac
         if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
             self.event_bus.emit(
                 LAIUpdated(previous_lai=prev_lai, new_lai=self.state.lai)
@@ -143,7 +191,12 @@ class CanopyModule:
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
         self.state.biomass_g_m2 += biomass_inc
-        self.update_lai(new_leaf_biomass_g_m2=biomass_inc)
+        # Partition into leaf and stem fractions
+        leaf_fraction = self._leaf_fraction
+        leaf_biomass = biomass_inc * leaf_fraction
+        stem_biomass = biomass_inc * (1.0 - leaf_fraction)
+        self.state.stem_biomass_g_m2 += stem_biomass
+        self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
         if self.event_bus is not None and biomass_inc > 0.0:
             self.event_bus.emit(
                 BiomassAccumulated(

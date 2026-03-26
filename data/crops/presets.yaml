@@ -18,6 +18,9 @@ crops:
       temp_base_c: 8.0
       temp_opt_c: 30.0
       temp_max_c: 42.0
+      leaf_fraction_vegetative: 0.7
+      leaf_fraction_flowering: 0.4
+      leaf_fraction_grain_fill: 0.15
     roots:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
@@ -43,6 +46,15 @@ crops:
       temp_max_c: 32.0
       initial_lai_at_emergence: 0.3   # winter cereals establish rosette
       senescence_vegetative_fraction: 0.05  # minimal leaf loss before flowering
+      stress_memory_days: 14        # longer averaging window for deep-rooted crop
+      wilt_stress_threshold: 0.15   # deep-rooted wheat tolerates transient dry spells
+      wilt_days_for_damage: 10      # extended tolerance before irreversible damage
+      leaf_fraction_vegetative: 0.75  # high leaf allocation during tillering
+      leaf_fraction_flowering: 0.35   # stem elongation dominates
+      leaf_fraction_grain_fill: 0.10  # most assimilate to grain/stem
+      senescence_flowering_fraction: 0.3  # lower canopy leaves start dying
+      senescence_grain_fill_max: 1.8  # gradual canopy decline
+      grain_fill_duration_gdd: 900.0
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
@@ -65,6 +77,10 @@ crops:
       temp_base_c: 0.0
       temp_opt_c: 18.0         # spring varieties tolerate slightly warmer
       temp_max_c: 32.0
+      leaf_fraction_vegetative: 0.7
+      leaf_fraction_flowering: 0.35
+      leaf_fraction_grain_fill: 0.10
+      grain_fill_duration_gdd: 700.0
     roots:
       max_depth_cm: 100.0      # shallower than winter wheat
       growth_rate_cm_per_day: 1.5
@@ -88,6 +104,9 @@ crops:
       temp_base_c: 10.0
       temp_opt_c: 28.0
       temp_max_c: 40.0
+      leaf_fraction_vegetative: 0.7
+      leaf_fraction_flowering: 0.45
+      leaf_fraction_grain_fill: 0.15
     roots:
       max_depth_cm: 60.0       # shallow-rooted
       growth_rate_cm_per_day: 1.0
@@ -110,6 +129,9 @@ crops:
       temp_base_c: 10.0
       temp_opt_c: 33.0         # heat-tolerant C4
       temp_max_c: 45.0
+      leaf_fraction_vegetative: 0.65
+      leaf_fraction_flowering: 0.35
+      leaf_fraction_grain_fill: 0.10
     roots:
       max_depth_cm: 180.0      # deep-rooted, drought-adapted
       growth_rate_cm_per_day: 2.5
@@ -132,6 +154,9 @@ crops:
       temp_base_c: 10.0
       temp_opt_c: 25.0         # Mediterranean optimum
       temp_max_c: 35.0
+      leaf_fraction_vegetative: 0.8
+      leaf_fraction_flowering: 0.5
+      leaf_fraction_grain_fill: 0.3   # perennial, keeps producing leaves
     roots:
       max_depth_cm: 200.0      # very deep-rooted perennial
       growth_rate_cm_per_day: 0.8

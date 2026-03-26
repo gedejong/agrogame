@@ -3,6 +3,7 @@ from __future__ import annotations
 from agrogame.events import EventBus
 from agrogame.plant.events import WaterStressComputed
 from agrogame.soil.phenology import StageChanged, PhenologyStage
+from agrogame.soil.phenology.events import GddAccumulated
 from agrogame.soil.canopy import (
     CanopyModule,
     CanopyParams,
@@ -58,7 +59,8 @@ def test_canopy_senescence_increases_after_grain_fill() -> None:
     # Before grain fill, one day with no new biomass
     lai_before = canopy.update_lai(new_leaf_biomass_g_m2=0.0)
 
-    # Trigger grain fill stage
+    # Trigger grain fill stage and advance GDD well into grain fill
+    # so the smooth senescence ramp exceeds the pre-grain-fill baseline.
     bus.emit(
         StageChanged(
             from_stage=PhenologyStage.VEGETATIVE,
@@ -66,8 +68,9 @@ def test_canopy_senescence_increases_after_grain_fill() -> None:
             at_gdd=900,
         )
     )
+    bus.emit(GddAccumulated(daily_gdd=50.0, total_gdd=1800.0))
 
-    # After grain fill, senescence multiplier applies; expect larger decrease
+    # After grain fill with sufficient GDD progress, expect larger decrease
     canopy.state.lai = 2.0
     lai_after = canopy.update_lai(new_leaf_biomass_g_m2=0.0)
 

@@ -96,17 +96,17 @@ class CanopyRuntime:
         par = 12.0 if ev.par_mj_m2 is None else float(ev.par_mj_m2)
         water = self._last_water
         n = self._last_n
-        p = self._last_p
-        if self._stress_calc is not None:
-            combined = self._stress_calc.combine(water=water, nitrogen=n, phosphorus=p)
-        else:
-            combined = min(water, n, p)
-
         avg_water = self._update_stress_memory(water)
         vpd_factor = self._vpd_rue_factor(ev)
-        effective_water = min(water, avg_water) * vpd_factor
+        # Use running average to smooth transient stress spikes; avoids
+        # single zero-stress days zeroing growth while memory is still low.
+        effective_water = avg_water * vpd_factor
 
-        n_s = min(n, combined)
+        # Nutrient stress: use raw N directly. Water stress is already
+        # handled by effective_water; P limitation is handled by the
+        # phosphorus cycle itself and should not zero growth via Liebig
+        # here (AGRO-88: P cycle depletes unrealistically in long sims).
+        n_s = n
         tf = self._compute_temp_factor(ev)
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,
@@ -114,6 +114,7 @@ class CanopyRuntime:
             water_stress=effective_water,
             n_stress=n_s,
         )
-        # Wilt check after growth: damage represents end-of-day leaf death,
-        # so today's growth uses pre-damage LAI. Next day sees reduced canopy.
+        # Wilt check uses instantaneous stress so that recovery days
+        # (raw water > threshold) reset the counter, preventing false
+        # wilt triggers from averaged values hovering near threshold.
         self._check_wilt_damage(water)
