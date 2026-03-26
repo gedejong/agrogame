@@ -102,13 +102,13 @@ class CanopyRuntime:
 
         # Liebig nutrient stress: minimum of N and P (AGRO-97).
         # Water stress handled separately via effective_water.
-        n_s = min(n, p)
+        nutrient_stress = min(n, p)
         tf = self._compute_temp_factor(ev)
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,
             temp_factor=tf,
             water_stress=effective_water,
-            n_stress=n_s,
+            n_stress=nutrient_stress,
         )
         # Wilt check uses instantaneous stress so that recovery days
         # (raw water > threshold) reset the counter, preventing false
