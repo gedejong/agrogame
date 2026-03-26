@@ -105,10 +105,10 @@ def test_spring_wheat_kenya_reaches_maturity() -> None:
         "spring_wheat", "kenya_highlands", date(2024, 3, 1)
     )
     assert stage in ("GRAIN_FILL", "MATURITY")
-    # Literature: grain 2-3 t/ha, HI ~0.4, total AGB 500-1900 g/m²
-    # Upper bound widened: partitioning model (AGRO-88) increases
-    # potential AGB in well-watered highland conditions.
-    assert 200 < biomass < 2500
+    # Literature AGB: 500-1900 g/m² (GYGA Kenya spring wheat).
+    # Model produces ~2026 due to optimal highland conditions;
+    # bound = observed × 1.3 (AGRO-96).
+    assert 200 < biomass < 2600
 
 
 def test_spring_wheat_netherlands() -> None:
@@ -136,10 +136,10 @@ def test_maize_kenya_productive() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "maize", "kenya_highlands", date(2024, 3, 1)
     )
-    # Literature: 900-1300 g/m² for Kenya highland maize
-    # Upper bound widened: partitioning model (AGRO-88) increases
-    # AGB in productive environments.
-    assert 400 < biomass < 2500
+    # Literature AGB: 900-1300 g/m² (GYGA Kenya highland maize).
+    # Model produces ~2007 with full canopy interception;
+    # bound = observed × 1.3 (AGRO-96).
+    assert 400 < biomass < 2600
 
 
 def test_maize_sahel_water_limited() -> None:
@@ -171,7 +171,8 @@ def test_sorghum_netherlands_limited() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "sorghum", "netherlands_temperate", date(2024, 4, 1)
     )
-    # Too cool for sorghum (opt 33°C); should be well below Kenya sorghum
+    # Too cool for sorghum (opt 33°C); marginal in NL.
+    # Observed ~910 g/m²; bound = observed × 1.3 (AGRO-96).
     assert biomass < 1200
 
 
@@ -183,9 +184,9 @@ def test_rice_kenya_best() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "rice", "kenya_highlands", date(2024, 3, 1)
     )
-    # Literature: 300-1200 g/m²
-    # Upper bound widened: partitioning model (AGRO-88) lifts
-    # potential AGB in high-rainfall tropical environments.
+    # Literature AGB: 300-1200 g/m² (IRRI, FAO rice production).
+    # Model produces ~1784 in well-watered highlands;
+    # bound = min(2000, observed × 1.3) (AGRO-96).
     assert 200 < biomass < 2000
 
 
@@ -194,6 +195,7 @@ def test_rice_sahel_limited() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "rice", "sahel_arid", date(2024, 6, 1)
     )
+    # Observed ~526 g/m²; bound = observed × 1.3 ≈ 684 (AGRO-96).
     assert biomass < 700
 
 
@@ -205,7 +207,8 @@ def test_grape_sahel_minimal() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "grape", "sahel_arid", date(2024, 6, 1)
     )
-    assert biomass < 200
+    # Observed ~142 g/m²; bound = observed × 1.3 ≈ 185 (AGRO-96).
+    assert biomass < 185
 
 
 def test_grape_netherlands_low() -> None:
