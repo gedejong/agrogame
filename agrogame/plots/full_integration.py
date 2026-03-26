@@ -164,6 +164,7 @@ def _collect_day_history(
     histories["stage_series"].append(orch.phenology.state.stage)
     histories["lai"].append(orch.canopy.state.lai)
     histories["biomass"].append(orch.canopy.state.biomass_g_m2)
+    histories["grain_biomass"].append(orch.canopy.state.grain_biomass_g_m2)
     try:
         histories["root_depth"].append(orch.root_state.current_depth_cm)
     except Exception:
@@ -478,6 +479,7 @@ def _export_csv(args: argparse.Namespace, h: dict, total_days: int) -> Path:
                 "day",
                 "lai",
                 "biomass_g_m2",
+                "grain_biomass_g_m2",
                 "biomass_inc_g_m2",
                 "evap_mm",
                 "transp_mm",
@@ -503,6 +505,7 @@ def _export_csv(args: argparse.Namespace, h: dict, total_days: int) -> Path:
                     i + 1,
                     h["lai"][i],
                     b,
+                    h["grain_biomass"][i] if h.get("grain_biomass") else 0.0,
                     inc,
                     h["evap_mm_series"][i],
                     h["transp_mm_series"][i],

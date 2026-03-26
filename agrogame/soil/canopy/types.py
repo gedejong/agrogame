@@ -8,6 +8,7 @@ class CanopyState:
     lai: float
     biomass_g_m2: float
     stem_biomass_g_m2: float = 0.0
+    grain_biomass_g_m2: float = 0.0
 
 
 @dataclass

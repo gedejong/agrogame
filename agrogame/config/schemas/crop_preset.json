@@ -57,7 +57,8 @@
         "stress_memory_days": { "type": "integer", "minimum": 1 },
         "wilt_stress_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
         "wilt_days_for_damage": { "type": "integer", "minimum": 1 },
-        "wilt_lai_loss_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+        "wilt_lai_loss_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+        "harvest_index": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "rootParams": {

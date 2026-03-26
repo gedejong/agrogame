@@ -137,6 +137,7 @@ class CanopyModule:
         self.state.lai *= frac
         self.state.biomass_g_m2 *= frac
         self.state.stem_biomass_g_m2 *= frac
+        self.state.grain_biomass_g_m2 *= frac
         if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
             self.event_bus.emit(
                 LAIUpdated(previous_lai=prev_lai, new_lai=self.state.lai)
@@ -191,6 +192,12 @@ class CanopyModule:
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
         self.state.biomass_g_m2 += biomass_inc
+        # Accumulate grain during grain fill (DSSAT-style daily HI allocation)
+        if self._current_stage in (
+            PhenologyStage.GRAIN_FILL,
+            PhenologyStage.MATURITY,
+        ):
+            self.state.grain_biomass_g_m2 += biomass_inc * self.params.harvest_index
         # Partition into leaf and stem fractions
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
