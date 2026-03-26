@@ -8,7 +8,6 @@ from agrogame.sim.calendar_events import DayTick
 from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
-from agrogame.plant.stress import StressCalculator
 from agrogame.weather.utils import saturation_vapor_pressure_kpa
 
 
@@ -16,7 +15,6 @@ from agrogame.weather.utils import saturation_vapor_pressure_kpa
 class CanopyRuntime:
     event_bus: EventBus
     canopy: CanopyModule
-    _stress_calc: StressCalculator | None = None
     _last_water: float = 1.0
     _last_n: float = 1.0
     _last_p: float = 1.0
@@ -28,7 +26,6 @@ class CanopyRuntime:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(WaterStressComputed, self._on_water_stress)
         self.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
-        self._stress_calc = StressCalculator("liebig")
         self._stress_history = deque(maxlen=self.canopy.params.stress_memory_days)
 
     def _on_water_stress(self, ev: WaterStressComputed) -> None:
@@ -96,17 +93,16 @@ class CanopyRuntime:
         par = 12.0 if ev.par_mj_m2 is None else float(ev.par_mj_m2)
         water = self._last_water
         n = self._last_n
+        p = self._last_p
         avg_water = self._update_stress_memory(water)
         vpd_factor = self._vpd_rue_factor(ev)
         # Use running average to smooth transient stress spikes; avoids
         # single zero-stress days zeroing growth while memory is still low.
         effective_water = avg_water * vpd_factor
 
-        # Nutrient stress: use raw N directly. Water stress is already
-        # handled by effective_water; P limitation is handled by the
-        # phosphorus cycle itself and should not zero growth via Liebig
-        # here (AGRO-88: P cycle depletes unrealistically in long sims).
-        n_s = n
+        # Liebig nutrient stress: minimum of N and P (AGRO-97).
+        # Water stress handled separately via effective_water.
+        n_s = min(n, p)
         tf = self._compute_temp_factor(ev)
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,

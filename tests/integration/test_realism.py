@@ -225,3 +225,43 @@ def test_sorghum_outperforms_in_sahel() -> None:
     grape, _, _ = _run_scenario("grape", "sahel_arid", date(2024, 6, 1))
     assert sorghum > wheat
     assert sorghum > grape
+
+
+# --- Phosphorus availability (AGRO-97) ---
+
+
+def test_p_availability_through_280d_winter_wheat() -> None:
+    """Available P should stay physiologically plausible through a 280-day sim.
+
+    Literature: unfertilized temperate soils maintain 5-30 mg/kg Olsen P
+    over a growing season (Syers et al. 2008). 5 mg/kg ≈ 16 kg/ha for
+    a 25cm layer at bulk density 1.3 g/cm³. Check total available P > 5 kg/ha.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.crops["winter_wheat"]
+    climate = climates.climates["netherlands_temperate"]
+    gen = SyntheticWeatherGenerator(climate, seed=42)
+    series = gen.generate(280, date(2023, 10, 15))
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+
+    p_avail_total = sum(orch.p_state.available_p)
+    assert p_avail_total > 5.0, (
+        f"Available P dropped to {p_avail_total:.1f} kg/ha — "
+        f"below physiological minimum"
+    )
