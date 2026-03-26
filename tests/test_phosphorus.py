@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, cast
 
+import pytest
+
 from agrogame.soil.models import SoilLayer, SoilProfile
 from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained
@@ -249,7 +251,7 @@ def test_slow_release_schedule_releases_full_amount_over_days() -> None:
     # After full release period, total P in the profile should have increased by ~20
     # (accounting for fixation moving within pools but preserving mass)
     total_after = state.total_phosphorus_kg_ha()
-    assert total_after == baseline_total + 20.0
+    assert total_after == pytest.approx(baseline_total + 20.0)
 
 
 def test_temperature_sensitivity_increases_mineralization() -> None:

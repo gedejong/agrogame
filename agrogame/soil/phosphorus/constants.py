@@ -20,9 +20,13 @@ PH_AVAILABILITY_ANCHORS: tuple[tuple[float, float], ...] = (
     (9.0, 0.0),
 )
 
-# Weekly fixation fraction bounds (1–5% per week) to scale by pH
-FIXATION_WEEKLY_MIN: float = 0.01
-FIXATION_WEEKLY_MAX: float = 0.05
+# Weekly fixation fraction bounds, scaled by pH.
+# Native soil P is largely in adsorption equilibrium; fixation primarily
+# affects freshly-applied fertilizer P. Literature: Barrow (1983),
+# Sanyal & De Datta (1991). Reduced from 1–5%/week to 0.2–1%/week
+# to reflect equilibrium conditions (AGRO-97).
+FIXATION_WEEKLY_MIN: float = 0.002
+FIXATION_WEEKLY_MAX: float = 0.01
 
 # Heavy drainage threshold for minimal P movement (mm/day)
 HEAVY_DRAINAGE_MM: float = 50.0

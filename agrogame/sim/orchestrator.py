@@ -220,7 +220,7 @@ class FullSimulationOrchestrator:
         par_mj_m2: float,
         sim_date: date | None = None,
         plant_n_demand_kg_ha: float = 1.0,
-        plant_p_demand_kg_ha: float = 0.5,
+        plant_p_demand_kg_ha: float = 0.1,
         target_ph: float = 6.8,
     ) -> None:
         # Drive daily progression solely via DayTick phases
