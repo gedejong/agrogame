@@ -188,7 +188,7 @@ def log_likelihood(
     """
     try:
         sim = run_simulation_with_params(theta)
-    except Exception:
+    except (ValueError, RuntimeError, ZeroDivisionError):
         return -np.inf
 
     sim_biomass = sim["biomass_g_m2"][::subsample]
@@ -261,7 +261,7 @@ def compute_diagnostics(sampler: Any, param_names: list[str]) -> ConvergenceDiag
         tau = sampler.get_autocorr_time(quiet=True)
         for i, name in enumerate(param_names):
             autocorr[name] = float(tau[i])
-    except Exception:
+    except (ValueError, RuntimeError, ZeroDivisionError):
         for name in param_names:
             autocorr[name] = float("nan")
 
@@ -344,7 +344,7 @@ def prediction_uncertainty(
             sim = run_simulation_with_params(theta)
             grain = sim["grain_biomass_g_m2"][-1] if sim["grain_biomass_g_m2"] else 0.0
             grain_yields.append(grain)
-        except Exception:
+        except (ValueError, RuntimeError, ZeroDivisionError):
             continue
 
     if not grain_yields:

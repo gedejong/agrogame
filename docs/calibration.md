@@ -19,8 +19,13 @@ Morris sensitivity analysis):
 | extinction_coefficient_k  | [0.40, 0.80]     |    0.65 |             0.54 |
 | flowering_gdd             | [600, 1200]       |  900.0  |            759.0 |
 | maturity_gdd              | [1200, 2200]      | 1700.0  |           1830.0 |
-| sla_m2_per_g              | [0.012, 0.030]    |   0.020 |            0.012 |
+| sla_m2_per_g              | [0.012, 0.030]    |   0.020 |   0.012 (note 1) |
 | remobilization_fraction   | [0.0, 0.05]       |   0.020 |            0.037 |
+
+**Note 1**: SLA posterior median hit the prior lower bound exactly (0.012),
+indicating a boundary artifact rather than a well-constrained estimate. The
+maize preset retains the original default (0.020) for SLA. Widening the prior
+or investigating model structure is recommended before applying this value.
 
 **Constraint**: flowering_gdd < maturity_gdd (biologically required).
 

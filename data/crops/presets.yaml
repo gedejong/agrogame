@@ -12,7 +12,7 @@ crops:
     canopy:
       extinction_coefficient_k: 0.54  # Bayesian posterior median (AGRO-92)
       rue_g_per_mj: 3.56        # Bayesian posterior median (AGRO-92)
-      sla_m2_per_g: 0.012       # Bayesian posterior median (AGRO-92)
+      sla_m2_per_g: 0.02        # kept at default — posterior hit prior bound (AGRO-92)
       lai_max: 6.0
       senescence_rate_per_day: 0.01
       temp_base_c: 8.0
