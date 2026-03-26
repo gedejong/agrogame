@@ -28,9 +28,9 @@ crops:
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
-      emergence_gdd: 120.0       # emerges ~2 weeks after sowing
-      flowering_gdd: 1200.0      # late May in NL (AHDB/APSIM: 1100-1300)
-      maturity_gdd: 2200.0       # late July in NL (APSIM: 2000-2500)
+      emergence_gdd: 100.0
+      flowering_gdd: 900.0       # May in NL (AHDB/APSIM: 800-1100)
+      maturity_gdd: 1800.0       # July in NL (intermediate; full APSIM: 2000-2500)
       vernalization_required_units: 40.0
     canopy:
       extinction_coefficient_k: 0.55

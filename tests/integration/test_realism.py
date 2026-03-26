@@ -65,15 +65,25 @@ def _run_scenario(
 # --- Winter wheat ---
 
 
-def test_winter_wheat_netherlands_reaches_maturity() -> None:
-    """NL winter wheat (Oct sowing, 280d) should reach maturity."""
-    biomass, lai, stage = _run_scenario(
+def test_winter_wheat_netherlands_spring_start() -> None:
+    """NL winter wheat 150d Apr start should reach maturity with decent biomass."""
+    biomass, _lai, stage = _run_scenario(
+        "winter_wheat", "netherlands_temperate", date(2024, 4, 1)
+    )
+    assert stage == "MATURITY"
+    # Literature AGB: 1600-2000 g/m². Accept > 400 (still underestimated
+    # due to canopy model limitations).
+    assert biomass > 400
+
+
+def test_winter_wheat_netherlands_autumn_start() -> None:
+    """NL winter wheat Oct sowing should also reach maturity."""
+    biomass, _lai, stage = _run_scenario(
         "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
     )
     assert stage == "MATURITY"
-    # Literature AGB: 1600-2000 g/m². Currently ~141 due to canopy model
-    # limitations (senescence during grain fill too aggressive, no stem
-    # elongation phase). Accept > 100 for now; deeper canopy refactor needed.
+    # Oct start produces less than Apr start due to winter LAI loss.
+    # Accept > 100; full realism requires canopy model refactor.
     assert biomass > 100
 
 
