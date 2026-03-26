@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 from agrogame.events import EventBus
 from agrogame.soil.phenology import (
     CropPhenologyParams,
@@ -103,11 +105,75 @@ def build_default_orchestrator() -> SimulationOrchestrator:
     return SimulationOrchestrator(phen, can)
 
 
+@dataclass
+class SoilSnapshot:
+    """Serializable snapshot of soil state between seasons.
+
+    Captures water, nitrogen, and phosphorus pools so they can be
+    persisted to disk and restored for multi-season simulation.
+    """
+
+    water_theta: list[float] = field(default_factory=list)
+    n_nh4: list[float] = field(default_factory=list)
+    n_no3: list[float] = field(default_factory=list)
+    n_organic: list[float] = field(default_factory=list)
+    p_available: list[float] = field(default_factory=list)
+    p_fixed: list[float] = field(default_factory=list)
+    p_organic: list[float] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, list[float]]:
+        """Serialize to a plain dict for JSON/YAML persistence."""
+        return {
+            "water_theta": list(self.water_theta),
+            "n_nh4": list(self.n_nh4),
+            "n_no3": list(self.n_no3),
+            "n_organic": list(self.n_organic),
+            "p_available": list(self.p_available),
+            "p_fixed": list(self.p_fixed),
+            "p_organic": list(self.p_organic),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, list[float]]) -> SoilSnapshot:
+        """Restore from a plain dict."""
+        return cls(
+            water_theta=list(data["water_theta"]),
+            n_nh4=list(data["n_nh4"]),
+            n_no3=list(data["n_no3"]),
+            n_organic=list(data["n_organic"]),
+            p_available=list(data["p_available"]),
+            p_fixed=list(data["p_fixed"]),
+            p_organic=list(data["p_organic"]),
+        )
+
+
+def _default_phen_params() -> CropPhenologyParams:
+    return CropPhenologyParams(
+        base_temperature_c=8.0,
+        max_temperature_c=35.0,
+        thresholds=GrowthStageThresholds(
+            emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
+        ),
+    )
+
+
+def _default_canopy_params() -> CanopyParams:
+    return CanopyParams(
+        extinction_coefficient_k=0.6,
+        radiation_use_efficiency_g_per_mj=3.0,
+        specific_leaf_area_m2_per_g=0.02,
+        lai_max=6.0,
+        senescence_rate_per_day=0.01,
+    )
+
+
 class FullSimulationOrchestrator:
     """Event-wired orchestrator including water, chemistry, N and P.
 
     Keeps responsibilities light: holds modules and provides a convenience
     `step_day` to advance water/N/P using a shared EventBus.
+
+    Supports multi-season simulation via `reset_crop()` and `harvest()`.
     """
 
     def __init__(
@@ -119,30 +185,13 @@ class FullSimulationOrchestrator:
         crop: CropPreset | None = None,
     ) -> None:
         self.event_bus = event_bus or EventBus()
+        self.latitude_deg = latitude_deg
+
         # Crop parameters (use preset or defaults)
-        phen_params = (
-            crop.phenology
-            if crop
-            else CropPhenologyParams(
-                base_temperature_c=8.0,
-                max_temperature_c=35.0,
-                thresholds=GrowthStageThresholds(
-                    emergence_gdd=100.0, flowering_gdd=900.0, maturity_gdd=1700.0
-                ),
-            )
-        )
-        canopy_params = (
-            crop.canopy
-            if crop
-            else CanopyParams(
-                extinction_coefficient_k=0.6,
-                radiation_use_efficiency_g_per_mj=3.0,
-                specific_leaf_area_m2_per_g=0.02,
-                lai_max=6.0,
-                senescence_rate_per_day=0.01,
-            )
-        )
+        phen_params = crop.phenology if crop else _default_phen_params()
+        canopy_params = crop.canopy if crop else _default_canopy_params()
         root_params = crop.roots if crop else RootParams()
+
         # Core plant modules
         self.phenology = PhenologyModule(phen_params, event_bus=self.event_bus)
         self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
@@ -179,13 +228,22 @@ class FullSimulationOrchestrator:
         # Calendar for phased daily progression
         self.calendar = Calendar(self.event_bus)
 
-        # Runtime listeners for DayTick phases
+        self._wire_runtimes()
+
+    def _wire_runtimes(self) -> None:
+        """Subscribe all runtime listeners to the event bus."""
         _ = WaterRuntime(
             self.event_bus, self.water_model, self.profile, self.water_state
         )
-        _ = PhenologyRuntime(self.event_bus, self.phenology, latitude_deg=latitude_deg)
+        _ = PhenologyRuntime(
+            self.event_bus, self.phenology, latitude_deg=self.latitude_deg
+        )
         _ = RootsRuntime(
-            self.event_bus, self.roots, self.root_state, self.profile, self.phenology
+            self.event_bus,
+            self.roots,
+            self.root_state,
+            self.profile,
+            self.phenology,
         )
         _ = ETRuntime(
             event_bus=self.event_bus,
@@ -200,7 +258,6 @@ class FullSimulationOrchestrator:
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
-        # Temporary SOM runtime to emit substrate/priming until AGRO-71 is available
         _ = SimpleSOMRuntime(self.event_bus, self.profile, self.water_state, self.chem)
         _ = MicrobesRuntime(
             self.event_bus,
@@ -210,6 +267,80 @@ class FullSimulationOrchestrator:
             chemistry=self.chem,
         )
         _ = CanopyRuntime(self.event_bus, self.canopy)
+
+    def snapshot_soil(self) -> SoilSnapshot:
+        """Capture current soil state as a serializable snapshot."""
+        return SoilSnapshot(
+            water_theta=list(self.water_state.theta),
+            n_nh4=list(self.n_state.nh4),
+            n_no3=list(self.n_state.no3),
+            n_organic=list(self.n_state.organic_n),
+            p_available=list(self.p_state.available_p),
+            p_fixed=list(self.p_state.fixed_p),
+            p_organic=list(self.p_state.organic_p),
+        )
+
+    def restore_soil(self, snapshot: SoilSnapshot) -> None:
+        """Restore soil state from a snapshot."""
+        self.water_state.theta = list(snapshot.water_theta)
+        self.n_state.nh4 = list(snapshot.n_nh4)
+        self.n_state.no3 = list(snapshot.n_no3)
+        self.n_state.organic_n = list(snapshot.n_organic)
+        self.p_state.available_p = list(snapshot.p_available)
+        self.p_state.fixed_p = list(snapshot.p_fixed)
+        self.p_state.organic_p = list(snapshot.p_organic)
+
+    def harvest(self) -> SoilSnapshot:
+        """Finalize current crop and return soil state for next season."""
+        return self.snapshot_soil()
+
+    def reset_crop(self, new_crop: CropPreset) -> None:
+        """Reset plant state for a new crop, preserving soil state.
+
+        Clears all event subscriptions and re-wires runtimes with fresh
+        plant modules. Soil state (water, N, P, chemistry, microbes) is
+        preserved across the transition.
+        """
+        # Capture soil state
+        soil = self.snapshot_soil()
+
+        # Clear all event subscriptions to avoid stale handlers
+        self.event_bus.clear()
+
+        # Fresh plant modules
+        self.phenology = PhenologyModule(new_crop.phenology, event_bus=self.event_bus)
+        self.canopy = CanopyModule(new_crop.canopy, event_bus=self.event_bus)
+        self.roots = RootModule(new_crop.roots, event_bus=self.event_bus)
+        self.root_state = RootState()
+
+        # Re-create soil modules that subscribe to events
+        self.water_model = CascadingBucketWaterModel(event_bus=self.event_bus)
+        self.n_cycle = NitrogenCycle(
+            self.event_bus,
+            self.n_state,
+            water_state=cast(Any, self.water_state),
+            profile=cast(Any, self.profile),
+        )
+        self.p_cycle = PhosphorusCycle(
+            self.event_bus,
+            self.p_state,
+            water_state=cast(Any, self.water_state),
+            profile=cast(Any, self.profile),
+        )
+        self.microbes = MicrobialBiomassModule(
+            MicrobialParams(n_layers=len(self.profile.layers)),
+            event_bus=self.event_bus,
+        )
+        self.chem = SoilChemistryModule(
+            self.event_bus, n_layers=len(self.profile.layers)
+        )
+        self.calendar = Calendar(self.event_bus)
+
+        # Restore soil state (water, N, P pools)
+        self.restore_soil(soil)
+
+        # Re-wire all runtime listeners
+        self._wire_runtimes()
 
     def step_day(
         self,

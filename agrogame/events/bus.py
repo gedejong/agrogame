@@ -21,6 +21,10 @@ class EventBus:
     def subscribe(self, event_type: Type[T], handler: Callable[[T], None]) -> None:
         self._handlers[event_type].append(handler)
 
+    def clear(self) -> None:
+        """Remove all event subscriptions."""
+        self._handlers.clear()
+
     def emit(self, event: Any) -> None:
         # Debug log every emitted event for traceability
         try:
