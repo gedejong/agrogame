@@ -80,6 +80,7 @@ def test_canopy_senescence_increases_after_grain_fill() -> None:
 def test_grain_accumulates_during_grain_fill() -> None:
     """Single daily_step during grain fill should partition grain from stem."""
     bus = EventBus()
+    # remobilization_fraction=0 to test pure HI allocation
     params = CanopyParams(0.6, 3.0, 0.02, 6.0, 0.0, harvest_index=0.50)
     canopy = CanopyModule(params, event_bus=bus)
     canopy.state.lai = 3.0
@@ -99,13 +100,82 @@ def test_grain_accumulates_during_grain_fill() -> None:
     )
     inc = fx.biomass_increment_g_m2
     assert inc > 0.0
-    # Grain should be HI × biomass_inc
+    # Grain should be HI × biomass_inc (no remobilization)
     assert abs(canopy.state.grain_biomass_g_m2 - inc * 0.50) < 0.01
     # Sub-pools should sum to total biomass
     sub_total = canopy.state.grain_biomass_g_m2 + canopy.state.stem_biomass_g_m2
-    # leaf biomass is tracked via LAI, not a separate pool — so check
-    # grain + stem <= total
     assert sub_total <= canopy.state.biomass_g_m2 + 0.01
+
+
+def test_stem_remobilization_mass_balance() -> None:
+    """Remobilization moves stem to grain, total biomass unchanged."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.0,
+        harvest_index=0.50,
+        remobilization_fraction=0.05,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 3.0
+    # Seed stem pool (simulate pre-grain-fill growth)
+    canopy.state.biomass_g_m2 = 500.0
+    canopy.state.stem_biomass_g_m2 = 300.0
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.FLOWERING,
+            to_stage=PhenologyStage.GRAIN_FILL,
+            at_gdd=900,
+        )
+    )
+    bus.emit(GddAccumulated(daily_gdd=50.0, total_gdd=950.0))
+
+    stem_before = canopy.state.stem_biomass_g_m2
+    canopy.daily_step(
+        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    # Stem should decrease from remobilization
+    assert canopy.state.stem_biomass_g_m2 < stem_before
+    # Grain should be positive
+    assert canopy.state.grain_biomass_g_m2 > 0.0
+    # Remobilization is internal — sub-pools still within total
+    sub_total = canopy.state.grain_biomass_g_m2 + canopy.state.stem_biomass_g_m2
+    assert sub_total <= canopy.state.biomass_g_m2 + 0.01
+
+
+def test_no_remobilization_when_fraction_zero() -> None:
+    """Grape-like crop (remobilization_fraction=0) should not remobilize."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.0,
+        harvest_index=0.0,
+        remobilization_fraction=0.0,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 3.0
+    canopy.state.biomass_g_m2 = 200.0
+    canopy.state.stem_biomass_g_m2 = 100.0
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.FLOWERING,
+            to_stage=PhenologyStage.GRAIN_FILL,
+            at_gdd=900,
+        )
+    )
+
+    canopy.daily_step(
+        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    assert canopy.state.grain_biomass_g_m2 == 0.0
 
 
 def test_grain_does_not_accumulate_before_grain_fill() -> None:

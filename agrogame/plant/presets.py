@@ -72,6 +72,7 @@ def _build_canopy(raw: dict) -> CanopyParams:
         senescence_grain_fill_max=float(c.get("senescence_grain_fill_max", 2.0)),
         grain_fill_duration_gdd=float(c.get("grain_fill_duration_gdd", 900.0)),
         harvest_index=float(c.get("harvest_index", 0.45)),
+        remobilization_fraction=float(c.get("remobilization_fraction", 0.0)),
     )
 
 

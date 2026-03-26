@@ -22,6 +22,7 @@ crops:
       leaf_fraction_flowering: 0.4
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55
+      remobilization_fraction: 0.02  # 2%/day stem → grain (APSIM)
     roots:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
@@ -57,6 +58,7 @@ crops:
       senescence_grain_fill_max: 1.8  # gradual canopy decline
       grain_fill_duration_gdd: 900.0
       harvest_index: 0.45          # APSIM wheat: 0.40-0.50
+      remobilization_fraction: 0.025 # 2.5%/day (Gebbing & Schnyder 1999)
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
@@ -84,6 +86,7 @@ crops:
       leaf_fraction_grain_fill: 0.10
       grain_fill_duration_gdd: 700.0
       harvest_index: 0.45          # spring wheat similar to winter
+      remobilization_fraction: 0.025
     roots:
       max_depth_cm: 100.0      # shallower than winter wheat
       growth_rate_cm_per_day: 1.5
@@ -111,6 +114,7 @@ crops:
       leaf_fraction_flowering: 0.45
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.45          # DSSAT CERES-Rice: 0.40-0.50
+      remobilization_fraction: 0.02
     roots:
       max_depth_cm: 60.0       # shallow-rooted
       growth_rate_cm_per_day: 1.0
@@ -137,6 +141,7 @@ crops:
       leaf_fraction_flowering: 0.35
       leaf_fraction_grain_fill: 0.10
       harvest_index: 0.35          # APSIM sorghum: 0.30-0.40
+      remobilization_fraction: 0.015 # lower than wheat/maize
     roots:
       max_depth_cm: 180.0      # deep-rooted, drought-adapted
       growth_rate_cm_per_day: 2.5

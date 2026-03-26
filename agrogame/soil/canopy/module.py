@@ -208,6 +208,17 @@ class CanopyModule:
             stem_biomass = 0.0
         self.state.grain_biomass_g_m2 += grain_inc
         self.state.stem_biomass_g_m2 += stem_biomass
+        # Remobilize pre-anthesis stem reserves to grain during grain fill
+        # (Gebbing & Schnyder 1999; APSIM stem_remobilisation_fraction).
+        # Total biomass unchanged — internal transfer only.
+        if (
+            self._current_stage == PhenologyStage.GRAIN_FILL
+            and self.params.remobilization_fraction > 0.0
+            and self.state.stem_biomass_g_m2 > 0.0
+        ):
+            remob = self.state.stem_biomass_g_m2 * self.params.remobilization_fraction
+            self.state.stem_biomass_g_m2 -= remob
+            self.state.grain_biomass_g_m2 += remob
         self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
         if self.event_bus is not None and biomass_inc > 0.0:
             self.event_bus.emit(

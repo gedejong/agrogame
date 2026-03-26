@@ -36,6 +36,11 @@ class CanopyParams:
     # Harvest index: fraction of daily biomass allocated to grain during grain fill
     # Typical: maize 0.50, wheat 0.45, rice 0.45, sorghum 0.35 (DSSAT/APSIM)
     harvest_index: float = 0.45
+    # Stem remobilization: daily fraction of stem biomass moved to grain
+    # during grain fill. Defaults to 0 (opt-in per crop).
+    # Gebbing & Schnyder 1999: 30-50% of grain C from pre-anthesis reserves.
+    # APSIM: stem_remobilisation_fraction parameter.
+    remobilization_fraction: float = 0.0
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:
