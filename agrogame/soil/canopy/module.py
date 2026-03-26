@@ -192,16 +192,21 @@ class CanopyModule:
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
         self.state.biomass_g_m2 += biomass_inc
-        # Accumulate grain during grain fill (DSSAT-style daily HI allocation)
-        if self._current_stage in (
-            PhenologyStage.GRAIN_FILL,
-            PhenologyStage.MATURITY,
-        ):
-            self.state.grain_biomass_g_m2 += biomass_inc * self.params.harvest_index
-        # Partition into leaf and stem fractions
+        # Partition into leaf, stem, and grain so sub-pools sum to total.
+        # Grain only accumulates during GRAIN_FILL (stops at maturity,
+        # matching DSSAT/APSIM physiological maturity convention).
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
-        stem_biomass = biomass_inc * (1.0 - leaf_fraction)
+        if self._current_stage == PhenologyStage.GRAIN_FILL:
+            grain_inc = biomass_inc * self.params.harvest_index
+        else:
+            grain_inc = 0.0
+        stem_biomass = biomass_inc * (1.0 - leaf_fraction) - grain_inc
+        # Guard against negative stem when HI > (1 - leaf_fraction)
+        if stem_biomass < 0.0:
+            grain_inc += stem_biomass  # reduce grain to keep stem >= 0
+            stem_biomass = 0.0
+        self.state.grain_biomass_g_m2 += grain_inc
         self.state.stem_biomass_g_m2 += stem_biomass
         self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
         if self.event_bus is not None and biomass_inc > 0.0:
