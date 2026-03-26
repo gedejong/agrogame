@@ -113,23 +113,23 @@ class TestFindPeakDay:
 # ---------------------------------------------------------------------------
 class TestGygaCompare:
     def test_within_range(self) -> None:
-        gc = gyga_compare("maize", "netherlands_temperate", "test", 800.0, 0.50)
-        # 800 g/m² * 0.01 = 8 t/ha; GYGA = 11 t/ha; ratio = 0.73
+        gc = gyga_compare("maize", "netherlands_temperate", "test", 800.0)
+        # 800 g/m² grain * 0.01 = 8 t/ha; GYGA = 11 t/ha; ratio = 0.73
         assert gc.sim_yield_t_ha == pytest.approx(8.0)
         assert gc.status == "within range"
 
     def test_overestimation(self) -> None:
-        gc = gyga_compare("maize", "kenya_highlands", "test", 1200.0, 0.50)
+        gc = gyga_compare("maize", "kenya_highlands", "test", 1200.0)
         # 12 t/ha vs 7 t/ha → ratio 1.71 → overestimation
         assert gc.status == "overestimation"
 
     def test_underestimation(self) -> None:
-        gc = gyga_compare("maize", "sahel_arid", "test", 50.0, 0.50)
+        gc = gyga_compare("maize", "sahel_arid", "test", 50.0)
         # 0.5 t/ha vs 3 t/ha → ratio 0.17 → underestimation
         assert gc.status == "underestimation"
 
     def test_unknown_crop(self) -> None:
-        gc = gyga_compare("millet", "sahel_arid", "test", 500.0, 0.40)
+        gc = gyga_compare("millet", "sahel_arid", "test", 500.0)
         assert gc.gyga_yield_t_ha == 0.0
         assert gc.ratio == 0.0
 
@@ -138,10 +138,10 @@ class TestGygaCompare:
 # load_reference_csv
 # ---------------------------------------------------------------------------
 class TestLoadReferenceCsv:
-    def test_loads_netherlands(self, tmp_path: None) -> None:
+    def test_loads_netherlands(self) -> None:
         from pathlib import Path
 
-        ref_path = Path("data/benchmarks/reference/maize_netherlands_dssat.csv")
+        ref_path = Path("data/benchmarks/reference/maize_netherlands_reference.csv")
         if not ref_path.exists():
             pytest.skip("Reference CSV not generated")
         data = load_reference_csv(ref_path)
@@ -152,7 +152,7 @@ class TestLoadReferenceCsv:
     def test_loads_all_columns(self) -> None:
         from pathlib import Path
 
-        ref_path = Path("data/benchmarks/reference/maize_kenya_dssat.csv")
+        ref_path = Path("data/benchmarks/reference/maize_kenya_reference.csv")
         if not ref_path.exists():
             pytest.skip("Reference CSV not generated")
         data = load_reference_csv(ref_path)

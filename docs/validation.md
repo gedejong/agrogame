@@ -54,7 +54,10 @@ centred RMSD on a single polar plot. The reference point sits at (r=1.0, ratio=1
 - **LAI** shows good correlation in Kenya (r = 0.87) and Netherlands (r = 0.73) but
   weaker in Sahel (r = 0.40), likely due to water-stress timing differences.
 - **Cumulative ET** tracks well (r > 0.99) but our model slightly overestimates
-  ET in arid conditions (std ratio 1.79 for Sahel).
+  ET in arid conditions (std ratio 1.79 for Sahel). **Caveat:** both simulated
+  and reference ET use LAI-based proxies (Beer-Lambert extinction), so high
+  correlation reflects consistent methodology rather than independent validation.
+  True ET validation requires eddy-covariance or lysimeter observations.
 - **Soil moisture** correlation is low across all scenarios (r = 0.15-0.56) because
   our synthetic weather generator produces different rainfall timing than the
   deterministic reference curves. This is expected and not a model deficiency.
@@ -87,36 +90,35 @@ Peak timing comparison between DSSAT reference and AgroGame simulation:
 
 ### GYGA yield comparison
 
-Simulated grain yields compared to Global Yield Gap Atlas water-limited potentials
-(source: yieldgap.org):
+Simulated grain yields (actual `grain_biomass_g_m2` from simulation, not
+post-hoc `biomass * HI`) compared to Global Yield Gap Atlas water-limited
+potentials (source: yieldgap.org):
 
-| Scenario            | Crop  | Sim (t/ha) | GYGA (t/ha) | Ratio | Status          |
-|---------------------|-------|------------|-------------|-------|-----------------|
-| maize_netherlands   | maize |       5.16 |        11.0 |  0.47 | within range    |
-| maize_kenya         | maize |      10.04 |         7.0 |  1.43 | overestimation  |
-| maize_sahel         | maize |       4.32 |         3.0 |  1.44 | overestimation  |
+| Scenario            | Crop  | Sim (t/ha) | GYGA (t/ha) | Ratio | Status       |
+|---------------------|-------|------------|-------------|-------|--------------|
+| maize_netherlands   | maize |       3.34 |        11.0 |  0.30 | within range |
+| maize_kenya         | maize |       5.26 |         7.0 |  0.75 | within range |
+| maize_sahel         | maize |       2.68 |         3.0 |  0.89 | within range |
 
 **Interpretation:**
 
-- **Netherlands**: Simulated yield (5.2 t/ha) is below GYGA potential (11 t/ha).
-  This is acceptable — GYGA reports *potential* yield under optimal management,
-  while our simulation uses default fertility. The ratio 0.47 indicates room for
-  yield improvement through better N/P management.
-- **Kenya**: Overestimates at 10.0 t/ha vs 7.0 t/ha GYGA potential. This was
-  flagged in AGRO-90 sensitivity analysis. The Kenya highlands climate preset
-  may have excessive radiation (18 MJ/m²) or the `rue_g_per_mj` is too high
-  for tropical conditions. Priority calibration target.
-- **Sahel**: Overestimates at 4.3 t/ha vs 3.0 t/ha GYGA rainfed potential.
-  The `rue_g_per_mj` and `temp_opt_c` parameters (AGRO-90 top-ranked) should
-  be tuned downward for heat-stressed environments.
+- **Netherlands**: Simulated yield (3.3 t/ha) is well below GYGA potential
+  (11 t/ha). GYGA reports *potential* yield under optimal management, while
+  our simulation uses default fertility. The ratio 0.30 indicates significant
+  room for yield improvement through better N/P management.
+- **Kenya**: 5.3 t/ha vs 7.0 t/ha GYGA potential (ratio 0.75). Reasonable
+  for a rainfed simulation without optimised management. Within expected range.
+- **Sahel**: 2.7 t/ha vs 3.0 t/ha GYGA rainfed potential (ratio 0.89).
+  Close to GYGA water-limited yield, suggesting the water stress module
+  is appropriately limiting production in arid conditions.
 
 ### Calibration priorities (from AGRO-90 + AGRO-91)
 
 Combined sensitivity analysis and benchmarking results suggest this calibration order:
 
-1. `rue_g_per_mj` — dominates biomass variance; reduce for Kenya/Sahel
-2. `temp_opt_c` — reduce for Sahel to increase heat stress penalty
-3. `flowering_gdd` / `maturity_gdd` — align LAI peak timing per climate
+1. `flowering_gdd` / `maturity_gdd` — align LAI peak timing per climate (largest discrepancies)
+2. `rue_g_per_mj` — dominates biomass variance (AGRO-90); NL yield gap suggests room to increase
+3. `temp_opt_c` — reduce for Sahel to increase heat stress penalty
 4. `pt_alpha` — tune ET magnitude (currently overestimates in arid climates)
 5. `extinction_coefficient_k` — fine-tune light interception
 

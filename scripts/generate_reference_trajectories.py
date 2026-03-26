@@ -4,9 +4,9 @@ Produces daily reference data for 150-day growing seasons using literature-based
 growth curve parameters calibrated against DSSAT CERES-Maize and APSIM outputs.
 
 Output files (written to data/benchmarks/reference/):
-    - maize_netherlands_dssat.csv  (temperate, ~52N)
-    - maize_kenya_dssat.csv        (tropical highlands, ~0S)
-    - maize_sahel_dssat.csv        (arid, ~14N)
+    - maize_netherlands_reference.csv  (temperate, ~52N)
+    - maize_kenya_reference.csv        (tropical highlands, ~0S)
+    - maize_sahel_reference.csv        (arid, ~14N)
 
 References:
     Jones, J.W. et al. (2003) The DSSAT Cropping System Model.
@@ -65,7 +65,7 @@ class ClimateScenario:
 
 NETHERLANDS = ClimateScenario(
     name="Netherlands temperate",
-    filename="maize_netherlands_dssat.csv",
+    filename="maize_netherlands_reference.csv",
     day_emergence=15,
     day_peak_lai=80,
     day_flowering=75,
@@ -89,7 +89,7 @@ NETHERLANDS = ClimateScenario(
 
 KENYA = ClimateScenario(
     name="Kenya highlands",
-    filename="maize_kenya_dssat.csv",
+    filename="maize_kenya_reference.csv",
     day_emergence=10,
     day_peak_lai=70,
     day_flowering=65,
@@ -113,7 +113,7 @@ KENYA = ClimateScenario(
 
 SAHEL = ClimateScenario(
     name="Sahel arid",
-    filename="maize_sahel_dssat.csv",
+    filename="maize_sahel_reference.csv",
     day_emergence=10,
     day_peak_lai=65,
     day_flowering=60,

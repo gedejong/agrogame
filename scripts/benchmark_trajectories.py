@@ -66,7 +66,7 @@ SCENARIOS: list[BenchmarkScenario] = [
         climate="netherlands_temperate",
         start=date(2024, 4, 1),
         days=150,
-        reference="maize_netherlands_dssat.csv",
+        reference="maize_netherlands_reference.csv",
     ),
     BenchmarkScenario(
         name="maize_kenya",
@@ -74,7 +74,7 @@ SCENARIOS: list[BenchmarkScenario] = [
         climate="kenya_highlands",
         start=date(2024, 3, 1),
         days=150,
-        reference="maize_kenya_dssat.csv",
+        reference="maize_kenya_reference.csv",
     ),
     BenchmarkScenario(
         name="maize_sahel",
@@ -82,7 +82,7 @@ SCENARIOS: list[BenchmarkScenario] = [
         climate="sahel_arid",
         start=date(2024, 6, 15),
         days=150,
-        reference="maize_sahel_dssat.csv",
+        reference="maize_sahel_reference.csv",
     ),
 ]
 
@@ -223,6 +223,7 @@ def run_simulation(
         "day": [],
         "lai": [],
         "biomass_g_m2": [],
+        "grain_biomass_g_m2": [],
         "cumulative_et_mm": [],
         "soil_moisture_top30_mm": [],
     }
@@ -256,6 +257,7 @@ def run_simulation(
         result["day"].append(float(i))
         result["lai"].append(orch.canopy.state.lai)
         result["biomass_g_m2"].append(orch.canopy.state.biomass_g_m2)
+        result["grain_biomass_g_m2"].append(orch.canopy.state.grain_biomass_g_m2)
         result["cumulative_et_mm"].append(cumulative_et)
         result["soil_moisture_top30_mm"].append(sm_top30)
 
@@ -284,7 +286,6 @@ def gyga_compare(
     climate: str,
     scenario_name: str,
     sim_grain_g_m2: float,
-    harvest_index: float,
 ) -> GygaComparison:
     """Compare simulated grain yield to GYGA water-limited potential."""
     sim_yield_t_ha = sim_grain_g_m2 * 0.01  # g/m² → t/ha
@@ -523,18 +524,13 @@ def run_benchmarks(outdir: Path) -> tuple[
                 f" {sim_day:>10} {offset:>+5}d ({direction})"
             )
 
-        # GYGA comparison
-        # Get grain yield from final simulation state
-        from agrogame.plant.presets import load_crop_presets
-
-        crops = load_crop_presets(Path("data/crops/presets.yaml"))
-        crop_preset = crops.crops[sc.crop]
-        hi = crop_preset.canopy.harvest_index
-        final_biomass = (
-            sim_data["biomass_g_m2"][-1] if sim_data["biomass_g_m2"] else 0.0
+        # GYGA comparison — use actual grain biomass from simulation
+        grain_g_m2 = (
+            sim_data["grain_biomass_g_m2"][-1]
+            if sim_data["grain_biomass_g_m2"]
+            else 0.0
         )
-        grain_g_m2 = final_biomass * hi
-        gc = gyga_compare(sc.crop, sc.climate, name, grain_g_m2, hi)
+        gc = gyga_compare(sc.crop, sc.climate, name, grain_g_m2)
         all_gyga.append(gc)
 
     return all_taylor, all_timing, all_gyga
