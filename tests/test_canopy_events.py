@@ -77,6 +77,181 @@ def test_canopy_senescence_increases_after_grain_fill() -> None:
     assert (2.0 - lai_after) > (2.0 - lai_before)
 
 
+def test_senescence_ramp_at_zero_progress() -> None:
+    """At grain fill start (0% GDD progress), multiplier = flowering fraction."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.05,
+        senescence_flowering_fraction=0.3,
+        senescence_grain_fill_max=1.8,
+        grain_fill_duration_gdd=900.0,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.FLOWERING,
+            to_stage=PhenologyStage.GRAIN_FILL,
+            at_gdd=900,
+        )
+    )
+    # GDD exactly at grain fill start → 0% progress
+    bus.emit(GddAccumulated(daily_gdd=0.0, total_gdd=900.0))
+    assert abs(canopy._senescence_multiplier - 0.3) < 1e-9
+
+
+def test_senescence_ramp_at_fifty_percent_progress() -> None:
+    """At 50% grain-fill GDD progress, multiplier = midpoint of ramp."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.05,
+        senescence_flowering_fraction=0.3,
+        senescence_grain_fill_max=1.8,
+        grain_fill_duration_gdd=900.0,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.FLOWERING,
+            to_stage=PhenologyStage.GRAIN_FILL,
+            at_gdd=900,
+        )
+    )
+    # 50% progress: 900 + 450 = 1350 GDD
+    bus.emit(GddAccumulated(daily_gdd=50.0, total_gdd=1350.0))
+    expected = 0.3 + 0.5 * (1.8 - 0.3)  # midpoint = 1.05
+    assert abs(canopy._senescence_multiplier - expected) < 1e-9
+
+
+def test_stem_biomass_positive_after_vegetative_step() -> None:
+    """Vegetative daily_step with leaf_fraction < 1 should accumulate stem."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.0,
+        leaf_fraction_vegetative=0.7,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 2.0
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.PLANTED,
+            to_stage=PhenologyStage.VEGETATIVE,
+            at_gdd=100,
+        )
+    )
+    canopy.daily_step(
+        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    assert canopy.state.stem_biomass_g_m2 > 0.0
+
+
+def test_partitioning_mass_balance() -> None:
+    """stem + grain + leaf portion should equal biomass increment."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.0,
+        leaf_fraction_vegetative=0.7,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 2.0
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.PLANTED,
+            to_stage=PhenologyStage.VEGETATIVE,
+            at_gdd=100,
+        )
+    )
+    fx = canopy.daily_step(
+        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    inc = fx.biomass_increment_g_m2
+    # In vegetative: no grain, leaf_fraction=0.7, stem_fraction=0.3
+    stem = canopy.state.stem_biomass_g_m2
+    grain = canopy.state.grain_biomass_g_m2
+    # leaf portion = inc × leaf_fraction (not tracked as a separate pool)
+    leaf_portion = inc * 0.7
+    assert abs((stem + grain + leaf_portion) - inc) < 0.01
+
+
+def test_leaf_fraction_per_stage() -> None:
+    """_leaf_fraction returns correct values for each phenological stage."""
+    bus = EventBus()
+    params = CanopyParams(
+        0.6,
+        3.0,
+        0.02,
+        6.0,
+        0.0,
+        leaf_fraction_vegetative=0.7,
+        leaf_fraction_flowering=0.4,
+        leaf_fraction_grain_fill=0.15,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+
+    # PLANTED (default)
+    assert canopy._leaf_fraction == 0.7
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.PLANTED,
+            to_stage=PhenologyStage.EMERGED,
+            at_gdd=100,
+        )
+    )
+    assert canopy._leaf_fraction == 0.7
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.EMERGED,
+            to_stage=PhenologyStage.VEGETATIVE,
+            at_gdd=100,
+        )
+    )
+    assert canopy._leaf_fraction == 0.7
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.VEGETATIVE,
+            to_stage=PhenologyStage.FLOWERING,
+            at_gdd=600,
+        )
+    )
+    assert canopy._leaf_fraction == 0.4
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.FLOWERING,
+            to_stage=PhenologyStage.GRAIN_FILL,
+            at_gdd=900,
+        )
+    )
+    assert canopy._leaf_fraction == 0.15
+
+    bus.emit(
+        StageChanged(
+            from_stage=PhenologyStage.GRAIN_FILL,
+            to_stage=PhenologyStage.MATURITY,
+            at_gdd=1800,
+        )
+    )
+    assert canopy._leaf_fraction == 0.15
+
+
 def test_grain_accumulates_during_grain_fill() -> None:
     """Single daily_step during grain fill should partition grain from stem."""
     bus = EventBus()
