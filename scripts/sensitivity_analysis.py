@@ -146,27 +146,15 @@ def run_model(
     Returns [final_biomass, peak_lai, grain_yield, maturity_day].
     """
     from agrogame.atmosphere.et import EtParams
-    from agrogame.plant.presets import (
-        CropPreset,
-        load_crop_presets,
-        _load_crop_presets_cached,
-    )
+    from agrogame.plant.presets import CropPreset, load_crop_presets
     from agrogame.sim.orchestrator import FullSimulationOrchestrator
     from agrogame.soil.loader import load_soil_presets
-    from agrogame.soil.phenology.params import (
-        GrowthStageThresholds,
-    )
+    from agrogame.soil.phenology.params import GrowthStageThresholds
     from agrogame.soil.water.types import DailyDrivers
     from agrogame.weather.generator import SyntheticWeatherGenerator
-    from agrogame.weather.presets import (
-        load_climate_presets,
-        _load_climate_presets_cached,
-    )
+    from agrogame.weather.presets import load_climate_presets
 
-    _load_crop_presets_cached.cache_clear()
-    _load_climate_presets_cached.cache_clear()
-
-    # Load defaults
+    # Load defaults (YAML is cached; params are overridden via replace())
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
     climates = load_climate_presets(Path("data/climate/presets.yaml"))
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
