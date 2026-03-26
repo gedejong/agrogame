@@ -33,6 +33,9 @@ class CanopyParams:
     senescence_flowering_fraction: float = 0.5  # moderate senescence at flowering
     senescence_grain_fill_max: float = 2.0  # peak multiplier at end of grain fill
     grain_fill_duration_gdd: float = 900.0  # GDD span over which senescence ramps
+    # Harvest index: fraction of daily biomass allocated to grain during grain fill
+    # Typical: maize 0.50, wheat 0.45, rice 0.45, sorghum 0.35 (DSSAT/APSIM)
+    harvest_index: float = 0.45
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:

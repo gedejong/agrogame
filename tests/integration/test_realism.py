@@ -30,8 +30,8 @@ def _run_scenario(
     start: date,
     days: int = 150,
     seed: int = 42,
-) -> tuple[float, float, str]:
-    """Run a crop×climate simulation and return (biomass, lai, stage)."""
+) -> tuple[float, float, str, float]:
+    """Run a crop×climate simulation and return (biomass, lai, stage, grain)."""
     _load_crop_presets_cached.cache_clear()
     _load_climate_presets_cached.cache_clear()
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
@@ -59,6 +59,7 @@ def _run_scenario(
         orch.canopy.state.biomass_g_m2,
         orch.canopy.state.lai,
         orch.phenology.state.stage.name,
+        orch.canopy.state.grain_biomass_g_m2,
     )
 
 
@@ -67,7 +68,7 @@ def _run_scenario(
 
 def test_winter_wheat_netherlands_spring_start() -> None:
     """NL winter wheat 150d Apr start should reach maturity with decent biomass."""
-    biomass, _lai, stage = _run_scenario(
+    biomass, _lai, stage, _grain = _run_scenario(
         "winter_wheat", "netherlands_temperate", date(2024, 4, 1)
     )
     assert stage == "MATURITY"
@@ -78,7 +79,7 @@ def test_winter_wheat_netherlands_spring_start() -> None:
 
 def test_winter_wheat_netherlands_autumn_start() -> None:
     """NL winter wheat Oct sowing should also reach maturity."""
-    biomass, _lai, stage = _run_scenario(
+    biomass, _lai, stage, _grain = _run_scenario(
         "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
     )
     assert stage == "MATURITY"
@@ -89,7 +90,7 @@ def test_winter_wheat_netherlands_autumn_start() -> None:
 
 def test_winter_wheat_sahel_fails() -> None:
     """Winter wheat in the Sahel should produce minimal biomass."""
-    biomass, _lai, _stage = _run_scenario(
+    biomass, _lai, _stage, _grain = _run_scenario(
         "winter_wheat", "sahel_arid", date(2024, 6, 1)
     )
     assert biomass < 100
@@ -100,7 +101,7 @@ def test_winter_wheat_sahel_fails() -> None:
 
 def test_spring_wheat_kenya_reaches_maturity() -> None:
     """Kenya spring wheat should vernalize-free and reach maturity."""
-    biomass, _lai, stage = _run_scenario(
+    biomass, _lai, stage, _grain = _run_scenario(
         "spring_wheat", "kenya_highlands", date(2024, 3, 1)
     )
     assert stage in ("GRAIN_FILL", "MATURITY")
@@ -112,7 +113,7 @@ def test_spring_wheat_kenya_reaches_maturity() -> None:
 
 def test_spring_wheat_netherlands() -> None:
     """NL spring wheat should reach maturity with lower yield than winter."""
-    biomass, _lai, stage = _run_scenario(
+    biomass, _lai, stage, _grain = _run_scenario(
         "spring_wheat", "netherlands_temperate", date(2024, 4, 1)
     )
     assert stage == "MATURITY"
@@ -121,7 +122,7 @@ def test_spring_wheat_netherlands() -> None:
 
 def test_winter_wheat_kenya_fails_to_vernalize() -> None:
     """Kenya winter wheat should stay VEGETATIVE (no vernalization)."""
-    _biomass, _lai, stage = _run_scenario(
+    _biomass, _lai, stage, _grain = _run_scenario(
         "winter_wheat", "kenya_highlands", date(2024, 3, 1)
     )
     assert stage == "VEGETATIVE"
@@ -132,7 +133,9 @@ def test_winter_wheat_kenya_fails_to_vernalize() -> None:
 
 def test_maize_kenya_productive() -> None:
     """Kenya maize should be the most productive maize scenario."""
-    biomass, _lai, _stage = _run_scenario("maize", "kenya_highlands", date(2024, 3, 1))
+    biomass, _lai, _stage, _grain = _run_scenario(
+        "maize", "kenya_highlands", date(2024, 3, 1)
+    )
     # Literature: 900-1300 g/m² for Kenya highland maize
     # Upper bound widened: partitioning model (AGRO-88) increases
     # AGB in productive environments.
@@ -141,7 +144,9 @@ def test_maize_kenya_productive() -> None:
 
 def test_maize_sahel_water_limited() -> None:
     """Sahel maize should be water-limited but still produce."""
-    biomass, _lai, stage = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
+    biomass, _lai, stage, _grain = _run_scenario(
+        "maize", "sahel_arid", date(2024, 6, 1)
+    )
     # Literature: 200-600 g/m² rainfed
     assert 100 < biomass < 1000
     assert stage == "MATURITY"  # fast GDD accumulation in heat
@@ -152,8 +157,8 @@ def test_maize_sahel_water_limited() -> None:
 
 def test_sorghum_sahel_best_adapted() -> None:
     """Sorghum should be the highest-producing cereal in the Sahel."""
-    sorghum_biomass, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
-    maize_biomass, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
+    sorghum_biomass, _, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
+    maize_biomass, _, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
     # Literature: sorghum is better adapted to Sahel than maize
     # Accept if sorghum >= 80% of maize (model may not fully differentiate yet)
     assert sorghum_biomass > maize_biomass * 0.8
@@ -163,7 +168,7 @@ def test_sorghum_sahel_best_adapted() -> None:
 
 def test_sorghum_netherlands_limited() -> None:
     """Sorghum should underperform in the cool Netherlands."""
-    biomass, _lai, _stage = _run_scenario(
+    biomass, _lai, _stage, _grain = _run_scenario(
         "sorghum", "netherlands_temperate", date(2024, 4, 1)
     )
     # Too cool for sorghum (opt 33°C); should be well below Kenya sorghum
@@ -175,7 +180,9 @@ def test_sorghum_netherlands_limited() -> None:
 
 def test_rice_kenya_best() -> None:
     """Rice should perform best in wet Kenya."""
-    biomass, _lai, _stage = _run_scenario("rice", "kenya_highlands", date(2024, 3, 1))
+    biomass, _lai, _stage, _grain = _run_scenario(
+        "rice", "kenya_highlands", date(2024, 3, 1)
+    )
     # Literature: 300-1200 g/m²
     # Upper bound widened: partitioning model (AGRO-88) lifts
     # potential AGB in high-rainfall tropical environments.
@@ -184,7 +191,9 @@ def test_rice_kenya_best() -> None:
 
 def test_rice_sahel_limited() -> None:
     """Sahel rice should be severely water-limited."""
-    biomass, _lai, _stage = _run_scenario("rice", "sahel_arid", date(2024, 6, 1))
+    biomass, _lai, _stage, _grain = _run_scenario(
+        "rice", "sahel_arid", date(2024, 6, 1)
+    )
     assert biomass < 700
 
 
@@ -193,13 +202,15 @@ def test_rice_sahel_limited() -> None:
 
 def test_grape_sahel_minimal() -> None:
     """Grape should produce very little in the hot/dry Sahel."""
-    biomass, _lai, _stage = _run_scenario("grape", "sahel_arid", date(2024, 6, 1))
+    biomass, _lai, _stage, _grain = _run_scenario(
+        "grape", "sahel_arid", date(2024, 6, 1)
+    )
     assert biomass < 200
 
 
 def test_grape_netherlands_low() -> None:
     """Grape is marginal in the Netherlands — low biomass."""
-    biomass, _lai, _stage = _run_scenario(
+    biomass, _lai, _stage, _grain = _run_scenario(
         "grape", "netherlands_temperate", date(2024, 4, 1)
     )
     # Literature: 100-300 g/m² annual shoot growth
@@ -211,20 +222,74 @@ def test_grape_netherlands_low() -> None:
 
 def test_kenya_most_productive_for_maize() -> None:
     """Kenya should produce more maize than Netherlands and Sahel."""
-    nl, _, _ = _run_scenario("maize", "netherlands_temperate", date(2024, 4, 1))
-    ke, _, _ = _run_scenario("maize", "kenya_highlands", date(2024, 3, 1))
-    sa, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
+    nl, _, _, _ = _run_scenario("maize", "netherlands_temperate", date(2024, 4, 1))
+    ke, _, _, _ = _run_scenario("maize", "kenya_highlands", date(2024, 3, 1))
+    sa, _, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
     assert ke > nl
     assert ke > sa
 
 
 def test_sorghum_outperforms_in_sahel() -> None:
     """In the Sahel, sorghum should outperform wheat and grape."""
-    sorghum, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
-    wheat, _, _ = _run_scenario("winter_wheat", "sahel_arid", date(2024, 6, 1))
-    grape, _, _ = _run_scenario("grape", "sahel_arid", date(2024, 6, 1))
+    sorghum, _, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
+    wheat, _, _, _ = _run_scenario("winter_wheat", "sahel_arid", date(2024, 6, 1))
+    grape, _, _, _ = _run_scenario("grape", "sahel_arid", date(2024, 6, 1))
     assert sorghum > wheat
     assert sorghum > grape
+
+
+# --- Grain yield and harvest index (AGRO-89) ---
+
+
+def test_maize_kenya_grain_yield() -> None:
+    """Kenya maize grain should accumulate during grain fill.
+
+    Daily HI approach: only grain-fill-period biomass × HI contributes to
+    grain. No remobilization, so realized HI is lower than configured.
+    Sources: DSSAT CERES-Maize (HI = 0.50 configured).
+    """
+    biomass, _lai, stage, grain = _run_scenario(
+        "maize", "kenya_highlands", date(2024, 3, 1)
+    )
+    assert stage in ("GRAIN_FILL", "MATURITY")
+    assert grain > 50
+    assert grain < biomass
+
+
+def test_spring_wheat_harvest_index_at_maturity() -> None:
+    """Realized HI (grain/biomass) should be positive at maturity.
+
+    Spring wheat Kenya reaches maturity with significant grain fill growth.
+    Realized HI is lower than configured because only grain-fill biomass
+    contributes, not total biomass.
+    """
+    biomass, _lai, stage, grain = _run_scenario(
+        "spring_wheat", "kenya_highlands", date(2024, 3, 1)
+    )
+    assert stage in ("GRAIN_FILL", "MATURITY")
+    realized_hi = grain / biomass if biomass > 0 else 0.0
+    # Realized HI < configured HI (0.45) since pre-grain-fill biomass
+    # is not remobilized. Literature realized HI range: 0.10-0.50.
+    assert 0.10 < realized_hi < 0.50
+
+
+def test_winter_wheat_oct_start_grain_yield() -> None:
+    """NL winter wheat Oct-start should produce grain at maturity."""
+    biomass, _lai, stage, grain = _run_scenario(
+        "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
+    )
+    assert stage == "MATURITY"
+    assert grain > 50
+    realized_hi = grain / biomass if biomass > 0 else 0.0
+    assert 0.05 < realized_hi < 0.50
+
+
+def test_grape_zero_grain() -> None:
+    """Grape has harvest_index=0, so grain_biomass should be zero."""
+    _biomass, _lai, _stage, grain = _run_scenario(
+        "grape", "netherlands_temperate", date(2024, 4, 1)
+    )
+    assert grain == 0.0
 
 
 # --- Phosphorus availability (AGRO-97) ---
