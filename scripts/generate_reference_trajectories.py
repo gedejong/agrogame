@@ -135,7 +135,31 @@ SAHEL = ClimateScenario(
     sm_noise=3.5,
 )
 
-SCENARIOS = [NETHERLANDS, KENYA, SAHEL]
+SORGHUM_SAHEL = ClimateScenario(
+    name="Sahel sorghum",
+    filename="sorghum_sahel_reference.csv",
+    day_emergence=8,
+    day_peak_lai=60,
+    day_flowering=55,
+    day_senescence_start=75,
+    day_maturity=110,
+    n_days=150,
+    lai_max=3.5,
+    lai_rise_power=2.0,
+    lai_decay_rate=0.04,
+    biomass_max=800.0,
+    biomass_k=0.08,
+    biomass_t_mid=55.0,
+    et_total=220.0,
+    et_base=1.0,
+    sm_start=50.0,
+    sm_mean=38.0,
+    sm_amplitude=7.0,
+    sm_period=28.0,
+    sm_noise=3.0,
+)
+
+SCENARIOS = [NETHERLANDS, KENYA, SAHEL, SORGHUM_SAHEL]
 
 
 def compute_lai(day: int, sc: ClimateScenario) -> float:

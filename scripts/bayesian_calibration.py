@@ -181,13 +181,17 @@ def log_likelihood(
     ref_biomass: Sequence[float],
     ref_lai: Sequence[float],
     subsample: int = 10,
+    crop_name: str = "maize",
+    climate_name: str = "netherlands_temperate",
 ) -> float:
     """Gaussian log-likelihood against reference trajectories.
 
     Compares subsampled biomass and LAI trajectories.
     """
     try:
-        sim = run_simulation_with_params(theta)
+        sim = run_simulation_with_params(
+            theta, crop_name=crop_name, climate_name=climate_name
+        )
     except (ValueError, RuntimeError, ZeroDivisionError):
         return -np.inf
 
@@ -215,12 +219,16 @@ def log_posterior(
     ref_biomass: Sequence[float],
     ref_lai: Sequence[float],
     subsample: int = 10,
+    crop_name: str = "maize",
+    climate_name: str = "netherlands_temperate",
 ) -> float:
     """Log-posterior = log-prior + log-likelihood."""
     lp = log_prior(theta)
     if not np.isfinite(lp):
         return -np.inf
-    return lp + log_likelihood(theta, ref_biomass, ref_lai, subsample)
+    return lp + log_likelihood(
+        theta, ref_biomass, ref_lai, subsample, crop_name, climate_name
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -330,6 +338,8 @@ def prediction_uncertainty(
     flat_chain: np.ndarray,
     n_samples: int = 100,
     rng: np.random.Generator | None = None,
+    crop_name: str = "maize",
+    climate_name: str = "netherlands_temperate",
 ) -> PredictionUncertainty:
     """Run forward simulations from posterior samples for yield CI."""
     if rng is None:
@@ -341,7 +351,9 @@ def prediction_uncertainty(
     for idx in indices:
         theta = flat_chain[idx]
         try:
-            sim = run_simulation_with_params(theta)
+            sim = run_simulation_with_params(
+                theta, crop_name=crop_name, climate_name=climate_name
+            )
             grain = sim["grain_biomass_g_m2"][-1] if sim["grain_biomass_g_m2"] else 0.0
             grain_yields.append(grain)
         except (ValueError, RuntimeError, ZeroDivisionError):
@@ -468,6 +480,9 @@ def run_calibration(
     burn: int = 200,
     subsample: int = 10,
     outdir: Path | None = None,
+    crop_name: str = "maize",
+    climate_name: str = "netherlands_temperate",
+    reference_path: Path | None = None,
 ) -> tuple[list[PosteriorSummary], ConvergenceDiagnostics, PredictionUncertainty]:
     """Run the full MCMC calibration pipeline."""
     import emcee
@@ -478,12 +493,24 @@ def run_calibration(
     outdir.mkdir(parents=True, exist_ok=True)
 
     # Load reference data
-    ref_path = Path("data/benchmarks/reference/maize_netherlands_reference.csv")
-    if not ref_path.exists():
-        print(f"ERROR: reference not found: {ref_path}")
+    if reference_path is None:
+        reference_path = Path(
+            f"data/benchmarks/reference/{crop_name}_{climate_name.split('_')[0]}"
+            f"_reference.csv"
+        )
+    if not reference_path.exists():
+        # Try with full climate name
+        reference_path = Path(
+            f"data/benchmarks/reference/{crop_name}_{climate_name}_reference.csv"
+        )
+    if not reference_path.exists():
+        print(f"ERROR: reference not found: {reference_path}")
         sys.exit(1)
-    ref_biomass, ref_lai = load_reference(ref_path, subsample=subsample)
-    print(f"Reference loaded: {len(ref_biomass)} biomass + {len(ref_lai)} LAI points")
+    ref_biomass, ref_lai = load_reference(reference_path, subsample=subsample)
+    print(
+        f"Calibrating {crop_name} x {climate_name} "
+        f"({len(ref_biomass)} biomass + {len(ref_lai)} LAI points)"
+    )
 
     # Initialize sampler
     p0 = initial_positions(nwalkers)
@@ -491,7 +518,7 @@ def run_calibration(
         nwalkers,
         NDIM,
         log_posterior,
-        args=(ref_biomass, ref_lai, subsample),
+        args=(ref_biomass, ref_lai, subsample, crop_name, climate_name),
     )
 
     # Run MCMC
@@ -523,7 +550,9 @@ def run_calibration(
 
     # Prediction uncertainty
     print("\nComputing prediction uncertainty (posterior predictive)...")
-    pred = prediction_uncertainty(flat_chain, n_samples=100)
+    pred = prediction_uncertainty(
+        flat_chain, n_samples=100, crop_name=crop_name, climate_name=climate_name
+    )
     print(
         f"Netherlands maize grain yield = "
         f"{pred.median_grain_g_m2:.0f} g/m² "
@@ -571,6 +600,13 @@ def main() -> int:
         help="Subsample reference every N days",
     )
     parser.add_argument("--outdir", type=Path, default=Path("out/calibration"))
+    parser.add_argument("--crop", default="maize", help="Crop preset key")
+    parser.add_argument(
+        "--climate",
+        default="netherlands_temperate",
+        help="Climate preset key",
+    )
+    parser.add_argument("--reference", type=Path, default=None, help="Reference CSV")
     args = parser.parse_args()
 
     summaries, diag, pred = run_calibration(
@@ -579,6 +615,9 @@ def main() -> int:
         burn=args.burn,
         subsample=args.subsample,
         outdir=args.outdir,
+        crop_name=args.crop,
+        climate_name=args.climate,
+        reference_path=args.reference,
     )
     return 0
 

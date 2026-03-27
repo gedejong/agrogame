@@ -103,10 +103,59 @@ The calibration script produces:
 
 - Calibration target is synthetic DSSAT reference curves, not field observations.
   Posteriors reflect structural model differences, not true measurement uncertainty.
-- Calibrated for Netherlands maize only. Other crop x climate combinations use
-  original literature defaults. Climate-specific calibration is a follow-up task.
-- The uniform prior on `sla_m2_per_g` hits the lower bound (0.012), suggesting
-  the prior range may need widening or the model structure should be investigated.
+- The uniform prior on `sla_m2_per_g` hits the lower bound (0.012) in NL/Kenya,
+  suggesting the prior range may need widening.
+
+---
+
+## Multi-climate calibration (AGRO-102)
+
+AGRO-92 calibrated for Netherlands maize only. AGRO-102 extends calibration
+to Kenya, Sahel, and sorghum using the same MCMC infrastructure.
+
+### Approach: single compromise parameter set
+
+Rather than per-climate presets, we calibrated each climate independently
+and averaged the posterior medians to find a compromise set that works
+across NL, Kenya, and Sahel.
+
+### Per-climate posterior medians (maize)
+
+| Parameter                | NL    | Kenya | Sahel | Compromise | Spread |
+|--------------------------|-------|-------|-------|------------|--------|
+| rue_g_per_mj             | 3.56  | 2.53  | 2.94  |   3.01     |  1.03  |
+| temp_opt_c               | 26.4  | 24.2  | 33.9  |  28.2      |  9.62  |
+| pt_alpha                 | 1.09  | 1.03  | 1.11  |   1.08     |  0.08  |
+| extinction_coefficient_k | 0.54  | 0.55  | 0.54  |   0.54     |  0.02  |
+| flowering_gdd            | 759   | 777   | 1130  |    889     |   371  |
+| maturity_gdd             | 1830  | 1801  | 1654  |   1762     |   176  |
+| sla_m2_per_g             | 0.012 | 0.013 | 0.018 |  0.014     | 0.005  |
+| remobilization_fraction  | 0.037 | 0.039 | 0.032 |  0.036     | 0.007  |
+
+**Climate-stable** (spread < 0.1): extinction_k, pt_alpha, remobilization.
+**Climate-sensitive** (spread > 1.0): RUE, temp_opt, flowering_gdd.
+
+### Sorghum x Sahel calibration
+
+| Parameter                | Default | Posterior | Notes                    |
+|--------------------------|---------|-----------|--------------------------|
+| rue_g_per_mj             |    3.20 |      3.38 | C4, higher than maize    |
+| temp_opt_c               |   33.0  |     33.8  | Heat-tolerant confirmed  |
+| flowering_gdd            |  800.0  |    1156.0 | Later flowering in Sahel |
+| maturity_gdd             | 1600.0  |    1770.0 | Extended grain fill      |
+| extinction_coefficient_k |    0.60 |      0.61 | Near default             |
+| sla_m2_per_g             |   0.018 |     0.017 | Near default             |
+| remobilization_fraction  |   0.015 |     0.029 | Higher remobilization    |
+
+### GYGA yield ratios (post-calibration)
+
+| Scenario          | Pre-AGRO-102 | Post-AGRO-102 | GYGA | Status       |
+|-------------------|-------------|---------------|------|--------------|
+| maize NL          |        0.30 |          0.36 | 11.0 | within range |
+| maize Kenya       |        0.75 |          0.90 | 7.0  | within range |
+| maize Sahel       |        0.89 |          0.77 | 3.0  | within range |
+
+All ratios < 1.2 as required.
 
 ### References
 

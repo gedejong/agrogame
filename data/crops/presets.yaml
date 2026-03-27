@@ -7,22 +7,22 @@ crops:
       base_temperature_c: 8.0
       max_temperature_c: 35.0
       emergence_gdd: 100.0
-      flowering_gdd: 759.0       # Bayesian posterior median (AGRO-92)
-      maturity_gdd: 1830.0       # Bayesian posterior median (AGRO-92)
+      flowering_gdd: 889.0       # Multi-climate compromise (AGRO-102)
+      maturity_gdd: 1762.0       # Multi-climate compromise (AGRO-102)
     canopy:
-      extinction_coefficient_k: 0.54  # Bayesian posterior median (AGRO-92)
-      rue_g_per_mj: 3.56        # Bayesian posterior median (AGRO-92)
-      sla_m2_per_g: 0.02        # kept at default — posterior hit prior bound (AGRO-92)
+      extinction_coefficient_k: 0.54  # Stable across climates (AGRO-102)
+      rue_g_per_mj: 3.01        # Multi-climate compromise (AGRO-102)
+      sla_m2_per_g: 0.014       # Multi-climate compromise (AGRO-102)
       lai_max: 6.0
       senescence_rate_per_day: 0.01
       temp_base_c: 8.0
-      temp_opt_c: 26.4          # Bayesian posterior median (AGRO-92)
+      temp_opt_c: 28.2          # Multi-climate compromise (AGRO-102)
       temp_max_c: 42.0
       leaf_fraction_vegetative: 0.7
       leaf_fraction_flowering: 0.4
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55
-      remobilization_fraction: 0.037  # Bayesian posterior median (AGRO-92)
+      remobilization_fraction: 0.036  # Stable across climates (AGRO-102)
     roots:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
@@ -126,22 +126,22 @@ crops:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
       emergence_gdd: 80.0
-      flowering_gdd: 800.0
-      maturity_gdd: 1600.0
+      flowering_gdd: 1156.0      # Bayesian posterior — Sahel (AGRO-102)
+      maturity_gdd: 1770.0       # Bayesian posterior — Sahel (AGRO-102)
     canopy:
-      extinction_coefficient_k: 0.6
-      rue_g_per_mj: 3.2        # C4 crop, high RUE
-      sla_m2_per_g: 0.018
+      extinction_coefficient_k: 0.61  # Bayesian posterior (AGRO-102)
+      rue_g_per_mj: 3.38        # Bayesian posterior — Sahel (AGRO-102)
+      sla_m2_per_g: 0.017       # Bayesian posterior (AGRO-102)
       lai_max: 5.0
       senescence_rate_per_day: 0.01
       temp_base_c: 10.0
-      temp_opt_c: 33.0         # heat-tolerant C4
+      temp_opt_c: 33.8          # Bayesian posterior — Sahel (AGRO-102)
       temp_max_c: 45.0
       leaf_fraction_vegetative: 0.65
       leaf_fraction_flowering: 0.35
       leaf_fraction_grain_fill: 0.10
       harvest_index: 0.35          # APSIM sorghum: 0.30-0.40
-      remobilization_fraction: 0.015 # lower than wheat/maize
+      remobilization_fraction: 0.029  # Bayesian posterior (AGRO-102)
     roots:
       max_depth_cm: 180.0      # deep-rooted, drought-adapted
       growth_rate_cm_per_day: 2.5
