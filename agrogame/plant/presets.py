@@ -20,6 +20,7 @@ class CropPreset:
     canopy: CanopyParams
     roots: RootParams
     n_fixation_credit_kg_ha: float = 0.0
+    key: str = ""
 
 
 @dataclass
@@ -99,6 +100,7 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             canopy=_build_canopy(raw),
             roots=_build_roots(raw),
             n_fixation_credit_kg_ha=float(raw.get("n_fixation_credit_kg_ha", 0.0)),
+            key=key,
         )
     return CropLibrary(crops=crops)
 

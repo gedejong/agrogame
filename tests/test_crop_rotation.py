@@ -90,9 +90,9 @@ class TestCropHistory:
         orch.harvest()
 
         assert orch.crop_history == [
-            "Maize (Zea mays)",
-            "Soybean (Glycine max)",
-            "Spring Wheat (Triticum aestivum)",
+            "maize",
+            "soybean",
+            "spring_wheat",
         ]
 
     def test_history_empty_initially(self) -> None:
@@ -197,7 +197,7 @@ class TestSnapshotHistory:
         )
         _run_season(orch, days=50)
         snap = orch.harvest()
-        assert snap.crop_history == ["Maize (Zea mays)"]
+        assert snap.crop_history == ["maize"]
 
     def test_json_roundtrip_preserves_history(self) -> None:
         crops, climate, profile = _load_presets()
@@ -223,4 +223,4 @@ class TestSnapshotHistory:
             profile, crop=crops.crops["soybean"], latitude_deg=climate.latitude_deg
         )
         orch2.restore_soil(snap)
-        assert orch2.crop_history == ["Maize (Zea mays)"]
+        assert orch2.crop_history == ["maize"]

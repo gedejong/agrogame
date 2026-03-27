@@ -329,7 +329,7 @@ class FullSimulationOrchestrator:
         credit (legumes) to the soil organic N pool in the top layer.
         """
         if self._current_crop is not None:
-            self.crop_history.append(self._current_crop.name)
+            self.crop_history.append(self._current_crop.key or self._current_crop.name)
             # Legume N fixation credit — added to organic N for slow
             # release via mineralization (Peoples et al. 2009)
             credit = self._current_crop.n_fixation_credit_kg_ha

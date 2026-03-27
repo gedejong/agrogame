@@ -16,6 +16,7 @@
       "required": ["name", "phenology", "canopy"],
       "properties": {
         "name": { "type": "string" },
+        "n_fixation_credit_kg_ha": { "type": "number", "minimum": 0 },
         "phenology": { "$ref": "#/definitions/phenologyParams" },
         "canopy": { "$ref": "#/definitions/canopyParams" },
         "roots": { "$ref": "#/definitions/rootParams" }
