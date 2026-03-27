@@ -391,6 +391,49 @@ class FullSimulationOrchestrator:
             plant_p_demand_kg_ha=plant_p_demand_kg_ha,
         )
 
+    # ------------------------------------------------------------------
+    # Player actions
+    # ------------------------------------------------------------------
+    _FERTILIZER_TYPES = frozenset({"urea", "ammonium_nitrate", "tsp"})
+
+    def apply_irrigation(self, amount_mm: float) -> None:
+        """Add irrigation water to the top soil layer.
+
+        Directly updates soil water storage via the water model.
+        Call before or after step_day() for the day the player irrigates.
+        """
+        if amount_mm <= 0.0:
+            return
+        drivers = DailyDrivers(rainfall_mm=0.0, irrigation_mm=amount_mm)
+        self.water_model.update_daily(self.profile, self.water_state, drivers)
+
+    def apply_fertilizer(
+        self, fert_type: str, amount_kg_ha: float, layer: int = 0
+    ) -> None:
+        """Apply fertilizer to a soil layer.
+
+        Args:
+            fert_type: One of "urea", "ammonium_nitrate", "tsp".
+            amount_kg_ha: Application rate in kg/ha.
+            layer: Target soil layer index (default 0 = top layer).
+
+        Raises:
+            ValueError: If fert_type is not supported.
+        """
+        if amount_kg_ha <= 0.0:
+            return
+        if fert_type == "urea":
+            self.n_cycle.apply_urea(layer, amount_kg_ha)
+        elif fert_type == "ammonium_nitrate":
+            self.n_cycle.apply_ammonium_nitrate(layer, amount_kg_ha)
+        elif fert_type == "tsp":
+            self.p_cycle.apply_triple_superphosphate(layer, amount_kg_ha)
+        else:
+            raise ValueError(
+                f"Unknown fertilizer type {fert_type!r}; "
+                f"choose from {sorted(self._FERTILIZER_TYPES)}"
+            )
+
 
 def build_full_orchestrator(profile: SoilProfile) -> FullSimulationOrchestrator:
     return FullSimulationOrchestrator(profile)
