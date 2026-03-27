@@ -158,6 +158,12 @@ def test_tsp_increases_available_p() -> None:
     assert orch.p_state.available_p[0] == p_before + 30.0
 
 
+def test_invalid_layer_raises() -> None:
+    orch, _ = _make_orch()
+    with pytest.raises(ValueError, match="Layer .* out of range"):
+        orch.apply_fertilizer("urea", 50.0, layer=99)
+
+
 def test_zero_amount_is_noop() -> None:
     """Zero or negative amounts should be no-ops."""
     orch, _ = _make_orch()

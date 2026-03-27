@@ -423,17 +423,21 @@ class FullSimulationOrchestrator:
         """
         if amount_kg_ha <= 0.0:
             return
+        if fert_type not in self._FERTILIZER_TYPES:
+            raise ValueError(
+                f"Unknown fertilizer type {fert_type!r}; "
+                f"choose from {sorted(self._FERTILIZER_TYPES)}"
+            )
+        if not (0 <= layer < len(self.profile.layers)):
+            raise ValueError(
+                f"Layer {layer} out of range " f"[0, {len(self.profile.layers)})"
+            )
         if fert_type == "urea":
             self.n_cycle.apply_urea(layer, amount_kg_ha)
         elif fert_type == "ammonium_nitrate":
             self.n_cycle.apply_ammonium_nitrate(layer, amount_kg_ha)
         elif fert_type == "tsp":
             self.p_cycle.apply_triple_superphosphate(layer, amount_kg_ha)
-        else:
-            raise ValueError(
-                f"Unknown fertilizer type {fert_type!r}; "
-                f"choose from {sorted(self._FERTILIZER_TYPES)}"
-            )
 
 
 def build_full_orchestrator(profile: SoilProfile) -> FullSimulationOrchestrator:
