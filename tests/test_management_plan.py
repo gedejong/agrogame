@@ -187,3 +187,13 @@ def test_day_counter_increments() -> None:
     assert orch._day_counter == 0
     _step_days(orch, 5)
     assert orch._day_counter == 5
+
+
+def test_unknown_action_raises() -> None:
+    """Unknown management action should raise ValueError, not silently skip."""
+    import pytest
+
+    plan = ManagementPlan(events=[ManagementEvent(day=0, action="harvest", params={})])
+    orch = _make_orch(plan)
+    with pytest.raises(ValueError, match="Unknown management action"):
+        _step_days(orch, 1)

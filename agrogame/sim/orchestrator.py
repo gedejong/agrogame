@@ -412,6 +412,11 @@ class FullSimulationOrchestrator:
                     ev.params.get("type", "urea"),
                     ev.params.get("amount_kg_ha", 0.0),
                 )
+            else:
+                raise ValueError(
+                    f"Unknown management action {ev.action!r}; "
+                    f"choose from 'irrigate', 'fertilize'"
+                )
 
         # Drive daily progression solely via DayTick phases
         self.calendar.tick(
