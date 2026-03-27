@@ -34,6 +34,7 @@ from agrogame.soil.phenology.runtime import PhenologyRuntime
 from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
+from agrogame.sim.management import ManagementPlan
 from agrogame.soil.som.runtime import SimpleSOMRuntime
 
 
@@ -198,11 +199,14 @@ class FullSimulationOrchestrator:
         et_params: EtParams | None = None,
         latitude_deg: float = 52.0,
         crop: CropPreset | None = None,
+        management_plan: ManagementPlan | None = None,
     ) -> None:
         self.event_bus = event_bus or EventBus()
         self.latitude_deg = latitude_deg
         self._current_crop = crop
         self.crop_history: list[str] = []
+        self.management_plan = management_plan or ManagementPlan()
+        self._day_counter: int = 0
 
         # Crop parameters (use preset or defaults)
         phen_params = crop.phenology if crop else _default_phen_params()
@@ -345,6 +349,7 @@ class FullSimulationOrchestrator:
         preserved across the transition.
         """
         self._current_crop = new_crop
+        self._day_counter = 0
         # Capture soil state
         soil = self.snapshot_soil()
 
@@ -398,6 +403,16 @@ class FullSimulationOrchestrator:
         plant_p_demand_kg_ha: float = 0.1,
         target_ph: float = 6.8,
     ) -> None:
+        # Execute scheduled management events for this day
+        for ev in self.management_plan.events_for_day(self._day_counter):
+            if ev.action == "irrigate":
+                self.apply_irrigation(ev.params.get("amount_mm", 0.0))
+            elif ev.action == "fertilize":
+                self.apply_fertilizer(
+                    ev.params.get("type", "urea"),
+                    ev.params.get("amount_kg_ha", 0.0),
+                )
+
         # Drive daily progression solely via DayTick phases
         self.calendar.tick(
             sim_date=sim_date or date.today(),
@@ -409,6 +424,7 @@ class FullSimulationOrchestrator:
             plant_n_demand_kg_ha=plant_n_demand_kg_ha,
             plant_p_demand_kg_ha=plant_p_demand_kg_ha,
         )
+        self._day_counter += 1
 
     # ------------------------------------------------------------------
     # Player actions
