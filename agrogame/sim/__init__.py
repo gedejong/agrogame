@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-from .orchestrator import (
-    SimulationOrchestrator,
-    FullSimulationOrchestrator,
-    build_default_orchestrator,
-    build_full_orchestrator,
-)
+# Only re-export lightweight modules to avoid circular imports.
+# Heavy modules (orchestrator, engine) must be imported directly:
+#   from agrogame.sim.orchestrator import FullSimulationOrchestrator
+#   from agrogame.sim.engine import SimulationEngine
 from .calendar import Calendar
 from .calendar_events import DayTick
-from .engine import SimulationEngine
 
 __all__ = [
-    "SimulationOrchestrator",
-    "FullSimulationOrchestrator",
-    "build_default_orchestrator",
-    "build_full_orchestrator",
     "Calendar",
     "DayTick",
-    "SimulationEngine",
 ]

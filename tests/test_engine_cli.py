@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from agrogame.sim import SimulationEngine
+from agrogame.sim.engine import SimulationEngine
 from agrogame.soil.loader import load_soil_presets
 
 
