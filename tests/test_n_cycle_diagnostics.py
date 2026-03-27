@@ -14,6 +14,7 @@ from agrogame.soil.nitrogen.events import (
     DenitrificationOccurred,
     MineralizationOccurred,
     NitrificationOccurred,
+    VolatilizationOccurred,
 )
 from agrogame.soil.nitrogen.state import SoilNitrogenState
 from agrogame.soil.water.types import DailyDrivers
@@ -79,6 +80,37 @@ class TestDiagnosticEvents:
         assert events[0].amount_kg_ha > 0
 
 
+class TestVolatilization:
+    def test_urea_volatilization_over_5_days(self) -> None:
+        """Surface-applied urea should lose NH4 via volatilization.
+
+        Ref: Sommer et al. (2004) — 5-10% daily NH3 loss from surface NH4.
+        """
+        bus = EventBus()
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        state = SoilNitrogenState(profile)
+
+        cycle = NitrogenCycle(bus, state)
+
+        # Apply 100 kg/ha urea (goes to NH4)
+        cycle.apply_urea(0, 100.0)
+        nh4_after_urea = state.nh4[0]
+
+        vol_events: list[VolatilizationOccurred] = []
+        bus.subscribe(VolatilizationOccurred, vol_events.append)
+
+        for _ in range(5):
+            cycle.daily_step(temperature_c=25.0)
+
+        # NH4 should have decreased (volatilization + nitrification)
+        assert state.nh4[0] < nh4_after_urea
+        # Volatilization events should have been emitted
+        assert len(vol_events) >= 5
+        total_vol = sum(e.amount_kg_ha for e in vol_events)
+        assert total_vol > 0
+
+
 # ---------------------------------------------------------------------------
 # AC: N mass-balance closure within 0.5% over 120-day sim
 # ---------------------------------------------------------------------------
@@ -104,9 +136,7 @@ def test_n_mass_balance_120_day() -> None:
 
     leached_total = [0.0]
     denitrified_total = [0.0]
-    # Track plant uptake from transpiration-driven mass flow
-    # (NutrientLeached with NO3 tracks leaching; uptake reduces pools
-    #  during TranspirationByLayer events)
+    volatilized_total = [0.0]
     orch.event_bus.subscribe(
         NutrientLeached,
         lambda e: leached_total.__setitem__(0, leached_total[0] + e.amount_kg_ha),
@@ -115,6 +145,12 @@ def test_n_mass_balance_120_day() -> None:
         DenitrificationOccurred,
         lambda e: denitrified_total.__setitem__(
             0, denitrified_total[0] + e.amount_kg_ha
+        ),
+    )
+    orch.event_bus.subscribe(
+        VolatilizationOccurred,
+        lambda e: volatilized_total.__setitem__(
+            0, volatilized_total[0] + e.amount_kg_ha
         ),
     )
 
@@ -130,7 +166,9 @@ def test_n_mass_balance_120_day() -> None:
         )
 
     final_n = orch.n_state.total_nitrogen_kg_ha()
-    total_tracked_losses = leached_total[0] + denitrified_total[0]
+    total_tracked_losses = (
+        leached_total[0] + denitrified_total[0] + volatilized_total[0]
+    )
     # Plant uptake removes N from pools via transpiration-driven mass flow
     # (not emitted as a separate event). Compute as residual.
     plant_uptake = initial_n - final_n - total_tracked_losses

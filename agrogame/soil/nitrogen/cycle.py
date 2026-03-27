@@ -30,6 +30,7 @@ from .events import (
     MineralizationOccurred,
     NitrificationOccurred,
     NutrientLeached,
+    VolatilizationOccurred,
 )
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
@@ -230,13 +231,15 @@ class NitrogenCycle:
             )
             denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor)
 
+        volatilized = self._volatilize_surface(temp_factor)
+
         plant_uptake = self._take_up_plant(max(0.0, plant_demand_kg_ha), root_fractions)
 
         # Mass balance: inputs - outputs should match Δstorage
         after = self._total_n()
         # After already updated; compute Δstorage from pools
         delta_storage = after - before_total_n
-        outputs = denitrified + plant_uptake  # water leaching handled via events
+        outputs = denitrified + volatilized + plant_uptake  # leaching via events
         # We cannot know cross-day water leaching totals here; keep balance local
         # Validate small numerical drift only
         if abs(delta_storage + outputs - mineralized + 0.0 - nitrified) > 0.01:
@@ -388,6 +391,26 @@ class NitrogenCycle:
         self.state.no3[idx] -= dd
         self.event_bus.emit(DenitrificationOccurred(layer=idx, amount_kg_ha=dd))
         return dd
+
+    def _volatilize_surface(self, temp_factor: float) -> float:
+        """NH3 volatilization from surface NH4 (layer 0 only).
+
+        5-10% daily loss scaled by temperature. Only significant for
+        surface-applied urea/ammonium. Ref: Sommer et al. (2004)
+        Ammonia emission from field-applied manure. Soil Use Manage.
+        """
+        nh4 = self.state.nh4[0]
+        if nh4 <= 0.0:
+            return 0.0
+        # Base rate 0.05 (5%/day), scaled by temperature Q10
+        rate = 0.05 * temp_factor
+        rate = max(0.0, min(0.10, rate))  # cap at 10%/day
+        loss = rate * nh4
+        if loss <= 0.0:
+            return 0.0
+        self.state.nh4[0] -= loss
+        self.event_bus.emit(VolatilizationOccurred(layer=0, amount_kg_ha=loss))
+        return loss
 
     def _take_up_plant(self, total_demand: float, root_fractions: list[float]) -> float:
         if total_demand <= 0.0:
