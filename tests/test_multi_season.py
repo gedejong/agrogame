@@ -107,6 +107,30 @@ class TestResetCrop:
         p_after = orch.p_state.total_phosphorus_kg_ha()
         assert p_after == pytest.approx(p_before, rel=1e-6)
 
+    def test_microbe_state_preserved(self) -> None:
+        crops, climate, profile = _load_presets()
+        orch = FullSimulationOrchestrator(
+            profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
+        )
+        _run_season(orch, days=100)
+        microbe_c_before = [ly.c_kg_ha for ly in orch.microbes.state.layers]
+
+        orch.reset_crop(crops.crops["spring_wheat"])
+        microbe_c_after = [ly.c_kg_ha for ly in orch.microbes.state.layers]
+        assert microbe_c_after == microbe_c_before
+
+    def test_soil_ph_preserved(self) -> None:
+        crops, climate, profile = _load_presets()
+        orch = FullSimulationOrchestrator(
+            profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
+        )
+        _run_season(orch, days=100)
+        ph_before = list(orch.chem.ph_by_layer)
+
+        orch.reset_crop(crops.crops["spring_wheat"])
+        ph_after = list(orch.chem.ph_by_layer)
+        assert ph_after == ph_before
+
     def test_simulation_works_after_reset(self) -> None:
         """Second season runs without errors after reset_crop."""
         crops, climate, profile = _load_presets()
@@ -222,6 +246,10 @@ class TestSoilSerialization:
             p_available=[15.0, 12.0, 8.0],
             p_fixed=[2.0, 1.5, 1.0],
             p_organic=[30.0, 25.0, 15.0],
+            microbe_c=[200.0, 180.0, 150.0],
+            microbe_n=[25.0, 22.0, 18.0],
+            microbe_fungal_fraction=[0.4, 0.35, 0.3],
+            ph=[6.7, 6.6, 6.5],
         )
         d = snap.to_dict()
         restored = SoilSnapshot.from_dict(d)

@@ -109,8 +109,8 @@ def build_default_orchestrator() -> SimulationOrchestrator:
 class SoilSnapshot:
     """Serializable snapshot of soil state between seasons.
 
-    Captures water, nitrogen, and phosphorus pools so they can be
-    persisted to disk and restored for multi-season simulation.
+    Captures water, nitrogen, phosphorus, microbial, and chemistry pools
+    so they can be persisted to disk and restored for multi-season simulation.
     """
 
     water_theta: list[float] = field(default_factory=list)
@@ -120,6 +120,10 @@ class SoilSnapshot:
     p_available: list[float] = field(default_factory=list)
     p_fixed: list[float] = field(default_factory=list)
     p_organic: list[float] = field(default_factory=list)
+    microbe_c: list[float] = field(default_factory=list)
+    microbe_n: list[float] = field(default_factory=list)
+    microbe_fungal_fraction: list[float] = field(default_factory=list)
+    ph: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, list[float]]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -131,6 +135,10 @@ class SoilSnapshot:
             "p_available": list(self.p_available),
             "p_fixed": list(self.p_fixed),
             "p_organic": list(self.p_organic),
+            "microbe_c": list(self.microbe_c),
+            "microbe_n": list(self.microbe_n),
+            "microbe_fungal_fraction": list(self.microbe_fungal_fraction),
+            "ph": list(self.ph),
         }
 
     @classmethod
@@ -144,6 +152,10 @@ class SoilSnapshot:
             p_available=list(data["p_available"]),
             p_fixed=list(data["p_fixed"]),
             p_organic=list(data["p_organic"]),
+            microbe_c=list(data.get("microbe_c", [])),
+            microbe_n=list(data.get("microbe_n", [])),
+            microbe_fungal_fraction=list(data.get("microbe_fungal_fraction", [])),
+            ph=list(data.get("ph", [])),
         )
 
 
@@ -278,6 +290,12 @@ class FullSimulationOrchestrator:
             p_available=list(self.p_state.available_p),
             p_fixed=list(self.p_state.fixed_p),
             p_organic=list(self.p_state.organic_p),
+            microbe_c=[ly.c_kg_ha for ly in self.microbes.state.layers],
+            microbe_n=[ly.n_kg_ha for ly in self.microbes.state.layers],
+            microbe_fungal_fraction=[
+                ly.fungal_fraction for ly in self.microbes.state.layers
+            ],
+            ph=list(self.chem.ph_by_layer),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -289,6 +307,13 @@ class FullSimulationOrchestrator:
         self.p_state.available_p = list(snapshot.p_available)
         self.p_state.fixed_p = list(snapshot.p_fixed)
         self.p_state.organic_p = list(snapshot.p_organic)
+        if snapshot.microbe_c:
+            for i, ly in enumerate(self.microbes.state.layers):
+                ly.c_kg_ha = snapshot.microbe_c[i]
+                ly.n_kg_ha = snapshot.microbe_n[i]
+                ly.fungal_fraction = snapshot.microbe_fungal_fraction[i]
+        if snapshot.ph:
+            self.chem._ph = list(snapshot.ph)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season."""
