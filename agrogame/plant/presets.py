@@ -19,6 +19,7 @@ class CropPreset:
     phenology: CropPhenologyParams
     canopy: CanopyParams
     roots: RootParams
+    n_fixation_credit_kg_ha: float = 0.0
 
 
 @dataclass
@@ -97,6 +98,7 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             phenology=_build_phenology(raw),
             canopy=_build_canopy(raw),
             roots=_build_roots(raw),
+            n_fixation_credit_kg_ha=float(raw.get("n_fixation_credit_kg_ha", 0.0)),
         )
     return CropLibrary(crops=crops)
 

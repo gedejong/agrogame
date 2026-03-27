@@ -11,11 +11,19 @@ from agrogame.plant.presets import (
 )
 
 
-def test_load_six_crops() -> None:
+def test_load_crops() -> None:
     _load_crop_presets_cached.cache_clear()
     lib = load_crop_presets(Path("data/crops/presets.yaml"))
-    assert len(lib.crops) == 6
-    for name in ["maize", "winter_wheat", "spring_wheat", "rice", "sorghum", "grape"]:
+    assert len(lib.crops) == 7
+    for name in [
+        "maize",
+        "winter_wheat",
+        "spring_wheat",
+        "rice",
+        "sorghum",
+        "grape",
+        "soybean",
+    ]:
         assert name in lib.crops
 
 

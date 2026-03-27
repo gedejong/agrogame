@@ -124,8 +124,9 @@ class SoilSnapshot:
     microbe_n: list[float] = field(default_factory=list)
     microbe_fungal_fraction: list[float] = field(default_factory=list)
     ph: list[float] = field(default_factory=list)
+    crop_history: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict[str, list[float]]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
         return {
             "water_theta": list(self.water_theta),
@@ -139,10 +140,11 @@ class SoilSnapshot:
             "microbe_n": list(self.microbe_n),
             "microbe_fungal_fraction": list(self.microbe_fungal_fraction),
             "ph": list(self.ph),
+            "crop_history": list(self.crop_history),
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, list[float]]) -> SoilSnapshot:
+    def from_dict(cls, data: dict[str, Any]) -> SoilSnapshot:
         """Restore from a plain dict."""
         return cls(
             water_theta=list(data["water_theta"]),
@@ -156,6 +158,7 @@ class SoilSnapshot:
             microbe_n=list(data.get("microbe_n", [])),
             microbe_fungal_fraction=list(data.get("microbe_fungal_fraction", [])),
             ph=list(data.get("ph", [])),
+            crop_history=list(data.get("crop_history", [])),
         )
 
 
@@ -198,6 +201,8 @@ class FullSimulationOrchestrator:
     ) -> None:
         self.event_bus = event_bus or EventBus()
         self.latitude_deg = latitude_deg
+        self._current_crop = crop
+        self.crop_history: list[str] = []
 
         # Crop parameters (use preset or defaults)
         phen_params = crop.phenology if crop else _default_phen_params()
@@ -296,6 +301,7 @@ class FullSimulationOrchestrator:
                 ly.fungal_fraction for ly in self.microbes.state.layers
             ],
             ph=list(self.chem.ph_by_layer),
+            crop_history=list(self.crop_history),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -314,9 +320,21 @@ class FullSimulationOrchestrator:
                 ly.fungal_fraction = snapshot.microbe_fungal_fraction[i]
         if snapshot.ph:
             self.chem._ph = list(snapshot.ph)
+        self.crop_history = list(snapshot.crop_history)
 
     def harvest(self) -> SoilSnapshot:
-        """Finalize current crop and return soil state for next season."""
+        """Finalize current crop and return soil state for next season.
+
+        Appends the current crop to history and applies any N fixation
+        credit (legumes) to the soil organic N pool in the top layer.
+        """
+        if self._current_crop is not None:
+            self.crop_history.append(self._current_crop.name)
+            # Legume N fixation credit — added to organic N for slow
+            # release via mineralization (Peoples et al. 2009)
+            credit = self._current_crop.n_fixation_credit_kg_ha
+            if credit > 0.0:
+                self.n_state.organic_n[0] += credit
         return self.snapshot_soil()
 
     def reset_crop(self, new_crop: CropPreset) -> None:
@@ -326,6 +344,7 @@ class FullSimulationOrchestrator:
         plant modules. Soil state (water, N, P, chemistry, microbes) is
         preserved across the transition.
         """
+        self._current_crop = new_crop
         # Capture soil state
         soil = self.snapshot_soil()
 

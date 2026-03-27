@@ -147,6 +147,34 @@ crops:
       growth_rate_cm_per_day: 2.5
       distribution: exponential
 
+  soybean:
+    name: "Soybean (Glycine max)"
+    n_fixation_credit_kg_ha: 60.0  # Peoples et al. (2009): 40-80 kg N/ha
+    phenology:
+      base_temperature_c: 10.0
+      max_temperature_c: 40.0
+      emergence_gdd: 80.0
+      flowering_gdd: 700.0
+      maturity_gdd: 1400.0
+    canopy:
+      extinction_coefficient_k: 0.55
+      rue_g_per_mj: 2.0        # C3 legume, moderate RUE
+      sla_m2_per_g: 0.022
+      lai_max: 5.0
+      senescence_rate_per_day: 0.012
+      temp_base_c: 10.0
+      temp_opt_c: 28.0
+      temp_max_c: 40.0
+      leaf_fraction_vegetative: 0.65
+      leaf_fraction_flowering: 0.35
+      leaf_fraction_grain_fill: 0.10
+      harvest_index: 0.40          # DSSAT CROPGRO-Soybean: 0.35-0.45
+      remobilization_fraction: 0.02
+    roots:
+      max_depth_cm: 120.0
+      growth_rate_cm_per_day: 1.5
+      distribution: exponential
+
   grape:
     name: "Grape (Vitis vinifera)"
     phenology:
