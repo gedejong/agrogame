@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict
 
@@ -26,14 +26,7 @@ class CropPreset:
 @dataclass
 class CropLibrary:
     crops: Dict[str, CropPreset]
-    # Per-climate overrides: {crop_key: {climate_key: CropPreset}}
-    climate_overrides: Dict[str, Dict[str, CropPreset]] = (
-        None  # type: ignore[assignment]
-    )
-
-    def __post_init__(self) -> None:
-        if self.climate_overrides is None:
-            self.climate_overrides = {}
+    climate_overrides: Dict[str, Dict[str, CropPreset]] = field(default_factory=dict)
 
     def get_preset(self, crop_key: str, climate_key: str | None = None) -> CropPreset:
         """Get crop preset, applying climate-specific overrides if available."""

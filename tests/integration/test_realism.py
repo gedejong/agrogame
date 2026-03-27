@@ -39,7 +39,7 @@ def _run_scenario(
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
 
-    crop = crops.crops[crop_name]
+    crop = crops.get_preset(crop_name, climate_name)
     climate = climates.climates[climate_name]
     gen = SyntheticWeatherGenerator(climate, seed=seed)
     series = gen.generate(days, start)
