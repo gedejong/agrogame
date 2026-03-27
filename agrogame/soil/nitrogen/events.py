@@ -32,3 +32,27 @@ class NitrificationOccurred(BaseEvent):
 
     layer: int
     amount_kg_ha: float
+
+
+@dataclass(frozen=True)
+class MineralizationOccurred(BaseEvent):
+    """Mineralization diagnostic: organic N converted to NH4."""
+
+    layer: int
+    amount_kg_ha: float
+
+
+@dataclass(frozen=True)
+class DenitrificationOccurred(BaseEvent):
+    """Denitrification diagnostic: NO3 lost as gas under anaerobic conditions."""
+
+    layer: int
+    amount_kg_ha: float
+
+
+@dataclass(frozen=True)
+class VolatilizationOccurred(BaseEvent):
+    """Volatilization diagnostic: NH3 loss from surface NH4."""
+
+    layer: int
+    amount_kg_ha: float

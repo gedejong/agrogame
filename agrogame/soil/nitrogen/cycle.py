@@ -25,7 +25,12 @@ from agrogame.soil.microbes.events import (
 from typing import Protocol, Sequence
 
 
-from .events import NitrificationOccurred, NutrientLeached
+from .events import (
+    DenitrificationOccurred,
+    MineralizationOccurred,
+    NitrificationOccurred,
+    NutrientLeached,
+)
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
 
@@ -212,12 +217,16 @@ class NitrogenCycle:
         denitrified = 0.0
 
         for i in range(self._n_layers):
-            moisture_factor, anaerobic_factor, nitrif_aeration, ph_factor = (
-                self._environment_factors(i, ph_by_layer[i])
-            )
+            (
+                moisture_factor,
+                anaerobic_factor,
+                nitrif_aeration,
+                ph_factor,
+                moisture_nitrif,
+            ) = self._environment_factors(i, ph_by_layer[i])
             mineralized += self._mineralize_layer(i, temp_factor, moisture_factor)
             nitrified += self._nitrify_layer(
-                i, temp_factor, moisture_factor, nitrif_aeration, ph_factor
+                i, temp_factor, moisture_nitrif, nitrif_aeration, ph_factor
             )
             denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor)
 
@@ -297,15 +306,23 @@ class NitrogenCycle:
     # --- Internal decomposition helpers --------------------------------
     def _environment_factors(
         self, idx: int, ph: float
-    ) -> tuple[float, float, float, float]:
+    ) -> tuple[float, float, float, float, float]:
+        """Return environment factors for N processes.
+
+        Nitrification uses a steeper drought response (quadratic) than
+        mineralization (linear). Nitrifiers are more sensitive to low water
+        potential (Stark & Firestone 1995, Soil Sci. Soc. Am. J.).
+        """
         theta, fc, sat = self._get_layer_theta_fc_sat(idx)
         moisture_factor = min(1.0, theta / fc) if fc > 0 else 1.0
+        # Nitrification: quadratic drought response — drops faster at low theta
+        moisture_nitrif = min(1.0, (theta / fc) ** 2) if fc > 0 else 1.0
         anaerobic = 0.0
         if theta > fc and sat > fc:
             anaerobic = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
         nitrif_aeration = max(0.0, 1.0 - anaerobic)
         ph_factor = self._ph_factor(ph)
-        return moisture_factor, anaerobic, nitrif_aeration, ph_factor
+        return moisture_factor, anaerobic, nitrif_aeration, ph_factor, moisture_nitrif
 
     def _mineralize_layer(
         self, idx: int, temp_factor: float, moisture_factor: float
@@ -321,6 +338,7 @@ class NitrogenCycle:
             return 0.0
         self.state.organic_n[idx] -= delta
         self.state.nh4[idx] += delta
+        self.event_bus.emit(MineralizationOccurred(layer=idx, amount_kg_ha=delta))
         return delta
 
     def _nitrify_layer(
@@ -368,6 +386,7 @@ class NitrogenCycle:
         if dd <= 0.0:
             return 0.0
         self.state.no3[idx] -= dd
+        self.event_bus.emit(DenitrificationOccurred(layer=idx, amount_kg_ha=dd))
         return dd
 
     def _take_up_plant(self, total_demand: float, root_fractions: list[float]) -> float:
