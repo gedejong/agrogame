@@ -107,20 +107,17 @@ def test_fertilized_maize_outperforms_unfertilized_in_nl() -> None:
 # ---------------------------------------------------------------------------
 # AC5: over-irrigation raises theta above field capacity
 # ---------------------------------------------------------------------------
-def test_irrigation_adds_water_to_dry_soil() -> None:
-    """Irrigation should increase soil water when soil is below FC.
+def test_over_irrigation_raises_theta_above_fc() -> None:
+    """100 mm/day irrigation should push top layer theta above FC.
 
-    We drain the top layer to wilting point first, then irrigate and
-    verify water increased.
+    Irrigation infiltrates without immediate drainage, so heavy
+    application temporarily raises theta above field capacity.
+    Drainage occurs during the next step_day() call.
     """
     orch, _ = _make_orch("maize", "sahel_arid")
-    # Dry out top layer to wilting point
-    wp = orch.profile.layers[0].wilting_point
-    orch.water_state.theta[0] = wp
-    theta_before = orch.water_state.theta[0]
-
-    orch.apply_irrigation(20.0)
-    assert orch.water_state.theta[0] > theta_before
+    fc_top = orch.profile.layers[0].field_capacity
+    orch.apply_irrigation(100.0)
+    assert orch.water_state.theta[0] > fc_top
 
 
 # ---------------------------------------------------------------------------

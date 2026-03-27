@@ -397,15 +397,16 @@ class FullSimulationOrchestrator:
     _FERTILIZER_TYPES = frozenset({"urea", "ammonium_nitrate", "tsp"})
 
     def apply_irrigation(self, amount_mm: float) -> None:
-        """Add irrigation water to the top soil layer.
+        """Add irrigation water to the soil profile.
 
-        Directly updates soil water storage via the water model.
-        Call before or after step_day() for the day the player irrigates.
+        Infiltrates water into soil layers (up to saturation) without
+        immediate drainage. Excess above field capacity will cascade
+        during the next step_day() call. This means heavy irrigation
+        can temporarily raise theta above field capacity.
         """
         if amount_mm <= 0.0:
             return
-        drivers = DailyDrivers(rainfall_mm=0.0, irrigation_mm=amount_mm)
-        self.water_model.update_daily(self.profile, self.water_state, drivers)
+        self.water_model._infiltrate_layers(self.profile, self.water_state, amount_mm)
 
     def apply_fertilizer(
         self, fert_type: str, amount_kg_ha: float, layer: int = 0
