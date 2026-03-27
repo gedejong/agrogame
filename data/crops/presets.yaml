@@ -7,22 +7,39 @@ crops:
       base_temperature_c: 8.0
       max_temperature_c: 35.0
       emergence_gdd: 100.0
-      flowering_gdd: 889.0       # Multi-climate compromise (AGRO-102)
-      maturity_gdd: 1762.0       # Multi-climate compromise (AGRO-102)
+      flowering_gdd: 759.0       # NL posterior (AGRO-92)
+      maturity_gdd: 1830.0       # NL posterior (AGRO-92)
     canopy:
       extinction_coefficient_k: 0.54  # Stable across climates (AGRO-102)
-      rue_g_per_mj: 3.01        # Multi-climate compromise (AGRO-102)
-      sla_m2_per_g: 0.014       # Multi-climate compromise (AGRO-102)
+      rue_g_per_mj: 3.56        # NL posterior (AGRO-92)
+      sla_m2_per_g: 0.02        # Default — NL posterior hit prior bound
       lai_max: 6.0
       senescence_rate_per_day: 0.01
       temp_base_c: 8.0
-      temp_opt_c: 28.2          # Multi-climate compromise (AGRO-102)
+      temp_opt_c: 26.4          # NL posterior (AGRO-92)
       temp_max_c: 42.0
       leaf_fraction_vegetative: 0.7
       leaf_fraction_flowering: 0.4
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55
-      remobilization_fraction: 0.036  # Stable across climates (AGRO-102)
+      remobilization_fraction: 0.037  # NL posterior (AGRO-92)
+    climate_overrides:
+      kenya_highlands:
+        canopy:
+          rue_g_per_mj: 2.53      # Kenya posterior (AGRO-102)
+          temp_opt_c: 24.2        # Kenya posterior (AGRO-102)
+          sla_m2_per_g: 0.013     # Kenya posterior (AGRO-102)
+        phenology:
+          flowering_gdd: 777.0    # Kenya posterior (AGRO-102)
+          maturity_gdd: 1801.0    # Kenya posterior (AGRO-102)
+      sahel_arid:
+        canopy:
+          rue_g_per_mj: 2.94      # Sahel posterior (AGRO-102)
+          temp_opt_c: 33.9        # Sahel posterior (AGRO-102)
+          sla_m2_per_g: 0.018     # Sahel posterior (AGRO-102)
+        phenology:
+          flowering_gdd: 1130.0   # Sahel posterior (AGRO-102)
+          maturity_gdd: 1654.0    # Sahel posterior (AGRO-102)
     roots:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0

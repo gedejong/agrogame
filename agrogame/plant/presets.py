@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Dict
 
@@ -26,6 +26,23 @@ class CropPreset:
 @dataclass
 class CropLibrary:
     crops: Dict[str, CropPreset]
+    # Per-climate overrides: {crop_key: {climate_key: CropPreset}}
+    climate_overrides: Dict[str, Dict[str, CropPreset]] = (
+        None  # type: ignore[assignment]
+    )
+
+    def __post_init__(self) -> None:
+        if self.climate_overrides is None:
+            self.climate_overrides = {}
+
+    def get_preset(self, crop_key: str, climate_key: str | None = None) -> CropPreset:
+        """Get crop preset, applying climate-specific overrides if available."""
+        base = self.crops[crop_key]
+        if climate_key and crop_key in self.climate_overrides:
+            overrides = self.climate_overrides[crop_key]
+            if climate_key in overrides:
+                return overrides[climate_key]
+        return base
 
 
 _DEFAULT_PATH = Path("data/crops/presets.yaml")
@@ -87,14 +104,50 @@ def _build_roots(raw: dict) -> RootParams:
     )
 
 
+def _apply_canopy_overrides(base: CanopyParams, overrides: dict) -> CanopyParams:
+    """Apply partial canopy overrides on top of a base CanopyParams."""
+    fields: dict = {}
+    _MAP = {
+        "rue_g_per_mj": "radiation_use_efficiency_g_per_mj",
+        "sla_m2_per_g": "specific_leaf_area_m2_per_g",
+    }
+    for yaml_key, val in overrides.items():
+        field_name = _MAP.get(yaml_key, yaml_key)
+        if hasattr(base, field_name):
+            fields[field_name] = type(getattr(base, field_name))(val)
+    return replace(base, **fields) if fields else base
+
+
+def _apply_phenology_overrides(
+    base: CropPhenologyParams, overrides: dict
+) -> CropPhenologyParams:
+    """Apply partial phenology overrides on top of base params."""
+    thresh_fields: dict = {}
+    phen_fields: dict = {}
+    for yaml_key, val in overrides.items():
+        if yaml_key in ("emergence_gdd", "flowering_gdd", "maturity_gdd"):
+            thresh_fields[yaml_key] = float(val)
+        elif hasattr(base, yaml_key):
+            phen_fields[yaml_key] = type(getattr(base, yaml_key))(val)
+    if thresh_fields:
+        new_thresh = replace(
+            base.thresholds,
+            **{k: thresh_fields[k] for k in thresh_fields},
+        )
+        phen_fields["thresholds"] = new_thresh
+    return replace(base, **phen_fields) if phen_fields else base
+
+
 @functools.lru_cache(maxsize=4)
 def _load_crop_presets_cached(p: Path) -> CropLibrary:
     with p.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     validate_data(data, "crop_preset")
     crops: Dict[str, CropPreset] = {}
+    all_overrides: Dict[str, Dict[str, CropPreset]] = {}
+
     for key, raw in data.get("crops", {}).items():
-        crops[key] = CropPreset(
+        base = CropPreset(
             name=raw["name"],
             phenology=_build_phenology(raw),
             canopy=_build_canopy(raw),
@@ -102,7 +155,22 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             n_fixation_credit_kg_ha=float(raw.get("n_fixation_credit_kg_ha", 0.0)),
             key=key,
         )
-    return CropLibrary(crops=crops)
+        crops[key] = base
+
+        # Parse per-climate overrides
+        climate_ovr = raw.get("climate_overrides", {})
+        if climate_ovr:
+            all_overrides[key] = {}
+            for climate_key, ovr in climate_ovr.items():
+                canopy = _apply_canopy_overrides(base.canopy, ovr.get("canopy", {}))
+                phenology = _apply_phenology_overrides(
+                    base.phenology, ovr.get("phenology", {})
+                )
+                all_overrides[key][climate_key] = replace(
+                    base, canopy=canopy, phenology=phenology
+                )
+
+    return CropLibrary(crops=crops, climate_overrides=all_overrides)
 
 
 def load_crop_presets(path: Path | None = None) -> CropLibrary:

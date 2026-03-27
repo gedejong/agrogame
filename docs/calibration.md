@@ -38,6 +38,9 @@ trajectories (subsampled every 10 days to reduce temporal autocorrelation):
 **Target scenario**: Maize x Netherlands temperate, 150-day season from
 April 1, using DSSAT CERES-Maize reference trajectories from AGRO-91.
 
+**Note**: The NL-only posteriors below are used as the maize base preset.
+Per-climate overrides for Kenya and Sahel are in AGRO-102 (see below).
+
 ### Configuration
 
 ```bash
@@ -113,11 +116,11 @@ The calibration script produces:
 AGRO-92 calibrated for Netherlands maize only. AGRO-102 extends calibration
 to Kenya, Sahel, and sorghum using the same MCMC infrastructure.
 
-### Approach: single compromise parameter set
+### Approach: per-climate preset overrides
 
-Rather than per-climate presets, we calibrated each climate independently
-and averaged the posterior medians to find a compromise set that works
-across NL, Kenya, and Sahel.
+Each climate was calibrated independently. The maize preset uses NL
+posteriors as the base, with `climate_overrides` sections for Kenya
+and Sahel that apply per-climate RUE, temp_opt, SLA, and phenology.
 
 ### Per-climate posterior medians (maize)
 

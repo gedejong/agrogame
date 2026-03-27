@@ -105,7 +105,7 @@ def run_simulation_with_params(
     climates = load_climate_presets(Path("data/climate/presets.yaml"))
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
-    base_crop = crops.crops[crop_name]
+    base_crop = crops.get_preset(crop_name, climate_name)
     climate = climates.climates[climate_name]
 
     vals = {PARAM_NAMES[i]: float(theta[i]) for i in range(NDIM)}
@@ -494,15 +494,13 @@ def run_calibration(
 
     # Load reference data
     if reference_path is None:
-        reference_path = Path(
-            f"data/benchmarks/reference/{crop_name}_{climate_name.split('_')[0]}"
-            f"_reference.csv"
-        )
-    if not reference_path.exists():
-        # Try with full climate name
-        reference_path = Path(
-            f"data/benchmarks/reference/{crop_name}_{climate_name}_reference.csv"
-        )
+        ref_dir = Path("data/benchmarks/reference")
+        # Try common naming patterns
+        candidates = [
+            ref_dir / f"{crop_name}_{climate_name}_reference.csv",
+            ref_dir / f"{crop_name}_{climate_name.split('_')[0]}_reference.csv",
+        ]
+        reference_path = next((c for c in candidates if c.exists()), candidates[0])
     if not reference_path.exists():
         print(f"ERROR: reference not found: {reference_path}")
         sys.exit(1)
