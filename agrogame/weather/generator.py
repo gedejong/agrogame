@@ -112,9 +112,12 @@ class SyntheticWeatherGenerator:
     ) -> float:
         """Exponential distribution for daily rainfall with monthly seasonality."""
         mean = p.annual_mean_precip_mm_day * mods.precip_mult
-        # Apply monthly weight if defined (12 values, mean-normalized)
+        # Apply monthly weight if defined (12 values, normalized so mean=1.0)
         if p.rainfall_monthly_weights and len(p.rainfall_monthly_weights) == 12:
-            weight = p.rainfall_monthly_weights[month - 1]
+            mean_w = sum(p.rainfall_monthly_weights) / 12.0
+            weight = (
+                p.rainfall_monthly_weights[month - 1] / mean_w if mean_w > 0 else 1.0
+            )
             mean *= weight
         if mean <= 0.01:
             return 0.0

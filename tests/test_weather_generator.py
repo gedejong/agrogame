@@ -124,3 +124,50 @@ def test_sahel_scenario() -> None:
     series = gen.generate(90, date(2024, 6, 1))
     avg_tmax = sum(r.tmax_c for r in series.records) / len(series.records)
     assert avg_tmax > 30.0  # Sahel should be hot
+
+
+@pytest.mark.parametrize(
+    "climate_name",
+    ["netherlands_temperate", "kenya_highlands", "sahel_arid"],
+)
+def test_annual_rainfall_within_10pct_of_expected(climate_name: str) -> None:
+    """After normalization, base precip should match annual_mean * 365.
+
+    AC: generate 365 days, verify total precip is close to expected.
+    Uses a preset with no extreme events to isolate the normalization
+    effect (heavy rain injection adds extra precipitation).
+    """
+    _load_climate_presets_cached.cache_clear()
+    lib = load_climate_presets(Path("data/climate/presets.yaml"))
+    source = lib.climates[climate_name]
+    # Create a copy without extreme events to test normalization in isolation
+    no_extremes = ClimatePreset(
+        name=source.name,
+        latitude_deg=source.latitude_deg,
+        longitude_deg=source.longitude_deg,
+        annual_mean_tmin_c=source.annual_mean_tmin_c,
+        annual_mean_tmax_c=source.annual_mean_tmax_c,
+        annual_temp_amplitude_c=source.annual_temp_amplitude_c,
+        annual_mean_precip_mm_day=source.annual_mean_precip_mm_day,
+        annual_mean_rh_pct=source.annual_mean_rh_pct,
+        annual_mean_wind_m_s=source.annual_mean_wind_m_s,
+        annual_mean_shortwave_mj_m2=source.annual_mean_shortwave_mj_m2,
+        rainfall_monthly_weights=source.rainfall_monthly_weights,
+        heatwave_probability=0.0,
+        frost_probability=0.0,
+        heavy_rain_probability=0.0,
+    )
+    expected_annual = source.annual_mean_precip_mm_day * 365.0
+
+    totals: list[float] = []
+    for seed in range(10):
+        gen = SyntheticWeatherGenerator(no_extremes, seed=seed)
+        series = gen.generate(365, date(2024, 1, 1))
+        total = sum(r.precip_mm or 0.0 for r in series.records)
+        totals.append(total)
+
+    mean_total = sum(totals) / len(totals)
+    assert abs(mean_total - expected_annual) / expected_annual < 0.10, (
+        f"{climate_name}: mean annual {mean_total:.0f} mm vs "
+        f"expected {expected_annual:.0f} mm"
+    )
