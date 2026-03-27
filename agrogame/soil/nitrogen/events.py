@@ -48,11 +48,3 @@ class DenitrificationOccurred(BaseEvent):
 
     layer: int
     amount_kg_ha: float
-
-
-@dataclass(frozen=True)
-class VolatilizationOccurred(BaseEvent):
-    """Volatilization diagnostic: NH3 loss from surface NH4."""
-
-    layer: int
-    amount_kg_ha: float
