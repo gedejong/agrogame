@@ -353,10 +353,12 @@ class ThreePoolSOM:
         c_accounted = total_c_after + total_co2_c + total_microbial_c
         if total_c_before > 0.0:
             balance_error = abs(c_accounted - total_c_before) / total_c_before
-            assert balance_error < 0.001, (
-                f"SOM C mass-balance error: {balance_error:.4%} "
-                f"(before={total_c_before:.4f}, accounted={c_accounted:.4f})"
-            )
+            if balance_error >= 0.001:
+                raise ValueError(
+                    f"SOM C mass-balance error: {balance_error:.4%} "
+                    f"(before={total_c_before:.4f}, "
+                    f"accounted={c_accounted:.4f})"
+                )
 
         return SOMDailyFluxes(
             decomposed_c_kg_ha=total_decomposed_c,

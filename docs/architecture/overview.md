@@ -26,7 +26,7 @@ graph TD
         S_CANOPY[canopy]
         S_PHENOLOGY[phenology]
         S_MICROBES[microbes]
-        S_SOM[som ⚠️ placeholder]
+        S_SOM[som — 3-pool RothC]
         S_CHEMISTRY[chemistry]
     end
 
@@ -93,7 +93,7 @@ Cross-module communication is event-driven via `agrogame.events.EventBus`. All e
 | `soil/phenology` | Stable | Thermal time, GDD stages |
 | `soil/canopy` | Stable | LAI, light interception, RUE |
 | `soil/microbes` | Stable | Monod growth, enzymes, F:B ratio |
-| `soil/som` | **Placeholder** | Stop-gap substrate provider; see AGRO-71 |
+| `soil/som` | Stable | Three-pool RothC-inspired decomposition (AGRO-103) |
 | `soil/chemistry` | Stable | pH buffering |
 | `plant/roots` | Stable | Continuous/discrete allocation |
 | `plant/biomass` | Stable | Partitioning, sink limitation |
