@@ -44,6 +44,15 @@ class SOMPoolParams:
     priming_max: float = 1.5  # max priming multiplier
     cn_critical: float = 25.0  # C:N above which N immobilization occurs
 
+    # Aggregate protection (AGRO-104)
+    # Base protected fractions (at 40% clay — scaled linearly by clay_pct)
+    protection_frac_labile: float = 0.10  # 10% of labile protected
+    protection_frac_intermediate: float = 0.40  # 40% of intermediate
+    protection_frac_stable: float = 0.60  # 60% of stable
+    protection_reduction: float = 0.70  # protected C decomposes 70% slower
+    clay_protection_scale: float = 40.0  # clay% at which protection is 100%
+    wet_dry_release_frac: float = 0.20  # fraction of protected released per event
+
 
 # ---------------------------------------------------------------------------
 # State
@@ -192,6 +201,32 @@ class ThreePoolSOM:
             layer_state.stable.n_kg_ha = c_stb / _DEFAULT_CN_STABLE
 
     # ------------------------------------------------------------------
+    # Wet-dry disruption (Birch effect, AGRO-104)
+    # ------------------------------------------------------------------
+
+    def apply_wet_dry_disruption(self, layer_idx: int, intensity: float = 1.0) -> float:
+        """Release protected SOM after a wet-dry cycle (Birch effect).
+
+        Temporarily makes a fraction of aggregate-protected C available
+        for decomposition by increasing pool C (simulating physical
+        disruption of aggregates). Returns the total C released.
+
+        Ref: Birch (1958) — flush of decomposition after rewetting.
+        """
+        if layer_idx < 0 or layer_idx >= len(self.state.layers):
+            return 0.0
+        layer = self.state.layers[layer_idx]
+        release = self.params.wet_dry_release_frac * max(0.0, min(1.0, intensity))
+        # Boost each pool's C by releasing "protected" fraction into decomposable
+        # This is modeled as a temporary increase in effective pool size
+        released_c = 0.0
+        for pool in (layer.labile, layer.intermediate, layer.stable):
+            boost = pool.c_kg_ha * release
+            pool.c_kg_ha += boost
+            released_c += boost
+        return released_c
+
+    # ------------------------------------------------------------------
     # Environmental modifiers
     # ------------------------------------------------------------------
 
@@ -249,6 +284,17 @@ class ThreePoolSOM:
     # Daily step
     # ------------------------------------------------------------------
 
+    def _protection_factor(self, base_frac: float, clay_pct: float) -> float:
+        """Compute effective protection rate reduction for a pool.
+
+        Returns a multiplier in [1 - protection_reduction, 1.0] where
+        1.0 = no protection (sand) and lower = more protection (clay).
+        Ref: Six et al. (2002) — aggregate stabilization and clay content.
+        """
+        scale = min(1.0, clay_pct / self.params.clay_protection_scale)
+        protected = base_frac * scale
+        return 1.0 - protected * self.params.protection_reduction
+
     def daily_step(
         self,
         layer_idx: int,
@@ -257,6 +303,7 @@ class ThreePoolSOM:
         priming_multiplier: float = 1.0,
         fresh_c_input: float = 0.0,
         fresh_n_input: float = 0.0,
+        clay_pct: float = 22.0,
     ) -> SOMDailyFluxes:
         """Process one layer for one day.
 
@@ -267,6 +314,7 @@ class ThreePoolSOM:
             priming_multiplier: Rhizosphere priming factor (≥ 1).
             fresh_c_input: Fresh organic C added to labile pool (kg C/ha).
             fresh_n_input: Fresh organic N added to labile pool (kg N/ha).
+            clay_pct: Clay content (%) for aggregate protection scaling.
 
         Returns:
             :class:`SOMDailyFluxes` with decomposition, respiration, and N fluxes.
@@ -292,23 +340,28 @@ class ThreePoolSOM:
         # Snapshot total C before decomposition (for mass-balance check)
         total_c_before = layer.total_c
 
+        # --- Aggregate protection rate multipliers (AGRO-104) ---
+        pf_lab = self._protection_factor(params.protection_frac_labile, clay_pct)
+        pf_int = self._protection_factor(params.protection_frac_intermediate, clay_pct)
+        pf_stb = self._protection_factor(params.protection_frac_stable, clay_pct)
+
         # --- Decompose each pool via helper ---
         pool_specs = [
             (
                 layer.labile,
-                params.k_labile * priming,
+                params.k_labile * priming * pf_lab,
                 params.mge_labile,
                 params.humification_labile_to_inter,
                 layer.intermediate,
             ),
             (
                 layer.intermediate,
-                params.k_intermediate,
+                params.k_intermediate * pf_int,
                 params.mge_intermediate,
                 params.humification_inter_to_stable,
                 layer.stable,
             ),
-            (layer.stable, params.k_stable, params.mge_stable, 0.0, None),
+            (layer.stable, params.k_stable * pf_stb, params.mge_stable, 0.0, None),
         ]
 
         total_decomposed_c = 0.0

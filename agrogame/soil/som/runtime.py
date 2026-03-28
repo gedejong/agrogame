@@ -42,6 +42,9 @@ class SOMRuntime:
             self.som.initialize_from_profile(self.profile)
         self._root_fracs: list[float] | None = None
         self._root_fracs_smoothed: list[float] | None = None
+        # Wet-dry cycle detection (AGRO-104)
+        self._prev_wfps: list[float] = [0.5] * n_layers
+        self._was_dry: list[bool] = [False] * n_layers
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
         self.event_bus.subscribe(DayTick, self._on_day_tick)
 
@@ -78,6 +81,17 @@ class SOMRuntime:
         except (TypeError, ValueError):
             return 18.0
 
+    def _check_wet_dry(self, i: int, wfps: float) -> None:
+        """Detect wet-dry cycles and trigger aggregate disruption."""
+        assert self.som is not None
+        prev = self._prev_wfps[i] if i < len(self._prev_wfps) else 0.5
+        if prev < 0.3:
+            self._was_dry[i] = True
+        if self._was_dry[i] and wfps > 0.6:
+            self.som.apply_wet_dry_disruption(i)
+            self._was_dry[i] = False
+        self._prev_wfps[i] = wfps
+
     def _process_layer(self, i: int, temp_c: float, rf: float) -> None:
         """Run SOM decomposition for one layer and emit events."""
         assert self.som is not None
@@ -89,12 +103,15 @@ class SOMRuntime:
             else 0.5
         )
         priming = 1.0 + rf
+        clay_pct = getattr(soil_layer, "clay_pct", 22.0) or 22.0
+        self._check_wet_dry(i, wfps)
 
         fluxes = self.som.daily_step(
             layer_idx=i,
             temp_c=temp_c,
             wfps=wfps,
             priming_multiplier=priming,
+            clay_pct=clay_pct,
         )
 
         if fluxes.microbial_c_kg_ha > 0:
