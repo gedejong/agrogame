@@ -33,6 +33,13 @@ nav:
       - Water Balance: models/water-balance.md
       - Nutrient Cycle: models/nutrient-cycle.md
       - Crop Growth: models/crop-growth.md
+  - ADRs:
+      - Game State Persistence: adr/ADR-001-game-state-persistence.md
+      - Multi-field Architecture: adr/ADR-002-multi-field-architecture.md
+      - Economic Model: adr/ADR-003-economic-model.md
+      - Game Loop & Turns: adr/ADR-004-game-loop-turn-system.md
+      - Frontend Architecture: adr/ADR-005-frontend-architecture.md
+      - Performance Strategy: adr/ADR-006-performance-strategy.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md
