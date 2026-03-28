@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, PositiveFloat, model_validator
 
@@ -13,6 +13,15 @@ SoilTexture = Literal[
     "clay",
     "peat",
 ]
+
+TEXTURE_TO_CLAY: Dict[str, float] = {
+    "sand": 5.0,
+    "sandy_loam": 12.0,
+    "loam": 22.0,
+    "clay_loam": 33.0,
+    "clay": 50.0,
+    "peat": 15.0,
+}
 
 
 class SoilLayer(BaseModel):
@@ -43,6 +52,10 @@ class SoilLayer(BaseModel):
     initial_p_kg_ha: float = Field(
         ..., description="Initial phosphorus in topsoil layer (kg/ha)"
     )
+    clay_pct: Optional[float] = Field(
+        default=None,
+        description="Clay content percentage (%). Derived from texture if not set.",
+    )
 
     @model_validator(mode="after")
     def validate_water_bounds(self) -> "SoilLayer":
@@ -54,6 +67,8 @@ class SoilLayer(BaseModel):
             )
         if self.organic_matter_pct < 0.0:
             raise ValueError("organic_matter_pct must be >= 0")
+        if self.clay_pct is None:
+            self.clay_pct = TEXTURE_TO_CLAY.get(self.texture, 22.0)
         return self
 
 

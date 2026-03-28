@@ -1,16 +1,28 @@
-"""Soil Organic Matter (SOM) module — placeholder.
+"""Soil Organic Matter (SOM) module — three-pool decomposition.
 
-Current status: SimpleSOMRuntime emits substrate availability per layer
-based on PAR and smoothed root fractions. This is a stop-gap provider
-until AGRO-71 implements real SOM pools (active/slow/passive C and N).
-
-Roadmap (AGRO-71):
-- Multi-pool C/N decomposition (RothC or Century-like)
-- Temperature and moisture response functions
-- Humification and CO2 respiration fluxes
-- Integration with microbes module for enzyme-mediated turnover
+RothC-inspired three-pool SOM model (AGRO-103) replacing the SimpleSOMRuntime
+placeholder. Tracks labile, intermediate, and stable C/N pools with
+temperature/moisture-dependent kinetics, humification, priming, and CO2
+tracking.
 """
 
-from agrogame.soil.som.runtime import SimpleSOMRuntime
+from agrogame.soil.som.pools import (
+    SOMDailyFluxes,
+    SOMLayerPool,
+    SOMLayerState,
+    SOMPoolParams,
+    SOMState,
+    ThreePoolSOM,
+)
+from agrogame.soil.som.runtime import SOMRuntime, SimpleSOMRuntime
 
-__all__ = ["SimpleSOMRuntime"]
+__all__ = [
+    "SOMDailyFluxes",
+    "SOMLayerPool",
+    "SOMLayerState",
+    "SOMPoolParams",
+    "SOMState",
+    "SOMRuntime",
+    "SimpleSOMRuntime",
+    "ThreePoolSOM",
+]

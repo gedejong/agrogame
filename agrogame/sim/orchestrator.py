@@ -35,7 +35,7 @@ from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
 from agrogame.sim.management import ManagementPlan
-from agrogame.soil.som.runtime import SimpleSOMRuntime
+from agrogame.soil.som.runtime import SOMRuntime
 
 
 class SimulationOrchestrator:
@@ -126,6 +126,12 @@ class SoilSnapshot:
     microbe_fungal_fraction: list[float] = field(default_factory=list)
     ph: list[float] = field(default_factory=list)
     crop_history: list[str] = field(default_factory=list)
+    som_labile_c: list[float] = field(default_factory=list)
+    som_labile_n: list[float] = field(default_factory=list)
+    som_intermediate_c: list[float] = field(default_factory=list)
+    som_intermediate_n: list[float] = field(default_factory=list)
+    som_stable_c: list[float] = field(default_factory=list)
+    som_stable_n: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -142,6 +148,12 @@ class SoilSnapshot:
             "microbe_fungal_fraction": list(self.microbe_fungal_fraction),
             "ph": list(self.ph),
             "crop_history": list(self.crop_history),
+            "som_labile_c": list(self.som_labile_c),
+            "som_labile_n": list(self.som_labile_n),
+            "som_intermediate_c": list(self.som_intermediate_c),
+            "som_intermediate_n": list(self.som_intermediate_n),
+            "som_stable_c": list(self.som_stable_c),
+            "som_stable_n": list(self.som_stable_n),
         }
 
     @classmethod
@@ -160,6 +172,12 @@ class SoilSnapshot:
             microbe_fungal_fraction=list(data.get("microbe_fungal_fraction", [])),
             ph=list(data.get("ph", [])),
             crop_history=list(data.get("crop_history", [])),
+            som_labile_c=list(data.get("som_labile_c", [])),
+            som_labile_n=list(data.get("som_labile_n", [])),
+            som_intermediate_c=list(data.get("som_intermediate_c", [])),
+            som_intermediate_n=list(data.get("som_intermediate_n", [])),
+            som_stable_c=list(data.get("som_stable_c", [])),
+            som_stable_n=list(data.get("som_stable_n", [])),
         )
 
 
@@ -279,7 +297,9 @@ class FullSimulationOrchestrator:
         )
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
-        _ = SimpleSOMRuntime(self.event_bus, self.profile, self.water_state, self.chem)
+        self._som_runtime = SOMRuntime(
+            self.event_bus, self.profile, self.water_state, self.chem
+        )
         _ = MicrobesRuntime(
             self.event_bus,
             self.microbes,
@@ -288,6 +308,16 @@ class FullSimulationOrchestrator:
             chemistry=self.chem,
         )
         _ = CanopyRuntime(self.event_bus, self.canopy)
+
+    def _som_pool_lists(self, attr: str) -> list[float]:
+        """Extract per-layer SOM pool attribute as list."""
+        som = self._som_runtime.som
+        if som is None:
+            return []
+        return [
+            getattr(getattr(ly, attr.split(".")[0]), attr.split(".")[1])
+            for ly in som.state.layers
+        ]
 
     def snapshot_soil(self) -> SoilSnapshot:
         """Capture current soil state as a serializable snapshot."""
@@ -306,6 +336,12 @@ class FullSimulationOrchestrator:
             ],
             ph=list(self.chem.ph_by_layer),
             crop_history=list(self.crop_history),
+            som_labile_c=self._som_pool_lists("labile.c_kg_ha"),
+            som_labile_n=self._som_pool_lists("labile.n_kg_ha"),
+            som_intermediate_c=self._som_pool_lists("intermediate.c_kg_ha"),
+            som_intermediate_n=self._som_pool_lists("intermediate.n_kg_ha"),
+            som_stable_c=self._som_pool_lists("stable.c_kg_ha"),
+            som_stable_n=self._som_pool_lists("stable.n_kg_ha"),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -325,6 +361,15 @@ class FullSimulationOrchestrator:
         if snapshot.ph:
             self.chem._ph = list(snapshot.ph)
         self.crop_history = list(snapshot.crop_history)
+        som = self._som_runtime.som
+        if snapshot.som_labile_c and som is not None:
+            for i, som_ly in enumerate(som.state.layers):
+                som_ly.labile.c_kg_ha = snapshot.som_labile_c[i]
+                som_ly.labile.n_kg_ha = snapshot.som_labile_n[i]
+                som_ly.intermediate.c_kg_ha = snapshot.som_intermediate_c[i]
+                som_ly.intermediate.n_kg_ha = snapshot.som_intermediate_n[i]
+                som_ly.stable.c_kg_ha = snapshot.som_stable_c[i]
+                som_ly.stable.n_kg_ha = snapshot.som_stable_n[i]
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
