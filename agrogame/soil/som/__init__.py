@@ -14,7 +14,7 @@ from agrogame.soil.som.pools import (
     SOMState,
     ThreePoolSOM,
 )
-from agrogame.soil.som.runtime import SOMRuntime, SimpleSOMRuntime
+from agrogame.soil.som.runtime import SOMRuntime
 
 __all__ = [
     "SOMDailyFluxes",
@@ -23,6 +23,5 @@ __all__ = [
     "SOMPoolParams",
     "SOMState",
     "SOMRuntime",
-    "SimpleSOMRuntime",
     "ThreePoolSOM",
 ]

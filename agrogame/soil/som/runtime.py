@@ -127,7 +127,3 @@ class SOMRuntime:
         for i in range(len(self.profile.layers)):
             rf = root_fracs[i] if i < len(root_fracs) else 0.0
             self._process_layer(i, temp_c, rf)
-
-
-# Keep old name as alias for backward compatibility during transition
-SimpleSOMRuntime = SOMRuntime

@@ -32,6 +32,24 @@ poetry run python scripts/plot_full_integration.py --profile loam_temperate --da
 - Higher substrate availability and quality (via `SubstrateAvailable`) increases growth through Monod response; enzyme costs reduce net growth.
 - Rhizosphere priming pulses (`RhizospherePrimingPulse`) transiently amplify activity and growth near active root layers.
 
+### SOM coupling (AGRO-79)
+
+The microbial module receives substrate from the three-pool SOM decomposition
+module (AGRO-103) via `SubstrateAvailable` events. The SOM module decomposes
+labile, intermediate, and stable organic C pools and emits the microbial
+growth efficiency (MGE) fraction as available substrate. This replaces the
+synthetic substrate values from the old SimpleSOMRuntime placeholder.
+
+The N cycle also subscribes to `SOMDecomposed` events to inject SOM-driven
+N mineralization directly into the NH4 pool, replacing the fixed-rate
+organic_n mineralization for SOM-coupled N. This creates a coherent
+SOM → microbes → N cycle pipeline:
+
+1. SOM pools decompose → emit `SubstrateAvailable` (C) + `SOMDecomposed` (N)
+2. Microbial module consumes substrate → Monod growth → emit `MicrobialActivityComputed`
+3. N cycle consumes `SOMDecomposed` → adds mineralized N to NH4
+4. N cycle uses `MicrobialActivityComputed` to modulate residual mineralization
+
 See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md), and extracted notes under [Soil Microbiology](mdc:docs/soil-microbiology/index.md).
 
 

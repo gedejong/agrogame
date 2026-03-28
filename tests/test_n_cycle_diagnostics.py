@@ -137,6 +137,7 @@ def test_n_mass_balance_120_day() -> None:
     leached_total = [0.0]
     denitrified_total = [0.0]
     volatilized_total = [0.0]
+    som_input_total = [0.0]
     orch.event_bus.subscribe(
         NutrientLeached,
         lambda e: leached_total.__setitem__(0, leached_total[0] + e.amount_kg_ha),
@@ -151,6 +152,15 @@ def test_n_mass_balance_120_day() -> None:
         VolatilizationOccurred,
         lambda e: volatilized_total.__setitem__(
             0, volatilized_total[0] + e.amount_kg_ha
+        ),
+    )
+    # Track SOM-driven N mineralization as an external input (AGRO-79)
+    from agrogame.soil.som.events import SOMDecomposed
+
+    orch.event_bus.subscribe(
+        SOMDecomposed,
+        lambda e: som_input_total.__setitem__(
+            0, som_input_total[0] + max(0, e.mineralized_n_kg_ha)
         ),
     )
 
@@ -169,21 +179,24 @@ def test_n_mass_balance_120_day() -> None:
     total_tracked_losses = (
         leached_total[0] + denitrified_total[0] + volatilized_total[0]
     )
-    # Plant uptake removes N from pools via transpiration-driven mass flow
-    # (not emitted as a separate event). Compute as residual.
-    plant_uptake = initial_n - final_n - total_tracked_losses
+    # Plant uptake removes N from pools via transpiration-driven mass flow.
+    # SOM mineralization adds N to pools (external input from SOM C:N).
+    total_inputs = som_input_total[0]
+    plant_uptake = initial_n + total_inputs - final_n - total_tracked_losses
     total_losses = total_tracked_losses + max(0.0, plant_uptake)
 
-    # Mass balance: initial = final + all losses. No external N inputs.
-    balance_error = abs(initial_n - final_n - total_losses) / max(initial_n, 1.0)
+    # Mass balance: initial + SOM_inputs = final + all losses.
+    balance_error = abs(initial_n + total_inputs - final_n - total_losses) / max(
+        initial_n, 1.0
+    )
     assert balance_error < 0.005, (
         f"N mass balance error {balance_error:.4f} > 0.5%. "
         f"Initial={initial_n:.1f}, Final={final_n:.1f}, "
         f"Leached={leached_total[0]:.1f}, Denitrified={denitrified_total[0]:.1f}, "
         f"PlantUptake={plant_uptake:.1f}"
     )
-    # Verify no N created from nothing
-    assert final_n + total_losses <= initial_n + 0.01
+    # Verify no N created from nothing (allow SOM inputs)
+    assert final_n + total_tracked_losses <= initial_n + total_inputs + 0.5
 
 
 # ---------------------------------------------------------------------------

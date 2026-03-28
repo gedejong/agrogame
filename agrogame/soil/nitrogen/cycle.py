@@ -87,6 +87,11 @@ class NitrogenCycle:
         self._fungal_fraction_by_layer: list[float] = [0.4] * self._n_layers
         event_bus.subscribe(MicrobialActivityComputed, self._on_microbe_activity)
         event_bus.subscribe(MicrobialFBUpdated, self._on_microbe_fb)
+        # SOM-driven N mineralization (AGRO-79)
+        self._som_mineralized_n: list[float] = [0.0] * self._n_layers
+        from agrogame.soil.som.events import SOMDecomposed
+
+        event_bus.subscribe(SOMDecomposed, self._on_som_decomposed)
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -184,6 +189,16 @@ class NitrogenCycle:
                 0.0, min(1.0, float(event.fungal_fraction))
             )
 
+    def _on_som_decomposed(self, event: object) -> None:
+        """Inject SOM-mineralized N into the NH4 pool (AGRO-79)."""
+        layer = getattr(event, "layer", -1)
+        if not (0 <= layer < self._n_layers):
+            return
+        n = getattr(event, "mineralized_n_kg_ha", 0.0)
+        if n > 0:
+            self.state.nh4[layer] += n
+            self._som_mineralized_n[layer] += n
+
     # --- Daily update ---------------------------------------------------
     def daily_step(
         self,
@@ -210,6 +225,9 @@ class NitrogenCycle:
             ph_by_layer = self._ph_by_layer_cached
 
         temp_factor = 2.0 ** ((temperature_c - 20.0) / 10.0)
+
+        # Reset daily SOM mineralization accumulator
+        self._som_mineralized_n = [0.0] * self._n_layers
 
         before_total_n = self._total_n()
 
