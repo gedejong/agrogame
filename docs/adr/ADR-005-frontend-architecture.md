@@ -4,80 +4,210 @@
 
 ## Context
 
-The existing Streamlit dashboard (`agrogame.dashboard`) serves its purpose for diagnostic visualization during model development — Plotly charts of soil moisture profiles, nitrogen cycling, phenology curves. But Streamlit is a data app framework, not a game engine. It cannot support the interactive turn-based gameplay described in ADR-004: there is no persistent client state, no sprite/tile rendering, no WebSocket push for pause events, and the rerun-on-interaction model makes responsive UX impossible.
+The simulation engine is mature: validated, calibrated, multi-season, 7 crops,
+3 climates, irrigation, fertilization, crop rotation, 3-pool SOM with aggregate
+protection. But a data dashboard is not a game. The existing Streamlit dashboard
+serves model validation — Plotly charts, diagnostic panels. It cannot make a
+player *feel* like a farmer.
 
-We need a frontend that supports: (1) a field overview with visual representation of crop state, (2) management plan editing UI, (3) fast-forward visualization of season progression, (4) responsive pause-event interrupts, and (5) end-of-season result dashboards. The simulation engine must remain in Python — it is 15k+ lines of validated agronomic models and rewriting it would be reckless.
+We need a frontend that does three things:
 
-The game's educational mission — teaching soil science, nutrient management, and crop agronomy through play — demands visuals that draw players in. A flat data dashboard will not achieve this. We need a 2.5D isometric view that makes farming feel tangible: crops growing, fields flooding, leaves yellowing under nitrogen stress. The goal is to draw players in through visuals, then let them learn science through play.
+1. **Makes farming tangible.** You look at your fields and see crops growing,
+   rain sweeping across, leaves yellowing under nitrogen stress. You don't read
+   "N stress = 0.6" — you see the lower leaves turning pale and think "I should
+   have fertilized last week."
+
+2. **Shows what's happening underground.** This is the game's differentiator.
+   Click any patch and the camera slides down into a 3D cross-section of the
+   soil profile. You see water percolating through layers after rain, roots
+   growing deeper each week, nitrogen leaching past the root zone, microbial
+   activity pulsing near root tips. Every concept from a soil science textbook
+   becomes a living animation. *This is how players learn.*
+
+3. **Supports the turn-based loop.** Season planning, fast-forward through
+   growth, pause at events, harvest and review. The engine stays in Python —
+   15k+ lines of validated agronomic models that we are not rewriting.
 
 ## Decision
 
-**Web application with React + PixiJS frontend (2.5D isometric game canvas) and FastAPI backend. Separate repositories.**
+**Godot 4 game client with FastAPI REST backend. Separate repositories.**
+
+### Why Godot 4
+
+The underground soil visualization requires mixed 2D and 3D rendering in the
+same scene — an isometric field overview *and* a 3D soil cross-section with
+particle effects, shaders, and animated root growth. This rules out pure 2D
+web renderers (PixiJS, Phaser) and makes a game engine the right tool.
+
+Godot 4 is the engine because:
+
+- **Native 2D + 3D mixing.** Isometric field view (2D) and soil cross-section
+  (3D) coexist in the same scene tree. No awkward multi-renderer plumbing.
+- **GPU particle systems.** Water percolation, microbial activity, fertilizer
+  dissolution — all need thousands of small, physics-influenced particles.
+  Godot's GPUParticles3D handles this natively.
+- **Shader support.** Nutrient gradient overlays (N green fading with depth,
+  P purple at the surface), moisture saturation effects, SOM pool density
+  visualization — all done with spatial shaders on the soil cross-section mesh.
+- **GDScript is Python-like.** The team already thinks in Python. GDScript's
+  syntax, duck typing, and indentation-based scoping make it immediately
+  productive. C# is available for performance-critical paths.
+- **MIT license.** Free forever. No revenue royalties, no licensing surprises.
+- **Web export via WASM.** Desktop-first, but web is a realistic stretch goal.
+- **~40MB engine.** Lightweight CI, fast iteration.
+
+### The Game World
+
+#### The Farm (main view — isometric 2D)
+
+The player sees their farm from a warm, angled overhead perspective. Fields are
+laid out on gently rolling terrain. Each field is divided into patches —
+visually distinct by soil type (sandy patches are pale beige, clay patches are
+dark ochre, organic-rich patches are deep chocolate brown).
+
+Crops are visible as growth stages: bare tilled soil → tiny seedlings pushing
+through → full green canopy → golden grain heads nodding in the breeze →
+stubble after harvest. You watch the season unfold.
+
+Stress shows before the numbers do:
+- **Drought:** leaves curl inward, canopy thins, soil lightens and cracks
+- **Nitrogen deficiency:** lower leaves yellow (chlorosis), working upward
+- **Waterlogging:** standing water shimmers on the surface, leaves droop
+- **Heat stress:** leaves pale, growth stalls visibly
+
+Weather moves across the scene: rain sweeps field by field, frost crystals form
+overnight, heat shimmer rises on hot days. Seasons shift the entire palette —
+spring green, summer lush, autumn gold, winter dormant grey.
+
+#### The Underground (soil cross-section — 3D)
+
+Click any patch and the camera tilts and slides into the ground. A 3D cutaway
+opens, showing the actual soil profile from the simulation:
+
+- **Layers** rendered with distinct textures matching their properties: sandy
+  topsoil (grainy, light), clay subsoil (smooth, dense), organic horizon
+  (dark, crumbly). Layer boundaries match `SoilProfile.layers` exactly.
+- **Water** percolates visually — blue particle streams trickling through pore
+  spaces after rain, pooling above clay layers, draining slowly through the
+  profile. The speed matches the cascading bucket model output.
+- **Roots** grow downward over the season — white tendrils branching and
+  deepening, following the `RootState.current_depth_cm` trajectory. Root
+  density fades with depth matching the exponential distribution.
+- **Nutrients** glow as color overlays on the soil mesh: nitrogen (green) fading
+  with depth as leaching removes it, phosphorus (purple) concentrated near the
+  surface where it's fixed.
+- **SOM pools** are visible as organic matter clusters — labile near the surface
+  (actively decomposing, small particles breaking apart), stable pool deeper
+  (large dark aggregates, barely changing). Aggregate protection is visible as
+  clay-encased organic particles.
+- **Microbes** appear as tiny luminous bursts near active root tips —
+  rhizosphere priming made visible. Activity correlates with the
+  `MicrobialActivityComputed` events from the simulation.
+- **Fertilizer application** shows granules dissolving at the surface, nitrogen
+  spreading into the top layer, then slowly leaching deeper.
+
+This view is *the reason the game exists.* It turns every concept from a soil
+science textbook into a living, breathing animation that a player discovers by
+playing, not by reading.
+
+#### Planning Screen
+
+Seasonal calendar with drag-and-drop management events. Each action shows its
+cost (ADR-003). Weather forecast with uncertainty bands. ManagementPlan
+visualization per patch.
+
+#### Harvest Report
+
+Split view: your yield vs GYGA potential for that climate. Soil health
+trajectory (SOM change over years). Economic P&L with letter grade. Crop
+rotation history timeline.
+
+### Art Style
+
+Not pixel art (too retro for an educational tool). Not photorealistic (too
+expensive, too sterile). Clean, modern, slightly stylized — think *Monument
+Valley meets agricultural textbook.* Warm earth-tone palette, soft directional
+lighting, gentle shadows. Infographic-quality data visualization layered
+naturally into the game world. The aesthetic says: "this is serious science
+presented with care and beauty."
 
 ### Backend (this repo: `agrogame`)
 
-- A new `agrogame.api` package exposes the game engine via FastAPI.
+- New `agrogame.api` package exposes the game engine via FastAPI.
 - Key endpoints:
-  - `POST /games` — create a new game (returns game ID, initial state).
-  - `POST /games/{id}/plan` — submit a `ManagementPlan` for the current season.
-  - `POST /games/{id}/advance` — run the season forward. Returns either a `PauseEvent` (with current state snapshot) or end-of-season results.
-  - `POST /games/{id}/revise` — submit mid-season plan revision (only valid during a pause).
-  - `GET /games/{id}/state` — current game state for reconnection.
-- Game state is server-side. The frontend is stateless beyond UI concerns. This prevents cheating and simplifies the client.
-- REST over HTTP, not WebSockets. The turn-based nature means request-response is sufficient. Season execution completes in < 1s (ADR-006), so long-polling or streaming is unnecessary.
-- Response payloads include structured JSON for game state plus pre-rendered Plotly chart specs (as JSON) for data-heavy views. The frontend renders these via `plotly.js` without needing to understand agronomic data structures.
+  - `POST /games` — create game (returns ID, initial state)
+  - `POST /games/{id}/plan` — submit ManagementPlan for current season
+  - `POST /games/{id}/advance` — run season, return PauseEvent or results
+  - `POST /games/{id}/revise` — mid-season plan revision (during pause)
+  - `GET /games/{id}/state` — current state for reconnection
+- Game state is server-side. Godot client is a view layer.
+- REST over HTTP. Turn-based = request-response is sufficient.
+- Response payloads include structured JSON for game state plus time-series
+  snapshots for animated playback in the client.
 
-### Frontend (separate repo: `agrogame-web`)
+### Frontend (separate repo: `agrogame-godot`)
 
-- React 18+ with TypeScript. Vite for build tooling.
-- **2.5D isometric game canvas** using **PixiJS** (2D WebGL renderer) embedded as a React component. Phaser is an acceptable alternative if PixiJS proves insufficient for animation/interaction needs. Pure DOM/CSS rendering is rejected for the game view — it cannot deliver the visual quality or frame rates needed.
-- Isometric tile grid (Stardew Valley / Farmville style):
-  - Fields and individual patches rendered as isometric tiles.
-  - **Crop growth visualization:** sprites transition through growth stages (seedling, vegetative, flowering, mature, harvest-ready). Growth stage data comes from the backend phenology model.
-  - **Stress feedback:** wilting sprites under drought, yellowing leaves under nitrogen deficiency, waterlogged/flooded tile effects. Visual severity scales with stress intensity from the simulation.
-  - **Seasonal progression:** weather effects (rain overlays, sun/cloud transitions), harvest animations, stubble after crop removal.
-- **Interactive patch selection:**
-  - Click a patch to open a soil dashboard overlay (moisture profile, nutrient levels, organic matter — rendered via Plotly.js).
-  - Click-and-drag to select multiple patches for batch management actions (irrigate, fertilize, sow, harvest).
-  - Right-click or long-press for contextual management menus.
-- **Data views:** Plotly.js charts for soil moisture, nutrient levels, yield projections. Reuses the chart specifications the Python backend already generates. Displayed as overlays or side panels, not as the primary view.
-- Target platform: desktop web browsers (Chrome, Firefox, Safari). Mobile is a stretch goal — the management plan editing UI is inherently mouse-friendly.
-- No client-side simulation logic. The frontend is a view layer that sends player decisions and renders server responses.
+- Godot 4.3+ with GDScript (C# for performance-critical rendering).
+- Isometric field view (2D TileMap) + 3D soil cross-section (SubViewport).
+- Desktop-first (Windows, macOS, Linux). Web export (WASM) as stretch goal.
+- Communicates with FastAPI backend via HTTPClient (built-in Godot class).
 
 ### Existing Streamlit dashboard
 
-- Retained as-is for developer diagnostics and model validation only. Not part of the game frontend. Lives in `agrogame.dashboard`, imports remain optional.
+Retained as-is for developer diagnostics and model validation only. Not part
+of the game. Lives in `agrogame.dashboard`, imports remain optional.
 
 ## Consequences
 
 **Positive:**
-- Clean separation: Python owns simulation truth, TypeScript + PixiJS owns presentation. Each can evolve independently.
-- 2.5D isometric view creates immediate visual appeal — players understand the farming context intuitively, lowering the barrier to engaging with the underlying science.
-- PixiJS is a mature, well-documented WebGL renderer with strong community support. It handles sprite batching, texture atlases, and animation out of the box.
-- FastAPI is already in the Python ecosystem, integrates naturally with Pydantic models we already use for config/params.
-- React + TypeScript is the largest frontend talent pool. PixiJS has a dedicated game-dev community. Easy to find contributors.
-- Plotly chart reuse means we do not rebuild 20+ diagnostic visualizations — they transfer directly to overlay panels.
-- REST API enables future clients (mobile app, CLI tool, automated tournament runner) without backend changes.
-- Server-side state prevents client-side cheating and makes multiplayer a future possibility.
+- The underground view creates a genuinely novel educational experience —
+  no other farming game shows live soil biogeochemistry.
+- Godot's mixed 2D/3D handles both the field overview and soil cutaway without
+  renderer hacks.
+- GDScript's Python-like syntax keeps the team productive from day one.
+- MIT license and small engine footprint keep CI fast and licensing clean.
+- FastAPI integration reuses Pydantic models we already have.
+- Server-side state prevents cheating and enables future multiplayer.
+- Desktop-first means no WebGL limitations for the 3D soil view.
 
 **Negative:**
-- Two repositories means two CI pipelines, two deploy targets, cross-repo version coordination.
-- FastAPI adds a dependency and a new package (`agrogame.api`) to maintain. API versioning must be planned early.
-- PixiJS + isometric rendering adds significant frontend complexity: sprite sheets, tile coordinate math (cartesian to isometric transforms), z-ordering, camera panning/zooming. This requires game-dev experience on the frontend team.
-- REST request-response means the frontend cannot show real-time day-by-day animation during fast-forward. The season result arrives as a batch. If we later want animated playback, we would need to return a time-series of snapshots (acceptable overhead given ADR-006 performance targets).
-- Art asset creation (crop sprites, tile textures, weather effects) is a new workstream that requires either a pixel artist or suitable open-source asset packs.
-- React + TypeScript + PixiJS is a hard dependency on the JavaScript ecosystem. Contributors must be comfortable in both Python and TypeScript.
+- Two repositories (Python simulation + Godot client) with cross-repo
+  coordination and separate CI pipelines.
+- GDScript is Python-*like* but not Python. Team needs to learn Godot's scene
+  tree, signal system, and node lifecycle.
+- Art asset creation is a new workstream: crop sprites (7 crops x 6 growth
+  stages), soil textures, particle effects, weather overlays, UI elements.
+  Requires either a dedicated artist or adaptation of open-source assets.
+- Godot's web export (WASM) works but produces large bundles (~30-50MB) and
+  has threading limitations. Desktop is the primary target.
+- Fewer contributors know GDScript/Godot than React/TypeScript. Smaller
+  hiring pool for the frontend.
 
 ## Alternatives Considered
 
-**Streamlit as game frontend.** Rejected. Streamlit reruns the entire script on each interaction, cannot maintain WebSocket connections, has no sprite/tile rendering, and provides no control over layout below the widget level. It is the right tool for data dashboards, not games.
+**React + PixiJS (2D WebGL).** Was the original recommendation. Rejected
+because PixiJS cannot render the 3D soil cross-section — the underground view
+needs real 3D geometry, particles, and spatial shaders. A pure 2D renderer
+would force us to fake the most important visual in the game.
 
-**Pure DOM/CSS for game views (no canvas).** Rejected. CSS transforms can fake isometric projection, but performance degrades rapidly with hundreds of tiles, animation is limited, and z-ordering becomes a maintenance nightmare. WebGL via PixiJS or Phaser is the standard approach for 2D browser games for good reason.
+**React + Three.js (3D in browser).** Could handle the soil view, but managing
+a Three.js scene alongside React state is complex. No built-in game engine
+features (scene tree, input handling, animation player). Would require
+building engine-level infrastructure from scratch.
 
-**Godot / Unity with Python bindings.** Rejected. Massive dependency for a 2D turn-based farm game. Godot's GDScript or Unity's C# would require rewriting or wrapping the entire simulation engine. Build tooling, packaging, and distribution become dramatically more complex. Godot exports to web, but the WASM bundle is large and integration with a Python backend is awkward.
+**Unity.** Technically capable but: proprietary license with changing terms
+(Runtime Fee controversy), C# is a bigger language jump than GDScript, 1GB+
+engine, and the project philosophy favors open-source tools.
 
-**Python-native GUI (Tkinter, PyQt, Kivy).** Rejected. Limited to desktop. Packaging and distribution are painful (PyInstaller, cx_Freeze). UI toolkit quality and ecosystem are far behind web. No WebGL-equivalent rendering. Multiplayer becomes very difficult.
+**Unreal Engine.** Massively overkill. 50GB+ install, C++ codebase, designed
+for AAA 3D — not a turn-based farm game with 2D/3D hybrid needs. 5% revenue
+royalty above $1M.
 
-**Embedded Python in browser (Pyodide/PyScript).** Rejected. The simulation engine uses numpy, scipy, and compiled extensions. Pyodide support for these is incomplete and performance in WASM is 3-10x slower than native. Server-side execution is simpler and faster.
+**Streamlit as game frontend.** Rejected. Reruns on every interaction, no
+persistent state, no sprite or 3D rendering, no control over layout. Right
+tool for data apps, wrong tool for games.
 
-**Single repo (monorepo) for frontend and backend.** Considered but deferred. A monorepo adds complexity to CI (must detect which part changed), mixes Python and Node tooling, and creates confusing directory structures. If coordination pain becomes real, we can consolidate later. Starting with separate repos is easier to reason about.
+**Godot with embedded WebView for charts.** Considered for Plotly chart reuse.
+Deferred — Godot's native UI (Label, HBoxContainer, custom drawing) is
+sufficient for in-game dashboards. Detailed analytics stay in Streamlit for
+developers.
