@@ -33,7 +33,7 @@ We need an economic model that makes player decisions meaningful without requiri
 | Grain yield | per kg per ha | Crop-dependent (see below) |
 | Straw/residue | per kg per ha | 0.05 (optional harvest) |
 
-Crop base prices (credits/kg): wheat 0.25, maize 0.22, rice 0.30, soybean 0.35, potato 0.15, sorghum 0.20, barley 0.23.
+Crop base prices (credits/kg): wheat 0.25, maize 0.22, rice 0.30, soybean 0.35, sorghum 0.20, grape 0.80. Future crops (potato, barley) will be priced when added to presets.
 
 ### Seasonal multipliers
 
