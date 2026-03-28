@@ -103,11 +103,9 @@ class Field:
         return results
 
     def apply_irrigation(self, amount_mm: float) -> None:
-        """Distribute irrigation across patches by area fraction."""
+        """Apply irrigation to all patches (same depth in mm per unit area)."""
         for patch in self.patches:
-            scaled = amount_mm * patch.config.area_fraction
-            if scaled > 0:
-                patch.orch.apply_irrigation(scaled)
+            patch.orch.apply_irrigation(amount_mm)
 
     def apply_fertilizer(self, fert_type: str, amount_kg_ha: float) -> None:
         """Apply fertilizer to all patches (same rate per ha)."""
