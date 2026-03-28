@@ -101,8 +101,8 @@ class TestSOMDrivenMicrobialActivity:
         orch_high = FullSimulationOrchestrator(
             profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
         )
-        if orch_high._som_runtime.som:
-            for ly in orch_high._som_runtime.som.state.layers:
+        if orch_high.som:
+            for ly in orch_high.som.state.layers:
                 ly.labile.c_kg_ha *= 2.0
         activity_high: list[float] = []
         orch_high.event_bus.subscribe(

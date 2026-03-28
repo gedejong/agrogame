@@ -13,7 +13,13 @@ AGRO-17 acceptance criteria:
 """
 
 from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from agrogame.events import EventBus
+
+if TYPE_CHECKING:
+    from agrogame.soil.som.events import SOMDecomposed
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
@@ -189,15 +195,13 @@ class NitrogenCycle:
                 0.0, min(1.0, float(event.fungal_fraction))
             )
 
-    def _on_som_decomposed(self, event: object) -> None:
+    def _on_som_decomposed(self, event: SOMDecomposed) -> None:
         """Inject SOM-mineralized N into the NH4 pool (AGRO-79)."""
-        layer = getattr(event, "layer", -1)
-        if not (0 <= layer < self._n_layers):
+        if not (0 <= event.layer < self._n_layers):
             return
-        n = getattr(event, "mineralized_n_kg_ha", 0.0)
-        if n > 0:
-            self.state.nh4[layer] += n
-            self._som_mineralized_n[layer] += n
+        if event.mineralized_n_kg_ha > 0:
+            self.state.nh4[event.layer] += event.mineralized_n_kg_ha
+            self._som_mineralized_n[event.layer] += event.mineralized_n_kg_ha
 
     # --- Daily update ---------------------------------------------------
     def daily_step(

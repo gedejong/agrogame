@@ -92,7 +92,7 @@ def test_fertilized_maize_outperforms_unfertilized_in_nl() -> None:
         orch_unfert.n_state.nh4[i] = 0.0
         orch_unfert.n_state.no3[i] = 0.0
         orch_unfert.n_state.organic_n[i] = 0.0
-    som = orch_unfert._som_runtime.som
+    som = orch_unfert.som
     if som is not None:
         for ly in som.state.layers:
             ly.labile.n_kg_ha = 0.0
@@ -105,7 +105,7 @@ def test_fertilized_maize_outperforms_unfertilized_in_nl() -> None:
         orch_fert.n_state.nh4[i] = 0.0
         orch_fert.n_state.no3[i] = 0.0
         orch_fert.n_state.organic_n[i] = 0.0
-    som2 = orch_fert._som_runtime.som
+    som2 = orch_fert.som
     if som2 is not None:
         for ly in som2.state.layers:
             ly.labile.n_kg_ha = 0.0

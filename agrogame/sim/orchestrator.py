@@ -319,6 +319,11 @@ class FullSimulationOrchestrator:
             for ly in som.state.layers
         ]
 
+    @property
+    def som(self) -> Any:
+        """Public access to the SOM module (ThreePoolSOM or None)."""
+        return self._som_runtime.som
+
     def snapshot_soil(self) -> SoilSnapshot:
         """Capture current soil state as a serializable snapshot."""
         return SoilSnapshot(
