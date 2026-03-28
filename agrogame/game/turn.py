@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Generator
+from typing import TYPE_CHECKING, Any, Generator
 
 from agrogame.events import BaseEvent
 from agrogame.sim.management import ManagementEvent, ManagementPlan
+
+if TYPE_CHECKING:
+    from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.types import WeatherRecord
 
@@ -73,7 +76,7 @@ class GameTurnManager:
 
     def __init__(
         self,
-        orch: Any,  # FullSimulationOrchestrator
+        orch: FullSimulationOrchestrator,
         weather: list[WeatherRecord],
         plan: ManagementPlan | None = None,
         pause_config: PauseConfig | None = None,
@@ -91,6 +94,15 @@ class GameTurnManager:
         self.pause_count: int = 0
         self.result: SeasonResult | None = None
         self._drought_days: int = 0
+        self._last_n_stress: float = 1.0
+        # Subscribe to nutrient stress events for N deficiency detection
+        from agrogame.plant.events import NutrientStressComputed
+
+        self.orch.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
+
+    def _on_nutrient_stress(self, ev: Any) -> None:
+        if getattr(ev, "nutrient", "").upper() == "N":
+            self._last_n_stress = max(0.0, min(1.0, float(ev.stress)))
 
     def run_season(self) -> Generator[PauseEvent, None, None]:
         """Execute the season, yielding PauseEvents when triggered.
@@ -152,6 +164,14 @@ class GameTurnManager:
                 f"for {cfg.drought_consecutive_days}+ days",
             )
 
+        # N deficiency
+        if self._last_n_stress < cfg.n_deficiency_threshold:
+            return PauseEvent(
+                day=day,
+                reason=PauseReason.NUTRIENT_DEFICIENCY,
+                message=f"N deficiency: stress={self._last_n_stress:.2f}",
+            )
+
         return None
 
     def _settle(self) -> None:
@@ -181,7 +201,10 @@ class GameTurnManager:
 
     @classmethod
     def restore_state(
-        cls, data: dict[str, Any], orch: Any, weather: list[WeatherRecord]
+        cls,
+        data: dict[str, Any],
+        orch: FullSimulationOrchestrator,
+        weather: list[WeatherRecord],
     ) -> GameTurnManager:
         """Restore a mid-season GameTurnManager from saved state."""
         plan = ManagementPlan.from_dict(data.get("plan", {"events": []}))
