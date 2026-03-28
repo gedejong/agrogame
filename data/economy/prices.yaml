@@ -1,0 +1,44 @@
+# Economic price tables (ADR-003, AGRO-109)
+# All values in credits. 1 credit ≈ 1 EUR for educational reference.
+
+input_costs:
+  # Seed costs per ha
+  seed_maize: 200
+  seed_wheat: 150
+  seed_rice: 180
+  seed_sorghum: 120
+  seed_soybean: 250
+  seed_grape: 500
+  # Fertilizer costs per kg product
+  fertilizer_urea: 1          # ~0.45 kg N per kg urea
+  fertilizer_ammonium_nitrate: 1
+  fertilizer_tsp: 2           # triple superphosphate
+  # Irrigation cost per mm applied per ha
+  irrigation_per_mm: 2
+  # Labor cost per management action
+  labor_per_action: 50
+  # Equipment cost per season (flat)
+  equipment_per_season: 500
+
+crop_prices:
+  maize:
+    base_credits_per_kg: 0.22
+    seasonal_multipliers: [1.1, 0.9, 0.8, 1.2]  # Q1 Q2 Q3 Q4
+  winter_wheat:
+    base_credits_per_kg: 0.25
+    seasonal_multipliers: [1.0, 1.0, 0.9, 1.1]
+  spring_wheat:
+    base_credits_per_kg: 0.25
+    seasonal_multipliers: [1.0, 1.0, 0.9, 1.1]
+  rice:
+    base_credits_per_kg: 0.30
+    seasonal_multipliers: [1.0, 1.1, 0.9, 1.0]
+  sorghum:
+    base_credits_per_kg: 0.20
+    seasonal_multipliers: [1.0, 0.9, 0.8, 1.3]
+  soybean:
+    base_credits_per_kg: 0.35
+    seasonal_multipliers: [1.0, 1.0, 1.1, 0.9]
+  grape:
+    base_credits_per_kg: 0.80
+    seasonal_multipliers: [0.8, 0.9, 1.2, 1.1]
