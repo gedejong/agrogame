@@ -44,6 +44,10 @@ class ManagementPlan:
         """Return all events scheduled for the given day."""
         return [e for e in self.events if e.day == day]
 
+    def revise(self, from_day: int, new_events: list[ManagementEvent]) -> None:
+        """Replace events from from_day onward with new_events."""
+        self.events = [e for e in self.events if e.day < from_day] + list(new_events)
+
     def to_dict(self) -> dict[str, Any]:
         return {"events": [e.to_dict() for e in self.events]}
 
