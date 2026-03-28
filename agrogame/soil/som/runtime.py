@@ -84,10 +84,11 @@ class SOMRuntime:
     def _check_wet_dry(self, i: int, wfps: float) -> None:
         """Detect wet-dry cycles and trigger aggregate disruption."""
         assert self.som is not None
+        p = self.som.params
         prev = self._prev_wfps[i] if i < len(self._prev_wfps) else 0.5
-        if prev < 0.3:
+        if prev < p.wet_dry_dry_threshold:
             self._was_dry[i] = True
-        if self._was_dry[i] and wfps > 0.6:
+        if self._was_dry[i] and wfps > p.wet_dry_wet_threshold:
             self.som.apply_wet_dry_disruption(i)
             self._was_dry[i] = False
         self._prev_wfps[i] = wfps

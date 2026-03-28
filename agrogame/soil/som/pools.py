@@ -51,7 +51,9 @@ class SOMPoolParams:
     protection_frac_stable: float = 0.60  # 60% of stable
     protection_reduction: float = 0.70  # protected C decomposes 70% slower
     clay_protection_scale: float = 40.0  # clay% at which protection is 100%
-    wet_dry_release_frac: float = 0.20  # fraction of protected released per event
+    wet_dry_disruption_days: int = 7  # days protection disabled after disruption
+    wet_dry_dry_threshold: float = 0.3  # WFPS below = dry
+    wet_dry_wet_threshold: float = 0.6  # WFPS above = wet (triggers after dry)
 
 
 # ---------------------------------------------------------------------------
@@ -150,6 +152,8 @@ class ThreePoolSOM:
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
         self.params = params
+        # Per-layer disruption countdown (days remaining with protection=0)
+        self._disruption_days: list[int] = [0] * n_layers
         self.state = SOMState(
             layers=[
                 SOMLayerState(
@@ -204,27 +208,18 @@ class ThreePoolSOM:
     # Wet-dry disruption (Birch effect, AGRO-104)
     # ------------------------------------------------------------------
 
-    def apply_wet_dry_disruption(self, layer_idx: int, intensity: float = 1.0) -> float:
-        """Release protected SOM after a wet-dry cycle (Birch effect).
+    def apply_wet_dry_disruption(self, layer_idx: int) -> None:
+        """Disable aggregate protection for a layer after a wet-dry cycle.
 
-        Temporarily makes a fraction of aggregate-protected C available
-        for decomposition by increasing pool C (simulating physical
-        disruption of aggregates). Returns the total C released.
+        Sets a countdown timer that keeps protection at zero for
+        ``params.wet_dry_disruption_days``. During this window, all SOM
+        in the layer decomposes at unprotected rates (Birch effect).
+        No C is created or destroyed — only the rate multiplier changes.
 
         Ref: Birch (1958) — flush of decomposition after rewetting.
         """
-        if layer_idx < 0 or layer_idx >= len(self.state.layers):
-            return 0.0
-        layer = self.state.layers[layer_idx]
-        release = self.params.wet_dry_release_frac * max(0.0, min(1.0, intensity))
-        # Boost each pool's C by releasing "protected" fraction into decomposable
-        # This is modeled as a temporary increase in effective pool size
-        released_c = 0.0
-        for pool in (layer.labile, layer.intermediate, layer.stable):
-            boost = pool.c_kg_ha * release
-            pool.c_kg_ha += boost
-            released_c += boost
-        return released_c
+        if 0 <= layer_idx < len(self._disruption_days):
+            self._disruption_days[layer_idx] = self.params.wet_dry_disruption_days
 
     # ------------------------------------------------------------------
     # Environmental modifiers
@@ -284,13 +279,18 @@ class ThreePoolSOM:
     # Daily step
     # ------------------------------------------------------------------
 
-    def _protection_factor(self, base_frac: float, clay_pct: float) -> float:
+    def _protection_factor(
+        self, base_frac: float, clay_pct: float, layer_idx: int
+    ) -> float:
         """Compute effective protection rate reduction for a pool.
 
         Returns a multiplier in [1 - protection_reduction, 1.0] where
-        1.0 = no protection (sand) and lower = more protection (clay).
+        1.0 = no protection (sand/disrupted) and lower = more protection.
         Ref: Six et al. (2002) — aggregate stabilization and clay content.
         """
+        # During disruption, protection is disabled (Birch effect)
+        if self._disruption_days[layer_idx] > 0:
+            return 1.0
         scale = min(1.0, clay_pct / self.params.clay_protection_scale)
         protected = base_frac * scale
         return 1.0 - protected * self.params.protection_reduction
@@ -341,9 +341,19 @@ class ThreePoolSOM:
         total_c_before = layer.total_c
 
         # --- Aggregate protection rate multipliers (AGRO-104) ---
-        pf_lab = self._protection_factor(params.protection_frac_labile, clay_pct)
-        pf_int = self._protection_factor(params.protection_frac_intermediate, clay_pct)
-        pf_stb = self._protection_factor(params.protection_frac_stable, clay_pct)
+        pf_lab = self._protection_factor(
+            params.protection_frac_labile, clay_pct, layer_idx
+        )
+        pf_int = self._protection_factor(
+            params.protection_frac_intermediate, clay_pct, layer_idx
+        )
+        pf_stb = self._protection_factor(
+            params.protection_frac_stable, clay_pct, layer_idx
+        )
+
+        # Decrement disruption counter
+        if self._disruption_days[layer_idx] > 0:
+            self._disruption_days[layer_idx] -= 1
 
         # --- Decompose each pool via helper ---
         pool_specs = [
