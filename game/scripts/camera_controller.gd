@@ -33,12 +33,12 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 
 
 func _zoom_in() -> void:
-	var new_zoom := min(zoom.x + ZOOM_STEP, ZOOM_MAX)
+	var new_zoom: float = min(zoom.x + ZOOM_STEP, ZOOM_MAX)
 	zoom = Vector2(new_zoom, new_zoom)
 
 
 func _zoom_out() -> void:
-	var new_zoom := max(zoom.x - ZOOM_STEP, ZOOM_MIN)
+	var new_zoom: float = max(zoom.x - ZOOM_STEP, ZOOM_MIN)
 	zoom = Vector2(new_zoom, new_zoom)
 
 
