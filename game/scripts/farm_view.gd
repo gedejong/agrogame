@@ -14,16 +14,32 @@ const TILE_HEIGHT := 32
 const GRID_COLS := 6
 const GRID_ROWS := 4
 
-## Soil type colors for tile tinting
-const SOIL_COLORS := {
-	"sandy": Color(0.83, 0.72, 0.59),
-	"loam": Color(0.55, 0.45, 0.33),
-	"clay": Color(0.36, 0.25, 0.20),
+## Tile texture paths by soil type
+const TILE_TEXTURES := {
+	"sandy": "res://assets/tiles/tile_sandy.svg",
+	"loam": "res://assets/tiles/tile_loam.svg",
+	"clay": "res://assets/tiles/tile_clay.svg",
+}
+
+## Crop sprite paths by stage
+const CROP_TEXTURES := {
+	CropStage.SEEDLING: "res://assets/crops/maize_seedling.svg",
+	CropStage.VEGETATIVE: "res://assets/crops/maize_vegetative.svg",
+	CropStage.FLOWERING: "res://assets/crops/maize_flowering.svg",
+	CropStage.MATURE: "res://assets/crops/maize_mature.svg",
+}
+
+## Stress overlay textures
+const STRESS_TEXTURES := {
+	StressState.WILTING: "res://assets/crops/maize_wilting.svg",
+	StressState.N_DEFICIENT: "res://assets/crops/maize_ndeficient.svg",
 }
 
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
+var _tile_sprites: Array[Sprite2D] = []
+var _crop_sprites: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
 
@@ -41,13 +57,22 @@ func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
 	season_button.pressed.connect(_on_season_pressed)
+	_load_selection_texture()
 	selection_indicator.visible = false
 	_init_grid()
 	status_label.text = "Click a tile to select. Press 'Run Season' to simulate."
 
 
+func _load_selection_texture() -> void:
+	var tex: Texture2D = load("res://assets/tiles/tile_selected.svg")
+	if tex:
+		selection_indicator.texture = tex
+
+
 func _init_grid() -> void:
 	_tile_data.clear()
+	_tile_sprites.clear()
+	_crop_sprites.clear()
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			var soil_type := "loam"
@@ -55,19 +80,62 @@ func _init_grid() -> void:
 				soil_type = "sandy"
 			elif col >= 4:
 				soil_type = "clay"
-			(
-				_tile_data
-				. append(
-					{
-						"col": col,
-						"row": row,
-						"soil_type": soil_type,
-						"crop_stage": CropStage.NONE,
-						"stress": StressState.NONE,
-						"grain_g_m2": 0.0,
-					}
-				)
+			_tile_data.append(
+				{
+					"col": col,
+					"row": row,
+					"soil_type": soil_type,
+					"crop_stage": CropStage.NONE,
+					"stress": StressState.NONE,
+					"grain_g_m2": 0.0,
+				}
 			)
+			_create_tile_sprite(col, row, soil_type)
+			_create_crop_sprite(col, row)
+
+
+func _create_tile_sprite(col: int, row: int, soil_type: String) -> void:
+	var sprite := Sprite2D.new()
+	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["loam"])
+	var tex: Texture2D = load(tex_path)
+	if tex:
+		sprite.texture = tex
+	sprite.position = _tile_to_world(col, row)
+	sprite.z_index = row + col
+	tile_map.add_child(sprite)
+	_tile_sprites.append(sprite)
+
+
+func _create_crop_sprite(col: int, row: int) -> void:
+	var sprite := Sprite2D.new()
+	sprite.position = _tile_to_world(col, row) + Vector2(0, -8)
+	sprite.z_index = row + col + 1
+	sprite.visible = false
+	crop_layer.add_child(sprite)
+	_crop_sprites.append(sprite)
+
+
+func _update_crop_visuals(idx: int) -> void:
+	if idx < 0 or idx >= _crop_sprites.size():
+		return
+	var data: Dictionary = _tile_data[idx]
+	var stage: int = data["crop_stage"]
+	var stress: int = data["stress"]
+	var sprite: Sprite2D = _crop_sprites[idx]
+	if stress != StressState.NONE and STRESS_TEXTURES.has(stress):
+		var tex: Texture2D = load(STRESS_TEXTURES[stress])
+		if tex:
+			sprite.texture = tex
+			sprite.visible = true
+		return
+	if stage == CropStage.NONE:
+		sprite.visible = false
+		return
+	if CROP_TEXTURES.has(stage):
+		var tex: Texture2D = load(CROP_TEXTURES[stage])
+		if tex:
+			sprite.texture = tex
+			sprite.visible = true
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -130,13 +198,17 @@ func get_tile_data(col: int, row: int) -> Dictionary:
 func set_crop_stage(col: int, row: int, stage: int) -> void:
 	if col < 0 or col >= GRID_COLS or row < 0 or row >= GRID_ROWS:
 		return
-	_tile_data[row * GRID_COLS + col]["crop_stage"] = stage
+	var idx := row * GRID_COLS + col
+	_tile_data[idx]["crop_stage"] = stage
+	_update_crop_visuals(idx)
 
 
 func set_stress_state(col: int, row: int, stress: int) -> void:
 	if col < 0 or col >= GRID_COLS or row < 0 or row >= GRID_ROWS:
 		return
-	_tile_data[row * GRID_COLS + col]["stress"] = stress
+	var idx := row * GRID_COLS + col
+	_tile_data[idx]["stress"] = stress
+	_update_crop_visuals(idx)
 
 
 func _on_season_pressed() -> void:
@@ -180,6 +252,6 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 		return
 	var total_days: int = data.get("total_days", 0)
 	status_label.text = "Season complete: %d days" % total_days
-	# Update all tiles to mature/harvested state
 	for i in range(_tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
+		_update_crop_visuals(i)
