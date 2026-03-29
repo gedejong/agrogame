@@ -89,3 +89,16 @@ repos:
         pass_filenames: false
         stages: [push]
 
+  # GDScript quality (Godot game client)
+  - repo: local
+    hooks:
+      - id: gdlint
+        name: gdlint (GDScript)
+        entry: gdlint
+        language: system
+        files: '\.gd$'
+      - id: gdformat-check
+        name: gdformat (GDScript)
+        entry: gdformat --check
+        language: system
+        files: '\.gd$'

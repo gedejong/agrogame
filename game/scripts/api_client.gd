@@ -17,18 +17,26 @@ func _ready() -> void:
 func create_game(callback: Callable) -> void:
 	"""POST /api/v1/games with default field config."""
 	_callback = callback
-	var body := JSON.stringify({
-		"fields": [{
-			"field_id": "field_1",
-			"patches": [{
-				"soil_profile_key": "loam_temperate",
-				"crop_key": "maize",
-				"climate_key": "netherlands_temperate",
-				"area_fraction": 1.0
-			}]
-		}],
-		"starting_credits": 10000
-	})
+	var body := JSON.stringify(
+		{
+			"fields":
+			[
+				{
+					"field_id": "field_1",
+					"patches":
+					[
+						{
+							"soil_profile_key": "loam_temperate",
+							"crop_key": "maize",
+							"climate_key": "netherlands_temperate",
+							"area_fraction": 1.0
+						}
+					]
+				}
+			],
+			"starting_credits": 10000
+		}
+	)
 	var headers := ["Content-Type: application/json"]
 	_http_request.request(BASE_URL + "/games", headers, HTTPClient.METHOD_POST, body)
 

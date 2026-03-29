@@ -1,6 +1,6 @@
 PY=poetry run python
 
-.PHONY: plots plots-core plots-microbes plots-events lint test ci build-game export-game serve-api
+.PHONY: plots plots-core plots-microbes plots-events lint test ci build-game export-game serve-api lint-game test-game
 
 plots-core:
 	$(PY) scripts/plot_full_integration.py
@@ -39,6 +39,13 @@ test:
 ci: lint test
 
 # --- Godot game client ---
+lint-game:
+	gdlint game/scripts/*.gd
+	gdformat --check game/scripts/*.gd
+
+test-game:
+	cd game && godot --headless --script res://tests/test_api_client.gd
+
 build-game:
 	cd game && godot --headless --quit
 

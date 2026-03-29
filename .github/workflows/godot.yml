@@ -13,8 +13,27 @@ on:
       - '.github/workflows/godot.yml'
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install gdtoolkit
+        run: pip install gdtoolkit
+
+      - name: Lint GDScript
+        run: gdlint game/scripts/*.gd
+
+      - name: Check GDScript formatting
+        run: gdformat --check game/scripts/*.gd
+
   build:
     runs-on: ubuntu-latest
+    needs: lint
     steps:
       - uses: actions/checkout@v4
 
@@ -28,12 +47,8 @@ jobs:
         run: |
           cd game
           godot --headless --quit 2>&1 || true
-          echo "Godot project validated"
 
-      - name: Check GDScript syntax
+      - name: Run GDScript tests
         run: |
           cd game
-          for f in scripts/*.gd; do
-            echo "Checking $f..."
-            godot --headless --check-only --script "res://$f" 2>&1 || true
-          done
+          godot --headless --script res://tests/test_api_client.gd 2>&1

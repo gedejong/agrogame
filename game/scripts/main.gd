@@ -2,9 +2,10 @@ extends Control
 ## Main menu — minimal connectivity proof for AGRO-113.
 ## "New Game" button calls GET /api/v1/games via the ApiClient.
 
+var api_client: Node
+
 @onready var new_game_button: Button = $VBoxContainer/NewGameButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
-var api_client: Node
 
 
 func _ready() -> void:
