@@ -25,6 +25,7 @@ func _on_game_created(success: bool, data: Dictionary) -> void:
 	new_game_button.disabled = false
 	if success:
 		var game_id = data.get("game_id", "unknown")
-		status_label.text = "Game created: %s" % game_id
+		status_label.text = "Game created: %s — loading farm..." % game_id
+		get_tree().change_scene_to_file("res://scenes/farm_view.tscn")
 	else:
 		status_label.text = "Error: could not reach backend"
