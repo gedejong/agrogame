@@ -1,6 +1,12 @@
 # ADR-005: Frontend Architecture
 
-## Status: Proposed
+## Status: Accepted
+
+**Update (AGRO-113):** Monorepo structure — Godot project lives in `game/`
+alongside the Python simulation. GDScript is the primary scripting language
+(Python-like, accessible to the team). C# available for performance-critical
+rendering paths via Godot's C# support. Path-filtered CI ensures Python and
+Godot jobs run independently.
 
 ## Context
 

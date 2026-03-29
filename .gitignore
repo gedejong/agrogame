@@ -39,3 +39,9 @@ test-results/
 
 # Reference materials (large, not part of build)
 references/
+
+# Godot
+game/.godot/
+game/.mono/
+game/bin/
+*.import

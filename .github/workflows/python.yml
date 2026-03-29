@@ -1,10 +1,24 @@
-name: CI
+name: Python CI
 
 on:
   push:
     branches: [ main, develop, 'feat/**' ]
+    paths:
+      - 'agrogame/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/python.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - 'agrogame/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - '.github/workflows/python.yml'
   release:
     types: [ published ]
 

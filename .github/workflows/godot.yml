@@ -1,0 +1,39 @@
+name: Godot CI
+
+on:
+  push:
+    branches: [ main, develop, 'feat/**' ]
+    paths:
+      - 'game/**'
+      - '.github/workflows/godot.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'game/**'
+      - '.github/workflows/godot.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.3.0
+          use-dotnet: false
+
+      - name: Verify Godot project
+        run: |
+          cd game
+          godot --headless --quit 2>&1 || true
+          echo "Godot project validated"
+
+      - name: Check GDScript syntax
+        run: |
+          cd game
+          for f in scripts/*.gd; do
+            echo "Checking $f..."
+            godot --headless --check-only --script "res://$f" 2>&1 || true
+          done

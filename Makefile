@@ -1,6 +1,6 @@
 PY=poetry run python
 
-.PHONY: plots plots-core plots-microbes plots-events lint test ci
+.PHONY: plots plots-core plots-microbes plots-events lint test ci build-game export-game serve-api
 
 plots-core:
 	$(PY) scripts/plot_full_integration.py
@@ -38,4 +38,13 @@ test:
 
 ci: lint test
 
+# --- Godot game client ---
+build-game:
+	cd game && godot --headless --quit
 
+export-game:
+	cd game && godot --headless --export-release "Linux" ../out/agrogame
+
+# --- API server ---
+serve-api:
+	poetry run uvicorn agrogame.api.app:create_app --factory --reload --port 8000
