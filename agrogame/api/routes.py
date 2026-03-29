@@ -220,14 +220,30 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
     return {"status": "revised", "from_day": req.from_day}
 
 
+# In-memory save slots — disk persistence deferred to AGRO-36
+_save_slots: dict[str, dict] = {}
+
+
 @router.post("/games/{game_id}/save")
 def save_game(game_id: str) -> dict:
-    """Save game to disk (stub — awaits AGRO-36)."""
-    _get_session(game_id)
-    raise HTTPException(501, "Save not implemented yet (AGRO-36)")
+    """Save game state to an in-memory slot."""
+    s = _get_session(game_id)
+    _save_slots[game_id] = {
+        "field_manager": s.field_manager.to_dict(),
+        "ledger": s.ledger.to_dict(),
+        "game_id": game_id,
+    }
+    return {"status": "saved", "game_id": game_id}
 
 
 @router.post("/games/{game_id}/load")
 def load_game(game_id: str) -> dict:
-    """Load game from disk (stub — awaits AGRO-36)."""
-    raise HTTPException(501, "Load not implemented yet (AGRO-36)")
+    """Load game state from an in-memory save slot."""
+    if game_id not in _save_slots:
+        raise HTTPException(404, f"No save found for {game_id}")
+    save = _save_slots[game_id]
+    fm = FieldManager.from_dict(save["field_manager"])
+    ledger = EconomicLedger.from_dict(save["ledger"])
+    session = GameSession(game_id=game_id, field_manager=fm, ledger=ledger)
+    games[game_id] = session
+    return {"status": "loaded", "game_id": game_id}

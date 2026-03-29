@@ -136,17 +136,36 @@ def test_get_nonexistent_game(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC: save and load stubs return 501
+# AC: save and load round-trip via API
 # ---------------------------------------------------------------------------
-def test_save_returns_501(client) -> None:
+def test_save_and_load_roundtrip(client) -> None:
+    """Save a game, load it back, verify state preserved."""
     game_id = _create_game(client)
+
+    # Run a short season to change state
+    client.post(f"/api/v1/games/{game_id}/start-season?days=10&seed=42")
+
+    # Get state before save
+    status_before = client.get(f"/api/v1/games/{game_id}/status").json()
+
+    # Save
     resp = client.post(f"/api/v1/games/{game_id}/save")
-    assert resp.status_code == 501
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "saved"
+
+    # Load
+    resp = client.post(f"/api/v1/games/{game_id}/load")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "loaded"
+
+    # Verify state restored
+    status_after = client.get(f"/api/v1/games/{game_id}").json()
+    assert status_after["balance_credits"] == status_before["balance_credits"]
 
 
-def test_load_returns_501(client) -> None:
-    resp = client.post("/api/v1/games/any-id/load")
-    assert resp.status_code == 501
+def test_load_nonexistent_save_returns_404(client) -> None:
+    resp = client.post("/api/v1/games/no-save/load")
+    assert resp.status_code == 404
 
 
 # ---------------------------------------------------------------------------
