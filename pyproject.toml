@@ -125,3 +125,4 @@ path = "agrogame/config/schemas/*.json"
 
 [tool.poetry.extras]
 dashboard = ["plotly", "streamlit"]
+api = ["fastapi", "uvicorn"]
