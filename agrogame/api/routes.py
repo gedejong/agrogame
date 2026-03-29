@@ -1,0 +1,211 @@
+"""FastAPI routes for the game API (ADR-005, AGRO-111)."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import date
+from pathlib import Path
+
+from fastapi import APIRouter, HTTPException
+
+from agrogame.api.models import (
+    CreateGameRequest,
+    GameCreatedResponse,
+    GameStatusResponse,
+    PatchResultResponse,
+    PauseEventResponse,
+    PlanRequest,
+    ReviseRequest,
+    SeasonResultResponse,
+)
+from agrogame.api.state import GameSession, games
+from agrogame.game.economy import EconomicLedger
+from agrogame.game.field import FieldManager, PatchConfig
+from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
+from agrogame.sim.management import ManagementEvent, ManagementPlan
+from agrogame.weather.generator import SyntheticWeatherGenerator
+from agrogame.weather.presets import load_climate_presets
+
+router = APIRouter(prefix="/api/v1")
+
+
+def _get_session(game_id: str) -> GameSession:
+    if game_id not in games:
+        raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
+    return games[game_id]
+
+
+@router.post("/games", response_model=GameCreatedResponse)
+def create_game(req: CreateGameRequest) -> GameCreatedResponse:
+    """Create a new game session."""
+    game_id = str(uuid.uuid4())[:8]
+    fm = FieldManager()
+    for fc in req.fields:
+        patches = [
+            PatchConfig(
+                soil_profile_key=p.soil_profile_key,
+                crop_key=p.crop_key,
+                climate_key=p.climate_key,
+                area_fraction=p.area_fraction,
+            )
+            for p in fc.patches
+        ]
+        fm.add_field(fc.field_id, patches)
+
+    ledger = EconomicLedger(balance_credits=req.starting_credits)
+    session = GameSession(game_id=game_id, field_manager=fm, ledger=ledger)
+    games[game_id] = session
+    return GameCreatedResponse(
+        game_id=game_id,
+        phase="planning",
+        balance_credits=ledger.balance_credits,
+        field_count=len(fm.fields),
+    )
+
+
+@router.get("/games/{game_id}", response_model=GameStatusResponse)
+def get_game(game_id: str) -> GameStatusResponse:
+    """Get current game state."""
+    s = _get_session(game_id)
+    phase = "planning"
+    current_day = 0
+    if s.turn_manager:
+        phase = s.turn_manager.phase.value
+        current_day = s.turn_manager.current_day
+    return GameStatusResponse(
+        game_id=game_id,
+        phase=phase,
+        current_day=current_day,
+        balance_credits=s.ledger.balance_credits,
+        pause_events=[
+            PauseEventResponse(day=pe.day, reason=pe.reason.value, message=pe.message)
+            for pe in s.pause_events
+        ],
+    )
+
+
+@router.post("/games/{game_id}/plan")
+def submit_plan(game_id: str, req: PlanRequest) -> dict:
+    """Submit a management plan for a field."""
+    s = _get_session(game_id)
+    if req.field_id not in s.field_manager.fields:
+        raise HTTPException(404, f"Field {req.field_id} not found")
+    plan = ManagementPlan(
+        events=[
+            ManagementEvent(day=e.day, action=e.action, params=e.params)
+            for e in req.events
+        ]
+    )
+    field = s.field_manager.fields[req.field_id]
+    for patch in field.patches:
+        patch.orch.management_plan = plan
+    return {"status": "plan_accepted", "event_count": len(plan.events)}
+
+
+@router.post("/games/{game_id}/start-season")
+def start_season(game_id: str, days: int = 150, seed: int = 42) -> dict:
+    """Run the season synchronously."""
+    s = _get_session(game_id)
+    if not s.field_manager.fields:
+        raise HTTPException(400, "No fields configured")
+
+    # Generate weather from first field's climate
+    first_field = next(iter(s.field_manager.fields.values()))
+    climate_key = first_field.patches[0].config.climate_key
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    climate = climates.climates[climate_key]
+    gen = SyntheticWeatherGenerator(climate, seed=seed)
+    series = gen.generate(days, date(2024, 4, 1))
+    s.weather = series.records
+
+    # Create turn manager for first field's first patch (simplified V1)
+    first_patch = first_field.patches[0]
+    plan = first_patch.orch.management_plan
+    tm = GameTurnManager(
+        orch=first_patch.orch,
+        weather=s.weather,
+        plan=plan,
+        pause_config=PauseConfig(),
+        crop_key=first_patch.config.crop_key,
+    )
+    s.turn_manager = tm
+    s.pause_events = []
+
+    # Run season — collect pause events
+    for pause in tm.run_season():
+        s.pause_events.append(pause)
+
+    return {
+        "status": "completed" if tm.phase == SeasonPhase.SETTLING else tm.phase.value,
+        "total_days": tm.current_day,
+        "pause_count": tm.pause_count,
+    }
+
+
+@router.get("/games/{game_id}/status", response_model=GameStatusResponse)
+def get_status(game_id: str) -> GameStatusResponse:
+    """Get current phase, pause events, or season result."""
+    s = _get_session(game_id)
+    phase = "planning"
+    current_day = 0
+    season_result = None
+
+    if s.turn_manager:
+        phase = s.turn_manager.phase.value
+        current_day = s.turn_manager.current_day
+        if s.turn_manager.result:
+            r = s.turn_manager.result
+            field_results: dict[str, list[PatchResultResponse]] = {}
+            for fid, field in s.field_manager.fields.items():
+                field_results[fid] = [
+                    PatchResultResponse(
+                        patch_idx=i,
+                        crop_key=p.config.crop_key,
+                        grain_g_m2=p.orch.canopy.state.grain_biomass_g_m2,
+                        grain_kg_ha=p.orch.canopy.state.grain_biomass_g_m2 * 10,
+                    )
+                    for i, p in enumerate(field.patches)
+                ]
+            season_result = SeasonResultResponse(
+                total_days=r.total_days,
+                pause_count=r.pause_count,
+                field_results=field_results,
+            )
+
+    return GameStatusResponse(
+        game_id=game_id,
+        phase=phase,
+        current_day=current_day,
+        balance_credits=s.ledger.balance_credits,
+        pause_events=[
+            PauseEventResponse(day=pe.day, reason=pe.reason.value, message=pe.message)
+            for pe in s.pause_events
+        ],
+        season_result=season_result,
+    )
+
+
+@router.post("/games/{game_id}/revise")
+def revise_plan(game_id: str, req: ReviseRequest) -> dict:
+    """Mid-season plan adjustment."""
+    s = _get_session(game_id)
+    if not s.turn_manager:
+        raise HTTPException(400, "No active season")
+    new_events = [
+        ManagementEvent(day=e.day, action=e.action, params=e.params) for e in req.events
+    ]
+    s.turn_manager.revise_plan(req.from_day, new_events)
+    return {"status": "revised", "from_day": req.from_day}
+
+
+@router.post("/games/{game_id}/save")
+def save_game(game_id: str) -> dict:
+    """Save game to disk (stub — awaits AGRO-36)."""
+    _get_session(game_id)
+    raise HTTPException(501, "Save not implemented yet (AGRO-36)")
+
+
+@router.post("/games/{game_id}/load")
+def load_game(game_id: str) -> dict:
+    """Load game from disk (stub — awaits AGRO-36)."""
+    raise HTTPException(501, "Load not implemented yet (AGRO-36)")

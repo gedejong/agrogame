@@ -53,7 +53,7 @@ def _read_autorun_default() -> bool:
         autorun_param = str(getattr(st, "query_params", {}).get("autorun", "0"))
     except Exception:
         try:
-            autorun_param = st.experimental_get_query_params().get("autorun", ["0"])[0]
+            autorun_param = st.query_params.get("autorun", "0")
         except Exception:
             autorun_param = "0"
     return autorun_param == "1"
