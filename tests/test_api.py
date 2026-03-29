@@ -6,10 +6,10 @@ import importlib.util
 
 import pytest
 
-# Skip all tests if fastapi not installed
+# Skip all tests if fastapi or httpx not installed
 pytestmark = pytest.mark.skipif(
-    not importlib.util.find_spec("fastapi"),
-    reason="fastapi not installed",
+    not importlib.util.find_spec("fastapi") or not importlib.util.find_spec("httpx"),
+    reason="fastapi or httpx not installed",
 )
 
 

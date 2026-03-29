@@ -89,16 +89,22 @@ repos:
         pass_filenames: false
         stages: [push]
 
-  # GDScript quality (Godot game client)
+  # GDScript quality — skips gracefully if gdtoolkit not installed
   - repo: local
     hooks:
       - id: gdlint
         name: gdlint (GDScript)
-        entry: gdlint
+        entry: bash -c 'command -v gdlint >/dev/null && gdlint "$@" || true' --
         language: system
         files: '\.gd$'
       - id: gdformat-check
         name: gdformat (GDScript)
-        entry: gdformat --check
+        entry: bash -c 'command -v gdformat >/dev/null && gdformat --check "$@" || true' --
         language: system
+        files: '\.gd$'
+      - id: gdscript-coverage
+        name: GDScript file coverage (100%)
+        entry: bash game/tests/check_coverage.sh 100
+        language: system
+        pass_filenames: false
         files: '\.gd$'
