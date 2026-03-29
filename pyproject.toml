@@ -112,6 +112,8 @@ ignore = ["tests/*", "docs/*", "out/*"]
 known_first_party = ["agrogame"]
 exclude = ["tests", "docs", "build", "dist", "out", ".cache", "scripts", "agrogame/plots"]
 ignore_notebooks = true
+[tool.deptry.per_rule_ignores]
+DEP002 = ["uvicorn"]  # CLI tool, not imported directly
 
 [build-system]
 requires = ["poetry-core>=2.0.0"]
