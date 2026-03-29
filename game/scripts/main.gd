@@ -1,6 +1,6 @@
 extends Control
 ## Main menu — minimal connectivity proof for AGRO-113.
-## "New Game" button calls GET /api/v1/games via the ApiClient.
+## "New Game" button calls POST /api/v1/games via the ApiClient.
 
 var api_client: Node
 
