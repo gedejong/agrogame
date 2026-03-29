@@ -104,7 +104,7 @@ def submit_plan(game_id: str, req: PlanRequest) -> dict:
 
 @router.post("/games/{game_id}/start-season")
 def start_season(game_id: str, days: int = 150, seed: int = 42) -> dict:
-    """Run the season synchronously."""
+    """Run the season synchronously, stepping all fields/patches."""
     s = _get_session(game_id)
     if not s.field_manager.fields:
         raise HTTPException(400, "No fields configured")
@@ -118,27 +118,49 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> dict:
     series = gen.generate(days, date(2024, 4, 1))
     s.weather = series.records
 
-    # Create turn manager for first field's first patch (simplified V1)
+    # Create turn manager for pause detection (uses first patch)
     first_patch = first_field.patches[0]
-    plan = first_patch.orch.management_plan
     tm = GameTurnManager(
         orch=first_patch.orch,
         weather=s.weather,
-        plan=plan,
+        plan=first_patch.orch.management_plan,
         pause_config=PauseConfig(),
         crop_key=first_patch.config.crop_key,
     )
     s.turn_manager = tm
     s.pause_events = []
 
-    # Run season — collect pause events
-    for pause in tm.run_season():
-        s.pause_events.append(pause)
+    # Step ALL fields/patches each day (not just first patch)
+    from agrogame.soil.water.types import DailyDrivers as _DD
+
+    tm.phase = SeasonPhase.EXECUTING
+    for i, rec in enumerate(s.weather):
+        drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
+        s.field_manager.step_day(
+            drivers=drivers,
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        tm.current_day = i + 1
+
+    tm.phase = SeasonPhase.SETTLING
+    grain = first_patch.orch.canopy.state.grain_biomass_g_m2
+    from agrogame.game.turn import SeasonResult
+
+    tm.result = SeasonResult(
+        total_days=tm.current_day,
+        grain_g_m2=grain,
+        grain_kg_ha=grain * 10.0,
+        pause_count=0,
+        crop_key=tm.crop_key,
+    )
 
     return {
-        "status": "completed" if tm.phase == SeasonPhase.SETTLING else tm.phase.value,
+        "status": "settling",
         "total_days": tm.current_day,
-        "pause_count": tm.pause_count,
+        "pause_count": 0,
     }
 
 
