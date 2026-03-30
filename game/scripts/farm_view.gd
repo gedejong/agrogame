@@ -80,15 +80,18 @@ func _init_grid() -> void:
 				soil_type = "sandy"
 			elif col >= 4:
 				soil_type = "clay"
-			_tile_data.append(
-				{
-					"col": col,
-					"row": row,
-					"soil_type": soil_type,
-					"crop_stage": CropStage.NONE,
-					"stress": StressState.NONE,
-					"grain_g_m2": 0.0,
-				}
+			(
+				_tile_data
+				. append(
+					{
+						"col": col,
+						"row": row,
+						"soil_type": soil_type,
+						"crop_stage": CropStage.NONE,
+						"stress": StressState.NONE,
+						"grain_g_m2": 0.0,
+					}
+				)
 			)
 			_create_tile_sprite(col, row, soil_type)
 			_create_crop_sprite(col, row)
