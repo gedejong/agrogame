@@ -44,7 +44,7 @@ lint-game:
 	gdformat --check game/scripts/*.gd
 
 test-game:
-	cd game && godot --headless --script res://tests/test_api_client.gd
+	cd game && godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
 
 build-game:
 	cd game && godot --headless --quit

@@ -39,9 +39,23 @@ jobs:
       - name: Check file-level test coverage (100%)
         run: bash game/tests/check_coverage.sh 100
 
-  build:
+  test:
     runs-on: ubuntu-latest
     needs: [lint, coverage]
+    container:
+      image: barichello/godot-ci:4.6.1
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run GUT tests
+        run: |
+          cd game
+          godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
+        timeout-minutes: 5
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [test]
     steps:
       - uses: actions/checkout@v4
 
