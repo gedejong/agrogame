@@ -67,6 +67,7 @@ func _ready() -> void:
 func _create_tile_set() -> TileSet:
 	var ts := TileSet.new()
 	ts.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
+	ts.tile_layout = TileSet.TILE_LAYOUT_DIAMOND_RIGHT
 	ts.tile_size = Vector2i(TILE_WIDTH, TILE_HEIGHT)
 	for i in range(SOIL_TYPES.size()):
 		var source := TileSetAtlasSource.new()
@@ -96,9 +97,9 @@ func _init_grid() -> void:
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			var soil_type := "organic"
-			if row < 2:
+			if col < 2:
 				soil_type = "sandy"
-			elif row >= 4:
+			elif col >= 4:
 				soil_type = "clay"
 			(
 				_tile_data
