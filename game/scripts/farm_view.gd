@@ -67,7 +67,6 @@ func _ready() -> void:
 func _create_tile_set() -> TileSet:
 	var ts := TileSet.new()
 	ts.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
-	ts.tile_layout = TileSet.TILE_LAYOUT_STACKED
 	ts.tile_size = Vector2i(TILE_WIDTH, TILE_HEIGHT)
 	for i in range(SOIL_TYPES.size()):
 		var source := TileSetAtlasSource.new()
