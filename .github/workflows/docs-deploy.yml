@@ -20,10 +20,16 @@ jobs:
         uses: abatilo/actions-poetry@v3
         with:
           poetry-version: '2.1.3'
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-docs-${{ runner.os }}-py3.11-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            poetry-docs-${{ runner.os }}-py3.11-
       - name: Configure Poetry
         run: poetry config virtualenvs.create true
       - name: Install dependencies
         run: poetry install --no-interaction --with dev
       - name: Deploy to GitHub Pages
         run: poetry run mkdocs gh-deploy --force
-

@@ -27,14 +27,19 @@ jobs:
         with:
           poetry-version: '1.7.1'
 
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-bench-${{ runner.os }}-py3.10-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            poetry-bench-${{ runner.os }}-py3.10-
+
       - name: Install deps
-        run: |
-          poetry install --no-interaction
+        run: poetry install --no-interaction
 
       - name: Run benchmark tests
         env:
           AGRO_BENCH: '1'
         run: |
           poetry run pytest -q -k benchmarks --cov=agrogame --cov-report=term-missing --cov-fail-under=60
-
-

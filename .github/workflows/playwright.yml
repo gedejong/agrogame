@@ -21,13 +21,27 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: poetry-e2e-${{ runner.os }}-py3.10-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            poetry-e2e-${{ runner.os }}-py3.10-
       - name: Install Python deps
-        run: |
-          poetry install -E dashboard
+        run: poetry install -E dashboard
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: 'npm'
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Install Playwright deps
         run: |
           npm ci
@@ -38,4 +52,3 @@ jobs:
           STREAMLIT_BROWSER_GATHER_USAGE_STATS: 'false'
         run: |
           npx playwright test --config=playwright.config.ts
-

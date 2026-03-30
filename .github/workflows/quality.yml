@@ -22,6 +22,22 @@ jobs:
       - name: Install Poetry
         run: pipx install poetry
 
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-quality-${{ runner.os }}-py3.10-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            poetry-quality-${{ runner.os }}-py3.10-
+
+      - name: Cache pre-commit hooks
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py3.10-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-${{ runner.os }}-py3.10-
+
       - name: Install dependencies (with dev)
         run: poetry install --with dev
 
@@ -39,4 +55,3 @@ jobs:
 
       - name: Vulture (report-only)
         run: poetry run vulture agrogame --min-confidence 80
-
