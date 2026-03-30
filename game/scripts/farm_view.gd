@@ -17,7 +17,7 @@ const GRID_ROWS := 4
 ## Tile texture paths by soil type
 const TILE_TEXTURES := {
 	"sandy": "res://assets/tiles/tile_sandy.svg",
-	"loam": "res://assets/tiles/tile_loam.svg",
+	"organic": "res://assets/tiles/tile_organic.svg",
 	"clay": "res://assets/tiles/tile_clay.svg",
 }
 
@@ -75,7 +75,7 @@ func _init_grid() -> void:
 	_crop_sprites.clear()
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
-			var soil_type := "loam"
+			var soil_type := "organic"
 			if col < 2:
 				soil_type = "sandy"
 			elif col >= 4:
@@ -99,7 +99,7 @@ func _init_grid() -> void:
 
 func _create_tile_sprite(col: int, row: int, soil_type: String) -> void:
 	var sprite := Sprite2D.new()
-	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["loam"])
+	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["organic"])
 	var tex: Texture2D = load(tex_path)
 	if tex:
 		sprite.texture = tex
@@ -254,7 +254,32 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 		status_label.text = "Season failed — backend error"
 		return
 	var total_days: int = data.get("total_days", 0)
-	status_label.text = "Season complete: %d days" % total_days
-	for i in range(_tile_data.size()):
+	var field_results: Dictionary = data.get("field_results", {})
+	_apply_season_results(field_results)
+	var total_grain := _total_grain_g_m2()
+	status_label.text = "Season complete: %d days, yield %.0f g/m²" % [total_days, total_grain]
+
+
+func _apply_season_results(field_results: Dictionary) -> void:
+	## Parse per-patch grain_g_m2 from API response and update tile data.
+	var patch_idx := 0
+	for field_key: String in field_results:
+		var patches: Array = field_results[field_key]
+		for patch: Dictionary in patches:
+			if patch_idx < _tile_data.size():
+				var grain: float = patch.get("grain_g_m2", 0.0)
+				_tile_data[patch_idx]["grain_g_m2"] = grain
+				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
+				_update_crop_visuals(patch_idx)
+			patch_idx += 1
+	# If API returned fewer patches than tiles, mark remaining as mature
+	for i in range(patch_idx, _tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
 		_update_crop_visuals(i)
+
+
+func _total_grain_g_m2() -> float:
+	var total := 0.0
+	for tile: Dictionary in _tile_data:
+		total += tile.get("grain_g_m2", 0.0)
+	return total

@@ -14,18 +14,18 @@ func test_tile_dimensions() -> void:
 	assert_eq(FarmViewScript.TILE_HEIGHT, 32, "Isometric tile height = 32 (2:1)")
 
 
-func test_soil_colors_defined() -> void:
+func test_tile_textures_defined() -> void:
 	assert_true(
-		FarmViewScript.SOIL_COLORS.has("sandy"),
-		"Sandy soil color defined",
+		FarmViewScript.TILE_TEXTURES.has("sandy"),
+		"Sandy tile texture defined",
 	)
 	assert_true(
-		FarmViewScript.SOIL_COLORS.has("loam"),
-		"Loam soil color defined",
+		FarmViewScript.TILE_TEXTURES.has("organic"),
+		"Organic tile texture defined",
 	)
 	assert_true(
-		FarmViewScript.SOIL_COLORS.has("clay"),
-		"Clay soil color defined",
+		FarmViewScript.TILE_TEXTURES.has("clay"),
+		"Clay tile texture defined",
 	)
 
 

@@ -1,0 +1,2 @@
+# Vendored dependencies — exclude from GitHub language stats
+game/addons/gut/** linguist-vendored
