@@ -12,6 +12,9 @@ on:
       - 'game/**'
       - '.github/workflows/godot.yml'
 
+env:
+  GODOT_VERSION: "4.6.1"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -42,15 +45,23 @@ jobs:
   test:
     runs-on: ubuntu-latest
     needs: [lint, coverage]
-    container:
-      image: barichello/godot-ci:4.6.1
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Godot
+        id: install-godot
+        uses: chickensoft-games/setup-godot@v3
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+
+      - name: Regenerate Godot class DB
+        run: godot --editor --headless --quit || true
+        working-directory: game
+
       - name: Run GUT tests
-        run: |
-          cd game
-          godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
+        run: godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
+        working-directory: game
         timeout-minutes: 5
 
   build:
