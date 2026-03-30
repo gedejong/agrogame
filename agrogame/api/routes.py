@@ -17,16 +17,39 @@ from agrogame.api.models import (
     PlanRequest,
     ReviseRequest,
     SeasonResultResponse,
+    SoilStateResponse,
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger
-from agrogame.game.field import FieldManager, PatchConfig
+from agrogame.game.field import FieldManager, Patch, PatchConfig
 from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
 
 router = APIRouter(prefix="/api/v1")
+
+
+def _build_soil_state(patch: "Patch") -> SoilStateResponse:
+    """Build SoilStateResponse from a patch's current soil snapshot."""
+    snap = patch.orch.snapshot_soil()
+    som_total = (
+        sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
+    )
+    return SoilStateResponse(
+        water_theta=list(snap.water_theta),
+        n_no3=list(snap.n_no3),
+        n_nh4=list(snap.n_nh4),
+        n_organic=list(snap.n_organic),
+        p_available=list(snap.p_available),
+        ph=list(snap.ph),
+        som_labile_c=list(snap.som_labile_c),
+        som_intermediate_c=list(snap.som_intermediate_c),
+        som_stable_c=list(snap.som_stable_c),
+        microbe_c=list(snap.microbe_c),
+        som_total_c_g_m2=round(som_total, 2),
+        theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
+    )
 
 
 def _get_session(game_id: str) -> GameSession:
@@ -102,8 +125,8 @@ def submit_plan(game_id: str, req: PlanRequest) -> dict:
     return {"status": "plan_accepted", "event_count": len(plan.events)}
 
 
-@router.post("/games/{game_id}/start-season")
-def start_season(game_id: str, days: int = 150, seed: int = 42) -> dict:
+@router.post("/games/{game_id}/start-season", response_model=SeasonResultResponse)
+def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultResponse:
     """Run the season synchronously, stepping all fields/patches."""
     s = _get_session(game_id)
     if not s.field_manager.fields:
@@ -157,11 +180,25 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> dict:
         crop_key=tm.crop_key,
     )
 
-    return {
-        "status": "settling",
-        "total_days": tm.current_day,
-        "pause_count": 0,
-    }
+    # Build per-field, per-patch results with soil state
+    field_results: dict[str, list[PatchResultResponse]] = {}
+    for fid, fld in s.field_manager.fields.items():
+        field_results[fid] = [
+            PatchResultResponse(
+                patch_idx=i,
+                crop_key=p.config.crop_key,
+                grain_g_m2=p.orch.canopy.state.grain_biomass_g_m2,
+                grain_kg_ha=p.orch.canopy.state.grain_biomass_g_m2 * 10,
+                soil_state=_build_soil_state(p),
+            )
+            for i, p in enumerate(fld.patches)
+        ]
+
+    return SeasonResultResponse(
+        total_days=tm.current_day,
+        pause_count=0,
+        field_results=field_results,
+    )
 
 
 @router.get("/games/{game_id}/status", response_model=GameStatusResponse)
@@ -185,6 +222,7 @@ def get_status(game_id: str) -> GameStatusResponse:
                         crop_key=p.config.crop_key,
                         grain_g_m2=p.orch.canopy.state.grain_biomass_g_m2,
                         grain_kg_ha=p.orch.canopy.state.grain_biomass_g_m2 * 10,
+                        soil_state=_build_soil_state(p),
                     )
                     for i, p in enumerate(field.patches)
                 ]
