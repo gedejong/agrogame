@@ -1,7 +1,7 @@
 extends Node2D
-## Isometric farm view — main game screen (AGRO-114).
-## Displays patches as isometric tiles, crop growth sprites, and handles
-## tile selection, season execution, and weather overlay.
+## Isometric farm view — main game screen.
+## Uses TileMapLayer for the soil grid (AGRO-118), with crop sprites
+## and selection overlay on separate Node2D layers.
 
 ## Crop growth stage enum
 enum CropStage { NONE, SEEDLING, VEGETATIVE, FLOWERING, MATURE }
@@ -14,7 +14,8 @@ const TILE_HEIGHT := 32
 const GRID_COLS := 6
 const GRID_ROWS := 4
 
-## Tile texture paths by soil type
+## Soil types and their tile textures (order = TileSet source ID)
+const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const TILE_TEXTURES := {
 	"sandy": "res://assets/tiles/tile_sandy.svg",
 	"organic": "res://assets/tiles/tile_organic.svg",
@@ -38,12 +39,11 @@ const STRESS_TEXTURES := {
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
-var _tile_sprites: Array[Sprite2D] = []
 var _crop_sprites: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
 
-@onready var tile_map: Node2D = $TileLayer
+@onready var tile_layer: TileMapLayer = $TileLayer
 @onready var crop_layer: Node2D = $CropLayer
 @onready var selection_indicator: Sprite2D = $SelectionIndicator
 @onready var weather: Node = $UILayer/WeatherOverlay
@@ -59,8 +59,22 @@ func _ready() -> void:
 	season_button.pressed.connect(_on_season_pressed)
 	_load_selection_texture()
 	selection_indicator.visible = false
+	tile_layer.tile_set = _create_tile_set()
 	_init_grid()
 	status_label.text = ("Click tile to select. 1-4 crop stage, W wilt, N deficient, 0 clear.")
+
+
+func _create_tile_set() -> TileSet:
+	var ts := TileSet.new()
+	ts.tile_shape = TileSet.TILE_SHAPE_ISOMETRIC
+	ts.tile_size = Vector2i(TILE_WIDTH, TILE_HEIGHT)
+	for i in range(SOIL_TYPES.size()):
+		var source := TileSetAtlasSource.new()
+		source.texture = load(TILE_TEXTURES[SOIL_TYPES[i]])
+		source.texture_region_size = Vector2i(TILE_WIDTH, TILE_HEIGHT)
+		source.create_tile(Vector2i(0, 0))
+		ts.add_source(source, i)
+	return ts
 
 
 func _load_selection_texture() -> void:
@@ -69,9 +83,15 @@ func _load_selection_texture() -> void:
 		selection_indicator.texture = tex
 
 
+func _soil_source_id(soil_type: String) -> int:
+	var idx := SOIL_TYPES.find(soil_type)
+	if idx < 0:
+		return 1  # default to organic
+	return idx
+
+
 func _init_grid() -> void:
 	_tile_data.clear()
-	_tile_sprites.clear()
 	_crop_sprites.clear()
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
@@ -93,25 +113,14 @@ func _init_grid() -> void:
 					}
 				)
 			)
-			_create_tile_sprite(col, row, soil_type)
+			tile_layer.set_cell(Vector2i(col, row), _soil_source_id(soil_type), Vector2i(0, 0))
 			_create_crop_sprite(col, row)
-
-
-func _create_tile_sprite(col: int, row: int, soil_type: String) -> void:
-	var sprite := Sprite2D.new()
-	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["organic"])
-	var tex: Texture2D = load(tex_path)
-	if tex:
-		sprite.texture = tex
-	sprite.position = _tile_to_world(col, row)
-	sprite.z_index = row + col
-	tile_map.add_child(sprite)
-	_tile_sprites.append(sprite)
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
 	var sprite := Sprite2D.new()
-	sprite.position = _tile_to_world(col, row) + Vector2(0, -8)
+	var world_pos := tile_layer.map_to_local(Vector2i(col, row))
+	sprite.position = world_pos + Vector2(0, -8)
 	sprite.z_index = row + col + 1
 	sprite.visible = false
 	crop_layer.add_child(sprite)
@@ -145,7 +154,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			_handle_tile_click(mb.position)
+			_handle_tile_click()
 	elif event is InputEventKey:
 		var ke := event as InputEventKey
 		if ke.pressed:
@@ -175,10 +184,12 @@ func _handle_key(keycode: int) -> void:
 			set_stress_state(col, row, StressState.N_DEFICIENT)
 
 
-func _handle_tile_click(_screen_pos: Vector2) -> void:
+func _handle_tile_click() -> void:
 	var world_pos := get_global_mouse_position()
-	var col := _world_to_tile_col(world_pos)
-	var row := _world_to_tile_row(world_pos)
+	var local_pos := tile_layer.to_local(world_pos)
+	var map_pos := tile_layer.local_to_map(local_pos)
+	var col := map_pos.x
+	var row := map_pos.y
 	if col >= 0 and col < GRID_COLS and row >= 0 and row < GRID_ROWS:
 		_selected_tile = Vector2i(col, row)
 		_update_selection_indicator()
@@ -194,27 +205,9 @@ func _update_selection_indicator() -> void:
 		selection_indicator.visible = false
 		return
 	selection_indicator.visible = true
-	selection_indicator.position = _tile_to_world(_selected_tile.x, _selected_tile.y)
-	# Render above all tiles and crops
+	var local_pos := tile_layer.map_to_local(_selected_tile)
+	selection_indicator.position = tile_layer.position + local_pos
 	selection_indicator.z_index = GRID_COLS + GRID_ROWS + 10
-
-
-func _tile_to_world(col: int, row: int) -> Vector2:
-	var x := (col - row) * TILE_WIDTH / 2.0
-	var y := (col + row) * TILE_HEIGHT / 2.0
-	return Vector2(x + 300, y + 100)
-
-
-func _world_to_tile_col(world_pos: Vector2) -> int:
-	var adjusted := world_pos - Vector2(300, 100)
-	var col_f := adjusted.x / TILE_WIDTH + adjusted.y / TILE_HEIGHT
-	return int(round(col_f))
-
-
-func _world_to_tile_row(world_pos: Vector2) -> int:
-	var adjusted := world_pos - Vector2(300, 100)
-	var row_f := adjusted.y / TILE_HEIGHT - adjusted.x / TILE_WIDTH
-	return int(round(row_f))
 
 
 func get_selected_tile() -> Vector2i:
@@ -286,7 +279,7 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 	var field_results: Dictionary = data.get("field_results", {})
 	_apply_season_results(field_results)
 	var total_grain := _total_grain_g_m2()
-	status_label.text = "Season complete: %d days, yield %.0f g/m²" % [total_days, total_grain]
+	status_label.text = ("Season complete: %d days, yield %.0f g/m²" % [total_days, total_grain])
 
 
 func _apply_season_results(field_results: Dictionary) -> void:
@@ -301,7 +294,6 @@ func _apply_season_results(field_results: Dictionary) -> void:
 				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
 				_update_crop_visuals(patch_idx)
 			patch_idx += 1
-	# If API returned fewer patches than tiles, mark remaining as mature
 	for i in range(patch_idx, _tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
 		_update_crop_visuals(i)

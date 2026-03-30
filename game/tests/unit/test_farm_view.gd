@@ -1,5 +1,5 @@
 extends GutTest
-## Tests for the isometric farm view.
+## Tests for the isometric farm view with TileMapLayer.
 
 const FarmViewScript = preload("res://scripts/farm_view.gd")
 
@@ -14,21 +14,27 @@ func test_tile_dimensions() -> void:
 	assert_eq(FarmViewScript.TILE_HEIGHT, 32, "Isometric tile height = 32 (2:1)")
 
 
-func test_tile_textures_defined() -> void:
-	assert_true(
-		FarmViewScript.TILE_TEXTURES.has("sandy"),
-		"Sandy tile texture defined",
-	)
-	assert_true(
-		FarmViewScript.TILE_TEXTURES.has("organic"),
-		"Organic tile texture defined",
-	)
-	assert_true(
-		FarmViewScript.TILE_TEXTURES.has("clay"),
-		"Clay tile texture defined",
-	)
+func test_soil_types_defined() -> void:
+	assert_eq(FarmViewScript.SOIL_TYPES.size(), 3, "3 soil types")
+	assert_has(FarmViewScript.SOIL_TYPES, "sandy", "sandy in soil types")
+	assert_has(FarmViewScript.SOIL_TYPES, "organic", "organic in soil types")
+	assert_has(FarmViewScript.SOIL_TYPES, "clay", "clay in soil types")
+
+
+func test_tile_textures_match_soil_types() -> void:
+	for soil_type: String in FarmViewScript.SOIL_TYPES:
+		assert_true(
+			FarmViewScript.TILE_TEXTURES.has(soil_type),
+			"Texture defined for %s" % soil_type,
+		)
 
 
 func test_crop_stage_enum() -> void:
 	assert_eq(FarmViewScript.CropStage.NONE, 0, "NONE = 0")
 	assert_eq(FarmViewScript.CropStage.MATURE, 4, "MATURE = 4")
+
+
+func test_stress_state_enum() -> void:
+	assert_eq(FarmViewScript.StressState.NONE, 0, "NONE = 0")
+	assert_eq(FarmViewScript.StressState.WILTING, 1, "WILTING = 1")
+	assert_eq(FarmViewScript.StressState.N_DEFICIENT, 2, "N_DEFICIENT = 2")
