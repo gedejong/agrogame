@@ -12,7 +12,7 @@ enum StressState { NONE, WILTING, N_DEFICIENT }
 const TILE_WIDTH := 64
 const TILE_HEIGHT := 32
 const GRID_COLS := 6
-const GRID_ROWS := 4
+const GRID_ROWS := 6
 
 ## Soil types and their tile textures (order = TileSet source ID)
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
@@ -96,9 +96,9 @@ func _init_grid() -> void:
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			var soil_type := "organic"
-			if col < 2:
+			if row < 2:
 				soil_type = "sandy"
-			elif col >= 4:
+			elif row >= 4:
 				soil_type = "clay"
 			(
 				_tile_data

@@ -6,7 +6,7 @@ const FarmViewScript = preload("res://scripts/farm_view.gd")
 
 func test_grid_dimensions() -> void:
 	assert_eq(FarmViewScript.GRID_COLS, 6, "Grid should be 6 columns")
-	assert_eq(FarmViewScript.GRID_ROWS, 4, "Grid should be 4 rows")
+	assert_eq(FarmViewScript.GRID_ROWS, 6, "Grid should be 6 rows")
 
 
 func test_tile_dimensions() -> void:
