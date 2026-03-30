@@ -110,7 +110,7 @@ repos:
         files: '\.gd$'
       - id: gut-tests
         name: GUT tests (GDScript)
-        entry: bash -c 'command -v godot >/dev/null && cd game && godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json || { [ $? -eq 127 ] && echo "godot not found, skipping GUT tests" && exit 0; exit 1; }'
+        entry: bash -c 'command -v godot >/dev/null 2>&1 || { echo "godot not found, skipping GUT tests"; exit 0; }; cd game && godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json'
         language: system
         pass_filenames: false
         stages: [push]
