@@ -1,5 +1,7 @@
 extends Camera2D
-## Isometric camera with pan (middle mouse drag) and zoom (scroll wheel).
+## Isometric camera with pan and zoom.
+## Supports mouse (middle-drag, scroll wheel) and trackpad (two-finger
+## pan gesture, pinch-to-zoom).
 
 const ZOOM_STEP := 0.1
 const ZOOM_MIN := 0.5
@@ -15,6 +17,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_mouse_button(event as InputEventMouseButton)
 	elif event is InputEventMouseMotion and _dragging:
 		_handle_drag(event as InputEventMouseMotion)
+	elif event is InputEventPanGesture:
+		_handle_pan_gesture(event as InputEventPanGesture)
+	elif event is InputEventMagnifyGesture:
+		_handle_magnify_gesture(event as InputEventMagnifyGesture)
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
@@ -30,6 +36,20 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 func _handle_drag(event: InputEventMouseMotion) -> void:
 	var delta := event.relative * PAN_SPEED / zoom
 	position -= delta
+
+
+func _handle_pan_gesture(event: InputEventPanGesture) -> void:
+	## Two-finger trackpad scroll → camera pan
+	var pan_delta := event.delta * 10.0 / zoom
+	position += pan_delta
+
+
+func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
+	## Trackpad pinch-to-zoom
+	if event.factor > 1.0:
+		_zoom_in()
+	elif event.factor < 1.0:
+		_zoom_out()
 
 
 func _zoom_in() -> void:
