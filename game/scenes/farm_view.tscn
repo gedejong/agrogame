@@ -14,23 +14,26 @@ script = ExtResource("1")
 [node name="SelectionIndicator" type="Sprite2D" parent="."]
 visible = false
 
-[node name="WeatherOverlay" type="CPUParticles2D" parent="."]
-script = ExtResource("3")
-emitting = false
-
 [node name="Camera2D" type="Camera2D" parent="."]
 script = ExtResource("2")
 position = Vector2(300, 150)
 
-[node name="UIPanel" type="VBoxContainer" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="WeatherOverlay" type="CPUParticles2D" parent="UILayer"]
+script = ExtResource("3")
+emitting = false
+
+[node name="UIPanel" type="VBoxContainer" parent="UILayer"]
 offset_left = 10.0
 offset_top = 10.0
-offset_right = 250.0
+offset_right = 400.0
 offset_bottom = 100.0
 
-[node name="StatusLabel" type="Label" parent="UIPanel"]
+[node name="StatusLabel" type="Label" parent="UILayer/UIPanel"]
 text = "Farm View"
 theme_override_font_sizes/font_size = 14
 
-[node name="SeasonButton" type="Button" parent="UIPanel"]
+[node name="SeasonButton" type="Button" parent="UILayer/UIPanel"]
 text = "Run Season"

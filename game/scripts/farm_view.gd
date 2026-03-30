@@ -46,10 +46,10 @@ var _season_running := false
 @onready var tile_map: Node2D = $TileLayer
 @onready var crop_layer: Node2D = $CropLayer
 @onready var selection_indicator: Sprite2D = $SelectionIndicator
-@onready var weather: Node = $WeatherOverlay
-@onready var ui_panel: Control = $UIPanel
-@onready var status_label: Label = $UIPanel/StatusLabel
-@onready var season_button: Button = $UIPanel/SeasonButton
+@onready var weather: Node = $UILayer/WeatherOverlay
+@onready var ui_panel: Control = $UILayer/UIPanel
+@onready var status_label: Label = $UILayer/UIPanel/StatusLabel
+@onready var season_button: Button = $UILayer/UIPanel/SeasonButton
 @onready var camera: Camera2D = $Camera2D
 
 
@@ -60,7 +60,7 @@ func _ready() -> void:
 	_load_selection_texture()
 	selection_indicator.visible = false
 	_init_grid()
-	status_label.text = "Click a tile to select. Press 'Run Season' to simulate."
+	status_label.text = ("Click tile to select. 1-4 crop stage, W wilt, N deficient, 0 clear.")
 
 
 func _load_selection_texture() -> void:
@@ -146,6 +146,33 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			_handle_tile_click(mb.position)
+	elif event is InputEventKey:
+		var ke := event as InputEventKey
+		if ke.pressed:
+			_handle_key(ke.keycode)
+
+
+func _handle_key(keycode: int) -> void:
+	if _selected_tile.x < 0:
+		return
+	var col := _selected_tile.x
+	var row := _selected_tile.y
+	match keycode:
+		KEY_1:
+			set_crop_stage(col, row, CropStage.SEEDLING)
+		KEY_2:
+			set_crop_stage(col, row, CropStage.VEGETATIVE)
+		KEY_3:
+			set_crop_stage(col, row, CropStage.FLOWERING)
+		KEY_4:
+			set_crop_stage(col, row, CropStage.MATURE)
+		KEY_0:
+			set_crop_stage(col, row, CropStage.NONE)
+			set_stress_state(col, row, StressState.NONE)
+		KEY_W:
+			set_stress_state(col, row, StressState.WILTING)
+		KEY_N:
+			set_stress_state(col, row, StressState.N_DEFICIENT)
 
 
 func _handle_tile_click(_screen_pos: Vector2) -> void:
@@ -168,6 +195,8 @@ func _update_selection_indicator() -> void:
 		return
 	selection_indicator.visible = true
 	selection_indicator.position = _tile_to_world(_selected_tile.x, _selected_tile.y)
+	# Render above all tiles and crops
+	selection_indicator.z_index = GRID_COLS + GRID_ROWS + 10
 
 
 func _tile_to_world(col: int, row: int) -> Vector2:
@@ -179,13 +208,13 @@ func _tile_to_world(col: int, row: int) -> Vector2:
 func _world_to_tile_col(world_pos: Vector2) -> int:
 	var adjusted := world_pos - Vector2(300, 100)
 	var col_f := adjusted.x / TILE_WIDTH + adjusted.y / TILE_HEIGHT
-	return int(floor(col_f))
+	return int(round(col_f))
 
 
 func _world_to_tile_row(world_pos: Vector2) -> int:
 	var adjusted := world_pos - Vector2(300, 100)
 	var row_f := adjusted.y / TILE_HEIGHT - adjusted.x / TILE_WIDTH
-	return int(floor(row_f))
+	return int(round(row_f))
 
 
 func get_selected_tile() -> Vector2i:
