@@ -510,9 +510,10 @@ func _on_action_complete(success: bool, data: Dictionary) -> void:
 		return
 	var action: String = data.get("action", "")
 	var cost: int = data.get("cost_credits", 0)
-	var balance: int = data.get("balance_credits", 0)
-	credits_label.text = "Credits: %d" % balance
-	status_label.text = "%s executed — cost %d credits" % [action, cost]
+	credits_label.text = "Credits: %d" % data.get("balance_credits", 0)
+	status_label.text = "%s — %d credits, advancing day..." % [action, cost]
+	# Auto-step 1 day so the player sees the effect immediately
+	_step_days(1)
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:
