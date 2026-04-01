@@ -328,3 +328,68 @@ def test_first_season_backward_compatible(client) -> None:
     assert data["total_days"] == 50
     assert "field_results" in data
     assert data["start_date"] == "2024-04-01"
+
+
+# ---------------------------------------------------------------------------
+# AC (#122): multi-patch field with different soil types
+# ---------------------------------------------------------------------------
+def _create_multi_patch_game(client) -> str:
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [
+                {
+                    "field_id": "f1",
+                    "patches": [
+                        {
+                            "soil_profile_key": "sandy_temperate",
+                            "crop_key": "maize",
+                            "climate_key": "netherlands_temperate",
+                            "area_fraction": 0.333,
+                        },
+                        {
+                            "soil_profile_key": "loam_temperate",
+                            "crop_key": "maize",
+                            "climate_key": "netherlands_temperate",
+                            "area_fraction": 0.334,
+                        },
+                        {
+                            "soil_profile_key": "clay_temperate",
+                            "crop_key": "maize",
+                            "climate_key": "netherlands_temperate",
+                            "area_fraction": 0.333,
+                        },
+                    ],
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    return resp.json()["game_id"]
+
+
+def test_multi_patch_returns_three_patches(client) -> None:
+    """3-patch game returns per-patch results with different soil states."""
+    game_id = _create_multi_patch_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["field_results"]["f1"]
+    assert len(patches) == 3
+
+    # Each patch should have soil_state
+    for p in patches:
+        assert p["soil_state"] is not None
+
+    # Sandy and clay should differ in moisture (clay holds more)
+    sandy_theta = patches[0]["soil_state"]["theta_surface"]
+    clay_theta = patches[2]["soil_state"]["theta_surface"]
+    assert (
+        sandy_theta != clay_theta
+    ), f"Sandy θ={sandy_theta} should differ from clay θ={clay_theta}"
+
+    # SOM should differ (clay starts with higher OM%)
+    sandy_som = patches[0]["soil_state"]["som_total_c_g_m2"]
+    clay_som = patches[2]["soil_state"]["som_total_c_g_m2"]
+    assert (
+        sandy_som != clay_som
+    ), f"Sandy SOM={sandy_som} should differ from clay SOM={clay_som}"
