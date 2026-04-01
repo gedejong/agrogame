@@ -59,21 +59,32 @@ var _overlay_mode: int = SoilColor.Mode.NATURAL
 @onready var crop_layer: Node2D = $CropLayer
 @onready var selection_indicator: Sprite2D = $SelectionIndicator
 @onready var weather: Node = $UILayer/WeatherOverlay
-@onready var ui_panel: Control = $UILayer/UIPanel
-@onready var status_label: Label = $UILayer/UIPanel/StatusLabel
-@onready var season_button: Button = $UILayer/UIPanel/SeasonButton
+@onready var date_label: Label = $UILayer/TopBar/DateLabel
+@onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
+@onready var weather_label: Label = $UILayer/TopBar/WeatherLabel
+@onready var next_day_btn: Button = $UILayer/ActionBar/NextDayButton
+@onready var ff7_btn: Button = $UILayer/ActionBar/FastForward7
+@onready var ff_all_btn: Button = $UILayer/ActionBar/FastForwardAll
+@onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
+@onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
+@onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
+@onready var status_label: Label = $UILayer/StatusLabel
 @onready var camera: Camera2D = $Camera2D
 
 
 func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
-	season_button.pressed.connect(_on_season_pressed)
+	next_day_btn.pressed.connect(_on_next_day)
+	ff7_btn.pressed.connect(_on_ff7)
+	ff_all_btn.pressed.connect(_on_ff_all)
+	irrigate_btn.pressed.connect(_on_irrigate)
+	fertilize_btn.pressed.connect(_on_fertilize)
 	_load_selection_texture()
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
 	_init_grid()
-	status_label.text = "Keys: 1-4 crop, S/M soil debug, F1-F3 overlays, 0 clear."
+	status_label.text = "F1-F3 overlays | S/M debug | Click tile for info"
 
 
 func _create_tile_set() -> TileSet:
@@ -352,41 +363,147 @@ func set_stress_state(col: int, row: int, stress: int) -> void:
 	_update_crop_visuals(idx)
 
 
-func _on_season_pressed() -> void:
-	if _season_running:
+func _ensure_game(callback: Callable) -> void:
+	if not _game_id.is_empty():
+		callback.call()
 		return
-	if _game_id.is_empty():
-		_create_game_then_run()
-	else:
-		_run_season()
-
-
-func _create_game_then_run() -> void:
 	status_label.text = "Creating game..."
-	season_button.disabled = true
-	_api_client.create_game(_on_game_created)
+	_set_buttons_disabled(true)
+	_api_client.create_game(
+		func(success: bool, data: Dictionary) -> void:
+			_set_buttons_disabled(false)
+			if not success:
+				status_label.text = "Error: could not reach backend"
+				return
+			_game_id = data.get("game_id", "")
+			callback.call()
+	)
 
 
-func _on_game_created(success: bool, data: Dictionary) -> void:
+func _set_buttons_disabled(disabled: bool) -> void:
+	next_day_btn.disabled = disabled
+	ff7_btn.disabled = disabled
+	ff_all_btn.disabled = disabled
+	irrigate_btn.disabled = disabled
+	fertilize_btn.disabled = disabled
+
+
+func _on_next_day() -> void:
+	_ensure_game(func() -> void: _step_days(1))
+
+
+func _on_ff7() -> void:
+	_ensure_game(func() -> void: _step_days(7))
+
+
+func _on_ff_all() -> void:
+	_ensure_game(
+		func() -> void:
+			_set_buttons_disabled(true)
+			weather.set_raining(true)
+			_api_client.start_season(_game_id, _on_season_complete)
+	)
+
+
+func _step_days(n: int) -> void:
+	_set_buttons_disabled(true)
+	_api_client.step_day(_game_id, n, _on_step_complete)
+
+
+func _on_step_complete(success: bool, data: Dictionary) -> void:
+	_set_buttons_disabled(false)
 	if not success:
-		status_label.text = "Error: could not reach backend"
-		season_button.disabled = false
+		status_label.text = "Step failed — backend error"
 		return
-	_game_id = data.get("game_id", "")
-	_run_season()
+	_apply_day_result(data)
+	_api_client.get_forecast(_game_id, _on_forecast_received)
 
 
-func _run_season() -> void:
-	_season_running = true
-	status_label.text = "Running season..."
-	season_button.disabled = true
-	weather.set_raining(true)
-	_api_client.start_season(_game_id, _on_season_complete)
+func _on_forecast_received(success: bool, data: Dictionary) -> void:
+	if not success:
+		return
+	var fc: Array = data.get("forecast", [])
+	forecast_panel.update_forecast(fc)
+
+
+func _apply_day_result(data: Dictionary) -> void:
+	var day_num: int = data.get("day_number", 0)
+	var cur_date: String = data.get("date", "")
+	var w: Dictionary = data.get("weather", {})
+	var balance: int = data.get("balance_credits", 0)
+	var season_done: bool = data.get("season_complete", false)
+
+	date_label.text = "Day %d | %s" % [day_num, cur_date]
+	credits_label.text = "Credits: %d" % balance
+	var rain: float = w.get("rain_mm", 0.0)
+	weather_label.text = (
+		"%.0f–%.0f°C  Rain: %.1fmm" % [w.get("tmin_c", 0.0), w.get("tmax_c", 0.0), rain]
+	)
+	weather.set_raining(rain > 2.0)
+
+	# Update per-patch tile data from step result
+	var patches: Dictionary = data.get("patches", {})
+	_apply_patch_day_results(patches)
+	_update_all_tile_colors()
+
+	if season_done:
+		status_label.text = "Season complete — crop reached maturity"
+		_set_buttons_disabled(true)
+		ff_all_btn.disabled = false
+		ff_all_btn.text = "New Season"
+
+
+func _apply_patch_day_results(patches: Dictionary) -> void:
+	## Map per-patch day results to tiles by soil type.
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		for patch_idx in range(patch_list.size()):
+			var patch: Dictionary = patch_list[patch_idx]
+			var patch_soil: String = ""
+			if patch_idx < SOIL_TYPES.size():
+				patch_soil = SOIL_TYPES[patch_idx]
+			for i in range(_tile_data.size()):
+				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
+					_tile_data[i]["grain_g_m2"] = patch.get("grain_g_m2", 0.0)
+					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
+					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
+
+
+func _on_irrigate() -> void:
+	_ensure_game(
+		func() -> void:
+			_api_client.execute_action(_game_id, "irrigate", {"amount_mm": 20}, _on_action_complete)
+	)
+
+
+func _on_fertilize() -> void:
+	_ensure_game(
+		func() -> void:
+			(
+				_api_client
+				. execute_action(
+					_game_id,
+					"fertilize",
+					{"type": "urea", "amount_kg_ha": 50},
+					_on_action_complete,
+				)
+			)
+	)
+
+
+func _on_action_complete(success: bool, data: Dictionary) -> void:
+	if not success:
+		status_label.text = "Action failed"
+		return
+	var action: String = data.get("action", "")
+	var cost: int = data.get("cost_credits", 0)
+	var balance: int = data.get("balance_credits", 0)
+	credits_label.text = "Credits: %d" % balance
+	status_label.text = "%s executed — cost %d credits" % [action, cost]
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:
-	_season_running = false
-	season_button.disabled = false
+	_set_buttons_disabled(false)
 	weather.set_raining(false)
 	if not success:
 		status_label.text = "Season failed — backend error"
@@ -395,7 +512,7 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 	var field_results: Dictionary = data.get("field_results", {})
 	_apply_season_results(field_results)
 	var total_grain := _total_grain_g_m2()
-	status_label.text = ("Season complete: %d days, yield %.0f g/m²" % [total_days, total_grain])
+	status_label.text = "Season: %d days, yield %.0f g/m²" % [total_days, total_grain]
 
 
 func _apply_season_results(field_results: Dictionary) -> void:

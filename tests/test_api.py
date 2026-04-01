@@ -393,3 +393,101 @@ def test_multi_patch_returns_three_patches(client) -> None:
     assert (
         sandy_som != clay_som
     ), f"Sandy SOM={sandy_som} should differ from clay SOM={clay_som}"
+
+
+# ---------------------------------------------------------------------------
+# AC (#125): day-by-day game loop
+# ---------------------------------------------------------------------------
+def test_step_one_day(client) -> None:
+    """POST /step advances 1 day and returns day result."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["day_number"] == 1
+    assert data["date"] == "2024-04-02"
+    assert "weather" in data
+    assert data["weather"]["tmin_c"] is not None
+    assert data["weather"]["rain_mm"] >= 0
+    assert "f1" in data["patches"]
+    patch = data["patches"]["f1"][0]
+    assert "crop_stage" in patch
+    assert "soil_theta_surface" in patch
+    assert data["season_complete"] is False
+
+
+def test_step_multiple_days(client) -> None:
+    """POST /step?days=10 advances 10 days."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=10&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["day_number"] == 10
+    assert data["date"] == "2024-04-11"
+
+
+def test_execute_irrigate_action(client) -> None:
+    """POST /action executes irrigation, deducts credits."""
+    game_id = _create_game(client)
+    # Step 1 day first to init weather
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 20}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["action"] == "irrigate"
+    assert data["cost_credits"] > 0
+    assert data["balance_credits"] < 10000
+
+
+def test_execute_fertilize_action(client) -> None:
+    """POST /action executes fertilization."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={
+            "field_id": "f1",
+            "action": "fertilize",
+            "params": {"type": "urea", "amount_kg_ha": 50},
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "executed"
+
+
+def test_insufficient_credits_rejected(client) -> None:
+    """Action rejected when credits insufficient."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    # Try irrigation with enormous amount
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 100000}},
+    )
+    assert resp.status_code == 400
+
+
+def test_get_forecast(client) -> None:
+    """GET /forecast returns 5-day weather peek."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    resp = client.get(f"/api/v1/games/{game_id}/forecast?seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["current_day"] == 1
+    assert len(data["forecast"]) == 5
+    for day in data["forecast"]:
+        assert "tmin_c" in day
+        assert "rain_mm" in day
+
+
+def test_start_season_still_works(client) -> None:
+    """Backward compat: /start-season runs all days at once."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
+    assert resp.status_code == 200
+    assert resp.json()["total_days"] == 50
