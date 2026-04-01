@@ -9,11 +9,13 @@ var _season_request: HTTPRequest
 var _step_request: HTTPRequest
 var _action_request: HTTPRequest
 var _forecast_request: HTTPRequest
+var _report_request: HTTPRequest
 var _callback: Callable
 var _season_callback: Callable
 var _step_callback: Callable
 var _action_callback: Callable
 var _forecast_callback: Callable
+var _report_callback: Callable
 
 
 func _ready() -> void:
@@ -142,6 +144,22 @@ func _on_forecast_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:
 	_dispatch_callback(_forecast_callback, result, response_code, body)
+
+
+func get_report(game_id: String, callback: Callable) -> void:
+	if not _report_request:
+		_report_request = HTTPRequest.new()
+		add_child(_report_request)
+		_report_request.request_completed.connect(_on_report_completed)
+	_report_callback = callback
+	var url := BASE_URL + "/games/" + game_id + "/report"
+	_report_request.request(url, [], HTTPClient.METHOD_GET, "")
+
+
+func _on_report_completed(
+	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
+) -> void:
+	_dispatch_callback(_report_callback, result, response_code, body)
 
 
 func _dispatch_callback(

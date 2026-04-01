@@ -491,3 +491,48 @@ def test_start_season_still_works(client) -> None:
     resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
     assert resp.status_code == 200
     assert resp.json()["total_days"] == 50
+
+
+# ---------------------------------------------------------------------------
+# AC (#116): harvest report
+# ---------------------------------------------------------------------------
+def test_harvest_report_after_season(client) -> None:
+    """GET /report returns yield, GYGA grade, P&L after completed season."""
+    game_id = _create_game(client)
+    # Run a season and do an action for cost tracking
+    client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
+
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Structure
+    assert "patches" in data
+    assert "f1" in data["patches"]
+    patch = data["patches"]["f1"][0]
+    assert "grain_t_ha" in patch
+    assert "gyga_potential_t_ha" in patch
+    assert "yield_ratio" in patch
+    assert "grade" in patch
+    assert patch["grade"] in ("A", "B", "C", "D", "F")
+    assert patch["grain_t_ha"] >= 0
+
+    # P&L
+    assert "revenue_credits" in data
+    assert "total_cost_credits" in data
+    assert "profit_credits" in data
+    assert "balance_before" in data
+    assert "balance_after" in data
+    assert "balance_delta" in data
+
+    # Dates
+    assert "start_date" in data
+    assert "end_date" in data
+    assert data["total_days"] == 100
+
+
+def test_harvest_report_before_season_fails(client) -> None:
+    """GET /report before running a season returns 400."""
+    game_id = _create_game(client)
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 400
