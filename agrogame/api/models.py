@@ -77,6 +77,9 @@ class PatchResultResponse(BaseModel):
 
 class SeasonResultResponse(BaseModel):
     total_days: int
+    start_date: str = Field(description="Simulation start date (ISO format)")
+    end_date: str = Field(description="Simulation end date (ISO format)")
+    season_number: int = Field(description="1-based season counter")
     pause_count: int
     field_results: dict[str, list[PatchResultResponse]]
 
