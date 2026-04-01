@@ -230,6 +230,7 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         total_days=tm.current_day,
         start_date=start_date.isoformat(),
         end_date=end_date.isoformat(),
+        season_number=s.run_count,
         pause_count=0,
         field_results=field_results,
     )
@@ -268,6 +269,7 @@ def get_status(game_id: str) -> GameStatusResponse:
                 total_days=r.total_days,
                 start_date=start.isoformat(),
                 end_date=end.isoformat(),
+                season_number=s.run_count,
                 pause_count=r.pause_count,
                 field_results=field_results,
             )

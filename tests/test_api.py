@@ -288,13 +288,16 @@ def test_consecutive_seasons_advance_date(client) -> None:
     r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42").json()
     assert r1["start_date"] == "2024-04-01"
     assert r1["end_date"] == "2024-05-21"
+    assert r1["season_number"] == 1
 
     r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
     assert r2["start_date"] == "2024-05-21"
     assert r2["end_date"] == "2024-07-10"
+    assert r2["season_number"] == 2
 
     r3 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
     assert r3["start_date"] == "2024-07-10"
+    assert r3["season_number"] == 3
 
 
 def test_consecutive_seasons_produce_different_yields(client) -> None:
