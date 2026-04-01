@@ -83,6 +83,9 @@ var _overlay_mode: int = SoilColor.Mode.NATURAL
 func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
+	# Restore game_id from global state (persists across scene changes)
+	if GameState.game_id != "":
+		_game_id = GameState.game_id
 	next_day_btn.pressed.connect(_on_next_day)
 	ff7_btn.pressed.connect(_on_ff7)
 	ff_all_btn.pressed.connect(_on_ff_all)
@@ -384,6 +387,7 @@ func _ensure_game(callback: Callable) -> void:
 				status_label.text = "Error: could not reach backend"
 				return
 			_game_id = data.get("game_id", "")
+			GameState.game_id = _game_id
 			callback.call()
 	)
 

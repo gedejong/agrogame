@@ -42,6 +42,13 @@ layout_mode = 2
 layout_mode = 2
 custom_minimum_size = Vector2(0, 10)
 
+[node name="SoilHealthSection" type="VBoxContainer" parent="VBox"]
+layout_mode = 2
+
+[node name="Spacer3b" type="Control" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 10)
+
 [node name="CreditsLabel" type="Label" parent="VBox"]
 layout_mode = 2
 text = ""

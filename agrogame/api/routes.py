@@ -557,14 +557,16 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     end_date = s.current_date
     start_date = end_date - timedelta(days=r.total_days)
 
-    # Settle season economics (revenue from harvest)
+    # Settle season economics (idempotent — only once per season)
     prices = PriceTable.load()
     first_field = next(iter(s.field_manager.fields.values()))
-    total_grain = sum(
-        p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
-    ) / len(first_field.patches)
-    balance_before = s.ledger.balance_credits
-    s.ledger.settle_season(total_grain, r.crop_key, prices)
+    if not s.season_settled:
+        total_grain = sum(
+            p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
+        ) / len(first_field.patches)
+        s.ledger.settle_season(total_grain, r.crop_key, prices)
+        s.season_settled = True
+    balance_before = s.ledger.balance_credits - s.ledger.season_revenue
     balance_after = s.ledger.balance_credits
 
     # Build per-patch yield reports

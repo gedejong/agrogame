@@ -16,6 +16,7 @@ var _api_client: Node
 @onready var title_label: Label = $VBox/TitleLabel
 @onready var yield_container: VBoxContainer = $VBox/YieldSection
 @onready var pnl_container: VBoxContainer = $VBox/PnLSection
+@onready var soil_container: VBoxContainer = $VBox/SoilHealthSection
 @onready var credits_label: Label = $VBox/CreditsLabel
 @onready var next_season_btn: Button = $VBox/NextSeasonButton
 
@@ -95,6 +96,24 @@ func _display_report(data: Dictionary) -> void:
 
 	var profit_color := Color(0.3, 0.9, 0.3) if profit >= 0 else Color(0.9, 0.3, 0.3)
 	_add_pnl_line("  Net: %d credits" % profit, profit_color)
+
+	# Soil health
+	_clear_children(soil_container)
+	var soil_header := Label.new()
+	soil_header.text = "Soil Health"
+	soil_header.add_theme_font_size_override("font_size", 16)
+	soil_container.add_child(soil_header)
+
+	for field_key2: String in patches:
+		var patch_list2: Array = patches[field_key2]
+		for patch2: Dictionary in patch_list2:
+			var soil2: String = patch2.get("soil_profile", "")
+			var som2: float = patch2.get("som_total_c_g_m2", 0.0)
+			var theta2: float = patch2.get("theta_surface", 0.0)
+			var som_label := Label.new()
+			som_label.text = "  %s: SOM %.0f gC/m² | θ %.3f" % [soil2, som2, theta2]
+			som_label.add_theme_font_size_override("font_size", 13)
+			soil_container.add_child(som_label)
 
 	# Credits
 	var balance_before: int = data.get("balance_before", 0)
