@@ -23,6 +23,7 @@ visible = false
 [node name="Camera2D" type="Camera2D" parent="."]
 script = ExtResource("2")
 position = Vector2(300, 150)
+zoom = Vector2(2, 2)
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 10
