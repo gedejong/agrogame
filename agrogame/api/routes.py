@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -27,7 +26,18 @@ from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
 
+from agrogame.plant.presets import load_crop_presets
+
 router = APIRouter(prefix="/api/v1")
+
+
+def _reset_all_crops(s: GameSession) -> None:
+    """Reset crops on all patches, preserving soil state for next run."""
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    for field in s.field_manager.fields.values():
+        for patch in field.patches:
+            preset = crops.get_preset(patch.config.crop_key, patch.config.climate_key)
+            patch.orch.reset_crop(preset)
 
 
 def _build_soil_state(patch: "Patch") -> SoilStateResponse:
@@ -127,18 +137,33 @@ def submit_plan(game_id: str, req: PlanRequest) -> dict:
 
 @router.post("/games/{game_id}/start-season", response_model=SeasonResultResponse)
 def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultResponse:
-    """Run the season synchronously, stepping all fields/patches."""
+    """Run N simulation days, continuing from the session's current date.
+
+    On subsequent calls, soil state is preserved and crops are reset
+    so management decisions compound over multiple growing periods.
+    """
     s = _get_session(game_id)
     if not s.field_manager.fields:
         raise HTTPException(400, "No fields configured")
 
-    # Generate weather from first field's climate
+    # On first call, store the base seed; subsequent calls vary by run_count.
+    if s.run_count == 0:
+        s.base_seed = seed
+    effective_seed = s.base_seed + s.run_count
+
+    # Reset crops between runs (preserves soil state).
+    if s.run_count > 0:
+        _reset_all_crops(s)
+
+    start_date = s.current_date
+
+    # Generate weather starting from the session's current date
     first_field = next(iter(s.field_manager.fields.values()))
     climate_key = first_field.patches[0].config.climate_key
     climates = load_climate_presets(Path("data/climate/presets.yaml"))
     climate = climates.climates[climate_key]
-    gen = SyntheticWeatherGenerator(climate, seed=seed)
-    series = gen.generate(days, date(2024, 4, 1))
+    gen = SyntheticWeatherGenerator(climate, seed=effective_seed)
+    series = gen.generate(days, start_date)
     s.weather = series.records
 
     # Create turn manager for pause detection (uses first patch)
@@ -153,7 +178,7 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
     s.turn_manager = tm
     s.pause_events = []
 
-    # Step ALL fields/patches each day (not just first patch)
+    # Step ALL fields/patches each day
     from agrogame.soil.water.types import DailyDrivers as _DD
 
     tm.phase = SeasonPhase.EXECUTING
@@ -180,6 +205,13 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         crop_key=tm.crop_key,
     )
 
+    # Advance session date and run counter
+    from datetime import timedelta
+
+    end_date = start_date + timedelta(days=days)
+    s.current_date = end_date
+    s.run_count += 1
+
     # Build per-field, per-patch results with soil state
     field_results: dict[str, list[PatchResultResponse]] = {}
     for fid, fld in s.field_manager.fields.items():
@@ -196,6 +228,8 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
 
     return SeasonResultResponse(
         total_days=tm.current_day,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
         pause_count=0,
         field_results=field_results,
     )
@@ -226,8 +260,14 @@ def get_status(game_id: str) -> GameStatusResponse:
                     )
                     for i, p in enumerate(field.patches)
                 ]
+            from datetime import timedelta
+
+            end = s.current_date
+            start = end - timedelta(days=r.total_days)
             season_result = SeasonResultResponse(
                 total_days=r.total_days,
+                start_date=start.isoformat(),
+                end_date=end.isoformat(),
                 pause_count=r.pause_count,
                 field_results=field_results,
             )

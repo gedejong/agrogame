@@ -266,3 +266,62 @@ def test_status_includes_soil_state(client) -> None:
     patch = sr["field_results"]["f1"][0]
     assert patch["soil_state"] is not None
     assert len(patch["soil_state"]["water_theta"]) >= 1
+
+
+# ---------------------------------------------------------------------------
+# AC (#121): multi-season date progression
+# ---------------------------------------------------------------------------
+def test_season_response_includes_dates(client) -> None:
+    """Response includes start_date and end_date in ISO format."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
+    data = resp.json()
+    assert data["start_date"] == "2024-04-01"
+    assert data["end_date"] == "2024-05-21"
+    assert data["total_days"] == 50
+
+
+def test_consecutive_seasons_advance_date(client) -> None:
+    """Each /start-season continues from where the previous ended."""
+    game_id = _create_game(client)
+
+    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42").json()
+    assert r1["start_date"] == "2024-04-01"
+    assert r1["end_date"] == "2024-05-21"
+
+    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
+    assert r2["start_date"] == "2024-05-21"
+    assert r2["end_date"] == "2024-07-10"
+
+    r3 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
+    assert r3["start_date"] == "2024-07-10"
+
+
+def test_consecutive_seasons_produce_different_yields(client) -> None:
+    """Soil state evolves between runs — yields and SOM should differ."""
+    game_id = _create_game(client)
+
+    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42").json()
+    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=100").json()
+
+    p1 = r1["field_results"]["f1"][0]
+    p2 = r2["field_results"]["f1"][0]
+
+    # Yields should differ (different weather seed, different soil state)
+    assert p1["grain_g_m2"] != p2["grain_g_m2"], "Yields should differ between runs"
+
+    # Soil state should evolve
+    som1 = p1["soil_state"]["som_total_c_g_m2"]
+    som2 = p2["soil_state"]["som_total_c_g_m2"]
+    assert som1 != som2, "SOM should evolve between runs"
+
+
+def test_first_season_backward_compatible(client) -> None:
+    """First season with explicit seed behaves identically to old behavior."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_days"] == 50
+    assert "field_results" in data
+    assert data["start_date"] == "2024-04-01"
