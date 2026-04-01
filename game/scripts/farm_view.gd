@@ -37,6 +37,8 @@ const STRESS_TEXTURES := {
 }
 
 const SoilColor = preload("res://scripts/soil_color.gd")
+const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
+const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
 
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
@@ -65,7 +67,7 @@ func _ready() -> void:
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
 	_init_grid()
-	status_label.text = ("Click tile to select. 1-4 crop stage, W wilt, N deficient, 0 clear.")
+	status_label.text = "Select tile. 1-4 crop, W wilt, N def, S som, M moisture, 0 clear."
 
 
 func _create_tile_set() -> TileSet:
@@ -208,6 +210,7 @@ func _handle_key(keycode: int) -> void:
 		return
 	var col := _selected_tile.x
 	var row := _selected_tile.y
+	var idx := row * GRID_COLS + col
 	match keycode:
 		KEY_1:
 			set_crop_stage(col, row, CropStage.SEEDLING)
@@ -224,6 +227,45 @@ func _handle_key(keycode: int) -> void:
 			set_stress_state(col, row, StressState.WILTING)
 		KEY_N:
 			set_stress_state(col, row, StressState.N_DEFICIENT)
+		KEY_S:
+			_cycle_debug_som(idx)
+		KEY_M:
+			_cycle_debug_moisture(idx)
+
+
+func _cycle_debug_som(idx: int) -> void:
+	var current: float = _tile_data[idx].get("som_total_c_g_m2", 0.0)
+	var next_val := _SOM_PRESETS[0]
+	for preset: float in _SOM_PRESETS:
+		if preset > current + 1.0:
+			next_val = preset
+			break
+	_tile_data[idx]["som_total_c_g_m2"] = next_val
+	_update_tile_color(idx)
+	_refresh_status_label(idx)
+
+
+func _cycle_debug_moisture(idx: int) -> void:
+	var current: float = _tile_data[idx].get("theta_surface", 0.0)
+	var next_val := _MOISTURE_PRESETS[0]
+	for preset: float in _MOISTURE_PRESETS:
+		if preset > current + 0.001:
+			next_val = preset
+			break
+	_tile_data[idx]["theta_surface"] = next_val
+	_update_tile_color(idx)
+	_refresh_status_label(idx)
+
+
+func _refresh_status_label(idx: int) -> void:
+	var data: Dictionary = _tile_data[idx]
+	var som_c: float = data.get("som_total_c_g_m2", 0.0)
+	var theta: float = data.get("theta_surface", 0.0)
+	var col: int = data["col"]
+	var row: int = data["row"]
+	status_label.text = (
+		"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
+	)
 
 
 func _handle_tile_click() -> void:
