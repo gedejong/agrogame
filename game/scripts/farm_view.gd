@@ -134,15 +134,14 @@ func _init_grid() -> void:
 			_create_crop_sprite(col, row)
 
 
-func _create_soil_overlay(col: int, row: int, soil_type: String) -> void:
+func _create_soil_overlay(col: int, _row: int, _soil_type: String) -> void:
 	var sprite := Sprite2D.new()
-	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["organic"])
-	var tex: Texture2D = load(tex_path)
+	var tex: Texture2D = load("res://assets/tiles/tile_white.svg")
 	if tex:
 		sprite.texture = tex
-	sprite.position = tile_layer.map_to_local(Vector2i(col, row))
+	sprite.position = tile_layer.map_to_local(Vector2i(col, _row))
 	sprite.z_index = 0
-	sprite.modulate = Color.WHITE
+	sprite.modulate = Color(1, 1, 1, 0)
 	sprite.visible = false
 	soil_overlay_layer.add_child(sprite)
 	_soil_overlays.append(sprite)
@@ -158,6 +157,12 @@ func _update_tile_color(idx: int) -> void:
 		_soil_overlays[idx].visible = false
 		return
 	var color := SoilColor.calculate(som_c, theta, _overlay_mode)
+	# Heatmap modes: fully opaque overlay replaces base tile visually.
+	# Natural mode: semi-transparent overlay darkens base tile.
+	if _overlay_mode != SoilColor.Mode.NATURAL:
+		color.a = 0.85
+	else:
+		color.a = 0.6
 	_soil_overlays[idx].modulate = color
 	_soil_overlays[idx].visible = true
 
