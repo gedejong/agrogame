@@ -536,3 +536,18 @@ def test_harvest_report_before_season_fails(client) -> None:
     game_id = _create_game(client)
     resp = client.get(f"/api/v1/games/{game_id}/report")
     assert resp.status_code == 400
+
+
+def test_harvest_report_after_stepping_to_maturity(client) -> None:
+    """GET /report works after day-by-day stepping (not just /start-season)."""
+    game_id = _create_game(client)
+    # Step enough days for crop to mature (or exhaust weather)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=200&seed=42")
+    assert resp.status_code == 200
+    assert resp.json()["season_complete"] is True
+
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "patches" in data
+    assert data["total_days"] == 200

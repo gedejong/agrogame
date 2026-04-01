@@ -443,7 +443,32 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     s.day_index += steps
     s.current_date = s.current_date + timedelta(days=steps)
 
-    return _build_day_result(s, last_rec)
+    result = _build_day_result(s, last_rec)
+
+    # Create SeasonResult when season completes so /report works
+    if result.season_complete and (not s.turn_manager or not s.turn_manager.result):
+        from agrogame.game.turn import GameTurnManager, SeasonResult
+
+        first_field = next(iter(s.field_manager.fields.values()))
+        first_patch = first_field.patches[0]
+        grain = first_patch.orch.canopy.state.grain_biomass_g_m2
+        if not s.turn_manager:
+            s.turn_manager = GameTurnManager(
+                orch=first_patch.orch,
+                weather=s.weather,
+                crop_key=first_patch.config.crop_key,
+            )
+        s.turn_manager.current_day = s.day_index
+        s.turn_manager.result = SeasonResult(
+            total_days=s.day_index,
+            grain_g_m2=grain,
+            grain_kg_ha=grain * 10.0,
+            pause_count=0,
+            crop_key=first_patch.config.crop_key,
+        )
+        s.run_count += 1
+
+    return result
 
 
 @router.post("/games/{game_id}/action", response_model=ActionResponse)
