@@ -36,14 +36,18 @@ const STRESS_TEXTURES := {
 	StressState.N_DEFICIENT: "res://assets/crops/maize_ndeficient.svg",
 }
 
+const SoilColor = preload("res://scripts/soil_color.gd")
+
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
 var _crop_sprites: Array[Sprite2D] = []
+var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
 
 @onready var tile_layer: TileMapLayer = $TileLayer
+@onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
 @onready var crop_layer: Node2D = $CropLayer
 @onready var selection_indicator: Sprite2D = $SelectionIndicator
 @onready var weather: Node = $UILayer/WeatherOverlay
@@ -94,6 +98,7 @@ func _soil_source_id(soil_type: String) -> int:
 func _init_grid() -> void:
 	_tile_data.clear()
 	_crop_sprites.clear()
+	_soil_overlays.clear()
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			var soil_type := "organic"
@@ -111,11 +116,46 @@ func _init_grid() -> void:
 						"crop_stage": CropStage.NONE,
 						"stress": StressState.NONE,
 						"grain_g_m2": 0.0,
+						"som_total_c_g_m2": 0.0,
+						"theta_surface": 0.0,
 					}
 				)
 			)
 			tile_layer.set_cell(Vector2i(col, row), _soil_source_id(soil_type), Vector2i(0, 0))
+			_create_soil_overlay(col, row)
 			_create_crop_sprite(col, row)
+
+
+func _create_soil_overlay(col: int, row: int) -> void:
+	var sprite := Sprite2D.new()
+	var tex: Texture2D = load(TILE_TEXTURES["organic"])
+	if tex:
+		sprite.texture = tex
+	sprite.position = tile_layer.map_to_local(Vector2i(col, row))
+	sprite.z_index = 0
+	sprite.modulate = Color.WHITE
+	sprite.visible = false
+	soil_overlay_layer.add_child(sprite)
+	_soil_overlays.append(sprite)
+
+
+func _update_tile_color(idx: int) -> void:
+	if idx < 0 or idx >= _soil_overlays.size():
+		return
+	var data: Dictionary = _tile_data[idx]
+	var som_c: float = data.get("som_total_c_g_m2", 0.0)
+	var theta: float = data.get("theta_surface", 0.0)
+	if som_c <= 0.0 and theta <= 0.0:
+		_soil_overlays[idx].visible = false
+		return
+	var color := SoilColor.calculate(som_c, theta)
+	_soil_overlays[idx].modulate = color
+	_soil_overlays[idx].visible = true
+
+
+func _update_all_tile_colors() -> void:
+	for i in range(_tile_data.size()):
+		_update_tile_color(i)
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
@@ -284,7 +324,7 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 
 
 func _apply_season_results(field_results: Dictionary) -> void:
-	## Parse per-patch grain_g_m2 from API response and update tile data.
+	## Parse per-patch results from API response: grain, soil state, tile colors.
 	var patch_idx := 0
 	for field_key: String in field_results:
 		var patches: Array = field_results[field_key]
@@ -294,10 +334,16 @@ func _apply_season_results(field_results: Dictionary) -> void:
 				_tile_data[patch_idx]["grain_g_m2"] = grain
 				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
 				_update_crop_visuals(patch_idx)
+				# Extract soil state for tile color modulation
+				var soil: Dictionary = patch.get("soil_state", {})
+				if not soil.is_empty():
+					_tile_data[patch_idx]["som_total_c_g_m2"] = soil.get("som_total_c_g_m2", 0.0)
+					_tile_data[patch_idx]["theta_surface"] = soil.get("theta_surface", 0.0)
 			patch_idx += 1
 	for i in range(patch_idx, _tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
 		_update_crop_visuals(i)
+	_update_all_tile_colors()
 
 
 func _total_grain_g_m2() -> float:
