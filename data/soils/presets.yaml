@@ -36,6 +36,43 @@ soils:
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 5.0
 
+  sandy_temperate:
+    name: "Sandy - Temperate"
+    layers:
+      - depth_cm: 25
+        texture: sand
+        field_capacity: 0.12
+        wilting_point: 0.05
+        saturation: 0.38
+        bulk_density_g_cm3: 1.60
+        ksat_mm_per_hour: 40.0
+        organic_matter_pct: 1.2
+        initial_no3_kg_ha: 7.0
+        initial_nh4_kg_ha: 2.5
+        initial_p_kg_ha: 14.0
+      - depth_cm: 35
+        texture: sand
+        field_capacity: 0.11
+        wilting_point: 0.05
+        saturation: 0.37
+        bulk_density_g_cm3: 1.63
+        ksat_mm_per_hour: 35.0
+        organic_matter_pct: 0.8
+        initial_no3_kg_ha: 4.0
+        initial_nh4_kg_ha: 1.5
+        initial_p_kg_ha: 8.0
+      - depth_cm: 40
+        texture: sand
+        field_capacity: 0.10
+        wilting_point: 0.04
+        saturation: 0.36
+        bulk_density_g_cm3: 1.65
+        ksat_mm_per_hour: 30.0
+        organic_matter_pct: 0.5
+        initial_no3_kg_ha: 3.0
+        initial_nh4_kg_ha: 1.0
+        initial_p_kg_ha: 6.0
+
   loam_temperate:
     name: "Loam - Temperate"
     layers:

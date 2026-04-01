@@ -399,30 +399,28 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 
 
 func _apply_season_results(field_results: Dictionary) -> void:
-	## Parse per-patch results from API response: grain, soil state, tile colors.
-	var patch_idx := 0
-	var last_soil := {}
+	## Map each patch result to tiles sharing its soil type.
+	## Patch order matches SOIL_TYPES: 0=sandy, 1=organic, 2=clay.
 	for field_key: String in field_results:
 		var patches: Array = field_results[field_key]
-		for patch: Dictionary in patches:
-			if patch_idx < _tile_data.size():
-				var grain: float = patch.get("grain_g_m2", 0.0)
-				_tile_data[patch_idx]["grain_g_m2"] = grain
-				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
-				_update_crop_visuals(patch_idx)
-				var soil: Dictionary = patch.get("soil_state", {})
-				if not soil.is_empty():
-					last_soil = soil
-					_tile_data[patch_idx]["som_total_c_g_m2"] = soil.get("som_total_c_g_m2", 0.0)
-					_tile_data[patch_idx]["theta_surface"] = soil.get("theta_surface", 0.0)
-			patch_idx += 1
-	# Propagate last soil state to remaining tiles
-	for i in range(patch_idx, _tile_data.size()):
-		_tile_data[i]["crop_stage"] = CropStage.MATURE
-		_update_crop_visuals(i)
-		if not last_soil.is_empty():
-			_tile_data[i]["som_total_c_g_m2"] = last_soil.get("som_total_c_g_m2", 0.0)
-			_tile_data[i]["theta_surface"] = last_soil.get("theta_surface", 0.0)
+		for patch_idx in range(patches.size()):
+			var patch: Dictionary = patches[patch_idx]
+			var grain: float = patch.get("grain_g_m2", 0.0)
+			var soil: Dictionary = patch.get("soil_state", {})
+			var som_c: float = soil.get("som_total_c_g_m2", 0.0) if soil else 0.0
+			var theta: float = soil.get("theta_surface", 0.0) if soil else 0.0
+			# Find soil type for this patch index
+			var patch_soil: String = ""
+			if patch_idx < SOIL_TYPES.size():
+				patch_soil = SOIL_TYPES[patch_idx]
+			# Apply to all tiles matching this soil type
+			for i in range(_tile_data.size()):
+				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
+					_tile_data[i]["grain_g_m2"] = grain
+					_tile_data[i]["crop_stage"] = CropStage.MATURE
+					_tile_data[i]["som_total_c_g_m2"] = som_c
+					_tile_data[i]["theta_surface"] = theta
+					_update_crop_visuals(i)
 	_update_all_tile_colors()
 
 

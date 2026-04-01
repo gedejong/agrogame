@@ -31,10 +31,22 @@ func create_game(callback: Callable) -> void:
 					"patches":
 					[
 						{
+							"soil_profile_key": "sandy_temperate",
+							"crop_key": "maize",
+							"climate_key": "netherlands_temperate",
+							"area_fraction": 0.333
+						},
+						{
 							"soil_profile_key": "loam_temperate",
 							"crop_key": "maize",
 							"climate_key": "netherlands_temperate",
-							"area_fraction": 1.0
+							"area_fraction": 0.334
+						},
+						{
+							"soil_profile_key": "clay_temperate",
+							"crop_key": "maize",
+							"climate_key": "netherlands_temperate",
+							"area_fraction": 0.333
 						}
 					]
 				}
