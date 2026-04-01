@@ -463,7 +463,6 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         )
 
     s.ledger.record_cost(s.day_index, req.action, f"{req.action} {req.params}", cost)
-    s.ledger.balance_credits -= cost
 
     # Apply to all patches in the field
     field = s.field_manager.fields[req.field_id]

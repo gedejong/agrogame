@@ -90,7 +90,7 @@ class EconomicLedger:
         description: str,
         amount_credits: int,
     ) -> None:
-        """Record a cost event."""
+        """Record a cost event and immediately deduct from balance."""
         if amount_credits <= 0:
             return
         self.costs.append(
@@ -102,6 +102,7 @@ class EconomicLedger:
             )
         )
         self.season_costs += amount_credits
+        self.balance_credits -= amount_credits
 
     def settle_season(
         self,
@@ -130,7 +131,8 @@ class EconomicLedger:
 
         self.season_revenue = revenue
         self.season_profit = revenue - self.season_costs
-        self.balance_credits += self.season_profit
+        # Costs already deducted in record_cost(); only add revenue here.
+        self.balance_credits += revenue
         return self.season_profit
 
     def reset_season(self) -> None:
