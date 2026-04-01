@@ -72,3 +72,19 @@ func test_degraded_vs_rich_visible_difference() -> void:
 		lightness_diff > 0.05,
 		"Degraded should be noticeably lighter than rich (diff=%.3f)" % lightness_diff,
 	)
+
+
+func test_som_heatmap_gradient() -> void:
+	var low := SoilColor.calculate(200.0, 0.0, SoilColor.Mode.SOM_HEATMAP)
+	var high := SoilColor.calculate(4500.0, 0.0, SoilColor.Mode.SOM_HEATMAP)
+	# Low SOM should be reddish, high SOM should be greenish
+	assert_true(low.r > low.g, "Low SOM heatmap should be reddish")
+	assert_true(high.g > high.r, "High SOM heatmap should be greenish")
+
+
+func test_moisture_heatmap_gradient() -> void:
+	var dry := SoilColor.calculate(0.0, 0.02, SoilColor.Mode.MOISTURE_HEATMAP)
+	var wet := SoilColor.calculate(0.0, 0.40, SoilColor.Mode.MOISTURE_HEATMAP)
+	# Dry should be brownish (r > b), wet should be bluish (b > r)
+	assert_true(dry.r > dry.b, "Dry moisture heatmap should be brownish")
+	assert_true(wet.b > wet.r, "Wet moisture heatmap should be bluish")

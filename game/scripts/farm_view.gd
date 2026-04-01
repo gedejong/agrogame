@@ -39,6 +39,11 @@ const STRESS_TEXTURES := {
 const SoilColor = preload("res://scripts/soil_color.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
 const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
+const _MODE_NAMES := {
+	SoilColor.Mode.NATURAL: "Natural",
+	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
+	SoilColor.Mode.MOISTURE_HEATMAP: "Moisture Heatmap",
+}
 
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
@@ -47,6 +52,7 @@ var _crop_sprites: Array[Sprite2D] = []
 var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
+var _overlay_mode: int = SoilColor.Mode.NATURAL
 
 @onready var tile_layer: TileMapLayer = $TileLayer
 @onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
@@ -67,7 +73,7 @@ func _ready() -> void:
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
 	_init_grid()
-	status_label.text = "Select tile. 1-4 crop, W wilt, N def, S som, M moisture, 0 clear."
+	status_label.text = "Keys: 1-4 crop, S/M soil debug, F1-F3 overlays, 0 clear."
 
 
 func _create_tile_set() -> TileSet:
@@ -148,10 +154,10 @@ func _update_tile_color(idx: int) -> void:
 	var data: Dictionary = _tile_data[idx]
 	var som_c: float = data.get("som_total_c_g_m2", 0.0)
 	var theta: float = data.get("theta_surface", 0.0)
-	if som_c <= 0.0 and theta <= 0.0:
+	if som_c <= 0.0 and theta <= 0.0 and _overlay_mode == SoilColor.Mode.NATURAL:
 		_soil_overlays[idx].visible = false
 		return
-	var color := SoilColor.calculate(som_c, theta)
+	var color := SoilColor.calculate(som_c, theta, _overlay_mode)
 	_soil_overlays[idx].modulate = color
 	_soil_overlays[idx].visible = true
 
@@ -206,6 +212,18 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _handle_key(keycode: int) -> void:
+	# Overlay toggles work without tile selection
+	match keycode:
+		KEY_F1:
+			_set_overlay_mode(SoilColor.Mode.NATURAL)
+			return
+		KEY_F2:
+			_set_overlay_mode(SoilColor.Mode.SOM_HEATMAP)
+			return
+		KEY_F3:
+			_set_overlay_mode(SoilColor.Mode.MOISTURE_HEATMAP)
+			return
+	# Tile-specific keys require selection
 	if _selected_tile.x < 0:
 		return
 	var col := _selected_tile.x
@@ -231,6 +249,13 @@ func _handle_key(keycode: int) -> void:
 			_cycle_debug_som(idx)
 		KEY_M:
 			_cycle_debug_moisture(idx)
+
+
+func _set_overlay_mode(mode: int) -> void:
+	_overlay_mode = mode
+	_update_all_tile_colors()
+	var name: String = _MODE_NAMES.get(mode, "Unknown")
+	status_label.text = "Overlay: %s (F1 natural, F2 SOM, F3 moisture)" % name
 
 
 func _cycle_debug_som(idx: int) -> void:
