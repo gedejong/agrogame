@@ -104,3 +104,62 @@ class GameCreatedResponse(BaseModel):
     phase: str
     balance_credits: int
     field_count: int
+
+
+# ---------------------------------------------------------------------------
+# Day-by-day game loop (#125)
+# ---------------------------------------------------------------------------
+
+
+class DayWeatherResponse(BaseModel):
+    date: str = Field(description="ISO date")
+    tmin_c: float = Field(description="Minimum temperature (°C)")
+    tmax_c: float = Field(description="Maximum temperature (°C)")
+    rain_mm: float = Field(description="Precipitation (mm)")
+
+
+class PatchDayResponse(BaseModel):
+    patch_idx: int
+    crop_key: str
+    crop_stage: str = Field(description="Phenology stage name")
+    grain_g_m2: float
+    soil_theta_surface: float = Field(description="Top-layer volumetric water content")
+    som_total_c_g_m2: float = Field(description="Total SOM carbon (g/m²)")
+    water_stress: float = Field(description="Water stress factor (0=severe, 1=none)")
+
+
+class DayResultResponse(BaseModel):
+    day_number: int
+    date: str = Field(description="Current date (ISO format)")
+    weather: DayWeatherResponse
+    patches: dict[str, list[PatchDayResponse]]
+    season_complete: bool = Field(
+        default=False, description="True when crop mature or max days"
+    )
+    balance_credits: int
+
+
+class ActionRequest(BaseModel):
+    field_id: str = "field_1"
+    action: str = Field(description="irrigate, fertilize, plant, harvest")
+    params: dict = Field(default_factory=dict)
+
+
+class ActionResponse(BaseModel):
+    status: str
+    action: str
+    cost_credits: int
+    balance_credits: int
+    day_number: int
+
+
+class ForecastDayResponse(BaseModel):
+    date: str
+    tmin_c: float
+    tmax_c: float
+    rain_mm: float
+
+
+class ForecastResponse(BaseModel):
+    current_day: int
+    forecast: list[ForecastDayResponse]

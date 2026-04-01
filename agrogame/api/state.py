@@ -13,6 +13,9 @@ from agrogame.weather.types import WeatherRecord
 # Default simulation start date (Northern hemisphere spring).
 DEFAULT_START_DATE = date(2024, 4, 1)
 
+# Default season length in days.
+DEFAULT_SEASON_DAYS = 200
+
 
 @dataclass
 class GameSession:
@@ -27,6 +30,9 @@ class GameSession:
     current_date: date = DEFAULT_START_DATE
     base_seed: int = 42
     run_count: int = 0
+    day_index: int = 0
+    season_days: int = DEFAULT_SEASON_DAYS
+    season_active: bool = False
 
 
 # Global in-memory store — no database for V1

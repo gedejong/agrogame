@@ -16,78 +16,13 @@ repos:
     hooks:
       - id: flake8
 
-  # Use project virtualenv for mypy to pick up installed stubs and config
   - repo: local
     hooks:
-      - id: mypy-project
-        name: mypy (project)
-        entry: poetry run mypy agrogame
-        language: system
-        pass_filenames: false
-        files: ^agrogame/
-        stages: [push]
-
-  - repo: local
-    hooks:
-      - id: xenon-check
-        name: xenon complexity (manual)
-        entry: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' agrogame
-        language: system
-        pass_filenames: false
-        stages: [manual]
-
-  - repo: local
-    hooks:
-      - id: importlinter-check
-        name: import-linter contracts (manual)
-        entry: poetry run lint-imports --config .importlinter
-        language: system
-        pass_filenames: false
-        stages: [manual]
-
-  - repo: https://github.com/fpgmaas/deptry
-    rev: "0.20.0"
-    hooks:
-      - id: deptry
-        args: ["--exclude","tests,docs,build,dist,out,.cache"]
-        stages: [manual]
-
-  - repo: https://github.com/jendrikseipp/vulture
-    rev: v2.11
-    hooks:
-      - id: vulture
-        args: ["--min-confidence","80","agrogame"]
-        stages: [manual]
-
-  - repo: local
-    hooks:
-      - id: defensive-coding
-        name: defensive coding checks
-        entry: poetry run python scripts/check_defensive_coding.py agrogame
-        language: system
-        pass_filenames: false
-        stages: [push]
-  - repo: local
-    hooks:
-      - id: pytest-with-cov
-        name: pytest with coverage
-        entry: poetry run pytest --maxfail=1 --disable-warnings
-        language: system
-        pass_filenames: false
-        stages: [push]
       - id: ruff-docstrings-water
         name: ruff docstrings (water package)
         entry: poetry run ruff check agrogame/soil/water --select D
         language: system
         pass_filenames: false
-  - repo: local
-    hooks:
-      - id: bench-pre-push
-        name: benchmark suite (AGRO_BENCH=1)
-        entry: bash -c 'AGRO_BENCH=1 poetry run pytest -q -k benchmarks --no-cov || exit 1'
-        language: system
-        pass_filenames: false
-        stages: [push]
 
   # GDScript quality — skips gracefully if gdtoolkit not installed
   - repo: local
@@ -108,10 +43,64 @@ repos:
         language: system
         pass_filenames: false
         files: '\.gd$'
+
+  # --- Heavy checks: manual stage only (run via `pre-commit run --hook-stage manual`) ---
+  - repo: local
+    hooks:
+      - id: mypy-project
+        name: mypy (project)
+        entry: poetry run mypy agrogame
+        language: system
+        pass_filenames: false
+        files: ^agrogame/
+        stages: [manual]
+      - id: xenon-check
+        name: xenon complexity
+        entry: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' agrogame
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: importlinter-check
+        name: import-linter contracts
+        entry: poetry run lint-imports --config .importlinter
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: defensive-coding
+        name: defensive coding checks
+        entry: poetry run python scripts/check_defensive_coding.py agrogame
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: pytest-with-cov
+        name: pytest with coverage
+        entry: poetry run pytest --maxfail=1 --disable-warnings
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: bench-pre-push
+        name: benchmark suite (AGRO_BENCH=1)
+        entry: bash -c 'AGRO_BENCH=1 poetry run pytest -q -k benchmarks --no-cov || exit 1'
+        language: system
+        pass_filenames: false
+        stages: [manual]
       - id: gut-tests
         name: GUT tests (GDScript)
         entry: bash -c 'command -v godot >/dev/null 2>&1 || { echo "godot not found, skipping GUT tests"; exit 0; }; cd game && godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json'
         language: system
         pass_filenames: false
-        stages: [push]
-        files: '\.gd$'
+        stages: [manual]
+
+  - repo: https://github.com/fpgmaas/deptry
+    rev: "0.20.0"
+    hooks:
+      - id: deptry
+        args: ["--exclude","tests,docs,build,dist,out,.cache"]
+        stages: [manual]
+
+  - repo: https://github.com/jendrikseipp/vulture
+    rev: v2.11
+    hooks:
+      - id: vulture
+        args: ["--min-confidence","80","agrogame"]
+        stages: [manual]

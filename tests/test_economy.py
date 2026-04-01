@@ -155,7 +155,8 @@ def test_to_dict_from_dict_roundtrip() -> None:
     json_str = json.dumps(d)
     restored = EconomicLedger.from_dict(json.loads(json_str))
 
-    assert restored.balance_credits == 5000
+    # record_cost deducts immediately: 5000 - 150 - 80 = 4770
+    assert restored.balance_credits == 4770
     assert len(restored.costs) == 2
     assert restored.costs[0].category == "seed"
     assert restored.season_profit == 670
@@ -175,8 +176,8 @@ def test_reset_season() -> None:
     assert ledger.season_revenue == 0
     assert ledger.season_costs == 0
     assert ledger.season_profit == 0
-    # Balance should NOT reset
-    assert ledger.balance_credits == 10000
+    # Balance reflects costs already deducted (10000 - 200 = 9800), not reset
+    assert ledger.balance_credits == 9800
 
 
 # ---------------------------------------------------------------------------

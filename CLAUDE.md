@@ -106,12 +106,14 @@ scripts/           # Utility scripts (plots, analysis)
 
 ## Tests & CI
 
-- Python: run locally before pushing — black, ruff, flake8, mypy, pytest with coverage
+- Pre-commit hooks (fast, ~5s): black, ruff, flake8, gdlint, gdformat, file coverage
+- Before committing: run targeted tests for changed code (e.g., `poetry run pytest tests/test_api.py -x`)
+- Full suite runs in GitHub Actions CI — do NOT run full pytest in pre-commit/pre-push hooks
+- To run all checks manually: `pre-commit run --hook-stage manual --all-files`
 - Python coverage threshold ~97%; enforced by CI
 - GDScript: gdlint, gdformat, GUT tests, 100% file coverage
 - GitHub Actions: ubuntu-latest, Python 3.10 on PRs; full matrix on releases
 - Skip optional-extras tests when deps absent (e.g., streamlit/plotly)
-- Use `pytest-xdist` for parallel test execution
 
 ## Tools
 

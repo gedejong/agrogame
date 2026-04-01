@@ -8,9 +8,16 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from agrogame.api.models import (
+    ActionRequest,
+    ActionResponse,
     CreateGameRequest,
+    DayResultResponse,
+    DayWeatherResponse,
+    ForecastDayResponse,
+    ForecastResponse,
     GameCreatedResponse,
     GameStatusResponse,
+    PatchDayResponse,
     PatchResultResponse,
     PauseEventResponse,
     PlanRequest,
@@ -19,12 +26,13 @@ from agrogame.api.models import (
     SoilStateResponse,
 )
 from agrogame.api.state import GameSession, games
-from agrogame.game.economy import EconomicLedger
+from agrogame.game.economy import EconomicLedger, PriceTable
 from agrogame.game.field import FieldManager, Patch, PatchConfig
 from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
+from agrogame.weather.types import WeatherRecord
 
 from agrogame.plant.presets import load_crop_presets
 
@@ -298,6 +306,205 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
     ]
     s.turn_manager.revise_plan(req.from_day, new_events)
     return {"status": "revised", "from_day": req.from_day}
+
+
+# ---------------------------------------------------------------------------
+# Day-by-day game loop (#125)
+# ---------------------------------------------------------------------------
+
+_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest"}
+
+
+def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
+    """Compute action cost from PriceTable (data/economy/prices.yaml)."""
+    if action == "irrigate":
+        per_mm = prices.input_costs.get("irrigation_per_mm", 2)
+        return int(per_mm * params.get("amount_mm", 20))
+    if action == "fertilize":
+        labor = prices.input_costs.get("labor_per_action", 50)
+        fert_type = params.get("type", "urea")
+        per_kg = prices.input_costs.get(f"fertilizer_{fert_type}", 1)
+        amount = params.get("amount_kg_ha", 50)
+        return int(labor + per_kg * amount)
+    if action == "plant":
+        return int(prices.input_costs.get("seed_maize", 200))
+    if action == "harvest":
+        return int(prices.input_costs.get("labor_per_action", 50))
+    return 0
+
+
+def _ensure_weather(s: GameSession, seed: int = 42) -> None:
+    """Generate weather for the session if not yet generated."""
+    if s.weather and s.day_index < len(s.weather):
+        return
+    first_field = next(iter(s.field_manager.fields.values()))
+    climate_key = first_field.patches[0].config.climate_key
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    climate = climates.climates[climate_key]
+    effective_seed = seed + s.run_count
+    gen = SyntheticWeatherGenerator(climate, seed=effective_seed)
+    series = gen.generate(s.season_days, s.current_date)
+    s.weather = series.records
+    s.season_active = True
+
+
+def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
+    """Build the per-day response with weather, crop, and soil state."""
+
+    weather = DayWeatherResponse(
+        date=rec.day.isoformat() if rec.day else s.current_date.isoformat(),
+        tmin_c=round(rec.tmin_c, 1),
+        tmax_c=round(rec.tmax_c, 1),
+        rain_mm=round(rec.precip_mm or 0.0, 1),
+    )
+    patches: dict[str, list[PatchDayResponse]] = {}
+    for fid, fld in s.field_manager.fields.items():
+        patches[fid] = []
+        for i, p in enumerate(fld.patches):
+            snap = p.orch.snapshot_soil()
+            som_total = (
+                sum(snap.som_labile_c)
+                + sum(snap.som_intermediate_c)
+                + sum(snap.som_stable_c)
+            )
+            theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+            fc = p.orch.profile.layers[0].field_capacity
+            w_stress = min(theta_top / fc, 1.0) if fc > 0 else 1.0
+            patches[fid].append(
+                PatchDayResponse(
+                    patch_idx=i,
+                    crop_key=p.config.crop_key,
+                    crop_stage=p.orch.phenology.state.stage.value,
+                    grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
+                    soil_theta_surface=round(theta_top, 4),
+                    som_total_c_g_m2=round(som_total, 1),
+                    water_stress=round(w_stress, 2),
+                )
+            )
+    # Check if crop reached maturity
+    first_field = next(iter(s.field_manager.fields.values()))
+    from agrogame.soil.phenology.types import PhenologyStage
+
+    mature = (
+        first_field.patches[0].orch.phenology.state.stage == PhenologyStage.MATURITY
+    )
+    season_done = mature or s.day_index >= len(s.weather)
+
+    return DayResultResponse(
+        day_number=s.day_index,
+        date=s.current_date.isoformat(),
+        weather=weather,
+        patches=patches,
+        season_complete=season_done,
+        balance_credits=s.ledger.balance_credits,
+    )
+
+
+@router.post("/games/{game_id}/step", response_model=DayResultResponse)
+def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
+    """Advance the simulation by N days."""
+    s = _get_session(game_id)
+    if not s.field_manager.fields:
+        raise HTTPException(400, "No fields configured")
+    # If weather was consumed by /start-season, regenerate for new stepping
+    if s.weather and s.day_index >= len(s.weather):
+        s.weather = []
+        s.day_index = 0
+        _reset_all_crops(s)
+        s.run_count += 1
+    _ensure_weather(s, seed)
+
+    from agrogame.soil.water.types import DailyDrivers as _DD
+    from datetime import timedelta
+
+    steps = min(days, len(s.weather) - s.day_index)
+    if steps <= 0:
+        raise HTTPException(400, "Season complete — no more days to simulate")
+
+    last_rec = s.weather[s.day_index]
+    for i in range(steps):
+        idx = s.day_index + i
+        if idx >= len(s.weather):
+            break
+        rec = s.weather[idx]
+        last_rec = rec
+        drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
+        s.field_manager.step_day(
+            drivers=drivers,
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+
+    s.day_index += steps
+    s.current_date = s.current_date + timedelta(days=steps)
+
+    return _build_day_result(s, last_rec)
+
+
+@router.post("/games/{game_id}/action", response_model=ActionResponse)
+def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
+    """Execute an immediate management action on the current day."""
+    s = _get_session(game_id)
+    if req.field_id not in s.field_manager.fields:
+        raise HTTPException(404, f"Field {req.field_id} not found")
+    if req.action not in _VALID_ACTIONS:
+        raise HTTPException(400, f"Unknown action: {req.action}")
+
+    from agrogame.game.economy import PriceTable
+
+    prices = PriceTable.load()
+    cost = _compute_action_cost(req.action, req.params, prices)
+
+    if s.ledger.balance_credits < cost:
+        raise HTTPException(
+            400, f"Insufficient credits: need {cost}, have {s.ledger.balance_credits}"
+        )
+
+    s.ledger.record_cost(s.day_index, req.action, f"{req.action} {req.params}", cost)
+
+    # Apply to all patches in the field
+    field = s.field_manager.fields[req.field_id]
+    for patch in field.patches:
+        if req.action == "irrigate":
+            patch.orch.apply_irrigation(req.params.get("amount_mm", 20.0))
+        elif req.action == "fertilize":
+            patch.orch.apply_fertilizer(
+                req.params.get("type", "urea"),
+                req.params.get("amount_kg_ha", 50.0),
+            )
+
+    return ActionResponse(
+        status="executed",
+        action=req.action,
+        cost_credits=cost,
+        balance_credits=s.ledger.balance_credits,
+        day_number=s.day_index,
+    )
+
+
+@router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
+def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastResponse:
+    """Peek ahead in the weather series for the next N days."""
+    s = _get_session(game_id)
+    _ensure_weather(s, seed)
+
+    forecast: list[ForecastDayResponse] = []
+    for i in range(days):
+        idx = s.day_index + i
+        if idx >= len(s.weather):
+            break
+        rec = s.weather[idx]
+        forecast.append(
+            ForecastDayResponse(
+                date=rec.day.isoformat() if rec.day else "",
+                tmin_c=round(rec.tmin_c, 1),
+                tmax_c=round(rec.tmax_c, 1),
+                rain_mm=round(rec.precip_mm or 0.0, 1),
+            )
+        )
+    return ForecastResponse(current_day=s.day_index, forecast=forecast)
 
 
 # In-memory save slots — disk persistence deferred to AGRO-36
