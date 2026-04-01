@@ -36,14 +36,26 @@ const STRESS_TEXTURES := {
 	StressState.N_DEFICIENT: "res://assets/crops/maize_ndeficient.svg",
 }
 
+const SoilColor = preload("res://scripts/soil_color.gd")
+const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
+const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
+const _MODE_NAMES := {
+	SoilColor.Mode.NATURAL: "Natural",
+	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
+	SoilColor.Mode.MOISTURE_HEATMAP: "Moisture Heatmap",
+}
+
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
 var _crop_sprites: Array[Sprite2D] = []
+var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
+var _overlay_mode: int = SoilColor.Mode.NATURAL
 
 @onready var tile_layer: TileMapLayer = $TileLayer
+@onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
 @onready var crop_layer: Node2D = $CropLayer
 @onready var selection_indicator: Sprite2D = $SelectionIndicator
 @onready var weather: Node = $UILayer/WeatherOverlay
@@ -61,7 +73,7 @@ func _ready() -> void:
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
 	_init_grid()
-	status_label.text = ("Click tile to select. 1-4 crop stage, W wilt, N deficient, 0 clear.")
+	status_label.text = "Keys: 1-4 crop, S/M soil debug, F1-F3 overlays, 0 clear."
 
 
 func _create_tile_set() -> TileSet:
@@ -94,6 +106,7 @@ func _soil_source_id(soil_type: String) -> int:
 func _init_grid() -> void:
 	_tile_data.clear()
 	_crop_sprites.clear()
+	_soil_overlays.clear()
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
 			var soil_type := "organic"
@@ -111,11 +124,52 @@ func _init_grid() -> void:
 						"crop_stage": CropStage.NONE,
 						"stress": StressState.NONE,
 						"grain_g_m2": 0.0,
+						"som_total_c_g_m2": 0.0,
+						"theta_surface": 0.0,
 					}
 				)
 			)
 			tile_layer.set_cell(Vector2i(col, row), _soil_source_id(soil_type), Vector2i(0, 0))
+			_create_soil_overlay(col, row, soil_type)
 			_create_crop_sprite(col, row)
+
+
+func _create_soil_overlay(col: int, _row: int, _soil_type: String) -> void:
+	var sprite := Sprite2D.new()
+	var tex: Texture2D = load("res://assets/tiles/tile_white.svg")
+	if tex:
+		sprite.texture = tex
+	sprite.position = tile_layer.map_to_local(Vector2i(col, _row))
+	sprite.z_index = 0
+	sprite.modulate = Color(1, 1, 1, 0)
+	sprite.visible = false
+	soil_overlay_layer.add_child(sprite)
+	_soil_overlays.append(sprite)
+
+
+func _update_tile_color(idx: int) -> void:
+	if idx < 0 or idx >= _soil_overlays.size():
+		return
+	var data: Dictionary = _tile_data[idx]
+	var som_c: float = data.get("som_total_c_g_m2", 0.0)
+	var theta: float = data.get("theta_surface", 0.0)
+	if som_c <= 0.0 and theta <= 0.0 and _overlay_mode == SoilColor.Mode.NATURAL:
+		_soil_overlays[idx].visible = false
+		return
+	var color := SoilColor.calculate(som_c, theta, _overlay_mode)
+	# Heatmap modes: fully opaque overlay replaces base tile visually.
+	# Natural mode: semi-transparent overlay darkens base tile.
+	if _overlay_mode != SoilColor.Mode.NATURAL:
+		color.a = 0.85
+	else:
+		color.a = 0.6
+	_soil_overlays[idx].modulate = color
+	_soil_overlays[idx].visible = true
+
+
+func _update_all_tile_colors() -> void:
+	for i in range(_tile_data.size()):
+		_update_tile_color(i)
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
@@ -163,10 +217,23 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _handle_key(keycode: int) -> void:
+	# Overlay toggles work without tile selection
+	match keycode:
+		KEY_F1:
+			_set_overlay_mode(SoilColor.Mode.NATURAL)
+			return
+		KEY_F2:
+			_set_overlay_mode(SoilColor.Mode.SOM_HEATMAP)
+			return
+		KEY_F3:
+			_set_overlay_mode(SoilColor.Mode.MOISTURE_HEATMAP)
+			return
+	# Tile-specific keys require selection
 	if _selected_tile.x < 0:
 		return
 	var col := _selected_tile.x
 	var row := _selected_tile.y
+	var idx := row * GRID_COLS + col
 	match keycode:
 		KEY_1:
 			set_crop_stage(col, row, CropStage.SEEDLING)
@@ -183,6 +250,52 @@ func _handle_key(keycode: int) -> void:
 			set_stress_state(col, row, StressState.WILTING)
 		KEY_N:
 			set_stress_state(col, row, StressState.N_DEFICIENT)
+		KEY_S:
+			_cycle_debug_som(idx)
+		KEY_M:
+			_cycle_debug_moisture(idx)
+
+
+func _set_overlay_mode(mode: int) -> void:
+	_overlay_mode = mode
+	_update_all_tile_colors()
+	var name: String = _MODE_NAMES.get(mode, "Unknown")
+	status_label.text = "Overlay: %s (F1 natural, F2 SOM, F3 moisture)" % name
+
+
+func _cycle_debug_som(idx: int) -> void:
+	var current: float = _tile_data[idx].get("som_total_c_g_m2", 0.0)
+	var next_val := _SOM_PRESETS[0]
+	for preset: float in _SOM_PRESETS:
+		if preset > current + 1.0:
+			next_val = preset
+			break
+	_tile_data[idx]["som_total_c_g_m2"] = next_val
+	_update_tile_color(idx)
+	_refresh_status_label(idx)
+
+
+func _cycle_debug_moisture(idx: int) -> void:
+	var current: float = _tile_data[idx].get("theta_surface", 0.0)
+	var next_val := _MOISTURE_PRESETS[0]
+	for preset: float in _MOISTURE_PRESETS:
+		if preset > current + 0.001:
+			next_val = preset
+			break
+	_tile_data[idx]["theta_surface"] = next_val
+	_update_tile_color(idx)
+	_refresh_status_label(idx)
+
+
+func _refresh_status_label(idx: int) -> void:
+	var data: Dictionary = _tile_data[idx]
+	var som_c: float = data.get("som_total_c_g_m2", 0.0)
+	var theta: float = data.get("theta_surface", 0.0)
+	var col: int = data["col"]
+	var row: int = data["row"]
+	status_label.text = (
+		"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
+	)
 
 
 func _handle_tile_click() -> void:
@@ -196,8 +309,10 @@ func _handle_tile_click() -> void:
 		_update_selection_indicator()
 		var idx := row * GRID_COLS + col
 		var data: Dictionary = _tile_data[idx]
+		var som_c: float = data.get("som_total_c_g_m2", 0.0)
+		var theta: float = data.get("theta_surface", 0.0)
 		status_label.text = (
-			"Selected: [%d,%d] soil=%s crop=%d" % [col, row, data["soil_type"], data["crop_stage"]]
+			"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
 		)
 
 
@@ -284,8 +399,9 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 
 
 func _apply_season_results(field_results: Dictionary) -> void:
-	## Parse per-patch grain_g_m2 from API response and update tile data.
+	## Parse per-patch results from API response: grain, soil state, tile colors.
 	var patch_idx := 0
+	var last_soil := {}
 	for field_key: String in field_results:
 		var patches: Array = field_results[field_key]
 		for patch: Dictionary in patches:
@@ -294,10 +410,20 @@ func _apply_season_results(field_results: Dictionary) -> void:
 				_tile_data[patch_idx]["grain_g_m2"] = grain
 				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
 				_update_crop_visuals(patch_idx)
+				var soil: Dictionary = patch.get("soil_state", {})
+				if not soil.is_empty():
+					last_soil = soil
+					_tile_data[patch_idx]["som_total_c_g_m2"] = soil.get("som_total_c_g_m2", 0.0)
+					_tile_data[patch_idx]["theta_surface"] = soil.get("theta_surface", 0.0)
 			patch_idx += 1
+	# Propagate last soil state to remaining tiles
 	for i in range(patch_idx, _tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
 		_update_crop_visuals(i)
+		if not last_soil.is_empty():
+			_tile_data[i]["som_total_c_g_m2"] = last_soil.get("som_total_c_g_m2", 0.0)
+			_tile_data[i]["theta_surface"] = last_soil.get("theta_surface", 0.0)
+	_update_all_tile_colors()
 
 
 func _total_grain_g_m2() -> float:

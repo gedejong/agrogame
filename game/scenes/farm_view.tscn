@@ -11,6 +11,9 @@ script = ExtResource("1")
 position = Vector2(300, 100)
 y_sort_enabled = true
 
+[node name="SoilOverlayLayer" type="Node2D" parent="."]
+position = Vector2(300, 100)
+
 [node name="CropLayer" type="Node2D" parent="."]
 position = Vector2(300, 100)
 
@@ -20,6 +23,7 @@ visible = false
 [node name="Camera2D" type="Camera2D" parent="."]
 script = ExtResource("2")
 position = Vector2(300, 150)
+zoom = Vector2(2, 2)
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 10
