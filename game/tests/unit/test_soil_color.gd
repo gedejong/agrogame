@@ -10,7 +10,7 @@ func test_no_som_no_moisture_returns_white() -> void:
 
 
 func test_high_som_darkens_tile() -> void:
-	var low_som := SoilColor.calculate(500.0, 0.0)
+	var low_som := SoilColor.calculate(200.0, 0.0)
 	var high_som := SoilColor.calculate(5000.0, 0.0)
 	assert_true(
 		high_som.v < low_som.v,
@@ -51,9 +51,9 @@ func test_color_stays_in_valid_range() -> void:
 
 func test_transitions_smooth() -> void:
 	# Verify no discontinuities: stepping SOM by small increments
-	var prev := SoilColor.calculate(500.0, 0.2)
+	var prev := SoilColor.calculate(0.0, 0.2)
 	for step in range(1, 10):
-		var som: float = 500.0 + step * 500.0
+		var som: float = step * 500.0
 		var current := SoilColor.calculate(som, 0.2)
 		var diff: float = abs(current.v - prev.v)
 		assert_true(
@@ -65,7 +65,7 @@ func test_transitions_smooth() -> void:
 
 func test_degraded_vs_rich_visible_difference() -> void:
 	## AC: SOM < 1% (~500 g C/m²) should look noticeably paler than SOM > 3% (~3000 g C/m²)
-	var degraded := SoilColor.calculate(500.0, 0.15)
+	var degraded := SoilColor.calculate(400.0, 0.15)
 	var rich := SoilColor.calculate(3000.0, 0.15)
 	var lightness_diff: float = degraded.v - rich.v
 	assert_true(

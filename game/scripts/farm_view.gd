@@ -122,13 +122,14 @@ func _init_grid() -> void:
 				)
 			)
 			tile_layer.set_cell(Vector2i(col, row), _soil_source_id(soil_type), Vector2i(0, 0))
-			_create_soil_overlay(col, row)
+			_create_soil_overlay(col, row, soil_type)
 			_create_crop_sprite(col, row)
 
 
-func _create_soil_overlay(col: int, row: int) -> void:
+func _create_soil_overlay(col: int, row: int, soil_type: String) -> void:
 	var sprite := Sprite2D.new()
-	var tex: Texture2D = load(TILE_TEXTURES["organic"])
+	var tex_path: String = TILE_TEXTURES.get(soil_type, TILE_TEXTURES["organic"])
+	var tex: Texture2D = load(tex_path)
 	if tex:
 		sprite.texture = tex
 	sprite.position = tile_layer.map_to_local(Vector2i(col, row))
@@ -236,8 +237,10 @@ func _handle_tile_click() -> void:
 		_update_selection_indicator()
 		var idx := row * GRID_COLS + col
 		var data: Dictionary = _tile_data[idx]
+		var som_c: float = data.get("som_total_c_g_m2", 0.0)
+		var theta: float = data.get("theta_surface", 0.0)
 		status_label.text = (
-			"Selected: [%d,%d] soil=%s crop=%d" % [col, row, data["soil_type"], data["crop_stage"]]
+			"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
 		)
 
 
@@ -326,6 +329,7 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 func _apply_season_results(field_results: Dictionary) -> void:
 	## Parse per-patch results from API response: grain, soil state, tile colors.
 	var patch_idx := 0
+	var last_soil := {}
 	for field_key: String in field_results:
 		var patches: Array = field_results[field_key]
 		for patch: Dictionary in patches:
@@ -334,15 +338,19 @@ func _apply_season_results(field_results: Dictionary) -> void:
 				_tile_data[patch_idx]["grain_g_m2"] = grain
 				_tile_data[patch_idx]["crop_stage"] = CropStage.MATURE
 				_update_crop_visuals(patch_idx)
-				# Extract soil state for tile color modulation
 				var soil: Dictionary = patch.get("soil_state", {})
 				if not soil.is_empty():
+					last_soil = soil
 					_tile_data[patch_idx]["som_total_c_g_m2"] = soil.get("som_total_c_g_m2", 0.0)
 					_tile_data[patch_idx]["theta_surface"] = soil.get("theta_surface", 0.0)
 			patch_idx += 1
+	# Propagate last soil state to remaining tiles
 	for i in range(patch_idx, _tile_data.size()):
 		_tile_data[i]["crop_stage"] = CropStage.MATURE
 		_update_crop_visuals(i)
+		if not last_soil.is_empty():
+			_tile_data[i]["som_total_c_g_m2"] = last_soil.get("som_total_c_g_m2", 0.0)
+			_tile_data[i]["theta_surface"] = last_soil.get("theta_surface", 0.0)
 	_update_all_tile_colors()
 
 

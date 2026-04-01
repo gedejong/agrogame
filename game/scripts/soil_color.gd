@@ -4,8 +4,9 @@ extends RefCounted
 ## Base texture hue (sandy warm, clay cool) is preserved via modulation.
 
 ## Reference SOM range for normalization (g C/m² across all layers).
-## ~500 = very degraded (<1% OM), ~5000 = very rich (>5% OM).
-const SOM_MIN_C_G_M2 := 500.0
+## 0 = bare/no-data, ~5000 = very rich (>5% OM). Linear scale from 0
+## so even very degraded soils get slight modulation.
+const SOM_MIN_C_G_M2 := 0.0
 const SOM_MAX_C_G_M2 := 5000.0
 
 ## Saturated volumetric water content (approximate upper bound).
