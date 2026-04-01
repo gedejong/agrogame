@@ -39,6 +39,14 @@ const STRESS_TEXTURES := {
 const SoilColor = preload("res://scripts/soil_color.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
 const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
+const _STAGE_MAP := {
+	"planted": CropStage.SEEDLING,
+	"emerged": CropStage.SEEDLING,
+	"vegetative": CropStage.VEGETATIVE,
+	"flowering": CropStage.FLOWERING,
+	"grain_fill": CropStage.MATURE,
+	"maturity": CropStage.MATURE,
+}
 const _MODE_NAMES := {
 	SoilColor.Mode.NATURAL: "Natural",
 	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
@@ -454,7 +462,7 @@ func _apply_day_result(data: Dictionary) -> void:
 
 
 func _apply_patch_day_results(patches: Dictionary) -> void:
-	## Map per-patch day results to tiles by soil type.
+	## Map per-patch day results to tiles by soil type, update crop visuals.
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		for patch_idx in range(patch_list.size()):
@@ -462,11 +470,16 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 			var patch_soil: String = ""
 			if patch_idx < SOIL_TYPES.size():
 				patch_soil = SOIL_TYPES[patch_idx]
+			# Map API phenology stage to CropStage
+			var stage_name: String = patch.get("crop_stage", "")
+			var stage: int = _STAGE_MAP.get(stage_name, CropStage.NONE)
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["grain_g_m2"] = patch.get("grain_g_m2", 0.0)
 					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
+					_tile_data[i]["crop_stage"] = stage
+					_update_crop_visuals(i)
 
 
 func _on_irrigate() -> void:

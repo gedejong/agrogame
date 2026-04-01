@@ -26,7 +26,7 @@ from agrogame.api.models import (
     SoilStateResponse,
 )
 from agrogame.api.state import GameSession, games
-from agrogame.game.economy import EconomicLedger
+from agrogame.game.economy import EconomicLedger, PriceTable
 from agrogame.game.field import FieldManager, Patch, PatchConfig
 from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
 from agrogame.sim.management import ManagementEvent, ManagementPlan
@@ -312,18 +312,30 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
 # Day-by-day game loop (#125)
 # ---------------------------------------------------------------------------
 
-# Action costs (from data/economy/prices.yaml)
-_ACTION_COSTS = {
-    "irrigate": 2,  # credits per mm per ha
-    "fertilize": 50,  # base labor + material
-    "plant": 200,  # seed cost
-    "harvest": 50,  # labor
-}
+_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest"}
+
+
+def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
+    """Compute action cost from PriceTable (data/economy/prices.yaml)."""
+    if action == "irrigate":
+        per_mm = prices.input_costs.get("irrigation_per_mm", 2)
+        return int(per_mm * params.get("amount_mm", 20))
+    if action == "fertilize":
+        labor = prices.input_costs.get("labor_per_action", 50)
+        fert_type = params.get("type", "urea")
+        per_kg = prices.input_costs.get(f"fertilizer_{fert_type}", 1)
+        amount = params.get("amount_kg_ha", 50)
+        return int(labor + per_kg * amount)
+    if action == "plant":
+        return int(prices.input_costs.get("seed_maize", 200))
+    if action == "harvest":
+        return int(prices.input_costs.get("labor_per_action", 50))
+    return 0
 
 
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     """Generate weather for the session if not yet generated."""
-    if s.weather:
+    if s.weather and s.day_index < len(s.weather):
         return
     first_field = next(iter(s.field_manager.fields.values()))
     climate_key = first_field.patches[0].config.climate_key
@@ -394,6 +406,12 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     s = _get_session(game_id)
     if not s.field_manager.fields:
         raise HTTPException(400, "No fields configured")
+    # If weather was consumed by /start-season, regenerate for new stepping
+    if s.weather and s.day_index >= len(s.weather):
+        s.weather = []
+        s.day_index = 0
+        _reset_all_crops(s)
+        s.run_count += 1
     _ensure_weather(s, seed)
 
     from agrogame.soil.water.types import DailyDrivers as _DD
@@ -431,23 +449,20 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     s = _get_session(game_id)
     if req.field_id not in s.field_manager.fields:
         raise HTTPException(404, f"Field {req.field_id} not found")
-    if req.action not in _ACTION_COSTS:
+    if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
 
-    # Calculate cost
-    base_cost = _ACTION_COSTS[req.action]
-    if req.action == "irrigate":
-        cost = int(base_cost * req.params.get("amount_mm", 20))
-    elif req.action == "fertilize":
-        cost = base_cost + int(req.params.get("amount_kg_ha", 50))
-    else:
-        cost = base_cost
+    from agrogame.game.economy import PriceTable
+
+    prices = PriceTable.load()
+    cost = _compute_action_cost(req.action, req.params, prices)
 
     if s.ledger.balance_credits < cost:
         raise HTTPException(
             400, f"Insufficient credits: need {cost}, have {s.ledger.balance_credits}"
         )
 
+    s.ledger.record_cost(s.day_index, req.action, f"{req.action} {req.params}", cost)
     s.ledger.balance_credits -= cost
 
     # Apply to all patches in the field
