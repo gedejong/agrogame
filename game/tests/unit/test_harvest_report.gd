@@ -20,3 +20,7 @@ func test_grade_a_is_greenish() -> void:
 func test_grade_f_is_reddish() -> void:
 	var color: Color = HarvestReport.GRADE_COLORS["F"]
 	assert_true(color.r > color.g, "Grade F should be red-dominant")
+
+
+func test_grade_colors_count() -> void:
+	assert_eq(HarvestReport.GRADE_COLORS.size(), 5, "Should have 5 grades A-F")
