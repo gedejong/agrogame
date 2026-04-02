@@ -216,8 +216,8 @@ func _create_crop_sprite(col: int, row: int) -> void:
 		var u: float = _PLANT_FRACS[ui]
 		for vi in range(_PLANT_GRID):
 			var v: float = _PLANT_FRACS[vi]
-			var px: float = (u - v) * HALF_W
-			var py: float = (u + v) * HALF_H - HALF_H
+			var px: float = (u - v) * TILE_WIDTH / 2.0
+			var py: float = (u + v) * TILE_HEIGHT / 2.0 - TILE_HEIGHT / 2.0
 			var sprite := Sprite2D.new()
 			sprite.position = Vector2(px, py - 4)
 			sprite.scale = _PLANT_SCALE
