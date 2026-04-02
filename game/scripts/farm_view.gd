@@ -812,17 +812,15 @@ func _add_crop_stat(
 	lbl.custom_minimum_size.x = 35
 	row.add_child(lbl)
 
-	# Mini bar
+	# Mini bar — fill is a child of the track so it overlays
 	var bar_bg := ColorRect.new()
 	bar_bg.color = Color(0.2, 0.2, 0.25, 0.5)
 	bar_bg.custom_minimum_size = Vector2(60, 8)
-	row.add_child(bar_bg)
-
 	var bar_fill := ColorRect.new()
 	bar_fill.color = color
-	bar_fill.custom_minimum_size = Vector2(60 * frac, 8)
-	bar_fill.position = Vector2.ZERO
-	row.add_child(bar_fill)
+	bar_fill.size = Vector2(60 * frac, 8)
+	bar_bg.add_child(bar_fill)
+	row.add_child(bar_bg)
 
 	var val := Label.new()
 	val.text = value_text
