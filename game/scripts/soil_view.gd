@@ -510,7 +510,7 @@ func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
 		total_depth += layer.get("depth_cm", 20.0) * DEPTH_SCALE
 	if total_depth <= 0:
 		return
-	var root_depth: float = root_depth_cm * DEPTH_SCALE
+	var root_depth: float = root_depth_cm * DEPTH_SCALE * 0.5
 	var depth_frac: float = clampf(root_depth / total_depth, 0.0, 1.0)
 	var plant_fracs := [0.125, 0.375, 0.625, 0.875]
 
