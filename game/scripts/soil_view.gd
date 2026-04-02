@@ -92,9 +92,10 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 	var labile: Array = soil_state.get("som_labile_c", [])
 	var stable: Array = soil_state.get("som_stable_c", [])
 
-	# Wall offset gives the 2.5D depth look
-	var wall_w := HALF_W * 0.3
-	var y_top := HALF_H
+	# Isometric box cutaway: left face and right face per layer.
+	# The tile diamond has vertices at (0,-HH), (HW,0), (0,HH), (-HW,0).
+	# Each layer drops vertically by h pixels, creating two visible faces.
+	var y_off := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
 		var depth_cm: float = layer.get("depth_cm", 20.0)
@@ -102,84 +103,88 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		var texture: String = layer.get("texture", "loam")
 		var sat: float = layer.get("saturation", 0.45)
 		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
-		var y_bot := y_top + h
 
-		# Front face — simple rectangle inset from tile edges
-		var front := Polygon2D.new()
-		front.polygon = PackedVector2Array(
+		# Top of this layer = bottom of tile + accumulated offset
+		var yt := HALF_H + y_off
+		var yb := yt + h
+
+		# Left face: from left vertex down to bottom-center
+		var left_face := Polygon2D.new()
+		left_face.polygon = PackedVector2Array(
 			[
-				Vector2(-HALF_W + 2, y_top),
-				Vector2(HALF_W - wall_w, y_top),
-				Vector2(HALF_W - wall_w, y_bot),
-				Vector2(-HALF_W + 2, y_bot),
+				Vector2(-HALF_W, yt),
+				Vector2(0, yt + HALF_H),
+				Vector2(0, yb + HALF_H),
+				Vector2(-HALF_W, yb),
 			]
 		)
-		front.color = base_color
-		add_child(front)
+		left_face.color = base_color.darkened(0.15)
+		add_child(left_face)
 
-		# Right wall (darker, gives depth)
-		var rw := Polygon2D.new()
-		rw.polygon = PackedVector2Array(
+		# Right face: from right vertex down to bottom-center
+		var right_face := Polygon2D.new()
+		right_face.polygon = PackedVector2Array(
 			[
-				Vector2(HALF_W - wall_w, y_top),
-				Vector2(HALF_W, y_top - 3),
-				Vector2(HALF_W, y_bot - 3),
-				Vector2(HALF_W - wall_w, y_bot),
+				Vector2(HALF_W, yt),
+				Vector2(0, yt + HALF_H),
+				Vector2(0, yb + HALF_H),
+				Vector2(HALF_W, yb),
 			]
 		)
-		rw.color = base_color.darkened(0.3)
-		add_child(rw)
+		right_face.color = base_color
+		add_child(right_face)
 
-		# Water fill (blue band at bottom of layer)
+		# Water fill on right face (more visible)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
 		if fill > 0.02:
 			var water_h: float = h * fill
-			var wy := y_bot - water_h
+			var wy := yb - water_h
 			var water := Polygon2D.new()
 			water.polygon = PackedVector2Array(
 				[
-					Vector2(-HALF_W + 3, wy),
-					Vector2(HALF_W - wall_w - 1, wy),
-					Vector2(HALF_W - wall_w - 1, y_bot - 1),
-					Vector2(-HALF_W + 3, y_bot - 1),
+					Vector2(HALF_W * 0.1, wy + HALF_H),
+					Vector2(HALF_W * 0.9, wy + (1.0 - fill) * h * 0.1),
+					Vector2(HALF_W * 0.9, yb),
+					Vector2(0.1, yb + HALF_H * 0.9),
 				]
 			)
 			water.color = WATER_COLOR
 			add_child(water)
 
-		# SOM band (dark strip at top of layer, width = SOM fraction)
+		# SOM band on left face (dark strip at top)
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 0.8)
 		if som_frac > 0.02:
-			var face_w: float = HALF_W * 2 - wall_w - 4
-			var som_w: float = face_w * som_frac
+			var sh: float = maxf(h * 0.2, 2.0)
+			var sw: float = HALF_W * som_frac
 			var som := Polygon2D.new()
 			som.polygon = PackedVector2Array(
 				[
-					Vector2(-HALF_W + 3, y_top),
-					Vector2(-HALF_W + 3 + som_w, y_top),
-					Vector2(-HALF_W + 3 + som_w, y_top + 3),
-					Vector2(-HALF_W + 3, y_top + 3),
+					Vector2(-HALF_W, yt),
+					Vector2(-HALF_W + sw, yt),
+					Vector2(-HALF_W + sw, yt + sh),
+					Vector2(-HALF_W, yt + sh),
 				]
 			)
 			som.color = SOM_COLOR
 			add_child(som)
 
-		# Thin divider line between layers
-		var divider := Line2D.new()
-		divider.points = PackedVector2Array(
+		# Bottom edge line (isometric V)
+		var edge := Line2D.new()
+		edge.points = PackedVector2Array(
 			[
-				Vector2(-HALF_W + 2, y_bot),
-				Vector2(HALF_W, y_bot - 3),
+				Vector2(-HALF_W, yb),
+				Vector2(0, yb + HALF_H),
+				Vector2(HALF_W, yb),
 			]
 		)
-		divider.width = 0.5
-		divider.default_color = Color(0, 0, 0, 0.25)
-		add_child(divider)
+		edge.width = 0.5
+		edge.default_color = Color(0, 0, 0, 0.3)
+		add_child(edge)
 
-		y_top = y_bot
+		y_off += h
 
 	# N and P indicator dots (beside each layer)
 	_build_nutrient_bars(profile_layers, no3_arr, p_arr)
@@ -189,26 +194,25 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 
 
 func _build_nutrient_bars(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
-	var wall_w := HALF_W * 0.3
-	var y_off := HALF_H
+	var y_off := 0.0
 	for i in range(profile_layers.size()):
 		var depth_cm: float = profile_layers[i].get("depth_cm", 20.0)
 		var h: float = depth_cm * DEPTH_SCALE
-		var mid_y: float = y_off + h / 2.0
+		var mid_y: float = HALF_H + y_off + h / 2.0
 
-		# N dot (just left of front face)
+		# N dot (left of left face)
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var n_r: float = clampf(no3 / 3.0, 1.5, 5.0)
+		var n_r: float = clampf(no3 / 3.0, 1.5, 4.0)
 		var n_dot := Polygon2D.new()
-		n_dot.polygon = _circle_points(Vector2(-HALF_W - 4, mid_y), n_r)
+		n_dot.polygon = _circle_points(Vector2(-HALF_W - 6, mid_y), n_r)
 		n_dot.color = N_COLOR
 		add_child(n_dot)
 
-		# P dot (just right of right wall)
+		# P dot (right of right face)
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var p_r: float = clampf(p_val / 3.0, 1.5, 5.0)
+		var p_r: float = clampf(p_val / 3.0, 1.5, 4.0)
 		var p_dot := Polygon2D.new()
-		p_dot.polygon = _circle_points(Vector2(HALF_W + wall_w + 4, mid_y - 3), p_r)
+		p_dot.polygon = _circle_points(Vector2(HALF_W + 6, mid_y), p_r)
 		p_dot.color = P_COLOR
 		add_child(p_dot)
 
