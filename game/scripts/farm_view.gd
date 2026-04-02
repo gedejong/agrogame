@@ -47,6 +47,12 @@ const _STAGE_MAP := {
 	"grain_fill": CropStage.MATURE,
 	"maturity": CropStage.MATURE,
 }
+## 4x4 grid of plants across the tile in isometric coordinates.
+## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
+## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
+const _PLANT_SCALE := Vector2(0.45, 0.45)
+const _PLANT_GRID := 4
+const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
 	SoilColor.Mode.NATURAL: "Natural",
 	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
@@ -56,11 +62,14 @@ const _MODE_NAMES := {
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
-var _crop_sprites: Array[Sprite2D] = []
+var _crop_sprites: Array[Node2D] = []
 var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
 var _overlay_mode: int = SoilColor.Mode.NATURAL
+var _soil_view: Node = null
+var _last_step_data: Dictionary = {}
+var _hidden_tiles: Array[Vector2i] = []
 
 @onready var tile_layer: TileMapLayer = $TileLayer
 @onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
@@ -75,6 +84,7 @@ var _overlay_mode: int = SoilColor.Mode.NATURAL
 @onready var ff_all_btn: Button = $UILayer/ActionBar/FastForwardAll
 @onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
+@onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var camera: Camera2D = $Camera2D
@@ -91,6 +101,7 @@ func _ready() -> void:
 	ff_all_btn.pressed.connect(_on_ff_all)
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
+	soil_view_btn.pressed.connect(_on_soil_view)
 	_load_selection_texture()
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
@@ -148,6 +159,7 @@ func _init_grid() -> void:
 						"grain_g_m2": 0.0,
 						"som_total_c_g_m2": 0.0,
 						"theta_surface": 0.0,
+						"lai": 0.0,
 					}
 				)
 			)
@@ -195,13 +207,29 @@ func _update_all_tile_colors() -> void:
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
-	var sprite := Sprite2D.new()
+	var container := Node2D.new()
 	var world_pos := tile_layer.map_to_local(Vector2i(col, row))
-	sprite.position = world_pos + Vector2(0, -8)
-	sprite.z_index = row + col + 1
-	sprite.visible = false
-	crop_layer.add_child(sprite)
-	_crop_sprites.append(sprite)
+	container.position = world_pos
+	container.z_index = row + col + 1
+	container.visible = false
+	# 4x4 grid mapped to isometric tile coordinates.
+	# u,v in [0,1] map to screen via: x = (u-v)*HW, y = (u+v)*HH - HH
+	for ui in range(_PLANT_GRID):
+		var u: float = _PLANT_FRACS[ui]
+		for vi in range(_PLANT_GRID):
+			var v: float = _PLANT_FRACS[vi]
+			var px: float = (u - v) * TILE_WIDTH / 2.0
+			var py: float = (u + v) * TILE_HEIGHT / 2.0 - TILE_HEIGHT / 2.0
+			# Deterministic jitter per plant
+			var seed_val := col * 7 + row * 13 + ui * 3 + vi * 5
+			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
+			var jy: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
+			var sprite := Sprite2D.new()
+			sprite.position = Vector2(px + jx, py + jy - 4)
+			sprite.scale = _PLANT_SCALE
+			container.add_child(sprite)
+	crop_layer.add_child(container)
+	_crop_sprites.append(container)
 
 
 func _update_crop_visuals(idx: int) -> void:
@@ -210,21 +238,26 @@ func _update_crop_visuals(idx: int) -> void:
 	var data: Dictionary = _tile_data[idx]
 	var stage: int = data["crop_stage"]
 	var stress: int = data["stress"]
-	var sprite: Sprite2D = _crop_sprites[idx]
+	var container: Node2D = _crop_sprites[idx]
+
+	var tex: Texture2D = null
 	if stress != StressState.NONE and STRESS_TEXTURES.has(stress):
-		var tex: Texture2D = load(STRESS_TEXTURES[stress])
-		if tex:
-			sprite.texture = tex
-			sprite.visible = true
-		return
-	if stage == CropStage.NONE:
-		sprite.visible = false
-		return
-	if CROP_TEXTURES.has(stage):
-		var tex: Texture2D = load(CROP_TEXTURES[stage])
-		if tex:
-			sprite.texture = tex
-			sprite.visible = true
+		tex = load(STRESS_TEXTURES[stress])
+	elif stage != CropStage.NONE and CROP_TEXTURES.has(stage):
+		tex = load(CROP_TEXTURES[stage])
+
+	if tex:
+		# Scale sprites based on LAI (0 = tiny, ~6 = full size for maize)
+		var lai: float = data.get("lai", 0.0)
+		var growth_scale: float = clampf(0.3 + lai * 0.12, 0.3, 1.0)
+		var final_scale := _PLANT_SCALE * growth_scale
+		for child in container.get_children():
+			if child is Sprite2D:
+				child.texture = tex
+				child.scale = final_scale
+		container.visible = true
+	else:
+		container.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -249,6 +282,9 @@ func _handle_key(keycode: int) -> void:
 			return
 		KEY_F3:
 			_set_overlay_mode(SoilColor.Mode.MOISTURE_HEATMAP)
+			return
+		KEY_ESCAPE:
+			_hide_soil_cutaway()
 			return
 	# Tile-specific keys require selection
 	if _selected_tile.x < 0:
@@ -336,6 +372,9 @@ func _handle_tile_click() -> void:
 		status_label.text = (
 			"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
 		)
+		# Show inline soil cutaway below the selected tile
+		if not _last_step_data.is_empty():
+			_show_soil_cutaway(col, row)
 
 
 func _update_selection_indicator() -> void:
@@ -427,8 +466,12 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	if not success:
 		status_label.text = "Step failed — backend error"
 		return
+	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
+	# Refresh soil cutaway if it's showing
+	if _soil_view and _soil_view.is_active() and _selected_tile.x >= 0:
+		_show_soil_cutaway(_selected_tile.x, _selected_tile.y)
 
 
 func _on_forecast_received(success: bool, data: Dictionary) -> void:
@@ -471,15 +514,16 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 			var patch_soil: String = ""
 			if patch_idx < SOIL_TYPES.size():
 				patch_soil = SOIL_TYPES[patch_idx]
-			# Map API phenology stage to CropStage
 			var stage_name: String = patch.get("crop_stage", "")
 			var stage: int = _STAGE_MAP.get(stage_name, CropStage.NONE)
+			var lai: float = patch.get("lai", 0.0)
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["grain_g_m2"] = patch.get("grain_g_m2", 0.0)
 					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
 					_tile_data[i]["crop_stage"] = stage
+					_tile_data[i]["lai"] = lai
 					_update_crop_visuals(i)
 
 
@@ -503,6 +547,167 @@ func _on_fertilize() -> void:
 				)
 			)
 	)
+
+
+func _on_soil_view() -> void:
+	if _selected_tile.x < 0:
+		status_label.text = "Select a tile first to view soil"
+		return
+	_show_soil_cutaway(_selected_tile.x, _selected_tile.y)
+
+
+func _show_soil_cutaway(col: int, row: int) -> void:
+	if _last_step_data.is_empty():
+		status_label.text = "Step at least 1 day to see soil data"
+		return
+
+	# Restore previously hidden tiles
+	_restore_hidden_tiles()
+
+	# DIAMOND_RIGHT isometric layout neighbor mapping:
+	# (col,row) screen pos follows: x = (col+row)*32, y = (row-col)*16 + offset
+	# Col-left: (col-1, row-1)  Col-right: (col+1, row+1) — same visual row
+	# Inv (front 3, toward viewer): (col-1, row), (col, row+1), (col-1, row+1)
+	var sel := Vector2i(col, row)
+	var col_left := Vector2i(col - 1, row - 1)
+	var col_right := Vector2i(col + 1, row + 1)
+	var inv_tiles: Array[Vector2i] = [
+		Vector2i(col - 1, row),
+		Vector2i(col, row + 1),
+		Vector2i(col - 1, row + 1),
+	]
+
+	# Hide front tiles (make invisible) + their crops
+	_hidden_tiles.clear()
+	for inv in inv_tiles:
+		if _is_valid_tile(inv):
+			_hidden_tiles.append(inv)
+			tile_layer.erase_cell(inv)
+			var inv_idx := inv.y * GRID_COLS + inv.x
+			_crop_sprites[inv_idx].visible = false
+			if inv_idx < _soil_overlays.size():
+				_soil_overlays[inv_idx].visible = false
+
+	# Get soil state for the selected tile
+	var idx := row * GRID_COLS + col
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	var patches: Dictionary = _last_step_data.get("patches", {})
+	var soil_state := {}
+	var root_depth_cm := 0.0
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		if patch_idx < patch_list.size():
+			var patch: Dictionary = patch_list[patch_idx]
+			soil_state = patch.get("soil_state", {})
+			root_depth_cm = patch.get("root_depth_cm", 0.0)
+	if soil_state.is_empty():
+		_restore_hidden_tiles()
+		status_label.text = "Step at least 1 day to see soil data"
+		return
+	var profile_layers := _get_profile_layers(soil_type)
+
+	# Build column positions: sel (with info) + left/right (visual only)
+	var columns: Array[Dictionary] = []
+	(
+		columns
+		. append(
+			{
+				"pos": tile_layer.map_to_local(sel),
+				"soil_state": soil_state,
+				"profile": profile_layers,
+				"root_depth_cm": root_depth_cm,
+				"show_info": true,
+			}
+		)
+	)
+	for side in [col_left, col_right]:
+		if _is_valid_tile(side):
+			var side_idx: int = side.y * GRID_COLS + side.x
+			var side_soil: String = _tile_data[side_idx]["soil_type"]
+			var side_patch := SOIL_TYPES.find(side_soil)
+			if side_patch < 0:
+				side_patch = 0
+			var side_state := {}
+			for fk: String in patches:
+				var pl: Array = patches[fk]
+				if side_patch < pl.size():
+					side_state = pl[side_patch].get("soil_state", {})
+			(
+				columns
+				. append(
+					{
+						"pos": tile_layer.map_to_local(side),
+						"soil_state": side_state if side_state else soil_state,
+						"profile": _get_profile_layers(side_soil),
+						"root_depth_cm": 0.0,
+						"show_info": false,
+					}
+				)
+			)
+
+	if not _soil_view:
+		var scene: PackedScene = load("res://scenes/soil_view.tscn")
+		_soil_view = scene.instantiate()
+		_soil_view.z_index = -1
+		# Add behind tiles — hidden front tiles create the viewing window
+		add_child(_soil_view)
+		move_child(_soil_view, 0)
+		_soil_view.connect("closed", _on_soil_view_closed)
+	# Offset column positions by tile_layer position (columns are in tile-local space)
+	var offset := tile_layer.position
+	for c: Dictionary in columns:
+		c["pos"] = c["pos"] + offset
+	_soil_view.show_columns(columns)
+
+
+func _is_valid_tile(pos: Vector2i) -> bool:
+	return pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS
+
+
+func _restore_hidden_tiles() -> void:
+	for inv in _hidden_tiles:
+		if _is_valid_tile(inv):
+			var inv_idx := inv.y * GRID_COLS + inv.x
+			var soil_type: String = _tile_data[inv_idx]["soil_type"]
+			tile_layer.set_cell(inv, _soil_source_id(soil_type), Vector2i(0, 0))
+			_update_crop_visuals(inv_idx)
+			_update_tile_color(inv_idx)
+	_hidden_tiles.clear()
+
+
+func _on_soil_view_closed() -> void:
+	_restore_hidden_tiles()
+
+
+func _hide_soil_cutaway() -> void:
+	if _soil_view and _soil_view.is_active():
+		_soil_view.hide_view()
+	_restore_hidden_tiles()
+
+
+func _get_profile_layers(soil_type: String) -> Array:
+	match soil_type:
+		"sandy":
+			return [
+				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
+				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
+				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+			]
+		"clay":
+			return [
+				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
+			]
+		_:
+			return [
+				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
+				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
+			]
 
 
 func _on_action_complete(success: bool, data: Dictionary) -> void:

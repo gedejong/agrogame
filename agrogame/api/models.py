@@ -123,9 +123,14 @@ class PatchDayResponse(BaseModel):
     crop_key: str
     crop_stage: str = Field(description="Phenology stage name")
     grain_g_m2: float
+    root_depth_cm: float = Field(description="Current root penetration depth (cm)")
+    lai: float = Field(description="Leaf area index (m²/m²)")
     soil_theta_surface: float = Field(description="Top-layer volumetric water content")
     som_total_c_g_m2: float = Field(description="Total SOM carbon (g/m²)")
     water_stress: float = Field(description="Water stress factor (0=severe, 1=none)")
+    soil_state: SoilStateResponse | None = Field(
+        default=None, description="Full per-layer soil state for 3D view"
+    )
 
 
 class DayResultResponse(BaseModel):

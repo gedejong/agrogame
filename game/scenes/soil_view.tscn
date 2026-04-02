@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://soil_view"]
+
+[ext_resource type="Script" path="res://scripts/soil_view.gd" id="1"]
+
+[node name="SoilView" type="Node2D"]
+visible = false
+script = ExtResource("1")
