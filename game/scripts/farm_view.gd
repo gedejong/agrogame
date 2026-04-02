@@ -443,9 +443,10 @@ func _draw_procedural_leaves(
 		var len_var: float = (rh.call(0) - 0.5) * 0.3
 		var base_len: float = (5.0 + len_curve * 5.0) * sf * (1.0 + len_var)
 
-		# Droop: lower/older leaves droop more at tip
-		var droop_var: float = (rh.call(1) - 0.5) * 0.25
-		var droop_strength: float = (1.2 - frac * 0.5) * sf * (1.0 + droop_var)
+		# Droop: lower leaves droop heavily, upper/young leaves point up
+		var droop_var: float = (rh.call(1) - 0.5) * 0.2
+		var age: float = 1.0 - frac  # 1.0 = oldest/lowest, 0.0 = youngest/top
+		var droop_strength: float = (0.2 + 1.6 * age * age) * sf * (1.0 + droop_var)
 
 		# Camera facing: most leaves visible, few edge-on
 		var facing: float = rh.call(2)
@@ -471,10 +472,12 @@ func _draw_procedural_leaves(
 		# Senescence: lower leaves yellow first
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
 		var hue_shift: float = (rh.call(5) - 0.5) * 0.03
-		# Bright uniform mid-green like real corn field
+		# Bright mid-green — lower leaves slightly darker (canopy shadow)
 		var base_green := Color(0.28 + hue_shift, 0.58 + hue_shift, 0.18)
-		# Camera-facing leaves catch light — slightly brighter
-		base_green = base_green.lightened(facing * 0.08)
+		var shadow_darken: float = age * 0.12  # lower leaves in shadow
+		base_green = base_green.darkened(shadow_darken)
+		# Camera-facing leaves catch light
+		base_green = base_green.lightened(facing * 0.1)
 		var senescent_color := Color(0.65, 0.58, 0.28)
 		var dead_color := Color(0.5, 0.4, 0.22)
 		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
@@ -487,15 +490,16 @@ func _draw_procedural_leaves(
 		var tip_color := color.lightened(0.12)
 		tip_color.a = 0.8
 
-		# Width: thicker for denser canopy
-		var base_w: float = (1.4 - frac * 0.3) * sf * width_mult
+		# Width: narrow at stem, widest at ~35%, tapers to narrow tip
+		var base_w: float = (1.8 - frac * 0.3) * sf * width_mult
 		var leaf := Line2D.new()
 		leaf.points = pts
 		leaf.width_curve = Curve.new()
-		leaf.width_curve.add_point(Vector2(0.0, 1.0))
-		leaf.width_curve.add_point(Vector2(0.35, 0.85))
-		leaf.width_curve.add_point(Vector2(0.7, 0.5))
-		leaf.width_curve.add_point(Vector2(1.0, 0.05))
+		leaf.width_curve.add_point(Vector2(0.0, 0.3))  # narrow at stem
+		leaf.width_curve.add_point(Vector2(0.15, 0.8))  # widens quickly
+		leaf.width_curve.add_point(Vector2(0.35, 1.0))  # widest point
+		leaf.width_curve.add_point(Vector2(0.65, 0.7))  # starts tapering
+		leaf.width_curve.add_point(Vector2(1.0, 0.05))  # narrow tip
 		leaf.width = base_w
 		var grad := Gradient.new()
 		grad.set_color(0, color)
