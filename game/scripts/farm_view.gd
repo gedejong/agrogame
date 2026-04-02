@@ -455,19 +455,19 @@ func _draw_procedural_leaves(
 		# Per-leaf curve variation
 		var curve_var: float = (rh.call(3) - 0.5) * 0.2
 
-		# Leaf exits stem vertically upward, arcs over, tip droops.
-		# x(t) = t² (slow spread at first, accelerates outward)
-		# y(t) = -rise*(1-t²) + droop*t² (up first, then down — like -(x²) )
+		# Leaf shape: arcs upward then tip droops for older leaves.
+		# x(t) = linear outward spread
+		# y(t) = -rise * t*(1-t) [upward hump] + droop * t³ [late tip droop]
 		var pts := PackedVector2Array()
 		var segs := 7
 		var eff_len: float = base_len * (0.7 + facing * 0.3)
-		var rise_height: float = eff_len * (0.35 + curve_var * 0.1)
+		var rise_height: float = eff_len * (0.5 + curve_var * 0.15)
 		for si in range(segs + 1):
 			var t: float = float(si) / float(segs)
-			var x: float = dir * eff_len * t * t
-			var up_part: float = -rise_height * (1.0 - t * t)
-			var droop_part: float = droop_strength * t * t
-			pts.append(Vector2(x, y + up_part + droop_part))
+			var x: float = dir * eff_len * t
+			var arc_up: float = -rise_height * 4.0 * t * (1.0 - t)
+			var tip_droop: float = droop_strength * t * t * t
+			pts.append(Vector2(x, y + arc_up + tip_droop))
 
 		# Senescence: lower leaves yellow first
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
