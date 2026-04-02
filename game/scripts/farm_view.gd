@@ -641,9 +641,14 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 	if not _soil_view:
 		var scene: PackedScene = load("res://scenes/soil_view.tscn")
 		_soil_view = scene.instantiate()
-		_soil_view.z_index = GRID_COLS + GRID_ROWS + 20
-		crop_layer.add_child(_soil_view)
+		_soil_view.z_index = 100
+		# Add to FarmView root so it renders above tile_layer and crop_layer
+		add_child(_soil_view)
 		_soil_view.connect("closed", _on_soil_view_closed)
+	# Offset column positions by tile_layer position (columns are in tile-local space)
+	var offset := tile_layer.position
+	for c: Dictionary in columns:
+		c["pos"] = c["pos"] + offset
 	_soil_view.show_columns(columns)
 
 
