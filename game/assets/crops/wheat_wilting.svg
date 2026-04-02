@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Wheat wilting: ~18px tall, thin drooping blades, yellowed -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="29" rx="4.5" ry="1.5" fill="#000000" opacity="0.1" transform="skewX(-15)"/>
+  <!-- Tillers (drooping outward, stressed) -->
+  <path d="M13,28 Q11,20 9,13" fill="none" stroke="#7a6a3a" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M14.5,28 Q13,20 12,12" fill="none" stroke="#7a6a3a" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M16,28 Q15.5,20 15,11" fill="none" stroke="#7a6a3a" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M17.5,28 Q19,20 20,12" fill="none" stroke="#7a6a3a" stroke-width="0.9" stroke-linecap="round"/>
+  <path d="M19,28 Q21,20 23,13" fill="none" stroke="#7a6a3a" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- Drooping tips (blades curling down at top) -->
+  <path d="M9,13 Q8,13.5 7.5,15" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M12,12 Q11,12.5 10.5,14" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M15,11 Q14.5,12 14.5,13" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M20,12 Q21,12.5 21.5,14" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M23,13 Q24,13.5 24.5,15" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- Sparse drooping leaves -->
+  <path d="M13,22 Q10,22 9,24" fill="none" stroke="#a88a35" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M19,21 Q22,21 23,23" fill="none" stroke="#a88a35" stroke-width="0.6" stroke-linecap="round"/>
+</svg>

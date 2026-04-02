@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Rice vegetative: ~14px tall, multiple thin stems, narrow upright leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="17.5" cy="29" rx="3.5" ry="1.2" fill="#000000" opacity="0.1" transform="skewX(-15)"/>
+  <!-- Thin stems (graceful, slightly fanning) -->
+  <line x1="13" y1="28" x2="11.5" y2="15" stroke="#4a7a2a" stroke-width="0.7" stroke-linecap="round"/>
+  <line x1="14.5" y1="28" x2="14" y2="14" stroke="#4a7a2a" stroke-width="0.7" stroke-linecap="round"/>
+  <line x1="16" y1="28" x2="16" y2="14" stroke="#4a7a2a" stroke-width="0.8" stroke-linecap="round"/>
+  <line x1="17.5" y1="28" x2="18" y2="14" stroke="#4a7a2a" stroke-width="0.7" stroke-linecap="round"/>
+  <line x1="19" y1="28" x2="20.5" y2="15" stroke="#4a7a2a" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- Narrow leaves (along iso axes, delicate) -->
+  <path d="M14,20 Q11,18.5 9.5,19.5" fill="none" stroke="#5b9e2a" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M18,19 Q21,17.5 22.5,18.5" fill="none" stroke="#5b9e2a" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M14.5,16 Q12,15 11,15.5" fill="none" stroke="#6aad3a" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M17.5,15.5 Q20,14.5 21,15" fill="none" stroke="#6aad3a" stroke-width="0.5" stroke-linecap="round"/>
+  <!-- Highlight -->
+  <path d="M13.8,19.8 Q11.5,18.5 10,19" fill="none" stroke="#7abb4a" stroke-width="0.3" opacity="0.5"/>
+</svg>

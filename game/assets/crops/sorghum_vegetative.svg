@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Sorghum vegetative: ~16px tall, thick stalk, broad drooping leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="19" cy="29" rx="5.5" ry="2" fill="#000000" opacity="0.12" transform="skewX(-15)"/>
+  <!-- Thick stalk -->
+  <line x1="16" y1="28" x2="16" y2="13" stroke="#3d6b22" stroke-width="2.8" stroke-linecap="round"/>
+  <!-- Leaf pair 1 (lower, broad, slightly drooping along iso axes) -->
+  <path d="M16,24 Q10,21 7,23.5" fill="#5b9e2a" stroke="none"/>
+  <path d="M16,23 Q22,20 25,22.5" fill="#5b9e2a" stroke="none"/>
+  <!-- Leaf pair 2 (mid, broad) -->
+  <path d="M16,20 Q11,17 8,19.5" fill="#4d8e22" stroke="none"/>
+  <path d="M16,19 Q21,16 24,18.5" fill="#4d8e22" stroke="none"/>
+  <!-- Leaf pair 3 (upper, shorter) -->
+  <path d="M16,16 Q13,14 11,15.5" fill="#5b9e2a" stroke="none"/>
+  <path d="M16,15 Q19,13 21,14.5" fill="#5b9e2a" stroke="none"/>
+  <!-- Highlights on left leaves -->
+  <path d="M15.5,23.5 Q10.5,21 7.5,23" fill="none" stroke="#7abb4a" stroke-width="0.6" opacity="0.5"/>
+  <path d="M15.5,19.5 Q11.5,17 8.5,19" fill="none" stroke="#6aad3a" stroke-width="0.5" opacity="0.5"/>
+</svg>

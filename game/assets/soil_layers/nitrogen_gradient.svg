@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" viewBox="0 0 128 32">
+  <!-- Nitrogen concentration overlay: green tint fading with depth -->
+  <!-- Top band (strongest) -->
+  <rect x="0" y="0" width="128" height="8" fill="#4a8b2a" opacity="0.25"/>
+  <!-- Middle band -->
+  <rect x="0" y="8" width="128" height="8" fill="#4a8b2a" opacity="0.15"/>
+  <!-- Lower-middle band -->
+  <rect x="0" y="16" width="128" height="8" fill="#4a8b2a" opacity="0.08"/>
+  <!-- Bottom band (faintest) -->
+  <rect x="0" y="24" width="128" height="8" fill="#4a8b2a" opacity="0.03"/>
+</svg>

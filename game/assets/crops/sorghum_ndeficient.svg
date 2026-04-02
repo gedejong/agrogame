@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Sorghum N-deficient: ~18px tall, pale, thin stalk, reduced seed head -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="29" rx="4" ry="1.5" fill="#000000" opacity="0.09" transform="skewX(-15)"/>
+  <!-- Thinner stalk (stunted) -->
+  <line x1="16" y1="28" x2="16" y2="12" stroke="#8a9a4a" stroke-width="2" stroke-linecap="round"/>
+  <!-- Small reduced seed head (pale) -->
+  <ellipse cx="16" cy="11" rx="2" ry="2.5" fill="#c8d86a" opacity="0.7"/>
+  <!-- Leaf pair 1 (lower, pale yellow-green) -->
+  <path d="M16,24 Q11,21.5 8,23.5" fill="#c8d86a" stroke="none"/>
+  <path d="M16,23 Q21,20.5 24,22.5" fill="#c8d86a" stroke="none"/>
+  <!-- Leaf pair 2 (mid) -->
+  <path d="M16,20 Q12,17.5 9,19.5" fill="#d0dc78" stroke="none"/>
+  <path d="M16,19 Q20,16.5 23,18.5" fill="#d0dc78" stroke="none"/>
+  <!-- Leaf pair 3 (upper, smallest) -->
+  <path d="M16,16.5 Q14,15 12,16" fill="#c8d86a" stroke="none"/>
+  <path d="M16,16 Q18,14.5 20,15.5" fill="#c8d86a" stroke="none"/>
+  <!-- Yellowing lower leaf tips -->
+  <path d="M8,23.5 Q7,24 6.5,25" fill="#d0dc78" stroke="none"/>
+  <path d="M24,22.5 Q25,23 25.5,24" fill="#d0dc78" stroke="none"/>
+  <!-- Highlight -->
+  <path d="M15.5,23.5 Q11.5,21.5 8.5,23" fill="none" stroke="#d0dc78" stroke-width="0.4" opacity="0.4"/>
+</svg>

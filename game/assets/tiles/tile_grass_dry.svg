@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Dry grass: yellowed, sparse, patchy -->
+  <polygon points="32,0 64,16 32,32 0,16" fill="#b8a85a" stroke="#a89848" stroke-width="1"/>
+  <clipPath id="tile">
+    <polygon points="32,0 64,16 32,32 0,16"/>
+  </clipPath>
+  <g clip-path="url(#tile)" transform="matrix(1,0.5,-1,0.5,32,0)">
+    <!-- Sparse dry tufts -->
+    <g fill="#a89848" opacity="0.5">
+      <ellipse cx="6" cy="8" rx="1.8" ry="0.8" transform="rotate(-10 6 8)"/>
+      <ellipse cx="18" cy="14" rx="2" ry="0.9" transform="rotate(15 18 14)"/>
+      <ellipse cx="26" cy="6" rx="1.8" ry="0.8" transform="rotate(-20 26 6)"/>
+      <ellipse cx="10" cy="22" rx="2" ry="0.9" transform="rotate(10 10 22)"/>
+      <ellipse cx="22" cy="28" rx="1.8" ry="0.8" transform="rotate(-15 22 28)"/>
+    </g>
+    <!-- Bare patches (lighter exposed soil) -->
+    <g fill="#c8b870" opacity="0.3">
+      <ellipse cx="14" cy="10" rx="3" ry="2"/>
+      <ellipse cx="8" cy="26" rx="2.5" ry="1.5"/>
+      <ellipse cx="24" cy="20" rx="3" ry="2"/>
+    </g>
+    <!-- Dry blade marks (sparse) -->
+    <g stroke="#a89848" stroke-width="0.4" stroke-linecap="round" opacity="0.4">
+      <line x1="5" y1="16" x2="6" y2="14"/><line x1="16" y1="4" x2="17" y2="2"/>
+      <line x1="28" y1="12" x2="29" y2="10"/><line x1="12" y1="18" x2="13" y2="16"/>
+    </g>
+  </g>
+</svg>

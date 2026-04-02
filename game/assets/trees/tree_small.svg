@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="48" viewBox="0 0 32 48">
+  <!-- Small/young tree: ~24px tall, thin trunk, small round canopy -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="46" rx="4.5" ry="1.5" fill="#000000" opacity="0.11" transform="skewX(-15)"/>
+  <!-- Thin trunk -->
+  <path d="M16,44 Q15.5,38 16,30" fill="none" stroke="#6b5040" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Small branches -->
+  <path d="M16,34 Q13,32 11,33" fill="none" stroke="#6b5040" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M16,32 Q19,30 21,31" fill="none" stroke="#6b5040" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- Small canopy -->
+  <ellipse cx="12" cy="28" rx="3.5" ry="3" fill="#4a7a2a"/>
+  <ellipse cx="20" cy="27" rx="3.5" ry="3" fill="#5a8a3a"/>
+  <ellipse cx="16" cy="24" rx="5" ry="4" fill="#4a7a2a"/>
+  <ellipse cx="16" cy="22" rx="4" ry="3" fill="#5a8a3a"/>
+  <!-- Highlight -->
+  <ellipse cx="14" cy="22" rx="2" ry="1.5" fill="#6a9a4a" opacity="0.4"/>
+</svg>

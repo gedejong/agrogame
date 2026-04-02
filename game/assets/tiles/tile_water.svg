@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Pond/ditch: still water with slight ripple -->
+  <polygon points="32,0 64,16 32,32 0,16" fill="#6090a8" stroke="#508098" stroke-width="1"/>
+  <clipPath id="tile">
+    <polygon points="32,0 64,16 32,32 0,16"/>
+  </clipPath>
+  <g clip-path="url(#tile)" transform="matrix(1,0.5,-1,0.5,32,0)">
+    <!-- Ripple lines (subtle, horizontal in ground space → iso-aligned on screen) -->
+    <g stroke="#508098" stroke-width="0.4" fill="none" opacity="0.4">
+      <path d="M2,8 Q8,7 16,8 Q24,9 30,8"/>
+      <path d="M2,16 Q8,15 16,16 Q24,17 30,16"/>
+      <path d="M2,24 Q8,23 16,24 Q24,25 30,24"/>
+    </g>
+    <!-- Light reflections -->
+    <g fill="#70a0b8" opacity="0.3">
+      <ellipse cx="10" cy="12" rx="3" ry="1.5"/>
+      <ellipse cx="22" cy="20" rx="2.5" ry="1.2"/>
+    </g>
+    <!-- Darker deep spots -->
+    <g fill="#507898" opacity="0.2">
+      <ellipse cx="16" cy="16" rx="4" ry="2.5"/>
+    </g>
+  </g>
+</svg>

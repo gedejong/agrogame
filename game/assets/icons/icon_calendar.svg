@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Calendar body -->
+  <rect x="2" y="3" width="12" height="11" rx="1" fill="#e8e8e8" stroke="#999999" stroke-width="0.8"/>
+  <!-- Header bar -->
+  <rect x="2" y="3" width="12" height="3" rx="1" fill="#cc4d4d"/>
+  <!-- Binding rings -->
+  <line x1="5.5" y1="2" x2="5.5" y2="4.5" stroke="#999999" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="10.5" y1="2" x2="10.5" y2="4.5" stroke="#999999" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Date dots (grid) -->
+  <g fill="#666666">
+    <rect x="4" y="8" width="1.5" height="1.5" rx="0.3"/>
+    <rect x="7.25" y="8" width="1.5" height="1.5" rx="0.3"/>
+    <rect x="10.5" y="8" width="1.5" height="1.5" rx="0.3"/>
+    <rect x="4" y="11" width="1.5" height="1.5" rx="0.3"/>
+    <rect x="7.25" y="11" width="1.5" height="1.5" rx="0.3"/>
+  </g>
+</svg>

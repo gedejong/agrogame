@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Cloud (smaller, upper) -->
+  <ellipse cx="8" cy="5.5" rx="5" ry="2.5" fill="#b0b0b0"/>
+  <circle cx="5.5" cy="4.5" r="2.5" fill="#b0b0b0"/>
+  <circle cx="9" cy="3.5" r="3" fill="#b0b0b0"/>
+  <!-- Rain drops -->
+  <g stroke="#6699cc" stroke-width="1.2" stroke-linecap="round">
+    <line x1="5" y1="9" x2="4" y2="12"/>
+    <line x1="8" y1="9.5" x2="7" y2="12.5"/>
+    <line x1="11" y1="9" x2="10" y2="12"/>
+  </g>
+</svg>

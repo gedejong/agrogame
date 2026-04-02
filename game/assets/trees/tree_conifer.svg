@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="48" viewBox="0 0 32 48">
+  <!-- Conifer/pine: ~40px tall, narrow trunk, triangular layered canopy -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="46" rx="5" ry="2" fill="#000000" opacity="0.13" transform="skewX(-15)"/>
+  <!-- Trunk (narrow, dark) -->
+  <line x1="16" y1="44" x2="16" y2="12" stroke="#5a4535" stroke-width="2" stroke-linecap="round"/>
+  <!-- Canopy layers (triangular, stacked, dark muted green) -->
+  <!-- Bottom layer (widest) -->
+  <polygon points="16,22 6,36 26,36" fill="#3a6a22"/>
+  <!-- Middle layer -->
+  <polygon points="16,16 8,28 24,28" fill="#4a7a2a"/>
+  <!-- Top layer (narrowest) -->
+  <polygon points="16,8 10,20 22,20" fill="#3a6a22"/>
+  <!-- Tip -->
+  <polygon points="16,4 13,12 19,12" fill="#4a7a2a"/>
+  <!-- Highlight on left edges -->
+  <path d="M16,8 L10,20" fill="none" stroke="#5a8a3a" stroke-width="0.6" opacity="0.5"/>
+  <path d="M16,16 L8,28" fill="none" stroke="#5a8a3a" stroke-width="0.6" opacity="0.45"/>
+  <path d="M16,4 L13,12" fill="none" stroke="#5a8a3a" stroke-width="0.5" opacity="0.5"/>
+</svg>

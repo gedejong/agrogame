@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Worn path: compacted center, rough edges -->
+  <polygon points="32,0 64,16 32,32 0,16" fill="#c0a880" stroke="#b09870" stroke-width="1"/>
+  <clipPath id="tile">
+    <polygon points="32,0 64,16 32,32 0,16"/>
+  </clipPath>
+  <g clip-path="url(#tile)" transform="matrix(1,0.5,-1,0.5,32,0)">
+    <!-- Smooth compacted center band -->
+    <rect x="8" y="10" width="16" height="12" fill="#c8b090" opacity="0.3" rx="2"/>
+    <!-- Rough edges (top and bottom of path) -->
+    <g fill="#b09870" opacity="0.45">
+      <circle cx="4" cy="6" r="0.8"/><circle cx="10" cy="4" r="0.7"/><circle cx="20" cy="5" r="0.8"/>
+      <circle cx="28" cy="7" r="0.7"/><circle cx="6" cy="28" r="0.8"/><circle cx="14" cy="26" r="0.7"/>
+      <circle cx="22" cy="28" r="0.8"/><circle cx="28" cy="25" r="0.7"/>
+      <circle cx="3" cy="14" r="0.6"/><circle cx="29" cy="18" r="0.6"/>
+    </g>
+    <!-- Worn track marks (subtle lines along path direction) -->
+    <g stroke="#b8a078" stroke-width="0.3" opacity="0.3">
+      <line x1="4" y1="14" x2="28" y2="14"/>
+      <line x1="4" y1="18" x2="28" y2="18"/>
+    </g>
+  </g>
+</svg>

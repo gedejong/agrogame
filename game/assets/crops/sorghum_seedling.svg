@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Sorghum seedling: ~8px tall, short thick shoot, 1-2 broad leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="29" rx="3" ry="1.2" fill="#000000" opacity="0.11" transform="skewX(-15)"/>
+  <!-- Thick stalk -->
+  <line x1="16" y1="28" x2="16" y2="21" stroke="#5b8e2a" stroke-width="2.2" stroke-linecap="round"/>
+  <!-- Left leaf (broad, along iso axis) -->
+  <path d="M16,23 Q12,21 10,22.5" fill="#a8d86a" stroke="none"/>
+  <!-- Right leaf -->
+  <path d="M16,22 Q20,20 22,21.5" fill="#a8d86a" stroke="none"/>
+  <!-- Highlight on left leaf -->
+  <path d="M15.5,22.8 Q12.5,21 10.5,22" fill="none" stroke="#c0ea8a" stroke-width="0.4" opacity="0.55"/>
+</svg>

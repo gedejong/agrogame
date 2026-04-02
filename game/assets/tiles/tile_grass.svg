@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Wild grass: uneven tufts, slightly unkempt -->
+  <polygon points="32,0 64,16 32,32 0,16" fill="#7a9e4a" stroke="#6a8e3a" stroke-width="1"/>
+  <clipPath id="tile">
+    <polygon points="32,0 64,16 32,32 0,16"/>
+  </clipPath>
+  <g clip-path="url(#tile)" transform="matrix(1,0.5,-1,0.5,32,0)">
+    <!-- Grass tufts (darker patches) -->
+    <g fill="#6a8e3a" opacity="0.5">
+      <ellipse cx="5" cy="6" rx="2" ry="1" transform="rotate(-15 5 6)"/>
+      <ellipse cx="14" cy="10" rx="2.5" ry="1.2" transform="rotate(10 14 10)"/>
+      <ellipse cx="24" cy="5" rx="2" ry="1" transform="rotate(-20 24 5)"/>
+      <ellipse cx="8" cy="18" rx="2.2" ry="1.1" transform="rotate(15 8 18)"/>
+      <ellipse cx="18" cy="22" rx="2" ry="1" transform="rotate(-10 18 22)"/>
+      <ellipse cx="28" cy="16" rx="2.5" ry="1.2" transform="rotate(20 28 16)"/>
+      <ellipse cx="12" cy="28" rx="2" ry="1" transform="rotate(-15 12 28)"/>
+      <ellipse cx="22" cy="26" rx="2.2" ry="1.1" transform="rotate(10 22 26)"/>
+    </g>
+    <!-- Light grass highlights -->
+    <g fill="#8aae5a" opacity="0.4">
+      <ellipse cx="9" cy="4" rx="1.5" ry="0.7" transform="rotate(25 9 4)"/>
+      <ellipse cx="20" cy="14" rx="1.8" ry="0.8" transform="rotate(-20 20 14)"/>
+      <ellipse cx="6" cy="24" rx="1.5" ry="0.7" transform="rotate(15 6 24)"/>
+      <ellipse cx="26" cy="8" rx="1.8" ry="0.8" transform="rotate(-10 26 8)"/>
+      <ellipse cx="16" cy="30" rx="1.5" ry="0.7" transform="rotate(20 16 30)"/>
+    </g>
+    <!-- Tiny blade marks -->
+    <g stroke="#6a8e3a" stroke-width="0.4" stroke-linecap="round" opacity="0.35">
+      <line x1="4" y1="12" x2="5" y2="10"/><line x1="10" y1="8" x2="11" y2="6"/>
+      <line x1="20" y1="18" x2="21" y2="16"/><line x1="26" y1="22" x2="27" y2="20"/>
+      <line x1="14" y1="26" x2="15" y2="24"/><line x1="8" y1="14" x2="9" y2="12"/>
+    </g>
+  </g>
+</svg>
