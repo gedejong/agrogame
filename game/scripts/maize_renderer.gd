@@ -100,10 +100,11 @@ static func draw_leaves(
 		leaf.gradient = grad
 		leaf_node.add_child(leaf)
 
-	# Soft blurred shadow — multiple ovals at increasing size, decreasing opacity
+	# Soft blurred shadow — proportional to plant size
 	if num_leaves > 3:
-		var shadow_w: float = stem_px * 0.5
-		var shadow_h: float = stem_px * 0.12
+		var plant_spread: float = growth_progress * sf * 8.0
+		var shadow_w: float = plant_spread * 0.8
+		var shadow_h: float = plant_spread * 0.25
 		var blur_steps := 3
 		for bi in range(blur_steps, -1, -1):
 			var expand: float = float(bi) * 0.8

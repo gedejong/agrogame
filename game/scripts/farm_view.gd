@@ -384,7 +384,7 @@ func _update_crop_visuals(idx: int) -> void:
 				var tex: Texture2D = load(grain_path)
 				if tex:
 					grain_spr.texture = tex
-				grain_spr.scale = _PLANT_SCALE * grain_scale
+				grain_spr.scale = _PLANT_SCALE * grain_scale * 0.65
 				grain_spr.modulate = grain_color
 				grain_spr.visible = grain_visible
 				# Randomize ear position per plant
