@@ -100,24 +100,28 @@ static func draw_leaves(
 		leaf.gradient = grad
 		leaf_node.add_child(leaf)
 
-	# Simple overall plant shadow — dark oval at base, offset right
+	# Soft blurred shadow — multiple ovals at increasing size, decreasing opacity
 	if num_leaves > 3:
-		var shadow_w: float = stem_px * 0.6
-		var shadow_h: float = stem_px * 0.15
-		var shadow := Polygon2D.new()
-		var shadow_pts := PackedVector2Array()
-		for si in range(10):
-			var angle: float = float(si) * TAU / 10.0
-			(
-				shadow_pts
-				. append(
-					Vector2(
-						cos(angle) * shadow_w * 0.5 - 2.0,
-						sin(angle) * shadow_h * 0.5 + 1.0,
+		var shadow_w: float = stem_px * 0.5
+		var shadow_h: float = stem_px * 0.12
+		var blur_steps := 3
+		for bi in range(blur_steps, -1, -1):
+			var expand: float = float(bi) * 0.8
+			var alpha: float = 0.08 if bi > 0 else 0.15
+			var shadow := Polygon2D.new()
+			var shadow_pts := PackedVector2Array()
+			for si in range(12):
+				var angle: float = float(si) * TAU / 12.0
+				(
+					shadow_pts
+					. append(
+						Vector2(
+							cos(angle) * (shadow_w * 0.5 + expand) - 1.5,
+							sin(angle) * (shadow_h * 0.5 + expand * 0.3) + 0.8,
+						)
 					)
 				)
-			)
-		shadow.polygon = shadow_pts
-		shadow.color = Color(0.0, 0.05, 0.0, 0.2)
-		leaf_node.add_child(shadow)
-		leaf_node.move_child(shadow, 0)  # behind all leaves
+			shadow.polygon = shadow_pts
+			shadow.color = Color(0.0, 0.04, 0.0, alpha)
+			leaf_node.add_child(shadow)
+			leaf_node.move_child(shadow, 0)

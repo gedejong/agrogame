@@ -369,7 +369,9 @@ func _update_crop_visuals(idx: int) -> void:
 				var tex: Texture2D = load(stem_path)
 				if tex:
 					stem_spr.texture = tex
-				stem_spr.scale = _PLANT_SCALE * stem_scale * 0.7
+				stem_spr.scale = Vector2(
+					_PLANT_SCALE.x * stem_scale * 0.45, _PLANT_SCALE.y * stem_scale * 0.55
+				)
 				stem_spr.modulate = stem_color
 				stem_spr.visible = true
 			var leaf_node: Node2D = plant.get_node_or_null("leaves")

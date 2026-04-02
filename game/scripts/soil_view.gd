@@ -546,6 +546,11 @@ func _draw_root_tube(
 	if pts.size() < 2 or width < 0.15:
 		return
 	var hl_offset := maxf(width * 0.25, 0.3)
+	# Taper: thicker at start, thinner at end
+	var taper := Curve.new()
+	taper.add_point(Vector2(0.0, 1.0))
+	taper.add_point(Vector2(0.5, 0.7))
+	taper.add_point(Vector2(1.0, 0.2))
 
 	# Compute depth fraction for start and end points
 	var df_start: float = clampf((pts[0].y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
@@ -558,6 +563,7 @@ func _draw_root_tube(
 	var dark := Line2D.new()
 	dark.points = dark_pts
 	dark.width = width * 0.4
+	dark.width_curve = taper
 	var dark_grad := Gradient.new()
 	dark_grad.set_color(0, ROOT_COLOR.darkened(0.3 + df_start * 0.25))
 	dark_grad.set_color(1, ROOT_COLOR.darkened(0.3 + df_end * 0.25))
@@ -568,6 +574,7 @@ func _draw_root_tube(
 	var main := Line2D.new()
 	main.points = pts
 	main.width = width
+	main.width_curve = taper
 	var main_grad := Gradient.new()
 	main_grad.set_color(0, ROOT_COLOR.darkened(df_start * 0.3))
 	main_grad.set_color(1, ROOT_COLOR.darkened(df_end * 0.3))
@@ -581,6 +588,7 @@ func _draw_root_tube(
 	var hl := Line2D.new()
 	hl.points = hl_pts
 	hl.width = maxf(width * 0.25, 0.2)
+	hl.width_curve = taper
 	var hl_grad := Gradient.new()
 	hl_grad.set_color(0, Color(0.8, 0.65, 0.45, 0.4 - df_start * 0.2))
 	hl_grad.set_color(1, Color(0.8, 0.65, 0.45, 0.4 - df_end * 0.2))
@@ -589,7 +597,7 @@ func _draw_root_tube(
 
 
 func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed_val: int) -> void:
-	var tap_w: float = clampf(depth_frac * 2.0, 0.4, 1.8)
+	var tap_w: float = clampf(depth_frac * 1.4, 0.3, 1.2)
 	var curve_x: float = (_root_hash(seed_val, 0) - 0.5) * 3.0
 	var mid_y: float = base.y + root_depth * 0.5
 	var root_end := Vector2(base.x + curve_x * 0.3, base.y + root_depth)
