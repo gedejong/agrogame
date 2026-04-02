@@ -199,6 +199,21 @@ func _build_cutaway(
 		rf.color = base_color
 		_add(rf)
 
+		# Diagonal shadow on right face — darker toward the bottom-right edge
+		var shadow_rf := Polygon2D.new()
+		var sw: float = HALF_W * 0.4
+		shadow_rf.polygon = PackedVector2Array(
+			[
+				Vector2(HALF_W - sw, y_off + h * 0.3),
+				Vector2(HALF_W, y_off),
+				Vector2(HALF_W, y_off + h),
+				Vector2(0, HALF_H + y_off + h),
+				Vector2(0, HALF_H + y_off + h * 0.5),
+			]
+		)
+		shadow_rf.color = Color(0, 0, 0, 0.15)
+		_add(shadow_rf)
+
 		# Water fill on BOTH faces (consistent level)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
@@ -246,50 +261,22 @@ func _build_cutaway(
 
 		y_off += h
 
-	# Outline edges for visual separation from surroundings
-	_build_outline(y_off)
-
 	if show_info:
-		# Info boxes with bar charts to the right, one per layer
-		_build_info_boxes(profile_layers, thetas, no3_arr, p_arr, labile, stable)
+		# Info boxes on a high-z container so they render above tiles
+		var prev_parent := _cur_parent
+		var overlay := Node2D.new()
+		overlay.position = _cur_parent.position
+		overlay.z_index = 200
+		add_child(overlay)
+		_cur_parent = overlay
+		_build_info_boxes_overlay(profile_layers, thetas, no3_arr, p_arr, labile, stable)
+		_cur_parent = prev_parent
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
 
 
-func _build_outline(total_y: float) -> void:
-	## Dark outline + surface rim to look like a real excavation cut.
-
-	# Outer dark edge (pit walls)
-	var outline := Line2D.new()
-	outline.points = PackedVector2Array(
-		[
-			Vector2(-HALF_W, 0),
-			Vector2(-HALF_W, total_y),
-			Vector2(0, HALF_H + total_y),
-			Vector2(HALF_W, total_y),
-			Vector2(HALF_W, 0),
-		]
-	)
-	outline.width = 2.0
-	outline.default_color = Color(0, 0, 0, 0.7)
-	_add(outline)
-
-	# Surface rim — light line at ground level where the cut meets the surface
-	var rim := Line2D.new()
-	rim.points = PackedVector2Array(
-		[
-			Vector2(-HALF_W, 0),
-			Vector2(0, HALF_H),
-			Vector2(HALF_W, 0),
-		]
-	)
-	rim.width = 2.0
-	rim.default_color = Color(0.9, 0.85, 0.7, 0.6)
-	_add(rim)
-
-
-func _build_info_boxes(
+func _build_info_boxes_overlay(
 	profile_layers: Array,
 	thetas: Array,
 	no3_arr: Array,
