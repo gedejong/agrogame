@@ -20,8 +20,8 @@ const DEFAULT_LAYER_COLOR := Color(0.55, 0.45, 0.35)
 const HALF_W := 32.0
 const HALF_H := 16.0
 
-## Vertical scale: cm to pixels for layer depth
-const DEPTH_SCALE := 1.2
+## Vertical scale: cm to pixels for layer depth (compact to fit under tile)
+const DEPTH_SCALE := 0.4
 
 ## Overlay colors
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
@@ -92,6 +92,8 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 	var labile: Array = soil_state.get("som_labile_c", [])
 	var stable: Array = soil_state.get("som_stable_c", [])
 
+	# Wall offset gives the 2.5D depth look
+	var wall_w := HALF_W * 0.3
 	var y_top := HALF_H
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -102,46 +104,31 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
 		var y_bot := y_top + h
 
-		# Front face (isometric diamond stretched vertically)
+		# Front face — simple rectangle inset from tile edges
 		var front := Polygon2D.new()
 		front.polygon = PackedVector2Array(
 			[
-				Vector2(0, y_top - HALF_H),
-				Vector2(HALF_W, y_top),
-				Vector2(HALF_W, y_bot),
-				Vector2(0, y_bot + HALF_H),
-				Vector2(-HALF_W, y_bot),
-				Vector2(-HALF_W, y_top),
+				Vector2(-HALF_W + 2, y_top),
+				Vector2(HALF_W - wall_w, y_top),
+				Vector2(HALF_W - wall_w, y_bot),
+				Vector2(-HALF_W + 2, y_bot),
 			]
 		)
 		front.color = base_color
 		add_child(front)
 
-		# Right wall (darker for depth)
-		var right_wall := Polygon2D.new()
-		right_wall.polygon = PackedVector2Array(
+		# Right wall (darker, gives depth)
+		var rw := Polygon2D.new()
+		rw.polygon = PackedVector2Array(
 			[
-				Vector2(HALF_W, y_top),
-				Vector2(HALF_W, y_bot),
-				Vector2(0, y_bot + HALF_H),
-				Vector2(0, y_top + HALF_H),
+				Vector2(HALF_W - wall_w, y_top),
+				Vector2(HALF_W, y_top - 3),
+				Vector2(HALF_W, y_bot - 3),
+				Vector2(HALF_W - wall_w, y_bot),
 			]
 		)
-		right_wall.color = base_color.darkened(1.0 - WALL_DARKEN)
-		add_child(right_wall)
-
-		# Left wall (slightly darker)
-		var left_wall := Polygon2D.new()
-		left_wall.polygon = PackedVector2Array(
-			[
-				Vector2(-HALF_W, y_top),
-				Vector2(0, y_top + HALF_H),
-				Vector2(0, y_bot + HALF_H),
-				Vector2(-HALF_W, y_bot),
-			]
-		)
-		left_wall.color = base_color.darkened(1.0 - WALL_DARKEN * 0.85)
-		add_child(left_wall)
+		rw.color = base_color.darkened(0.3)
+		add_child(rw)
 
 		# Water fill (blue band at bottom of layer)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
@@ -152,66 +139,53 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 			var water := Polygon2D.new()
 			water.polygon = PackedVector2Array(
 				[
-					Vector2(0, wy - HALF_H * 0.9),
-					Vector2(HALF_W * 0.9, wy),
-					Vector2(HALF_W * 0.9, y_bot),
-					Vector2(0, y_bot + HALF_H * 0.9),
-					Vector2(-HALF_W * 0.9, y_bot),
-					Vector2(-HALF_W * 0.9, wy),
+					Vector2(-HALF_W + 3, wy),
+					Vector2(HALF_W - wall_w - 1, wy),
+					Vector2(HALF_W - wall_w - 1, y_bot - 1),
+					Vector2(-HALF_W + 3, y_bot - 1),
 				]
 			)
 			water.color = WATER_COLOR
 			add_child(water)
 
-		# SOM band at top of each layer
+		# SOM band (dark strip at top of layer, width = SOM fraction)
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 0.8)
 		if som_frac > 0.02:
-			var som_h: float = 3.0 + som_frac * 5.0
+			var face_w: float = HALF_W * 2 - wall_w - 4
+			var som_w: float = face_w * som_frac
 			var som := Polygon2D.new()
-			var sw: float = HALF_W * som_frac * 1.2
-			var sh: float = HALF_H * som_frac * 1.2
 			som.polygon = PackedVector2Array(
 				[
-					Vector2(0, y_top - sh),
-					Vector2(sw, y_top),
-					Vector2(sw, y_top + som_h),
-					Vector2(0, y_top + som_h + sh),
-					Vector2(-sw, y_top + som_h),
-					Vector2(-sw, y_top),
+					Vector2(-HALF_W + 3, y_top),
+					Vector2(-HALF_W + 3 + som_w, y_top),
+					Vector2(-HALF_W + 3 + som_w, y_top + 3),
+					Vector2(-HALF_W + 3, y_top + 3),
 				]
 			)
 			som.color = SOM_COLOR
 			add_child(som)
 
-		# Layer divider line
+		# Thin divider line between layers
 		var divider := Line2D.new()
 		divider.points = PackedVector2Array(
 			[
-				Vector2(-HALF_W, y_bot),
-				Vector2(0, y_bot + HALF_H),
-				Vector2(HALF_W, y_bot),
+				Vector2(-HALF_W + 2, y_bot),
+				Vector2(HALF_W, y_bot - 3),
 			]
 		)
-		divider.width = 1.0
-		divider.default_color = Color(0, 0, 0, 0.3)
+		divider.width = 0.5
+		divider.default_color = Color(0, 0, 0, 0.25)
 		add_child(divider)
 
 		y_top = y_bot
 
-	# N and P indicator bars (side labels)
+	# N and P indicator dots (beside each layer)
 	_build_nutrient_bars(profile_layers, no3_arr, p_arr)
 
-	# Root structure
+	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
-
-	# Bottom cap (diamond at bottom)
-	var bottom := Polygon2D.new()
-	bottom.polygon = _diamond_top(y_top + HALF_H)
-	var last_tex: String = profile_layers[-1].get("texture", "loam") if profile_layers else "loam"
-	bottom.color = LAYER_COLORS.get(last_tex, DEFAULT_LAYER_COLOR).darkened(0.3)
-	add_child(bottom)
 
 
 func _build_nutrient_bars(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
