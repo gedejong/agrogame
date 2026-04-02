@@ -66,11 +66,12 @@ func _display_report(data: Dictionary) -> void:
 			var gyga: float = patch.get("gyga_potential_t_ha", 0.0)
 			var grade: String = patch.get("grade", "?")
 			var soil: String = patch.get("soil_profile", "")
+			var crop: String = patch.get("crop_key", "")
 			var ratio: float = patch.get("yield_ratio", 0.0)
 			var line := Label.new()
 			line.text = (
-				"  %s: %.1f t/ha (%.0f%% of %.1f potential) — %s"
-				% [soil, grain, ratio * 100, gyga, grade]
+				"  %s (%s): %.1f t/ha (%.0f%% of %.1f) — %s"
+				% [crop, soil, grain, ratio * 100, gyga, grade]
 			)
 			var grade_color: Color = GRADE_COLORS.get(grade, Color.WHITE)
 			line.add_theme_color_override("font_color", grade_color)
