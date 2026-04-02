@@ -255,16 +255,15 @@ func _create_crop_sprite(col: int, row: int) -> void:
 			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
 			var jy: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
 			var pos := Vector2(px + jx, py + jy - 4)
-			# 3 layered sprites per plant: stem (bottom), leaves (mid), grain (top)
+			# 3 layers: stem (Sprite2D), leaves (Node2D for procedural), grain (Sprite2D)
 			var plant := Node2D.new()
 			plant.position = pos
 			var stem := Sprite2D.new()
 			stem.name = "stem"
 			stem.scale = _PLANT_SCALE
 			plant.add_child(stem)
-			var leaves := Sprite2D.new()
+			var leaves := Node2D.new()
 			leaves.name = "leaves"
-			leaves.scale = _PLANT_SCALE
 			plant.add_child(leaves)
 			var grain := Sprite2D.new()
 			grain.name = "grain"
@@ -370,14 +369,10 @@ func _update_crop_visuals(idx: int) -> void:
 				stem_spr.scale = _PLANT_SCALE * stem_scale
 				stem_spr.modulate = stem_color
 				stem_spr.visible = true
-			var leaf_spr: Sprite2D = plant.get_node_or_null("leaves")
-			if leaf_spr:
-				var tex: Texture2D = load(leaves_path)
-				if tex:
-					leaf_spr.texture = tex
-				leaf_spr.scale = _PLANT_SCALE * leaf_scale
-				leaf_spr.modulate = leaf_color
-				leaf_spr.visible = lai > 0.1
+			# Procedural leaves: alternating left/right, number from LAI
+			var leaf_node: Node2D = plant.get_node_or_null("leaves")
+			if leaf_node:
+				_draw_procedural_leaves(leaf_node, lai, senescence, stress, stem_scale)
 			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
 			if grain_spr:
 				var tex: Texture2D = load(grain_path)
@@ -387,7 +382,7 @@ func _update_crop_visuals(idx: int) -> void:
 				grain_spr.modulate = grain_color
 				grain_spr.visible = grain_visible
 		else:
-			# Fallback: single sprite per stage (old behavior)
+			# Fallback: single sprite per stage
 			var suffix: String = _STAGE_SUFFIX.get(stage, "")
 			if suffix.is_empty():
 				continue
@@ -399,13 +394,71 @@ func _update_crop_visuals(idx: int) -> void:
 				stem_spr.scale = _PLANT_SCALE * clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
 				stem_spr.modulate = leaf_color
 				stem_spr.visible = true
-			var leaf_spr: Sprite2D = plant.get_node_or_null("leaves")
-			if leaf_spr:
-				leaf_spr.visible = false
-			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
-			if grain_spr:
-				grain_spr.visible = false
 	container.visible = true
+
+
+func _draw_procedural_leaves(
+	leaf_node: Node2D,
+	lai: float,
+	senescence: float,
+	stress: int,
+	stem_height_frac: float,
+) -> void:
+	## Draw individual corn-like leaves alternating left/right along the stem.
+	## Number of leaves proportional to LAI. Lower leaves senesce first.
+	# Clear old leaves
+	for child in leaf_node.get_children():
+		child.queue_free()
+
+	# Number of visible leaves: 0 at LAI=0, ~14 at LAI=6
+	var max_leaves := 14
+	var num_leaves: int = int(clampf(lai / 6.0, 0.0, 1.0) * max_leaves)
+	if num_leaves < 1:
+		return
+
+	# Stem visual height in pixels (sprite is 32px tall, scaled)
+	var stem_px: float = 32.0 * _PLANT_SCALE.y * stem_height_frac
+	var scale_f: float = _PLANT_SCALE.x
+
+	for li in range(num_leaves):
+		var frac: float = float(li) / float(max_leaves)
+		# Position along stem: bottom = 0.15, top = 0.85
+		var y_frac: float = 0.15 + frac * 0.7
+		var y: float = -y_frac * stem_px
+		# Alternating left/right
+		var dir: float = -1.0 if li % 2 == 0 else 1.0
+		# Lower leaves longer, upper shorter (and more upright)
+		var length: float = (8.0 - frac * 4.0) * scale_f
+		var droop: float = (3.0 - frac * 2.0) * scale_f  # lower leaves droop more
+		var tip_x: float = dir * length
+		var tip_y: float = y + droop
+
+		# Leaf color: lower leaves senesce first
+		var leaf_senesce: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
+		var green := Color(0.45, 0.8, 0.3)
+		var yellow := Color(0.85, 0.75, 0.35)
+		var brown := Color(0.65, 0.5, 0.25)
+		var color := green.lerp(yellow, leaf_senesce * 0.8)
+		color = color.lerp(brown, maxf(leaf_senesce - 0.5, 0.0) * 1.5)
+		if stress == StressState.WILTING:
+			color = color.lerp(Color(0.55, 0.45, 0.2), 0.4)
+		elif stress == StressState.N_DEFICIENT:
+			color = color.lerp(Color(0.7, 0.75, 0.3), 0.3)
+
+		# Width: thicker at base, thinner at tip
+		var base_width: float = (1.8 - frac * 0.8) * scale_f
+
+		var leaf := Line2D.new()
+		leaf.points = PackedVector2Array(
+			[
+				Vector2(0, y),
+				Vector2(tip_x * 0.5, y + droop * 0.3),
+				Vector2(tip_x, tip_y),
+			]
+		)
+		leaf.width = base_width
+		leaf.default_color = color
+		leaf_node.add_child(leaf)
 
 
 func _unhandled_input(event: InputEvent) -> void:
