@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Wheat head: compact spike at top of each tiller -->
+  <!-- Central spike -->
+  <ellipse cx="16" cy="5" rx="2" ry="4" fill="#d4a840"/>
+  <line x1="15" y1="3" x2="13" y2="1" stroke="#c4a040" stroke-width="0.4"/>
+  <line x1="16" y1="2" x2="16" y2="0" stroke="#c4a040" stroke-width="0.4"/>
+  <line x1="17" y1="3" x2="19" y2="1" stroke="#c4a040" stroke-width="0.4"/>
+  <!-- Side tillers -->
+  <ellipse cx="14" cy="7" rx="1.5" ry="3" fill="#d4a840"/>
+  <ellipse cx="18" cy="7" rx="1.5" ry="3" fill="#d4a840"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Maize ear: cob emerging from mid-stalk with silk tassel on top -->
+  <!-- Ear cob -->
+  <ellipse cx="20" cy="14" rx="3" ry="5" fill="#daa520" transform="rotate(15 20 14)"/>
+  <ellipse cx="20" cy="14" rx="2" ry="4" fill="#c4a040" transform="rotate(15 20 14)"/>
+  <!-- Husk wrapping -->
+  <path d="M18,10 Q16,14 18,18" fill="none" stroke="#8a9a5a" stroke-width="0.8"/>
+  <!-- Silk tassel at top -->
+  <line x1="16" y1="4" x2="14" y2="2" stroke="#c8a870" stroke-width="0.6"/>
+  <line x1="16" y1="4" x2="16" y2="1" stroke="#c8a870" stroke-width="0.6"/>
+  <line x1="16" y1="4" x2="18" y2="2" stroke="#c8a870" stroke-width="0.6"/>
+  <line x1="16" y1="4" x2="13" y2="3" stroke="#c8a870" stroke-width="0.5"/>
+  <line x1="16" y1="4" x2="19" y2="3" stroke="#c8a870" stroke-width="0.5"/>
+</svg>

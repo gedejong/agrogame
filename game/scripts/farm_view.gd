@@ -226,8 +226,16 @@ static func _crop_sprite_path(crop_key: String, suffix: String) -> String:
 	var path := "res://assets/crops/%s_%s.svg" % [prefix, suffix]
 	if ResourceLoader.exists(path):
 		return path
-	# Fallback to maize
 	return "res://assets/crops/%s_%s.svg" % [_FALLBACK_CROP, suffix]
+
+
+static func _crop_layer_path(crop_key: String, layer_name: String) -> String:
+	## Returns path for a crop layer SVG (stem/leaves/grain).
+	var prefix: String = _CROP_PREFIX.get(crop_key, crop_key)
+	var path := "res://assets/crops/%s_%s.svg" % [prefix, layer_name]
+	if ResourceLoader.exists(path):
+		return path
+	return "res://assets/crops/%s_%s.svg" % [_FALLBACK_CROP, layer_name]
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
@@ -236,22 +244,34 @@ func _create_crop_sprite(col: int, row: int) -> void:
 	container.position = world_pos
 	container.z_index = row + col + 1
 	container.visible = false
-	# 4x4 grid mapped to isometric tile coordinates.
-	# u,v in [0,1] map to screen via: x = (u-v)*HW, y = (u+v)*HH - HH
+	# 4x4 grid of plant positions in isometric tile coordinates
 	for ui in range(_PLANT_GRID):
 		var u: float = _PLANT_FRACS[ui]
 		for vi in range(_PLANT_GRID):
 			var v: float = _PLANT_FRACS[vi]
 			var px: float = (u - v) * TILE_WIDTH / 2.0
 			var py: float = (u + v) * TILE_HEIGHT / 2.0 - TILE_HEIGHT / 2.0
-			# Deterministic jitter per plant
 			var seed_val := col * 7 + row * 13 + ui * 3 + vi * 5
 			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
 			var jy: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
-			var sprite := Sprite2D.new()
-			sprite.position = Vector2(px + jx, py + jy - 4)
-			sprite.scale = _PLANT_SCALE
-			container.add_child(sprite)
+			var pos := Vector2(px + jx, py + jy - 4)
+			# 3 layered sprites per plant: stem (bottom), leaves (mid), grain (top)
+			var plant := Node2D.new()
+			plant.position = pos
+			var stem := Sprite2D.new()
+			stem.name = "stem"
+			stem.scale = _PLANT_SCALE
+			plant.add_child(stem)
+			var leaves := Sprite2D.new()
+			leaves.name = "leaves"
+			leaves.scale = _PLANT_SCALE
+			plant.add_child(leaves)
+			var grain := Sprite2D.new()
+			grain.name = "grain"
+			grain.scale = _PLANT_SCALE
+			grain.visible = false
+			plant.add_child(grain)
+			container.add_child(plant)
 	crop_layer.add_child(container)
 	_crop_sprites.append(container)
 
@@ -263,43 +283,96 @@ func _update_crop_visuals(idx: int) -> void:
 	var stage: int = data["crop_stage"]
 	var stress: int = data["stress"]
 	var container: Node2D = _crop_sprites[idx]
-
 	var crop_key: String = data.get("crop_key", "maize")
-	var tex: Texture2D = null
-	if stress != StressState.NONE and _STRESS_SUFFIX.has(stress):
-		var path := _crop_sprite_path(crop_key, _STRESS_SUFFIX[stress])
-		tex = load(path)
-	elif stage != CropStage.NONE and _STAGE_SUFFIX.has(stage):
-		var path := _crop_sprite_path(crop_key, _STAGE_SUFFIX[stage])
-		tex = load(path)
 
-	if tex:
-		var lai: float = data.get("lai", 0.0)
-		var grain: float = data.get("grain_g_m2", 0.0)
-		# Scale from LAI (0.3x at LAI=0, 1.0x at LAI~6)
-		var growth_scale: float = clampf(0.3 + lai * 0.12, 0.3, 1.0)
-		var final_scale := _PLANT_SCALE * growth_scale
-		# Color modulation: green intensity from LAI, golden shift from grain
-		var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
-		var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
-		# Base: pale yellowish-green → vibrant green as LAI increases
-		var green_color := Color(
-			0.85 - lai_frac * 0.35,  # R: pale → less red
-			0.9 - lai_frac * 0.1,  # G: stays high
-			0.7 - lai_frac * 0.4,  # B: pale → less blue
-		)
-		# During grain fill: blend toward golden yellow
-		if stage == CropStage.MATURE or stage == CropStage.FLOWERING:
-			var golden := Color(1.0, 0.88, 0.4)
-			green_color = green_color.lerp(golden, grain_frac * 0.7)
-		for child in container.get_children():
-			if child is Sprite2D:
-				child.texture = tex
-				child.scale = final_scale
-				child.modulate = green_color
-		container.visible = true
-	else:
+	if stage == CropStage.NONE:
 		container.visible = false
+		return
+
+	var lai: float = data.get("lai", 0.0)
+	var grain_val: float = data.get("grain_g_m2", 0.0)
+	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var grain_frac: float = clampf(grain_val / 800.0, 0.0, 1.0)
+
+	# Load layer textures (with fallback to stage sprite if layers missing)
+	var stem_path := _crop_layer_path(crop_key, "stem")
+	var leaves_path := _crop_layer_path(crop_key, "leaves")
+	var grain_path := _crop_layer_path(crop_key, "grain")
+	var has_layers: bool = ResourceLoader.exists(stem_path)
+
+	# Stem: grows with phenology, stays green, slight yellowing at maturity
+	var stem_scale: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
+	var stem_color := Color(0.9, 0.95, 0.85)
+	if stage == CropStage.MATURE:
+		stem_color = stem_color.lerp(Color(0.95, 0.9, 0.7), grain_frac * 0.5)
+
+	# Leaves: scale + green intensity from LAI, yellow/brown at senescence
+	var leaf_scale: float = clampf(lai_frac * 1.0, 0.1, 1.0)
+	var leaf_color := Color(
+		0.75 - lai_frac * 0.25,
+		0.95,
+		0.65 - lai_frac * 0.35,
+	)
+	if stress == StressState.WILTING:
+		leaf_color = leaf_color.lerp(Color(0.7, 0.6, 0.3), 0.5)
+	elif stress == StressState.N_DEFICIENT:
+		leaf_color = leaf_color.lerp(Color(0.8, 0.85, 0.4), 0.4)
+	if stage == CropStage.MATURE:
+		leaf_color = leaf_color.lerp(Color(0.9, 0.8, 0.4), grain_frac * 0.6)
+
+	# Grain: invisible until flowering, grows with grain_g_m2, golden
+	var grain_visible: bool = stage >= CropStage.FLOWERING and grain_val > 1.0
+	var grain_scale: float = clampf(0.3 + grain_frac * 0.7, 0.3, 1.0)
+	var grain_color := Color(1.0, 0.9, 0.5).lerp(Color(0.9, 0.75, 0.3), grain_frac)
+
+	for plant in container.get_children():
+		if not plant is Node2D:
+			continue
+		if has_layers:
+			var stem_spr: Sprite2D = plant.get_node_or_null("stem")
+			if stem_spr:
+				var tex: Texture2D = load(stem_path)
+				if tex:
+					stem_spr.texture = tex
+				stem_spr.scale = _PLANT_SCALE * stem_scale
+				stem_spr.modulate = stem_color
+				stem_spr.visible = true
+			var leaf_spr: Sprite2D = plant.get_node_or_null("leaves")
+			if leaf_spr:
+				var tex: Texture2D = load(leaves_path)
+				if tex:
+					leaf_spr.texture = tex
+				leaf_spr.scale = _PLANT_SCALE * leaf_scale
+				leaf_spr.modulate = leaf_color
+				leaf_spr.visible = lai > 0.1
+			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
+			if grain_spr:
+				var tex: Texture2D = load(grain_path)
+				if tex:
+					grain_spr.texture = tex
+				grain_spr.scale = _PLANT_SCALE * grain_scale
+				grain_spr.modulate = grain_color
+				grain_spr.visible = grain_visible
+		else:
+			# Fallback: single sprite per stage (old behavior)
+			var suffix: String = _STAGE_SUFFIX.get(stage, "")
+			if suffix.is_empty():
+				continue
+			var path := _crop_sprite_path(crop_key, suffix)
+			var tex: Texture2D = load(path)
+			var stem_spr: Sprite2D = plant.get_node_or_null("stem")
+			if stem_spr and tex:
+				stem_spr.texture = tex
+				stem_spr.scale = _PLANT_SCALE * clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
+				stem_spr.modulate = leaf_color
+				stem_spr.visible = true
+			var leaf_spr: Sprite2D = plant.get_node_or_null("leaves")
+			if leaf_spr:
+				leaf_spr.visible = false
+			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
+			if grain_spr:
+				grain_spr.visible = false
+	container.visible = true
 
 
 func _unhandled_input(event: InputEvent) -> void:
