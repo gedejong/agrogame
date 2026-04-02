@@ -27,7 +27,7 @@ const DEPTH_SCALE := 0.35
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.5)
 const N_COLOR := Color(0.2, 0.75, 0.2, 0.7)
 const P_COLOR := Color(0.6, 0.2, 0.75, 0.7)
-const SOM_COLOR := Color(0.2, 0.15, 0.05, 0.5)
+const SOM_COLOR := Color(0.7, 0.5, 0.2, 0.7)
 const ROOT_COLOR := Color(0.55, 0.40, 0.20)
 ## Root depth fraction by crop stage (fraction of total soil depth).
 ## Source: approximate DSSAT/APSIM root growth curves for maize.
@@ -156,24 +156,6 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 			wr.color = WATER_COLOR
 			add_child(wr)
 
-		# SOM band on left face (dark strip at top of layer)
-		var lab: float = labile[i] if i < labile.size() else 0.0
-		var stab: float = stable[i] if i < stable.size() else 0.0
-		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 0.8)
-		if som_frac > 0.02:
-			var sh: float = maxf(h * 0.25, 2.0)
-			var som := Polygon2D.new()
-			som.polygon = PackedVector2Array(
-				[
-					Vector2(-HALF_W, y_off),
-					Vector2(-HALF_W + HALF_W * som_frac, y_off),
-					Vector2(-HALF_W + HALF_W * som_frac, y_off + sh),
-					Vector2(-HALF_W, y_off + sh),
-				]
-			)
-			som.color = SOM_COLOR
-			add_child(som)
-
 		# Bottom edge (isometric V-line)
 		var edge := Line2D.new()
 		edge.points = PackedVector2Array(
@@ -292,7 +274,7 @@ func _build_info_boxes(
 		var lx: float = box_x + bar_max_w + 4
 		_add_tiny_label(lx, box_y + 2, "N", N_COLOR)
 		_add_tiny_label(lx, box_y + 10, "P", P_COLOR)
-		_add_tiny_label(lx, box_y + 18, "S", Color(0.6, 0.5, 0.3))
+		_add_tiny_label(lx, box_y + 18, "S", SOM_COLOR)
 
 		y_off += h
 
