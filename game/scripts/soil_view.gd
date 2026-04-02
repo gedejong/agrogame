@@ -270,28 +270,23 @@ func _build_info_boxes(
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 
-		# Water bar (blue)
-		var w_frac: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
-		_add_bar(box_x + 2, box_y + 3, bar_max_w, 4, w_frac, WATER_COLOR)
-
 		# N bar (green)
 		var n_frac: float = clampf(no3 / 5.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 9, bar_max_w, 4, n_frac, N_COLOR)
+		_add_bar(box_x + 2, box_y + 3, bar_max_w, 5, n_frac, N_COLOR)
 
 		# P bar (purple)
 		var p_frac: float = clampf(p_val / 5.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 15, bar_max_w, 4, p_frac, P_COLOR)
+		_add_bar(box_x + 2, box_y + 11, bar_max_w, 5, p_frac, P_COLOR)
 
-		# SOM bar (dark brown)
+		# SOM bar (brown)
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 21, bar_max_w, 4, som_frac, SOM_COLOR)
+		_add_bar(box_x + 2, box_y + 19, bar_max_w, 5, som_frac, SOM_COLOR)
 
 		# Labels (tiny, right of bars)
 		var lx: float = box_x + bar_max_w + 4
-		_add_tiny_label(lx, box_y + 2, "W", WATER_COLOR)
-		_add_tiny_label(lx, box_y + 8, "N", N_COLOR)
-		_add_tiny_label(lx, box_y + 14, "P", P_COLOR)
-		_add_tiny_label(lx, box_y + 20, "S", Color(0.6, 0.5, 0.3))
+		_add_tiny_label(lx, box_y + 2, "N", N_COLOR)
+		_add_tiny_label(lx, box_y + 10, "P", P_COLOR)
+		_add_tiny_label(lx, box_y + 18, "S", Color(0.6, 0.5, 0.3))
 
 		y_off += h
 
