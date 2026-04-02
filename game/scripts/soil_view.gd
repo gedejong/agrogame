@@ -538,36 +538,74 @@ func _root_hash(seed_val: int, idx: int) -> float:
 	return float(h % 1000) / 1000.0
 
 
+func _draw_root_tube(
+	pts: PackedVector2Array, width: float, base_y: float, total_depth: float
+) -> void:
+	## Draw a root segment as a lit tube with depth darkening.
+	## 3 layers: dark left, main, highlight right. Vertex colors darken with depth.
+	if pts.size() < 2 or width < 0.15:
+		return
+	var hl_offset := maxf(width * 0.25, 0.3)
+
+	# Dark left edge
+	var dark_pts := PackedVector2Array()
+	for p: Vector2 in pts:
+		dark_pts.append(Vector2(p.x - hl_offset, p.y))
+	var dark := Line2D.new()
+	dark.points = dark_pts
+	dark.width = width * 0.4
+	var dark_colors := PackedColorArray()
+	for p: Vector2 in pts:
+		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
+		dark_colors.append(ROOT_COLOR.darkened(0.3 + df * 0.25))
+	dark.colors = dark_colors
+	_add(dark)
+
+	# Main root body with depth darkening
+	var main := Line2D.new()
+	main.points = pts
+	main.width = width
+	var main_colors := PackedColorArray()
+	for p: Vector2 in pts:
+		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
+		main_colors.append(ROOT_COLOR.darkened(df * 0.3))
+	main.colors = main_colors
+	_add(main)
+
+	# Highlight right edge (lit side)
+	var hl_pts := PackedVector2Array()
+	for p: Vector2 in pts:
+		hl_pts.append(Vector2(p.x + hl_offset * 0.7, p.y - 0.2))
+	var hl := Line2D.new()
+	hl.points = hl_pts
+	hl.width = maxf(width * 0.25, 0.2)
+	var hl_colors := PackedColorArray()
+	for p: Vector2 in pts:
+		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
+		hl_colors.append(Color(0.8, 0.65, 0.45, 0.4 - df * 0.2))
+	hl.colors = hl_colors
+	_add(hl)
+
+
 func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed_val: int) -> void:
 	var tap_w: float = clampf(depth_frac * 2.0, 0.4, 1.8)
-	# Slight random curvature on the taproot
 	var curve_x: float = (_root_hash(seed_val, 0) - 0.5) * 3.0
 	var mid_y: float = base.y + root_depth * 0.5
 	var root_end := Vector2(base.x + curve_x * 0.3, base.y + root_depth)
 
-	# Main taproot with mid-point curve
-	var taproot := Line2D.new()
-	taproot.points = PackedVector2Array(
-		[
-			Vector2(base.x, base.y + 1),
-			Vector2(base.x + curve_x, mid_y),
-			root_end,
-		]
+	# Taproot as lit tube with depth gradient
+	_draw_root_tube(
+		PackedVector2Array(
+			[
+				Vector2(base.x, base.y + 1),
+				Vector2(base.x + curve_x, mid_y),
+				root_end,
+			]
+		),
+		tap_w,
+		base.y,
+		root_depth,
 	)
-	taproot.width = tap_w
-	taproot.default_color = ROOT_COLOR
-	_add(taproot)
-	# Light highlight
-	var hl := Line2D.new()
-	hl.points = PackedVector2Array(
-		[
-			Vector2(base.x - 0.3, base.y + 0.8),
-			Vector2(base.x + curve_x - 0.3, mid_y - 0.2),
-		]
-	)
-	hl.width = maxf(tap_w * 0.3, 0.3)
-	hl.default_color = Color(0.8, 0.65, 0.45, 0.35)
-	_add(hl)
 
 	# Deterministic lateral branches — more arborisation
 	var num_branches: int = 3 + int(_root_hash(seed_val, 1) * 4.0)
@@ -584,16 +622,12 @@ func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed
 			continue
 		var end_x: float = tap_x + spread * dir
 		var end_y: float = y + dy + 2
-		var br := Line2D.new()
-		br.points = PackedVector2Array(
-			[
-				Vector2(tap_x, y),
-				Vector2(end_x, end_y),
-			]
+		_draw_root_tube(
+			PackedVector2Array([Vector2(tap_x, y), Vector2(end_x, end_y)]),
+			clampf(0.7 * (1.0 - bd), 0.3, 0.9),
+			base.y,
+			root_depth,
 		)
-		br.width = clampf(0.7 * (1.0 - bd), 0.3, 0.9)
-		br.default_color = ROOT_COLOR
-		_add(br)
 		# Sub-branches (1-2 per lateral)
 		var num_subs: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
 		for si in range(num_subs):
@@ -605,28 +639,27 @@ func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed
 				dir * (1.0 if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -0.6)
 			)
 			var sub_dy: float = 1.0 + _root_hash(seed_val, 90 + bi * 3 + si) * 2.0
-			var sub := Line2D.new()
-			sub.points = PackedVector2Array(
-				[
-					Vector2(sub_x, sub_y),
-					Vector2(sub_x + sub_spread * sub_dir, sub_y + sub_dy),
-				]
+			var sub_end_x: float = sub_x + sub_spread * sub_dir
+			var sub_end_y: float = sub_y + sub_dy
+			_draw_root_tube(
+				PackedVector2Array([Vector2(sub_x, sub_y), Vector2(sub_end_x, sub_end_y)]),
+				0.35,
+				base.y,
+				root_depth,
 			)
-			sub.width = 0.35
-			sub.default_color = ROOT_COLOR.lightened(0.05)
-			_add(sub)
-			# Tiny rootlets on some sub-branches
+			# Tiny rootlets
 			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.5:
-				var rl_x: float = sub_x + sub_spread * sub_dir * 0.7
-				var rl_y: float = sub_y + sub_dy * 0.7
+				var rl_x: float = sub_end_x * 0.7 + sub_x * 0.3
+				var rl_y: float = sub_end_y * 0.7 + sub_y * 0.3
 				var rl_dir: float = 1.0 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1.0
-				var rootlet := Line2D.new()
-				rootlet.points = PackedVector2Array(
-					[
-						Vector2(rl_x, rl_y),
-						Vector2(rl_x + rl_dir * 1.5, rl_y + 1.0),
-					]
+				_draw_root_tube(
+					PackedVector2Array(
+						[
+							Vector2(rl_x, rl_y),
+							Vector2(rl_x + rl_dir * 1.5, rl_y + 1.0),
+						]
+					),
+					0.2,
+					base.y,
+					root_depth,
 				)
-				rootlet.width = 0.2
-				rootlet.default_color = ROOT_COLOR.lightened(0.15)
-				_add(rootlet)
