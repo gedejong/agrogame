@@ -79,6 +79,7 @@ var _hidden_tiles: Array[Vector2i] = []
 @onready var date_label: Label = $UILayer/TopBar/DateLabel
 @onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
 @onready var weather_label: Label = $UILayer/TopBar/WeatherLabel
+@onready var weather_icon: TextureRect = $UILayer/TopBar/WeatherIcon
 @onready var next_day_btn: Button = $UILayer/ActionBar/NextDayButton
 @onready var ff7_btn: Button = $UILayer/ActionBar/FastForward7
 @onready var ff_all_btn: Button = $UILayer/ActionBar/FastForwardAll
@@ -489,11 +490,20 @@ func _apply_day_result(data: Dictionary) -> void:
 	var season_done: bool = data.get("season_complete", false)
 
 	date_label.text = "Day %d | %s" % [day_num, cur_date]
-	credits_label.text = "Credits: %d" % balance
+	credits_label.text = "%d" % balance
 	var rain: float = w.get("rain_mm", 0.0)
 	weather_label.text = (
-		"%.0f–%.0f°C  Rain: %.1fmm" % [w.get("tmin_c", 0.0), w.get("tmax_c", 0.0), rain]
+		"%.0f–%.0f°C  %.1fmm" % [w.get("tmin_c", 0.0), w.get("tmax_c", 0.0), rain]
 	)
+	# Update weather icon
+	var icon_path := "res://assets/icons/icon_sun.svg"
+	if rain > 5.0:
+		icon_path = "res://assets/icons/icon_rain.svg"
+	elif rain >= 1.0:
+		icon_path = "res://assets/icons/icon_cloud.svg"
+	var icon_tex: Texture2D = load(icon_path)
+	if icon_tex:
+		weather_icon.texture = icon_tex
 	weather.set_raining(rain > 2.0)
 
 	# Update per-patch tile data from step result
