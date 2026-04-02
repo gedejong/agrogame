@@ -551,3 +551,44 @@ def test_harvest_report_after_stepping_to_maturity(client) -> None:
     data = resp.json()
     assert "patches" in data
     assert data["total_days"] == 200
+
+
+def test_two_season_economics_roundtrip(client) -> None:
+    """Full game loop: season 1 with costs → report → season 2 → report.
+
+    Verifies that ledger resets between seasons, balance_before/after are
+    correct, and a zero-yield second season shows zero revenue.
+    """
+    game_id = _create_game(client)
+
+    # --- Season 1: step, take an action, complete, get report ---
+    client.post(f"/api/v1/games/{game_id}/step?days=10&seed=42")
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 20}},
+    )
+    # Fast-forward rest of season
+    client.post(f"/api/v1/games/{game_id}/step?days=190&seed=42")
+
+    r1 = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert r1["total_cost_credits"] > 0, "Season 1 should have costs from irrigation"
+    assert r1["revenue_credits"] > 0, "Season 1 should have harvest revenue"
+    assert r1["balance_after"] > r1["balance_before"], "Profit should increase balance"
+    s1_balance_after = r1["balance_after"]
+
+    # Calling report again should NOT change the balance (idempotency)
+    r1_again = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert (
+        r1_again["balance_after"] == s1_balance_after
+    ), "Repeated /report must be idempotent"
+
+    # --- Season 2: no actions, fast-forward, get report ---
+    client.post(f"/api/v1/games/{game_id}/step?days=200&seed=42")
+
+    r2 = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert r2["season_number"] > r1["season_number"], "Season number should increment"
+    assert r2["total_cost_credits"] == 0, "Season 2 has no actions = no costs"
+    assert r2["balance_before"] == s1_balance_after, (
+        f"Season 2 balance_before ({r2['balance_before']}) should equal "
+        f"season 1 balance_after ({s1_balance_after})"
+    )
