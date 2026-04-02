@@ -30,15 +30,30 @@ const P_COLOR := Color(0.6, 0.2, 0.75, 0.7)
 const SOM_COLOR := Color(0.2, 0.15, 0.05, 0.5)
 const WALL_DARKEN := 0.7
 const ROOT_COLOR := Color(0.55, 0.40, 0.20)
+## Root depth fraction by crop stage (fraction of total soil depth).
+## Source: approximate DSSAT/APSIM root growth curves for maize.
+const ROOT_DEPTH_BY_STAGE := {
+	"planted": 0.0,
+	"emerged": 0.1,
+	"vegetative": 0.4,
+	"flowering": 0.7,
+	"grain_fill": 0.85,
+	"maturity": 0.9,
+}
 
 var _active := false
 
 
-func show_at(tile_pos: Vector2, soil_state: Dictionary, profile_layers: Array) -> void:
+func show_at(
+	tile_pos: Vector2,
+	soil_state: Dictionary,
+	profile_layers: Array,
+	crop_stage: String = "",
+) -> void:
 	_clear()
 	position = tile_pos
 	modulate.a = 0.85
-	_build_cutaway(soil_state, profile_layers)
+	_build_cutaway(soil_state, profile_layers, crop_stage)
 	visible = true
 	_active = true
 
@@ -70,7 +85,7 @@ func _diamond_top(y: float) -> PackedVector2Array:
 	)
 
 
-func _build_cutaway(soil_state: Dictionary, profile_layers: Array) -> void:
+func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: String = "") -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var no3_arr: Array = soil_state.get("n_no3", [])
 	var p_arr: Array = soil_state.get("p_available", [])
@@ -189,7 +204,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array) -> void:
 	_build_nutrient_bars(profile_layers, no3_arr, p_arr)
 
 	# Root structure
-	_build_roots(profile_layers)
+	_build_roots(profile_layers, crop_stage)
 
 	# Bottom cap (diamond at bottom)
 	var bottom := Polygon2D.new()
@@ -233,50 +248,57 @@ func _circle_points(center: Vector2, radius: float) -> PackedVector2Array:
 	return pts
 
 
-func _build_roots(profile_layers: Array) -> void:
-	## Draw branching root structure that thins with depth.
+func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
+	## Draw roots proportional to crop stage — no roots before emergence.
+	var depth_frac: float = ROOT_DEPTH_BY_STAGE.get(crop_stage, 0.0)
+	if depth_frac < 0.01:
+		return
+
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 20.0) * DEPTH_SCALE
 	if total_depth <= 0:
 		return
 
+	var root_depth: float = total_depth * depth_frac
+
 	# Main taproot
 	var root_start := Vector2(0, HALF_H + 2)
-	var root_end := Vector2(0, HALF_H + total_depth * 0.7)
+	var root_end := Vector2(0, HALF_H + root_depth)
 	var taproot := Line2D.new()
 	taproot.points = PackedVector2Array([root_start, root_end])
-	taproot.width = 2.5
+	taproot.width = clampf(depth_frac * 3.0, 0.5, 2.5)
 	taproot.default_color = ROOT_COLOR
 	add_child(taproot)
 
-	# Lateral branches at different depths
-	var branches := [0.15, 0.25, 0.4, 0.55, 0.7]
-	for frac: float in branches:
-		var y: float = HALF_H + total_depth * frac
-		var spread: float = HALF_W * 0.6 * (1.0 - frac)
-		var width: float = 2.0 * (1.0 - frac)
-		if width < 0.5:
+	# Lateral branches — only where roots have reached
+	var branch_fracs := [0.1, 0.2, 0.35, 0.5, 0.65]
+	for bf: float in branch_fracs:
+		if bf > depth_frac:
+			break
+		var y: float = HALF_H + total_depth * bf
+		var density: float = (depth_frac - bf) / depth_frac
+		var spread: float = HALF_W * 0.5 * density
+		var width: float = 1.5 * density
+		if width < 0.3 or spread < 2.0:
 			continue
-		# Left branch
 		var left := Line2D.new()
 		left.points = PackedVector2Array(
 			[
 				Vector2(0, y),
 				Vector2(-spread * 0.5, y + 3),
-				Vector2(-spread, y + 6),
+				Vector2(-spread, y + 5),
 			]
 		)
 		left.width = width
 		left.default_color = ROOT_COLOR
 		add_child(left)
-		# Right branch
 		var right := Line2D.new()
 		right.points = PackedVector2Array(
 			[
 				Vector2(0, y),
 				Vector2(spread * 0.4, y + 4),
-				Vector2(spread * 0.8, y + 8),
+				Vector2(spread * 0.7, y + 6),
 			]
 		)
 		right.width = width

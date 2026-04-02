@@ -532,10 +532,13 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 
 	var patches: Dictionary = _last_step_data.get("patches", {})
 	var soil_state := {}
+	var crop_stage := ""
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		if patch_idx < patch_list.size():
-			soil_state = patch_list[patch_idx].get("soil_state", {})
+			var patch: Dictionary = patch_list[patch_idx]
+			soil_state = patch.get("soil_state", {})
+			crop_stage = patch.get("crop_stage", "")
 
 	if soil_state.is_empty():
 		status_label.text = "Step at least 1 day to see soil data"
@@ -546,9 +549,8 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 		var scene: PackedScene = load("res://scenes/soil_view.tscn")
 		_soil_view = scene.instantiate()
 		crop_layer.add_child(_soil_view)
-	# Position at the tile's local coordinates in crop_layer space
 	var tile_pos := tile_layer.map_to_local(Vector2i(col, row))
-	_soil_view.show_at(tile_pos, soil_state, profile_layers)
+	_soil_view.show_at(tile_pos, soil_state, profile_layers, crop_stage)
 
 
 func _hide_soil_cutaway() -> void:
