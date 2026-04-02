@@ -61,12 +61,13 @@ static func draw_leaves(
 			var tip_droop: float = droop_strength * t * t * t
 			pts.append(Vector2(x, y + arc_up + tip_droop))
 
-		# Colors
+		# Colors — mostly dark, rare bright highlights
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
 		var hue_shift: float = (rh.call(5) - 0.5) * 0.03
-		var base_green := Color(0.2 + hue_shift, 0.42 + hue_shift, 0.14)
-		base_green = base_green.darkened(age * 0.15)
-		base_green = base_green.lightened(facing * facing * 0.35)
+		var base_green := Color(0.18 + hue_shift, 0.38 + hue_shift, 0.12)
+		base_green = base_green.darkened(age * 0.18)
+		# Only very high-facing leaves catch light (facing³ = rare bright)
+		base_green = base_green.lightened(facing * facing * facing * 0.4)
 		var senescent_color := Color(0.65, 0.58, 0.28)
 		var dead_color := Color(0.5, 0.4, 0.22)
 		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
@@ -79,16 +80,29 @@ static func draw_leaves(
 		var tip_color := color.lightened(0.12)
 		tip_color.a = 0.8
 
-		# Narrow-wide-narrow shape
 		var base_w: float = (1.8 - frac * 0.3) * sf * width_mult
+		var w_curve := Curve.new()
+		w_curve.add_point(Vector2(0.0, 0.3))
+		w_curve.add_point(Vector2(0.15, 0.8))
+		w_curve.add_point(Vector2(0.35, 1.0))
+		w_curve.add_point(Vector2(0.65, 0.7))
+		w_curve.add_point(Vector2(1.0, 0.05))
+
+		# Soft shadow: offset, wider, dark, semi-transparent
+		var shadow_pts := PackedVector2Array()
+		for p: Vector2 in pts:
+			shadow_pts.append(Vector2(p.x + 0.4, p.y + 0.6))
+		var shadow := Line2D.new()
+		shadow.points = shadow_pts
+		shadow.width_curve = w_curve
+		shadow.width = base_w * 1.4
+		shadow.default_color = Color(0.05, 0.08, 0.02, 0.25)
+		leaf_node.add_child(shadow)
+
+		# Main leaf
 		var leaf := Line2D.new()
 		leaf.points = pts
-		leaf.width_curve = Curve.new()
-		leaf.width_curve.add_point(Vector2(0.0, 0.3))
-		leaf.width_curve.add_point(Vector2(0.15, 0.8))
-		leaf.width_curve.add_point(Vector2(0.35, 1.0))
-		leaf.width_curve.add_point(Vector2(0.65, 0.7))
-		leaf.width_curve.add_point(Vector2(1.0, 0.05))
+		leaf.width_curve = w_curve
 		leaf.width = base_w
 		var grad := Gradient.new()
 		grad.set_color(0, color)
