@@ -366,7 +366,7 @@ func _update_crop_visuals(idx: int) -> void:
 				var tex: Texture2D = load(stem_path)
 				if tex:
 					stem_spr.texture = tex
-				stem_spr.scale = _PLANT_SCALE * stem_scale
+				stem_spr.scale = _PLANT_SCALE * stem_scale * 0.7
 				stem_spr.modulate = stem_color
 				stem_spr.visible = true
 			# Procedural leaves: alternating left/right, number from LAI
@@ -428,9 +428,10 @@ func _draw_procedural_leaves(
 		var y: float = -y_frac * stem_px
 		var dir: float = -1.0 if li % 2 == 0 else 1.0
 
-		# Leaf dimensions: lower = longer, droopier; upper = shorter, upright
-		var base_len: float = (5.0 - frac * 2.5) * sf * (1.0 + var_len)
-		var droop_amount: float = (2.0 - frac * 1.5) * sf * (1.0 + var_droop)
+		# Leaf dimensions: bell curve — longest at mid-stem (~60%), shorter at top/bottom
+		var len_curve: float = 1.0 - 4.0 * (frac - 0.55) * (frac - 0.55)  # peaks at 55%
+		var base_len: float = (3.5 + len_curve * 4.0) * sf * (1.0 + var_len)
+		var droop_amount: float = (1.5 - frac * 1.0) * sf * (1.0 + var_droop)
 
 		# Inverted quadratic arc: leaf goes out, curves up, then droops down
 		# 6 points along the curve for smooth shape
