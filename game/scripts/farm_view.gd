@@ -254,6 +254,9 @@ func _handle_key(keycode: int) -> void:
 		KEY_F3:
 			_set_overlay_mode(SoilColor.Mode.MOISTURE_HEATMAP)
 			return
+		KEY_ESCAPE:
+			_hide_soil_cutaway()
+			return
 	# Tile-specific keys require selection
 	if _selected_tile.x < 0:
 		return
@@ -340,6 +343,9 @@ func _handle_tile_click() -> void:
 		status_label.text = (
 			"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
 		)
+		# Show inline soil cutaway below the selected tile
+		if not _last_step_data.is_empty():
+			_show_soil_cutaway(col, row)
 
 
 func _update_selection_indicator() -> void:
@@ -514,39 +520,43 @@ func _on_soil_view() -> void:
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to view soil"
 		return
-	# Find the patch data for the selected tile's soil type
-	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	_show_soil_cutaway(_selected_tile.x, _selected_tile.y)
+
+
+func _show_soil_cutaway(col: int, row: int) -> void:
+	var idx := row * GRID_COLS + col
 	var soil_type: String = _tile_data[idx]["soil_type"]
 	var patch_idx := SOIL_TYPES.find(soil_type)
 	if patch_idx < 0:
 		patch_idx = 0
 
-	# Get soil_state from last step data
 	var patches: Dictionary = _last_step_data.get("patches", {})
 	var soil_state := {}
-	var profile_layers: Array = []
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		if patch_idx < patch_list.size():
-			var patch: Dictionary = patch_list[patch_idx]
-			soil_state = patch.get("soil_state", {})
-	# Build approximate profile layers from soil type
-	profile_layers = _get_profile_layers(soil_type)
+			soil_state = patch_list[patch_idx].get("soil_state", {})
 
 	if soil_state.is_empty():
 		status_label.text = "Step at least 1 day to see soil data"
 		return
 
+	var profile_layers := _get_profile_layers(soil_type)
 	if not _soil_view:
 		var scene: PackedScene = load("res://scenes/soil_view.tscn")
 		_soil_view = scene.instantiate()
-		$UILayer.add_child(_soil_view)
-		_soil_view.connect("closed", func() -> void: status_label.text = "Soil view closed")
-	_soil_view.show_view(soil_state, profile_layers)
+		crop_layer.add_child(_soil_view)
+	# Position at the tile's local coordinates in crop_layer space
+	var tile_pos := tile_layer.map_to_local(Vector2i(col, row))
+	_soil_view.show_at(tile_pos, soil_state, profile_layers)
+
+
+func _hide_soil_cutaway() -> void:
+	if _soil_view and _soil_view.is_active():
+		_soil_view.hide_view()
 
 
 func _get_profile_layers(soil_type: String) -> Array:
-	## Return approximate profile layer config for the soil view.
 	match soil_type:
 		"sandy":
 			return [

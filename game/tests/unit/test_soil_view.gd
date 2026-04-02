@@ -1,5 +1,5 @@
 extends GutTest
-## Tests for the 3D soil cross-section view constants.
+## Tests for the inline 2D soil cross-section view.
 
 const SoilView = preload("res://scripts/soil_view.gd")
 
@@ -23,12 +23,11 @@ func test_nutrient_colors_distinct() -> void:
 		"N color should be greenish",
 	)
 	assert_true(
-		SoilView.P_COLOR.r > SoilView.P_COLOR.g or SoilView.P_COLOR.b > SoilView.P_COLOR.g,
+		SoilView.P_COLOR.b > SoilView.P_COLOR.g,
 		"P color should be purplish",
 	)
 
 
-func test_section_dimensions_positive() -> void:
-	assert_true(SoilView.SECTION_WIDTH > 0, "Width positive")
-	assert_true(SoilView.SECTION_DEPTH > 0, "Depth positive")
-	assert_true(SoilView.CM_TO_M > 0, "CM_TO_M positive")
+func test_cutaway_dimensions_positive() -> void:
+	assert_true(SoilView.CUTAWAY_WIDTH > 0, "Width positive")
+	assert_true(SoilView.LAYER_SCALE > 0, "Scale positive")
