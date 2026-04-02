@@ -540,6 +540,12 @@ func _show_harvest_report() -> void:
 
 
 func _on_report_closed() -> void:
+	# Reset all tile crop visuals for the new season
+	for i in range(_tile_data.size()):
+		_tile_data[i]["crop_stage"] = CropStage.NONE
+		_tile_data[i]["stress"] = StressState.NONE
+		_tile_data[i]["grain_g_m2"] = 0.0
+		_update_crop_visuals(i)
 	_set_buttons_disabled(false)
 	status_label.text = "New season — ready to step"
 
