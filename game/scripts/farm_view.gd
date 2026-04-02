@@ -61,6 +61,8 @@ var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
 var _overlay_mode: int = SoilColor.Mode.NATURAL
+var _soil_view: Node = null
+var _last_step_data: Dictionary = {}
 
 @onready var tile_layer: TileMapLayer = $TileLayer
 @onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
@@ -75,6 +77,7 @@ var _overlay_mode: int = SoilColor.Mode.NATURAL
 @onready var ff_all_btn: Button = $UILayer/ActionBar/FastForwardAll
 @onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
+@onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var camera: Camera2D = $Camera2D
@@ -91,6 +94,7 @@ func _ready() -> void:
 	ff_all_btn.pressed.connect(_on_ff_all)
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
+	soil_view_btn.pressed.connect(_on_soil_view)
 	_load_selection_texture()
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
@@ -427,6 +431,7 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	if not success:
 		status_label.text = "Step failed — backend error"
 		return
+	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
 
@@ -503,6 +508,64 @@ func _on_fertilize() -> void:
 				)
 			)
 	)
+
+
+func _on_soil_view() -> void:
+	if _selected_tile.x < 0:
+		status_label.text = "Select a tile first to view soil"
+		return
+	# Find the patch data for the selected tile's soil type
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+
+	# Get soil_state from last step data
+	var patches: Dictionary = _last_step_data.get("patches", {})
+	var soil_state := {}
+	var profile_layers: Array = []
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		if patch_idx < patch_list.size():
+			var patch: Dictionary = patch_list[patch_idx]
+			soil_state = patch.get("soil_state", {})
+	# Build approximate profile layers from soil type
+	profile_layers = _get_profile_layers(soil_type)
+
+	if soil_state.is_empty():
+		status_label.text = "Step at least 1 day to see soil data"
+		return
+
+	if not _soil_view:
+		var scene: PackedScene = load("res://scenes/soil_view.tscn")
+		_soil_view = scene.instantiate()
+		$UILayer.add_child(_soil_view)
+		_soil_view.connect("closed", func() -> void: status_label.text = "Soil view closed")
+	_soil_view.show_view(soil_state, profile_layers)
+
+
+func _get_profile_layers(soil_type: String) -> Array:
+	## Return approximate profile layer config for the soil view.
+	match soil_type:
+		"sandy":
+			return [
+				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
+				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
+				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+			]
+		"clay":
+			return [
+				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
+			]
+		_:
+			return [
+				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
+				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
+			]
 
 
 func _on_action_complete(success: bool, data: Dictionary) -> void:

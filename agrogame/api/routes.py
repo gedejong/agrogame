@@ -384,6 +384,7 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
                     soil_theta_surface=round(theta_top, 4),
                     som_total_c_g_m2=round(som_total, 1),
                     water_stress=round(w_stress, 2),
+                    soil_state=_build_soil_state(p),
                 )
             )
     # Check if crop reached maturity

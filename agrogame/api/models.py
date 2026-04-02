@@ -126,6 +126,9 @@ class PatchDayResponse(BaseModel):
     soil_theta_surface: float = Field(description="Top-layer volumetric water content")
     som_total_c_g_m2: float = Field(description="Total SOM carbon (g/m²)")
     water_stress: float = Field(description="Water stress factor (0=severe, 1=none)")
+    soil_state: SoilStateResponse | None = Field(
+        default=None, description="Full per-layer soil state for 3D view"
+    )
 
 
 class DayResultResponse(BaseModel):

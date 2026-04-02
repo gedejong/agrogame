@@ -1,0 +1,63 @@
+[gd_scene load_steps=2 format=3 uid="uid://soil_view"]
+
+[ext_resource type="Script" path="res://scripts/soil_view.gd" id="1"]
+
+[node name="SoilView" type="SubViewportContainer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+stretch = true
+visible = false
+script = ExtResource("1")
+
+[node name="SubViewport" type="SubViewport" parent="."]
+transparent_bg = true
+handle_input_locally = false
+size = Vector2i(800, 600)
+render_target_update_mode = 3
+
+[node name="SceneRoot" type="Node3D" parent="SubViewport"]
+
+[node name="Camera3D" type="Camera3D" parent="SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 1.5)
+fov = 50.0
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="SubViewport"]
+transform = Transform3D(0.866, 0.354, -0.354, 0, 0.707, 0.707, 0.5, -0.612, 0.612, 1, 1, 1)
+light_energy = 0.8
+
+[node name="AmbientLight" type="DirectionalLight3D" parent="SubViewport"]
+transform = Transform3D(1, 0, 0, 0, 0.707, -0.707, 0, 0.707, 0.707, -1, 0, -1)
+light_energy = 0.3
+
+[node name="CloseLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -200.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = 30.0
+text = "Press ESC to close"
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 14
+
+[node name="TitleLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 400.0
+offset_bottom = 35.0
+text = "Soil Cross-Section"
+theme_override_font_sizes/font_size = 18
+
+[node name="LegendLabel" type="Label" parent="."]
+layout_mode = 1
+offset_left = 10.0
+offset_top = 40.0
+offset_right = 300.0
+offset_bottom = 90.0
+text = "Blue = water | Green = N | Purple = P | Dark = SOM"
+theme_override_font_sizes/font_size = 11

@@ -80,6 +80,11 @@ text = "Irrigate (20mm)"
 [node name="FertilizeButton" type="Button" parent="UILayer/ActionBar"]
 text = "Fertilize (50kg)"
 
+[node name="Sep2" type="VSeparator" parent="UILayer/ActionBar"]
+
+[node name="SoilViewButton" type="Button" parent="UILayer/ActionBar"]
+text = "View Soil"
+
 [node name="ForecastPanel" type="VBoxContainer" parent="UILayer"]
 script = ExtResource("4")
 offset_left = 10.0
