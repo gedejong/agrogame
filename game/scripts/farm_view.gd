@@ -43,6 +43,8 @@ const _FALLBACK_CROP := "maize"
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
 const SoilColor = preload("res://scripts/soil_color.gd")
+const CropRenderer = preload("res://scripts/crop_renderer.gd")
+const MaizeRenderer = preload("res://scripts/maize_renderer.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
 const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
 const _STAGE_MAP := {
@@ -372,8 +374,8 @@ func _update_crop_visuals(idx: int) -> void:
 				stem_spr.visible = true
 			var leaf_node: Node2D = plant.get_node_or_null("leaves")
 			if leaf_node:
-				_draw_procedural_leaves(
-					leaf_node, lai, senescence, stress, stem_scale, growth_progress
+				_render_crop_leaves(
+					crop_key, leaf_node, senescence, stress, stem_scale, growth_progress
 				)
 			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
 			if grain_spr:
@@ -405,107 +407,24 @@ func _update_crop_visuals(idx: int) -> void:
 	container.visible = true
 
 
-func _draw_procedural_leaves(
+func _render_crop_leaves(
+	crop_key: String,
 	leaf_node: Node2D,
-	_lai: float,
 	senescence: float,
 	stress: int,
 	stem_height_frac: float,
 	growth_progress: float = 0.0,
 ) -> void:
-	## Procedural corn leaves: inverted quadratic arcs, alternating, per-leaf variation.
-	## Leaf COUNT from growth_progress (stays at max once reached).
-	## Leaf COLOR from LAI/senescence (yellows when LAI drops).
-	for child in leaf_node.get_children():
-		child.queue_free()
-
-	var max_leaves := 18
-	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * max_leaves)
-	if num_leaves < 1:
-		return
-
-	var stem_px: float = 32.0 * _PLANT_SCALE.y * stem_height_frac
-	var sf: float = _PLANT_SCALE.x
-
-	for li in range(num_leaves):
-		var frac: float = float(li) / float(max_leaves)
-		# Deterministic per-leaf hash for unique shape
-		var h := (li * 2654435761) & 0x7FFFFFFF
-		var rh := func(idx: int) -> float:
-			return float(((h + idx * 40503) & 0x7FFFFFFF) % 1000) / 1000.0
-
-		var y_frac: float = 0.12 + frac * 0.72
-		var y: float = -y_frac * stem_px
-		var dir: float = -1.0 if li % 2 == 0 else 1.0
-
-		# Bell-curve leaf length — longer for denser canopy
-		var len_curve: float = 1.0 - 4.0 * (frac - 0.55) * (frac - 0.55)
-		var len_var: float = (rh.call(0) - 0.5) * 0.3
-		var base_len: float = (5.0 + len_curve * 5.0) * sf * (1.0 + len_var)
-
-		# Droop: lower leaves droop heavily, upper/young leaves point up
-		var droop_var: float = (rh.call(1) - 0.5) * 0.2
-		var age: float = 1.0 - frac  # 1.0 = oldest/lowest, 0.0 = youngest/top
-		var droop_strength: float = (0.2 + 1.6 * age * age) * sf * (1.0 + droop_var)
-
-		# Camera facing: most leaves visible, few edge-on
-		var facing: float = rh.call(2)
-		var width_mult: float = 0.6 + facing * 0.4  # 0.6x to 1.0x (never paper-thin)
-
-		# Per-leaf curve variation
-		var curve_var: float = (rh.call(3) - 0.5) * 0.2
-
-		# Leaf shape: arcs upward then tip droops for older leaves.
-		# x(t) = linear outward spread
-		# y(t) = -rise * t*(1-t) [upward hump] + droop * t³ [late tip droop]
-		var pts := PackedVector2Array()
-		var segs := 7
-		var eff_len: float = base_len * (0.7 + facing * 0.3)
-		var rise_height: float = eff_len * (0.5 + curve_var * 0.15)
-		for si in range(segs + 1):
-			var t: float = float(si) / float(segs)
-			var x: float = dir * eff_len * t
-			var arc_up: float = -rise_height * 4.0 * t * (1.0 - t)
-			var tip_droop: float = droop_strength * t * t * t
-			pts.append(Vector2(x, y + arc_up + tip_droop))
-
-		# Senescence: lower leaves yellow first
-		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
-		var hue_shift: float = (rh.call(5) - 0.5) * 0.03
-		# Start darker — most leaves are in partial shadow
-		var base_green := Color(0.2 + hue_shift, 0.42 + hue_shift, 0.14)
-		# Lower leaves even darker (deep canopy shadow)
-		base_green = base_green.darkened(age * 0.15)
-		# Camera-facing leaves catch sunlight — big brightness boost
-		base_green = base_green.lightened(facing * facing * 0.35)
-		var senescent_color := Color(0.65, 0.58, 0.28)
-		var dead_color := Color(0.5, 0.4, 0.22)
-		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
-		color = color.lerp(dead_color, maxf(leaf_sen - 0.5, 0.0) * 1.6)
-		if stress == StressState.WILTING:
-			color = color.lerp(Color(0.42, 0.35, 0.16), 0.45)
-		elif stress == StressState.N_DEFICIENT:
-			color = color.lerp(Color(0.58, 0.6, 0.25), 0.35)
-
-		var tip_color := color.lightened(0.12)
-		tip_color.a = 0.8
-
-		# Width: narrow at stem, widest at ~35%, tapers to narrow tip
-		var base_w: float = (1.8 - frac * 0.3) * sf * width_mult
-		var leaf := Line2D.new()
-		leaf.points = pts
-		leaf.width_curve = Curve.new()
-		leaf.width_curve.add_point(Vector2(0.0, 0.3))  # narrow at stem
-		leaf.width_curve.add_point(Vector2(0.15, 0.8))  # widens quickly
-		leaf.width_curve.add_point(Vector2(0.35, 1.0))  # widest point
-		leaf.width_curve.add_point(Vector2(0.65, 0.7))  # starts tapering
-		leaf.width_curve.add_point(Vector2(1.0, 0.05))  # narrow tip
-		leaf.width = base_w
-		var grad := Gradient.new()
-		grad.set_color(0, color)
-		grad.set_color(1, tip_color)
-		leaf.gradient = grad
-		leaf_node.add_child(leaf)
+	## Dispatch to crop-specific leaf renderer.
+	match crop_key:
+		"maize":
+			MaizeRenderer.draw_leaves(
+				leaf_node, senescence, stress, stem_height_frac, growth_progress
+			)
+		_:
+			MaizeRenderer.draw_leaves(
+				leaf_node, senescence, stress, stem_height_frac, growth_progress
+			)
 
 
 func _unhandled_input(event: InputEvent) -> void:
