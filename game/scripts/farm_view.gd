@@ -274,14 +274,29 @@ func _update_crop_visuals(idx: int) -> void:
 		tex = load(path)
 
 	if tex:
-		# Scale sprites based on LAI (0 = tiny, ~6 = full size for maize)
 		var lai: float = data.get("lai", 0.0)
+		var grain: float = data.get("grain_g_m2", 0.0)
+		# Scale from LAI (0.3x at LAI=0, 1.0x at LAI~6)
 		var growth_scale: float = clampf(0.3 + lai * 0.12, 0.3, 1.0)
 		var final_scale := _PLANT_SCALE * growth_scale
+		# Color modulation: green intensity from LAI, golden shift from grain
+		var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+		var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
+		# Base: pale yellowish-green → vibrant green as LAI increases
+		var green_color := Color(
+			0.85 - lai_frac * 0.35,  # R: pale → less red
+			0.9 - lai_frac * 0.1,  # G: stays high
+			0.7 - lai_frac * 0.4,  # B: pale → less blue
+		)
+		# During grain fill: blend toward golden yellow
+		if stage == CropStage.MATURE or stage == CropStage.FLOWERING:
+			var golden := Color(1.0, 0.88, 0.4)
+			green_color = green_color.lerp(golden, grain_frac * 0.7)
 		for child in container.get_children():
 			if child is Sprite2D:
 				child.texture = tex
 				child.scale = final_scale
+				child.modulate = green_color
 		container.visible = true
 	else:
 		container.visible = false
