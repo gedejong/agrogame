@@ -535,32 +535,68 @@ func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
 
 func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float) -> void:
 	var root_end := Vector2(base.x, base.y + root_depth)
-	var taproot := Line2D.new()
-	taproot.points = PackedVector2Array(
+	var tap_pts := PackedVector2Array(
 		[
 			Vector2(base.x, base.y + 1),
 			root_end,
 		]
 	)
-	taproot.width = clampf(depth_frac * 2.0, 0.3, 1.5)
+	var tap_w: float = clampf(depth_frac * 2.5, 0.5, 2.0)
+	# Shadow (dark, offset down-right)
+	var shadow := Line2D.new()
+	shadow.points = PackedVector2Array(
+		[
+			Vector2(base.x + 0.5, base.y + 1.5),
+			Vector2(root_end.x + 0.5, root_end.y + 0.5),
+		]
+	)
+	shadow.width = tap_w + 0.5
+	shadow.default_color = Color(0.15, 0.1, 0.05, 0.5)
+	_add(shadow)
+	# Main taproot
+	var taproot := Line2D.new()
+	taproot.points = tap_pts
+	taproot.width = tap_w
 	taproot.default_color = ROOT_COLOR
 	_add(taproot)
-	# Small lateral branches
-	var branch_depths := [0.2, 0.5]
+	# Highlight (lighter, offset up-left)
+	var highlight := Line2D.new()
+	highlight.points = PackedVector2Array(
+		[
+			Vector2(base.x - 0.3, base.y + 0.7),
+			Vector2(root_end.x - 0.3, root_end.y - 0.3),
+		]
+	)
+	highlight.width = maxf(tap_w * 0.3, 0.3)
+	highlight.default_color = Color(0.75, 0.6, 0.4, 0.4)
+	_add(highlight)
+	# Lateral branches with shadow
+	var branch_depths := [0.15, 0.35, 0.6]
 	for bd: float in branch_depths:
 		if bd > depth_frac:
 			break
 		var y: float = base.y + root_depth * bd
-		var spread: float = 4.0 * (1.0 - bd)
-		if spread < 1.0:
+		var spread: float = 5.0 * (1.0 - bd)
+		if spread < 1.5:
 			continue
-		var br := Line2D.new()
-		br.points = PackedVector2Array(
+		var br_pts := PackedVector2Array(
 			[
 				Vector2(base.x, y),
 				Vector2(base.x + spread, y + 2),
 			]
 		)
-		br.width = 0.7
+		var br_shadow := Line2D.new()
+		br_shadow.points = PackedVector2Array(
+			[
+				Vector2(base.x + 0.4, y + 0.4),
+				Vector2(base.x + spread + 0.4, y + 2.4),
+			]
+		)
+		br_shadow.width = 1.0
+		br_shadow.default_color = Color(0.15, 0.1, 0.05, 0.4)
+		_add(br_shadow)
+		var br := Line2D.new()
+		br.points = br_pts
+		br.width = 0.8
 		br.default_color = ROOT_COLOR
 		_add(br)
