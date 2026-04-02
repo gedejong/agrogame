@@ -344,6 +344,9 @@ func _build_cutaway(
 	)
 	_add(grad_right)
 
+	# Rough edge along the top of the cutaway (where soil was "torn")
+	_build_rough_edge(y_off)
+
 	if show_info:
 		# Info boxes on a high-z container so they render above tiles
 		var prev_parent := _cur_parent
@@ -357,6 +360,58 @@ func _build_cutaway(
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
+
+
+func _build_rough_edge(total_y: float) -> void:
+	## Irregular jagged line along the top edges to simulate torn earth.
+	var segments := 8
+	# Left edge: from (-HW, 0) down to (-HW, total_y)
+	var left_edge := Line2D.new()
+	var left_pts := PackedVector2Array()
+	for s in range(segments + 1):
+		var frac: float = float(s) / float(segments)
+		var y: float = frac * total_y
+		var jitter: float = fmod(float(s * 7 + 3), 3.0) - 1.5
+		left_pts.append(Vector2(-HALF_W + jitter, y))
+	left_edge.points = left_pts
+	left_edge.width = 2.0
+	left_edge.default_color = Color(0.2, 0.15, 0.1, 0.6)
+	_add(left_edge)
+
+	# Right edge: from (HW, 0) down to (HW, total_y)
+	var right_edge := Line2D.new()
+	var right_pts := PackedVector2Array()
+	for s in range(segments + 1):
+		var frac: float = float(s) / float(segments)
+		var y: float = frac * total_y
+		var jitter: float = fmod(float(s * 5 + 2), 3.0) - 1.5
+		right_pts.append(Vector2(HALF_W + jitter, y))
+	right_edge.points = right_pts
+	right_edge.width = 2.0
+	right_edge.default_color = Color(0.2, 0.15, 0.1, 0.6)
+	_add(right_edge)
+
+	# Top V edge: from (-HW, 0) to (0, HH) to (HW, 0) with roughness
+	var top_edge := Line2D.new()
+	var top_pts := PackedVector2Array()
+	for s in range(segments + 1):
+		var frac: float = float(s) / float(segments)
+		var jx: float = fmod(float(s * 11 + 1), 2.5) - 1.25
+		var jy: float = fmod(float(s * 7 + 4), 2.0) - 1.0
+		if frac <= 0.5:
+			var t: float = frac * 2.0
+			var x: float = lerpf(-HALF_W, 0.0, t) + jx
+			var y: float = lerpf(0.0, HALF_H, t) + jy
+			top_pts.append(Vector2(x, y))
+		else:
+			var t: float = (frac - 0.5) * 2.0
+			var x: float = lerpf(0.0, HALF_W, t) + jx
+			var y: float = lerpf(HALF_H, 0.0, t) + jy
+			top_pts.append(Vector2(x, y))
+	top_edge.points = top_pts
+	top_edge.width = 2.5
+	top_edge.default_color = Color(0.25, 0.18, 0.1, 0.5)
+	_add(top_edge)
 
 
 func _build_info_boxes_overlay(
@@ -388,23 +443,24 @@ func _build_info_boxes_overlay(
 		var box_mid_y: float = box_y + box_h / 2.0
 		next_box_y = box_y + box_h + box_gap
 
-		# Connector line with dark outline for visibility
-		var pts := PackedVector2Array(
-			[
-				Vector2(HALF_W, layer_mid_y),
-				Vector2(box_x, box_mid_y),
-			]
-		)
+		# Connector line with outline + endpoint markers
+		var p_start := Vector2(HALF_W, layer_mid_y)
+		var p_end := Vector2(box_x, box_mid_y)
+		var pts := PackedVector2Array([p_start, p_end])
 		var line_bg := Line2D.new()
 		line_bg.points = pts
-		line_bg.width = 3.0
+		line_bg.width = 3.5
 		line_bg.default_color = Color(0, 0, 0, 0.5)
 		_add(line_bg)
 		var line_fg := Line2D.new()
 		line_fg.points = pts
 		line_fg.width = 1.5
-		line_fg.default_color = Color(0.8, 0.8, 0.8, 0.7)
+		line_fg.default_color = Color(0.85, 0.85, 0.85, 0.8)
 		_add(line_fg)
+		# Circle marker at the layer endpoint
+		_add_circle_marker(p_start, 3.0, Color(0.9, 0.9, 0.9, 0.9))
+		# Circle marker at the box endpoint
+		_add_circle_marker(p_end, 2.5, Color(0.9, 0.9, 0.9, 0.7))
 
 		# Dark box background
 		var bg := Polygon2D.new()
@@ -482,6 +538,24 @@ func _add_tiny_label(x: float, y: float, text: String, color: Color) -> void:
 	label.add_theme_color_override("font_color", color)
 	label.position = Vector2(x, y)
 	_add(label)
+
+
+func _add_circle_marker(center: Vector2, radius: float, color: Color) -> void:
+	var circle := Polygon2D.new()
+	var pts := PackedVector2Array()
+	for j in range(10):
+		var angle: float = j * TAU / 10.0
+		pts.append(center + Vector2(cos(angle), sin(angle)) * radius)
+	circle.polygon = pts
+	circle.color = color
+	_add(circle)
+	# Dark outline ring
+	var ring := Line2D.new()
+	ring.points = pts
+	ring.closed = true
+	ring.width = 1.0
+	ring.default_color = Color(0, 0, 0, 0.5)
+	_add(ring)
 
 
 func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
