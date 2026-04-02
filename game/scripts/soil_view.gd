@@ -21,7 +21,7 @@ const HALF_W := 32.0
 const HALF_H := 16.0
 
 ## Vertical scale: cm to pixels for layer depth (compact to fit under tile)
-const DEPTH_SCALE := 0.4
+const DEPTH_SCALE := 0.2
 
 ## Overlay colors
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
@@ -189,25 +189,26 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 
 
 func _build_nutrient_bars(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
+	var wall_w := HALF_W * 0.3
 	var y_off := HALF_H
 	for i in range(profile_layers.size()):
 		var depth_cm: float = profile_layers[i].get("depth_cm", 20.0)
 		var h: float = depth_cm * DEPTH_SCALE
 		var mid_y: float = y_off + h / 2.0
 
-		# N dot (left)
+		# N dot (just left of front face)
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var n_r: float = clampf(no3 / 3.0, 2.0, 8.0)
+		var n_r: float = clampf(no3 / 3.0, 1.5, 5.0)
 		var n_dot := Polygon2D.new()
-		n_dot.polygon = _circle_points(Vector2(-HALF_W - 12, mid_y), n_r)
+		n_dot.polygon = _circle_points(Vector2(-HALF_W - 4, mid_y), n_r)
 		n_dot.color = N_COLOR
 		add_child(n_dot)
 
-		# P dot (right)
+		# P dot (just right of right wall)
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var p_r: float = clampf(p_val / 3.0, 2.0, 8.0)
+		var p_r: float = clampf(p_val / 3.0, 1.5, 5.0)
 		var p_dot := Polygon2D.new()
-		p_dot.polygon = _circle_points(Vector2(HALF_W + 12, mid_y), p_r)
+		p_dot.polygon = _circle_points(Vector2(HALF_W + wall_w + 4, mid_y - 3), p_r)
 		p_dot.color = P_COLOR
 		add_child(p_dot)
 
