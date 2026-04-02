@@ -372,7 +372,9 @@ func _update_crop_visuals(idx: int) -> void:
 			# Procedural leaves: alternating left/right, number from LAI
 			var leaf_node: Node2D = plant.get_node_or_null("leaves")
 			if leaf_node:
-				_draw_procedural_leaves(leaf_node, lai, senescence, stress, stem_scale)
+				_draw_procedural_leaves(
+					leaf_node, lai, senescence, stress, stem_scale, growth_progress
+				)
 			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
 			if grain_spr:
 				var tex: Texture2D = load(grain_path)
@@ -399,17 +401,21 @@ func _update_crop_visuals(idx: int) -> void:
 
 func _draw_procedural_leaves(
 	leaf_node: Node2D,
-	lai: float,
+	_lai: float,
 	senescence: float,
 	stress: int,
 	stem_height_frac: float,
+	growth_progress: float = 0.0,
 ) -> void:
 	## Procedural corn leaves: inverted quadratic arcs, alternating, per-leaf variation.
+	## Leaf COUNT from growth_progress (stays at max once reached).
+	## Leaf COLOR from LAI/senescence (yellows when LAI drops).
 	for child in leaf_node.get_children():
 		child.queue_free()
 
 	var max_leaves := 14
-	var num_leaves: int = int(clampf(lai / 6.0, 0.0, 1.0) * max_leaves)
+	# Leaf count: grows with progress, never shrinks (leaves stay, just yellow)
+	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * max_leaves)
 	if num_leaves < 1:
 		return
 
