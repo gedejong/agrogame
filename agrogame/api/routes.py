@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from agrogame.api.models import (
     ActionRequest,
     ActionResponse,
+    CostBreakdown,
     CreateGameRequest,
     DayResultResponse,
     DayWeatherResponse,
@@ -17,8 +18,10 @@ from agrogame.api.models import (
     ForecastResponse,
     GameCreatedResponse,
     GameStatusResponse,
+    HarvestReportResponse,
     PatchDayResponse,
     PatchResultResponse,
+    PatchYieldReport,
     PauseEventResponse,
     PlanRequest,
     ReviseRequest,
@@ -159,9 +162,11 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         s.base_seed = seed
     effective_seed = s.base_seed + s.run_count
 
-    # Reset crops between runs (preserves soil state).
+    # Reset crops and economics between runs (preserves soil state).
     if s.run_count > 0:
         _reset_all_crops(s)
+        s.season_settled = False
+        s.ledger.reset_season()
 
     start_date = s.current_date
 
@@ -412,6 +417,9 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
         s.day_index = 0
         _reset_all_crops(s)
         s.run_count += 1
+        s.season_settled = False
+        s.ledger.reset_season()
+        s.turn_manager = None
     _ensure_weather(s, seed)
 
     from agrogame.soil.water.types import DailyDrivers as _DD
@@ -440,7 +448,32 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     s.day_index += steps
     s.current_date = s.current_date + timedelta(days=steps)
 
-    return _build_day_result(s, last_rec)
+    result = _build_day_result(s, last_rec)
+
+    # Create SeasonResult when season completes so /report works
+    if result.season_complete and (not s.turn_manager or not s.turn_manager.result):
+        from agrogame.game.turn import GameTurnManager, SeasonResult
+
+        first_field = next(iter(s.field_manager.fields.values()))
+        first_patch = first_field.patches[0]
+        grain = first_patch.orch.canopy.state.grain_biomass_g_m2
+        if not s.turn_manager:
+            s.turn_manager = GameTurnManager(
+                orch=first_patch.orch,
+                weather=s.weather,
+                crop_key=first_patch.config.crop_key,
+            )
+        s.turn_manager.current_day = s.day_index
+        s.turn_manager.result = SeasonResult(
+            total_days=s.day_index,
+            grain_g_m2=grain,
+            grain_kg_ha=grain * 10.0,
+            pause_count=0,
+            crop_key=first_patch.config.crop_key,
+        )
+        s.run_count += 1
+
+    return result
 
 
 @router.post("/games/{game_id}/action", response_model=ActionResponse)
@@ -505,6 +538,122 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
             )
         )
     return ForecastResponse(current_day=s.day_index, forecast=forecast)
+
+
+# ---------------------------------------------------------------------------
+# Harvest report (#116)
+# ---------------------------------------------------------------------------
+
+# GYGA water-limited yield potentials (t/ha) — source: GYGA global dataset
+_GYGA_YIELDS: dict[str, dict[str, float]] = {
+    "maize": {
+        "netherlands_temperate": 11.0,
+        "kenya_highlands": 7.0,
+        "sahel_arid": 3.0,
+    },
+    "sorghum": {"sahel_arid": 3.0},
+    "spring_wheat": {
+        "netherlands_temperate": 8.5,
+        "kenya_highlands": 5.0,
+    },
+}
+
+
+def _yield_grade(ratio: float) -> str:
+    """Letter grade based on yield/GYGA ratio."""
+    if ratio >= 0.90:
+        return "A"
+    if ratio >= 0.75:
+        return "B"
+    if ratio >= 0.60:
+        return "C"
+    if ratio >= 0.45:
+        return "D"
+    return "F"
+
+
+@router.get("/games/{game_id}/report", response_model=HarvestReportResponse)
+def get_harvest_report(game_id: str) -> HarvestReportResponse:
+    """End-of-season harvest report with yield, GYGA grade, and P&L."""
+    s = _get_session(game_id)
+    if not s.turn_manager or not s.turn_manager.result:
+        raise HTTPException(
+            400, "No completed season — run /start-season or /step first"
+        )
+
+    from datetime import timedelta
+
+    r = s.turn_manager.result
+    end_date = s.current_date
+    start_date = end_date - timedelta(days=r.total_days)
+
+    # Settle season economics (idempotent — only once per season)
+    prices = PriceTable.load()
+    first_field = next(iter(s.field_manager.fields.values()))
+    balance_before = s.ledger.balance_credits
+    if not s.season_settled:
+        total_grain = sum(
+            p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
+        ) / len(first_field.patches)
+        s.ledger.settle_season(total_grain, r.crop_key, prices)
+        s.season_settled = True
+    balance_after = s.ledger.balance_credits
+
+    # Build per-patch yield reports
+    patch_reports: dict[str, list[PatchYieldReport]] = {}
+    for fid, fld in s.field_manager.fields.items():
+        patch_reports[fid] = []
+        for i, p in enumerate(fld.patches):
+            grain_g_m2 = p.orch.canopy.state.grain_biomass_g_m2
+            grain_t_ha = grain_g_m2 / 100.0
+            climate = p.config.climate_key
+            gyga = _GYGA_YIELDS.get(p.config.crop_key, {}).get(climate, 10.0)
+            ratio = min(grain_t_ha / gyga, 1.0) if gyga > 0 else 0.0
+            snap = p.orch.snapshot_soil()
+            som_total = (
+                sum(snap.som_labile_c)
+                + sum(snap.som_intermediate_c)
+                + sum(snap.som_stable_c)
+            )
+            patch_reports[fid].append(
+                PatchYieldReport(
+                    patch_idx=i,
+                    crop_key=p.config.crop_key,
+                    soil_profile=p.config.soil_profile_key,
+                    grain_t_ha=round(grain_t_ha, 2),
+                    gyga_potential_t_ha=gyga,
+                    yield_ratio=round(ratio, 3),
+                    grade=_yield_grade(ratio),
+                    som_total_c_g_m2=round(som_total, 1),
+                    theta_surface=round(
+                        snap.water_theta[0] if snap.water_theta else 0.0, 4
+                    ),
+                )
+            )
+
+    costs = [
+        CostBreakdown(
+            category=c.category,
+            description=c.description,
+            amount_credits=c.amount_credits,
+        )
+        for c in s.ledger.costs
+    ]
+
+    return HarvestReportResponse(
+        season_number=s.run_count,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        total_days=r.total_days,
+        patches=patch_reports,
+        revenue_credits=s.ledger.season_revenue,
+        costs=costs,
+        total_cost_credits=s.ledger.season_costs,
+        profit_credits=s.ledger.season_profit,
+        balance_before=balance_before,
+        balance_after=balance_after,
+        balance_delta=balance_after - balance_before,
+    )
 
 
 # In-memory save slots — disk persistence deferred to AGRO-36

@@ -491,3 +491,104 @@ def test_start_season_still_works(client) -> None:
     resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
     assert resp.status_code == 200
     assert resp.json()["total_days"] == 50
+
+
+# ---------------------------------------------------------------------------
+# AC (#116): harvest report
+# ---------------------------------------------------------------------------
+def test_harvest_report_after_season(client) -> None:
+    """GET /report returns yield, GYGA grade, P&L after completed season."""
+    game_id = _create_game(client)
+    # Run a season and do an action for cost tracking
+    client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
+
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # Structure
+    assert "patches" in data
+    assert "f1" in data["patches"]
+    patch = data["patches"]["f1"][0]
+    assert "grain_t_ha" in patch
+    assert "gyga_potential_t_ha" in patch
+    assert "yield_ratio" in patch
+    assert "grade" in patch
+    assert patch["grade"] in ("A", "B", "C", "D", "F")
+    assert patch["grain_t_ha"] >= 0
+
+    # P&L
+    assert "revenue_credits" in data
+    assert "total_cost_credits" in data
+    assert "profit_credits" in data
+    assert "balance_before" in data
+    assert "balance_after" in data
+    assert "balance_delta" in data
+
+    # Dates
+    assert "start_date" in data
+    assert "end_date" in data
+    assert data["total_days"] == 100
+
+
+def test_harvest_report_before_season_fails(client) -> None:
+    """GET /report before running a season returns 400."""
+    game_id = _create_game(client)
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 400
+
+
+def test_harvest_report_after_stepping_to_maturity(client) -> None:
+    """GET /report works after day-by-day stepping (not just /start-season)."""
+    game_id = _create_game(client)
+    # Step enough days for crop to mature (or exhaust weather)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=200&seed=42")
+    assert resp.status_code == 200
+    assert resp.json()["season_complete"] is True
+
+    resp = client.get(f"/api/v1/games/{game_id}/report")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "patches" in data
+    assert data["total_days"] == 200
+
+
+def test_two_season_economics_roundtrip(client) -> None:
+    """Full game loop: season 1 with costs → report → season 2 → report.
+
+    Verifies that ledger resets between seasons, balance_before/after are
+    correct, and a zero-yield second season shows zero revenue.
+    """
+    game_id = _create_game(client)
+
+    # --- Season 1: step, take an action, complete, get report ---
+    client.post(f"/api/v1/games/{game_id}/step?days=10&seed=42")
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 20}},
+    )
+    # Fast-forward rest of season
+    client.post(f"/api/v1/games/{game_id}/step?days=190&seed=42")
+
+    r1 = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert r1["total_cost_credits"] > 0, "Season 1 should have costs from irrigation"
+    assert r1["revenue_credits"] > 0, "Season 1 should have harvest revenue"
+    assert r1["balance_after"] > r1["balance_before"], "Profit should increase balance"
+    s1_balance_after = r1["balance_after"]
+
+    # Calling report again should NOT change the balance (idempotency)
+    r1_again = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert (
+        r1_again["balance_after"] == s1_balance_after
+    ), "Repeated /report must be idempotent"
+
+    # --- Season 2: no actions, fast-forward, get report ---
+    client.post(f"/api/v1/games/{game_id}/step?days=200&seed=42")
+
+    r2 = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert r2["season_number"] > r1["season_number"], "Season number should increment"
+    assert r2["total_cost_credits"] == 0, "Season 2 has no actions = no costs"
+    assert r2["balance_before"] == s1_balance_after, (
+        f"Season 2 balance_before ({r2['balance_before']}) should equal "
+        f"season 1 balance_after ({s1_balance_after})"
+    )

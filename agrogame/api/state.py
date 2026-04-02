@@ -33,6 +33,7 @@ class GameSession:
     day_index: int = 0
     season_days: int = DEFAULT_SEASON_DAYS
     season_active: bool = False
+    season_settled: bool = False
 
 
 # Global in-memory store — no database for V1

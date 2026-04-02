@@ -83,6 +83,9 @@ var _overlay_mode: int = SoilColor.Mode.NATURAL
 func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
+	# Restore game_id from global state (persists across scene changes)
+	if GameState.game_id != "":
+		_game_id = GameState.game_id
 	next_day_btn.pressed.connect(_on_next_day)
 	ff7_btn.pressed.connect(_on_ff7)
 	ff_all_btn.pressed.connect(_on_ff_all)
@@ -384,6 +387,7 @@ func _ensure_game(callback: Callable) -> void:
 				status_label.text = "Error: could not reach backend"
 				return
 			_game_id = data.get("game_id", "")
+			GameState.game_id = _game_id
 			callback.call()
 	)
 
@@ -455,10 +459,7 @@ func _apply_day_result(data: Dictionary) -> void:
 	_update_all_tile_colors()
 
 	if season_done:
-		status_label.text = "Season complete — crop reached maturity"
-		_set_buttons_disabled(true)
-		ff_all_btn.disabled = false
-		ff_all_btn.text = "New Season"
+		_show_harvest_report()
 
 
 func _apply_patch_day_results(patches: Dictionary) -> void:
@@ -522,11 +523,31 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 	if not success:
 		status_label.text = "Season failed — backend error"
 		return
-	var total_days: int = data.get("total_days", 0)
 	var field_results: Dictionary = data.get("field_results", {})
 	_apply_season_results(field_results)
-	var total_grain := _total_grain_g_m2()
-	status_label.text = "Season: %d days, yield %.0f g/m²" % [total_days, total_grain]
+	_show_harvest_report()
+
+
+func _show_harvest_report() -> void:
+	_set_buttons_disabled(true)
+	var report_scene: PackedScene = load("res://scenes/harvest_report.tscn")
+	var report: Control = report_scene.instantiate()
+	# Add as overlay on the UILayer so farm view stays visible behind it
+	var ui_layer: CanvasLayer = $UILayer
+	ui_layer.add_child(report)
+	report.load_report(_game_id)
+	report.connect("closed", _on_report_closed)
+
+
+func _on_report_closed() -> void:
+	# Reset all tile crop visuals for the new season
+	for i in range(_tile_data.size()):
+		_tile_data[i]["crop_stage"] = CropStage.NONE
+		_tile_data[i]["stress"] = StressState.NONE
+		_tile_data[i]["grain_g_m2"] = 0.0
+		_update_crop_visuals(i)
+	_set_buttons_disabled(false)
+	status_label.text = "New season — ready to step"
 
 
 func _apply_season_results(field_results: Dictionary) -> void:

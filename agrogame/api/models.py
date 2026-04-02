@@ -163,3 +163,43 @@ class ForecastDayResponse(BaseModel):
 class ForecastResponse(BaseModel):
     current_day: int
     forecast: list[ForecastDayResponse]
+
+
+# ---------------------------------------------------------------------------
+# Harvest report (#116)
+# ---------------------------------------------------------------------------
+
+
+class PatchYieldReport(BaseModel):
+    patch_idx: int
+    crop_key: str
+    soil_profile: str
+    grain_t_ha: float = Field(description="Grain yield (t/ha)")
+    gyga_potential_t_ha: float = Field(
+        description="GYGA water-limited potential (t/ha)"
+    )
+    yield_ratio: float = Field(description="Simulated / GYGA potential (0-1)")
+    grade: str = Field(description="Letter grade A-F based on yield ratio")
+    som_total_c_g_m2: float
+    theta_surface: float
+
+
+class CostBreakdown(BaseModel):
+    category: str
+    description: str
+    amount_credits: int
+
+
+class HarvestReportResponse(BaseModel):
+    season_number: int
+    start_date: str
+    end_date: str
+    total_days: int
+    patches: dict[str, list[PatchYieldReport]]
+    revenue_credits: int
+    costs: list[CostBreakdown]
+    total_cost_credits: int
+    profit_credits: int
+    balance_before: int
+    balance_after: int
+    balance_delta: int
