@@ -56,7 +56,7 @@ const _STAGE_MAP := {
 ## 4x4 grid of plants across the tile in isometric coordinates.
 ## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
 ## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
-const _PLANT_SCALE := Vector2(0.45, 0.45)
+const _PLANT_SCALE := Vector2(0.55, 0.55)
 const _PLANT_GRID := 4
 const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
@@ -294,36 +294,69 @@ func _update_crop_visuals(idx: int) -> void:
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var grain_frac: float = clampf(grain_val / 800.0, 0.0, 1.0)
 
-	# Load layer textures (with fallback to stage sprite if layers missing)
+	# Growth progress: how far through the lifecycle (0=seedling, 1=mature)
+	# This determines height — plant stays tall even when LAI declines
+	var growth_progress: float = 0.2
+	match stage:
+		CropStage.SEEDLING:
+			growth_progress = 0.25
+		CropStage.VEGETATIVE:
+			growth_progress = clampf(0.3 + lai_frac * 0.5, 0.3, 0.8)
+		CropStage.FLOWERING:
+			growth_progress = 0.9
+		CropStage.MATURE:
+			growth_progress = 1.0
+
+	# Senescence factor: LAI declining from peak means leaves are dying
+	# peak LAI ≈ 5-6 for maize; if current is much lower than stage suggests, it's senescing
+	var expected_lai: float = 1.0
+	match stage:
+		CropStage.VEGETATIVE:
+			expected_lai = 4.0
+		CropStage.FLOWERING:
+			expected_lai = 5.5
+		CropStage.MATURE:
+			expected_lai = 3.0
+	var senescence: float = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
+	if stage == CropStage.SEEDLING or stage == CropStage.VEGETATIVE:
+		senescence = 0.0  # no senescence during early growth
+
+	# Load layer textures
 	var stem_path := _crop_layer_path(crop_key, "stem")
 	var leaves_path := _crop_layer_path(crop_key, "leaves")
 	var grain_path := _crop_layer_path(crop_key, "grain")
 	var has_layers: bool = ResourceLoader.exists(stem_path)
 
-	# Stem: grows with phenology, stays green, slight yellowing at maturity
-	var stem_scale: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
-	var stem_color := Color(0.9, 0.95, 0.85)
-	if stage == CropStage.MATURE:
-		stem_color = stem_color.lerp(Color(0.95, 0.9, 0.7), grain_frac * 0.5)
+	# Stem: height from growth_progress, yellows with senescence
+	var stem_scale: float = growth_progress
+	var stem_color := Color(0.85, 0.95, 0.8)
+	stem_color = stem_color.lerp(Color(0.85, 0.78, 0.45), senescence * 0.7)
 
-	# Leaves: scale + green intensity from LAI, yellow/brown at senescence
-	var leaf_scale: float = clampf(lai_frac * 1.0, 0.1, 1.0)
-	var leaf_color := Color(
-		0.75 - lai_frac * 0.25,
-		0.95,
-		0.65 - lai_frac * 0.35,
-	)
+	# Leaves: size from LAI during growth, stays large during senescence
+	# (leaves don't shrink — they yellow and dry in place)
+	var leaf_scale: float = clampf(lai_frac, 0.2, 1.0)
+	if stage >= CropStage.FLOWERING:
+		leaf_scale = maxf(leaf_scale, 0.7)  # keep leaves visible at maturity
+	# Vibrant green when healthy
+	var leaf_green := Color(0.55, 0.85, 0.35)
+	# Pale when young
+	var leaf_young := Color(0.7, 0.9, 0.55)
+	var leaf_color := leaf_young.lerp(leaf_green, lai_frac)
+	# Senescence: green → yellow → brown (like real corn drying bottom-up)
+	var leaf_senescent := Color(0.85, 0.75, 0.35)
+	var leaf_dead := Color(0.7, 0.55, 0.3)
+	leaf_color = leaf_color.lerp(leaf_senescent, senescence * 0.7)
+	leaf_color = leaf_color.lerp(leaf_dead, maxf(senescence - 0.5, 0.0) * 1.5)
+	# Stress overrides
 	if stress == StressState.WILTING:
-		leaf_color = leaf_color.lerp(Color(0.7, 0.6, 0.3), 0.5)
+		leaf_color = leaf_color.lerp(Color(0.6, 0.5, 0.25), 0.5)
 	elif stress == StressState.N_DEFICIENT:
-		leaf_color = leaf_color.lerp(Color(0.8, 0.85, 0.4), 0.4)
-	if stage == CropStage.MATURE:
-		leaf_color = leaf_color.lerp(Color(0.9, 0.8, 0.4), grain_frac * 0.6)
+		leaf_color = leaf_color.lerp(Color(0.75, 0.8, 0.35), 0.4)
 
-	# Grain: invisible until flowering, grows with grain_g_m2, golden
+	# Grain: appears at flowering, grows, golden at maturity
 	var grain_visible: bool = stage >= CropStage.FLOWERING and grain_val > 1.0
 	var grain_scale: float = clampf(0.3 + grain_frac * 0.7, 0.3, 1.0)
-	var grain_color := Color(1.0, 0.9, 0.5).lerp(Color(0.9, 0.75, 0.3), grain_frac)
+	var grain_color := Color(0.95, 0.85, 0.45).lerp(Color(0.85, 0.7, 0.3), grain_frac)
 
 	for plant in container.get_children():
 		if not plant is Node2D:
