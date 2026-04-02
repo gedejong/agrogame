@@ -29,7 +29,7 @@ static func draw_leaves(
 		var h := (li * 2654435761) & 0x7FFFFFFF
 		var rh := func(idx: int) -> float: return CropRenderer.root_hash(h, idx)
 
-		var y_frac: float = 0.12 + frac * 0.72
+		var y_frac: float = 0.03 + frac * 0.82
 		var y: float = -y_frac * stem_px
 		var dir: float = -1.0 if li % 2 == 0 else 1.0
 		var age: float = 1.0 - frac
@@ -88,17 +88,6 @@ static func draw_leaves(
 		w_curve.add_point(Vector2(0.65, 0.7))
 		w_curve.add_point(Vector2(1.0, 0.05))
 
-		# Soft shadow: offset, wider, dark, semi-transparent
-		var shadow_pts := PackedVector2Array()
-		for p: Vector2 in pts:
-			shadow_pts.append(Vector2(p.x + 0.4, p.y + 0.6))
-		var shadow := Line2D.new()
-		shadow.points = shadow_pts
-		shadow.width_curve = w_curve
-		shadow.width = base_w * 1.4
-		shadow.default_color = Color(0.05, 0.08, 0.02, 0.25)
-		leaf_node.add_child(shadow)
-
 		# Main leaf
 		var leaf := Line2D.new()
 		leaf.points = pts
@@ -109,3 +98,25 @@ static func draw_leaves(
 		grad.set_color(1, tip_color)
 		leaf.gradient = grad
 		leaf_node.add_child(leaf)
+
+	# Simple overall plant shadow — dark oval at base, offset right
+	if num_leaves > 3:
+		var shadow_w: float = stem_px * 0.6
+		var shadow_h: float = stem_px * 0.15
+		var shadow := Polygon2D.new()
+		var shadow_pts := PackedVector2Array()
+		for si in range(10):
+			var angle: float = float(si) * TAU / 10.0
+			(
+				shadow_pts
+				. append(
+					Vector2(
+						cos(angle) * shadow_w * 0.5 + 2.0,
+						sin(angle) * shadow_h * 0.5 + 1.0,
+					)
+				)
+			)
+		shadow.polygon = shadow_pts
+		shadow.color = Color(0.0, 0.05, 0.0, 0.2)
+		leaf_node.add_child(shadow)
+		leaf_node.move_child(shadow, 0)  # behind all leaves
