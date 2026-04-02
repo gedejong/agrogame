@@ -16,6 +16,21 @@ const LAYER_COLORS := {
 }
 const DEFAULT_LAYER_COLOR := Color(0.55, 0.45, 0.35)
 
+## SVG texture paths per soil texture class
+const LAYER_TEXTURES := {
+	"sand": "res://assets/soil_layers/layer_sandy.svg",
+	"sandy_loam": "res://assets/soil_layers/layer_sandy.svg",
+	"loam": "res://assets/soil_layers/layer_loam.svg",
+	"clay_loam": "res://assets/soil_layers/layer_clay.svg",
+	"clay": "res://assets/soil_layers/layer_clay.svg",
+	"peat": "res://assets/soil_layers/layer_loam.svg",
+}
+const LAYER_WET_TEXTURES := {
+	"sand": "res://assets/soil_layers/layer_sandy_wet.svg",
+	"loam": "res://assets/soil_layers/layer_loam_wet.svg",
+	"clay": "res://assets/soil_layers/layer_clay_wet.svg",
+}
+
 ## Isometric tile half-dimensions (must match TileMapLayer tile size)
 const HALF_W := 32.0
 const HALF_H := 16.0
@@ -172,11 +187,16 @@ func _build_cutaway(
 		var texture: String = layer.get("texture", "loam")
 		var sat: float = layer.get("saturation", 0.45)
 		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
-		# Darken deeper layers to hint at depth
 		var depth_darken: float = float(i) * 0.08
 		base_color = base_color.darkened(depth_darken)
 
-		# Left face (shadow side)
+		# Load soil texture SVG
+		var tex_path: String = LAYER_TEXTURES.get(texture, "")
+		var soil_tex: Texture2D = load(tex_path) if tex_path else null
+		var tex_w := 128.0
+		var tex_h := 32.0
+
+		# Left face (shadow side) with texture UV mapping
 		var lf := Polygon2D.new()
 		lf.polygon = PackedVector2Array(
 			[
@@ -186,10 +206,22 @@ func _build_cutaway(
 				Vector2(-HALF_W, y_off + h),
 			]
 		)
-		lf.color = base_color.darkened(0.15)
+		if soil_tex:
+			lf.texture = soil_tex
+			lf.uv = PackedVector2Array(
+				[
+					Vector2(0, 0),
+					Vector2(tex_w, 0),
+					Vector2(tex_w, tex_h),
+					Vector2(0, tex_h),
+				]
+			)
+			lf.color = Color.WHITE.darkened(0.15 + depth_darken)
+		else:
+			lf.color = base_color.darkened(0.15)
 		_add(lf)
 
-		# Right face: bottom vertex (0, HH) to right vertex (HW, 0), dropped by y_off
+		# Right face (lit side) with texture
 		var rf := Polygon2D.new()
 		rf.polygon = PackedVector2Array(
 			[
@@ -199,7 +231,19 @@ func _build_cutaway(
 				Vector2(0, HALF_H + y_off + h),
 			]
 		)
-		rf.color = base_color
+		if soil_tex:
+			rf.texture = soil_tex
+			rf.uv = PackedVector2Array(
+				[
+					Vector2(0, 0),
+					Vector2(tex_w, 0),
+					Vector2(tex_w, tex_h),
+					Vector2(0, tex_h),
+				]
+			)
+			rf.color = Color.WHITE.darkened(depth_darken)
+		else:
+			rf.color = base_color
 		_add(rf)
 
 		# Water fill on BOTH faces (consistent level)
@@ -249,8 +293,7 @@ func _build_cutaway(
 
 		y_off += h
 
-	# Single diagonal shadow across the full column height on the right face.
-	# Represents shadow cast by the soil above into the pit.
+	# Single diagonal shadow across the full column height on the right face
 	var shadow := Polygon2D.new()
 	shadow.polygon = PackedVector2Array(
 		[
@@ -261,6 +304,45 @@ func _build_cutaway(
 	)
 	shadow.color = Color(0, 0, 0, 0.18)
 	_add(shadow)
+
+	# Depth gradient: darkening overlay from top (transparent) to bottom (dark)
+	# Covers both faces to simulate decreasing light with depth
+	var grad_left := Polygon2D.new()
+	grad_left.polygon = PackedVector2Array(
+		[
+			Vector2(-HALF_W, 0),
+			Vector2(0, HALF_H),
+			Vector2(0, HALF_H + y_off),
+			Vector2(-HALF_W, y_off),
+		]
+	)
+	grad_left.vertex_colors = PackedColorArray(
+		[
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.3),
+			Color(0, 0, 0, 0.3),
+		]
+	)
+	_add(grad_left)
+	var grad_right := Polygon2D.new()
+	grad_right.polygon = PackedVector2Array(
+		[
+			Vector2(0, HALF_H),
+			Vector2(HALF_W, 0),
+			Vector2(HALF_W, y_off),
+			Vector2(0, HALF_H + y_off),
+		]
+	)
+	grad_right.vertex_colors = PackedColorArray(
+		[
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.0),
+			Color(0, 0, 0, 0.3),
+			Color(0, 0, 0, 0.3),
+		]
+	)
+	_add(grad_right)
 
 	if show_info:
 		# Info boxes on a high-z container so they render above tiles
@@ -306,17 +388,23 @@ func _build_info_boxes_overlay(
 		var box_mid_y: float = box_y + box_h / 2.0
 		next_box_y = box_y + box_h + box_gap
 
-		# Connector line — diagonal if box is displaced from layer center
-		var line := Line2D.new()
-		line.points = PackedVector2Array(
+		# Connector line with dark outline for visibility
+		var pts := PackedVector2Array(
 			[
 				Vector2(HALF_W, layer_mid_y),
 				Vector2(box_x, box_mid_y),
 			]
 		)
-		line.width = 1.0
-		line.default_color = Color(0.5, 0.5, 0.5, 0.6)
-		_add(line)
+		var line_bg := Line2D.new()
+		line_bg.points = pts
+		line_bg.width = 3.0
+		line_bg.default_color = Color(0, 0, 0, 0.5)
+		_add(line_bg)
+		var line_fg := Line2D.new()
+		line_fg.points = pts
+		line_fg.width = 1.5
+		line_fg.default_color = Color(0.8, 0.8, 0.8, 0.7)
+		_add(line_fg)
 
 		# Dark box background
 		var bg := Polygon2D.new()
