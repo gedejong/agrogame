@@ -12,6 +12,7 @@ static func draw_leaves(
 	stress: int,
 	stem_height_frac: float,
 	growth_progress: float,
+	plant_seed: int = 0,
 ) -> void:
 	for child in leaf_node.get_children():
 		child.queue_free()
@@ -26,7 +27,7 @@ static func draw_leaves(
 
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(max_leaves)
-		var h := (li * 2654435761) & 0x7FFFFFFF
+		var h := ((li + plant_seed * 31) * 2654435761) & 0x7FFFFFFF
 		var rh := func(idx: int) -> float: return CropRenderer.root_hash(h, idx)
 
 		var y_frac: float = 0.03 + frac * 0.82

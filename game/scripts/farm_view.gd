@@ -375,7 +375,7 @@ func _update_crop_visuals(idx: int) -> void:
 			var leaf_node: Node2D = plant.get_node_or_null("leaves")
 			if leaf_node:
 				_render_crop_leaves(
-					crop_key, leaf_node, senescence, stress, stem_scale, growth_progress
+					crop_key, leaf_node, senescence, stress, stem_scale, growth_progress, plant_i
 				)
 			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
 			if grain_spr:
@@ -414,16 +414,17 @@ func _render_crop_leaves(
 	stress: int,
 	stem_height_frac: float,
 	growth_progress: float = 0.0,
+	plant_seed: int = 0,
 ) -> void:
 	## Dispatch to crop-specific leaf renderer.
 	match crop_key:
 		"maize":
 			MaizeRenderer.draw_leaves(
-				leaf_node, senescence, stress, stem_height_frac, growth_progress
+				leaf_node, senescence, stress, stem_height_frac, growth_progress, plant_seed
 			)
 		_:
 			MaizeRenderer.draw_leaves(
-				leaf_node, senescence, stress, stem_height_frac, growth_progress
+				leaf_node, senescence, stress, stem_height_frac, growth_progress, plant_seed
 			)
 
 
