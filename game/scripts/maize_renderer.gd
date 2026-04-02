@@ -17,7 +17,7 @@ static func draw_leaves(
 	for child in leaf_node.get_children():
 		child.queue_free()
 
-	var max_leaves := 18
+	var max_leaves := 10
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * max_leaves)
 	if num_leaves < 1:
 		return
@@ -105,10 +105,10 @@ static func draw_leaves(
 		var plant_spread: float = growth_progress * sf * 8.0
 		var shadow_w: float = plant_spread * 0.8
 		var shadow_h: float = plant_spread * 0.25
-		var blur_steps := 3
+		var blur_steps := 1
 		for bi in range(blur_steps, -1, -1):
-			var expand: float = float(bi) * 0.8
-			var alpha: float = 0.08 if bi > 0 else 0.15
+			var expand: float = float(bi) * 1.2
+			var alpha: float = 0.06 if bi > 0 else 0.15
 			var shadow := Polygon2D.new()
 			var shadow_pts := PackedVector2Array()
 			for si in range(12):
