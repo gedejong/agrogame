@@ -1,7 +1,7 @@
 extends Node2D
 ## Inline 2.5D isometric soil cutaway rendered below a selected tile (#114).
-## Diamond-shaped layers match tile geometry with side walls for depth.
-## Semi-transparent so the farm view remains visible behind.
+## Two visible faces (left + right) extend down from the tile diamond,
+## like looking into a hole dug in the isometric ground.
 
 signal closed
 
@@ -20,15 +20,14 @@ const DEFAULT_LAYER_COLOR := Color(0.55, 0.45, 0.35)
 const HALF_W := 32.0
 const HALF_H := 16.0
 
-## Vertical scale: cm to pixels for layer depth (compact to fit under tile)
-const DEPTH_SCALE := 0.2
+## Vertical scale: cm to pixels for layer depth
+const DEPTH_SCALE := 0.35
 
 ## Overlay colors
-const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
+const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.5)
 const N_COLOR := Color(0.2, 0.75, 0.2, 0.7)
 const P_COLOR := Color(0.6, 0.2, 0.75, 0.7)
 const SOM_COLOR := Color(0.2, 0.15, 0.05, 0.5)
-const WALL_DARKEN := 0.7
 const ROOT_COLOR := Color(0.55, 0.40, 0.20)
 ## Root depth fraction by crop stage (fraction of total soil depth).
 ## Source: approximate DSSAT/APSIM root growth curves for maize.
@@ -73,18 +72,6 @@ func _clear() -> void:
 		child.queue_free()
 
 
-func _diamond_top(y: float) -> PackedVector2Array:
-	## Returns the 4 points of an isometric diamond at vertical offset y.
-	return PackedVector2Array(
-		[
-			Vector2(0, y - HALF_H),
-			Vector2(HALF_W, y),
-			Vector2(0, y + HALF_H),
-			Vector2(-HALF_W, y),
-		]
-	)
-
-
 func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: String = "") -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var no3_arr: Array = soil_state.get("n_no3", [])
@@ -92,9 +79,16 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 	var labile: Array = soil_state.get("som_labile_c", [])
 	var stable: Array = soil_state.get("som_stable_c", [])
 
-	# Isometric box cutaway: left face and right face per layer.
-	# The tile diamond has vertices at (0,-HH), (HW,0), (0,HH), (-HW,0).
-	# Each layer drops vertically by h pixels, creating two visible faces.
+	## Tile diamond vertices (local coords, center = 0,0):
+	##   Top:   (0, -HH)
+	##   Right: (HW, 0)
+	##   Bottom:(0, HH)
+	##   Left:  (-HW, 0)
+	##
+	## The cutaway shows two inner faces of an isometric box below the tile.
+	## Left face runs from Left vertex to Bottom vertex, dropping by h.
+	## Right face runs from Bottom vertex to Right vertex, dropping by h.
+
 	var y_off := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -104,80 +98,89 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		var sat: float = layer.get("saturation", 0.45)
 		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
 
-		# Top of this layer = bottom of tile + accumulated offset
-		var yt := HALF_H + y_off
-		var yb := yt + h
-
-		# Left face: from left vertex down to bottom-center
-		var left_face := Polygon2D.new()
-		left_face.polygon = PackedVector2Array(
+		# Left face: left vertex (-HW, 0) to bottom vertex (0, HH), dropped by y_off
+		var lf := Polygon2D.new()
+		lf.polygon = PackedVector2Array(
 			[
-				Vector2(-HALF_W, yt),
-				Vector2(0, yt + HALF_H),
-				Vector2(0, yb + HALF_H),
-				Vector2(-HALF_W, yb),
+				Vector2(-HALF_W, y_off),
+				Vector2(0, HALF_H + y_off),
+				Vector2(0, HALF_H + y_off + h),
+				Vector2(-HALF_W, y_off + h),
 			]
 		)
-		left_face.color = base_color.darkened(0.15)
-		add_child(left_face)
+		lf.color = base_color.darkened(0.15)
+		add_child(lf)
 
-		# Right face: from right vertex down to bottom-center
-		var right_face := Polygon2D.new()
-		right_face.polygon = PackedVector2Array(
+		# Right face: bottom vertex (0, HH) to right vertex (HW, 0), dropped by y_off
+		var rf := Polygon2D.new()
+		rf.polygon = PackedVector2Array(
 			[
-				Vector2(HALF_W, yt),
-				Vector2(0, yt + HALF_H),
-				Vector2(0, yb + HALF_H),
-				Vector2(HALF_W, yb),
+				Vector2(0, HALF_H + y_off),
+				Vector2(HALF_W, y_off),
+				Vector2(HALF_W, y_off + h),
+				Vector2(0, HALF_H + y_off + h),
 			]
 		)
-		right_face.color = base_color
-		add_child(right_face)
+		rf.color = base_color
+		add_child(rf)
 
-		# Water fill on right face (more visible)
+		# Water fill on BOTH faces (consistent level)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
 		if fill > 0.02:
-			var water_h: float = h * fill
-			var wy := yb - water_h
-			var water := Polygon2D.new()
-			water.polygon = PackedVector2Array(
+			var wh: float = h * fill
+			var wb := y_off + h
+			var wt := wb - wh
+			# Water on left face
+			var wl := Polygon2D.new()
+			wl.polygon = PackedVector2Array(
 				[
-					Vector2(HALF_W * 0.1, wy + HALF_H),
-					Vector2(HALF_W * 0.9, wy + (1.0 - fill) * h * 0.1),
-					Vector2(HALF_W * 0.9, yb),
-					Vector2(0.1, yb + HALF_H * 0.9),
+					Vector2(-HALF_W, wt),
+					Vector2(0, HALF_H + wt),
+					Vector2(0, HALF_H + wb),
+					Vector2(-HALF_W, wb),
 				]
 			)
-			water.color = WATER_COLOR
-			add_child(water)
+			wl.color = WATER_COLOR
+			add_child(wl)
+			# Water on right face
+			var wr := Polygon2D.new()
+			wr.polygon = PackedVector2Array(
+				[
+					Vector2(0, HALF_H + wt),
+					Vector2(HALF_W, wt),
+					Vector2(HALF_W, wb),
+					Vector2(0, HALF_H + wb),
+				]
+			)
+			wr.color = WATER_COLOR
+			add_child(wr)
 
-		# SOM band on left face (dark strip at top)
+		# SOM band on left face (dark strip at top of layer)
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 0.8)
 		if som_frac > 0.02:
-			var sh: float = maxf(h * 0.2, 2.0)
-			var sw: float = HALF_W * som_frac
+			var sh: float = maxf(h * 0.25, 2.0)
 			var som := Polygon2D.new()
 			som.polygon = PackedVector2Array(
 				[
-					Vector2(-HALF_W, yt),
-					Vector2(-HALF_W + sw, yt),
-					Vector2(-HALF_W + sw, yt + sh),
-					Vector2(-HALF_W, yt + sh),
+					Vector2(-HALF_W, y_off),
+					Vector2(-HALF_W + HALF_W * som_frac, y_off),
+					Vector2(-HALF_W + HALF_W * som_frac, y_off + sh),
+					Vector2(-HALF_W, y_off + sh),
 				]
 			)
 			som.color = SOM_COLOR
 			add_child(som)
 
-		# Bottom edge line (isometric V)
+		# Bottom edge (isometric V-line)
 		var edge := Line2D.new()
 		edge.points = PackedVector2Array(
 			[
-				Vector2(-HALF_W, yb),
-				Vector2(0, yb + HALF_H),
-				Vector2(HALF_W, yb),
+				Vector2(-HALF_W, y_off + h),
+				Vector2(0, HALF_H + y_off + h),
+				Vector2(HALF_W, y_off + h),
 			]
 		)
 		edge.width = 0.5
@@ -186,21 +189,19 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 
 		y_off += h
 
-	# N and P indicator dots (beside each layer)
-	_build_nutrient_bars(profile_layers, no3_arr, p_arr)
+	# N and P indicator dots beside each layer
+	_build_nutrient_dots(profile_layers, no3_arr, p_arr)
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
 
 
-func _build_nutrient_bars(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
+func _build_nutrient_dots(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
 	var y_off := 0.0
 	for i in range(profile_layers.size()):
-		var depth_cm: float = profile_layers[i].get("depth_cm", 20.0)
-		var h: float = depth_cm * DEPTH_SCALE
-		var mid_y: float = HALF_H + y_off + h / 2.0
+		var h: float = profile_layers[i].get("depth_cm", 20.0) * DEPTH_SCALE
+		var mid_y: float = y_off + h / 2.0
 
-		# N dot (left of left face)
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
 		var n_r: float = clampf(no3 / 3.0, 1.5, 4.0)
 		var n_dot := Polygon2D.new()
@@ -208,7 +209,6 @@ func _build_nutrient_bars(profile_layers: Array, no3_arr: Array, p_arr: Array) -
 		n_dot.color = N_COLOR
 		add_child(n_dot)
 
-		# P dot (right of right face)
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
 		var p_r: float = clampf(p_val / 3.0, 1.5, 4.0)
 		var p_dot := Polygon2D.new()
@@ -228,7 +228,6 @@ func _circle_points(center: Vector2, radius: float) -> PackedVector2Array:
 
 
 func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
-	## Draw roots proportional to crop stage — no roots before emergence.
 	var depth_frac: float = ROOT_DEPTH_BY_STAGE.get(crop_stage, 0.0)
 	if depth_frac < 0.01:
 		return
@@ -240,8 +239,7 @@ func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
 		return
 
 	var root_depth: float = total_depth * depth_frac
-
-	# Main taproot
+	# Roots drawn along the center seam (x=0) of the cutaway
 	var root_start := Vector2(0, HALF_H + 2)
 	var root_end := Vector2(0, HALF_H + root_depth)
 	var taproot := Line2D.new()
@@ -250,34 +248,33 @@ func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
 	taproot.default_color = ROOT_COLOR
 	add_child(taproot)
 
-	# Lateral branches — only where roots have reached
 	var branch_fracs := [0.1, 0.2, 0.35, 0.5, 0.65]
 	for bf: float in branch_fracs:
 		if bf > depth_frac:
 			break
 		var y: float = HALF_H + total_depth * bf
 		var density: float = (depth_frac - bf) / depth_frac
-		var spread: float = HALF_W * 0.5 * density
+		var spread: float = HALF_W * 0.4 * density
 		var width: float = 1.5 * density
 		if width < 0.3 or spread < 2.0:
 			continue
+		# Branch into left face
 		var left := Line2D.new()
 		left.points = PackedVector2Array(
 			[
 				Vector2(0, y),
-				Vector2(-spread * 0.5, y + 3),
-				Vector2(-spread, y + 5),
+				Vector2(-spread * 0.6, y - spread * 0.15),
 			]
 		)
 		left.width = width
 		left.default_color = ROOT_COLOR
 		add_child(left)
+		# Branch into right face
 		var right := Line2D.new()
 		right.points = PackedVector2Array(
 			[
 				Vector2(0, y),
-				Vector2(spread * 0.4, y + 4),
-				Vector2(spread * 0.7, y + 6),
+				Vector2(spread * 0.6, y - spread * 0.15),
 			]
 		)
 		right.width = width
