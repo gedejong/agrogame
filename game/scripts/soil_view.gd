@@ -344,9 +344,6 @@ func _build_cutaway(
 	)
 	_add(grad_right)
 
-	# Rough edge along the top of the cutaway (where soil was "torn")
-	_build_rough_edge(y_off)
-
 	if show_info:
 		# Info boxes on a high-z container so they render above tiles
 		var prev_parent := _cur_parent
@@ -362,61 +359,9 @@ func _build_cutaway(
 	_build_roots(profile_layers, crop_stage)
 
 
-func _build_rough_edge(total_y: float) -> void:
-	## Irregular jagged line along the top edges to simulate torn earth.
-	var segments := 8
-	# Left edge: from (-HW, 0) down to (-HW, total_y)
-	var left_edge := Line2D.new()
-	var left_pts := PackedVector2Array()
-	for s in range(segments + 1):
-		var frac: float = float(s) / float(segments)
-		var y: float = frac * total_y
-		var jitter: float = fmod(float(s * 7 + 3), 3.0) - 1.5
-		left_pts.append(Vector2(-HALF_W + jitter, y))
-	left_edge.points = left_pts
-	left_edge.width = 2.0
-	left_edge.default_color = Color(0.2, 0.15, 0.1, 0.6)
-	_add(left_edge)
-
-	# Right edge: from (HW, 0) down to (HW, total_y)
-	var right_edge := Line2D.new()
-	var right_pts := PackedVector2Array()
-	for s in range(segments + 1):
-		var frac: float = float(s) / float(segments)
-		var y: float = frac * total_y
-		var jitter: float = fmod(float(s * 5 + 2), 3.0) - 1.5
-		right_pts.append(Vector2(HALF_W + jitter, y))
-	right_edge.points = right_pts
-	right_edge.width = 2.0
-	right_edge.default_color = Color(0.2, 0.15, 0.1, 0.6)
-	_add(right_edge)
-
-	# Top V edge: from (-HW, 0) to (0, HH) to (HW, 0) with roughness
-	var top_edge := Line2D.new()
-	var top_pts := PackedVector2Array()
-	for s in range(segments + 1):
-		var frac: float = float(s) / float(segments)
-		var jx: float = fmod(float(s * 11 + 1), 2.5) - 1.25
-		var jy: float = fmod(float(s * 7 + 4), 2.0) - 1.0
-		if frac <= 0.5:
-			var t: float = frac * 2.0
-			var x: float = lerpf(-HALF_W, 0.0, t) + jx
-			var y: float = lerpf(0.0, HALF_H, t) + jy
-			top_pts.append(Vector2(x, y))
-		else:
-			var t: float = (frac - 0.5) * 2.0
-			var x: float = lerpf(0.0, HALF_W, t) + jx
-			var y: float = lerpf(HALF_H, 0.0, t) + jy
-			top_pts.append(Vector2(x, y))
-	top_edge.points = top_pts
-	top_edge.width = 2.5
-	top_edge.default_color = Color(0.25, 0.18, 0.1, 0.5)
-	_add(top_edge)
-
-
 func _build_info_boxes_overlay(
 	profile_layers: Array,
-	thetas: Array,
+	_thetas: Array,
 	no3_arr: Array,
 	p_arr: Array,
 	labile: Array,
@@ -428,9 +373,12 @@ func _build_info_boxes_overlay(
 	var box_w := 70
 	var box_h := 28
 	var box_gap := 3
-	var bar_max_w := 30
+	var pad := 3
+	var label_w := 12
+	var bar_max_w: int = int(box_w - pad * 2 - label_w)
 	var y_off := 0.0
-	var next_box_y := 0.0  # tracks bottom of last box to prevent overlap
+	var next_box_y := 0.0
+	var marker_positions: Array[Array] = []
 
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -457,14 +405,11 @@ func _build_info_boxes_overlay(
 		line_fg.width = 1.5
 		line_fg.default_color = Color(0.85, 0.85, 0.85, 0.8)
 		_add(line_fg)
-		# Circle marker at the layer endpoint
-		_add_circle_marker(p_start, 3.0, Color(0.9, 0.9, 0.9, 0.9))
-		# Circle marker at the box endpoint
-		_add_circle_marker(p_end, 2.5, Color(0.9, 0.9, 0.9, 0.7))
+		marker_positions.append([p_start, p_end])
 
-		# Dark box background
+		# Box background with border
 		var bg := Polygon2D.new()
-		bg.polygon = PackedVector2Array(
+		var box_pts := PackedVector2Array(
 			[
 				Vector2(box_x, box_y),
 				Vector2(box_x + box_w, box_y),
@@ -472,34 +417,40 @@ func _build_info_boxes_overlay(
 				Vector2(box_x, box_y + box_h),
 			]
 		)
-		bg.color = Color(0.1, 0.1, 0.1, 0.85)
+		bg.polygon = box_pts
+		bg.color = Color(0.08, 0.08, 0.08, 0.9)
 		_add(bg)
+		var border := Line2D.new()
+		border.points = box_pts
+		border.closed = true
+		border.width = 1.0
+		border.default_color = Color(0.5, 0.5, 0.5, 0.5)
+		_add(border)
 
-		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 
-		# N bar (green)
+		var bx: float = box_x + pad
 		var n_frac: float = clampf(no3 / 5.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 3, bar_max_w, 5, n_frac, N_COLOR)
-
-		# P bar (purple)
+		_add_bar(bx, box_y + 3, bar_max_w, 5, n_frac, N_COLOR)
 		var p_frac: float = clampf(p_val / 5.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 11, bar_max_w, 5, p_frac, P_COLOR)
-
-		# SOM bar (brown)
+		_add_bar(bx, box_y + 11, bar_max_w, 5, p_frac, P_COLOR)
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 1.0)
-		_add_bar(box_x + 2, box_y + 19, bar_max_w, 5, som_frac, SOM_COLOR)
+		_add_bar(bx, box_y + 19, bar_max_w, 5, som_frac, SOM_COLOR)
 
-		# Labels (tiny, right of bars)
-		var lx: float = box_x + bar_max_w + 4
+		var lx: float = box_x + pad + bar_max_w + 2
 		_add_tiny_label(lx, box_y + 2, "N", N_COLOR)
 		_add_tiny_label(lx, box_y + 10, "P", P_COLOR)
 		_add_tiny_label(lx, box_y + 18, "S", SOM_COLOR)
 
 		y_off += h
+
+	# Circle markers drawn last so they render above boxes
+	for mp: Array in marker_positions:
+		_add_circle_marker(mp[0], 3.0, Color(0.9, 0.9, 0.9, 0.9))
+		_add_circle_marker(mp[1], 2.5, Color(0.9, 0.9, 0.9, 0.7))
 
 
 func _add_bar(x: float, y: float, max_w: float, h: float, frac: float, color: Color) -> void:
@@ -559,55 +510,60 @@ func _add_circle_marker(center: Vector2, radius: float, color: Color) -> void:
 
 
 func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
+	## 4 root systems on each face at 1/8, 3/8, 5/8, 7/8 positions,
+	## matching the 4x4 plant grid on the tile surface.
 	var depth_frac: float = ROOT_DEPTH_BY_STAGE.get(crop_stage, 0.0)
 	if depth_frac < 0.01:
 		return
-
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 20.0) * DEPTH_SCALE
 	if total_depth <= 0:
 		return
-
 	var root_depth: float = total_depth * depth_frac
-	# Roots drawn along the center seam (x=0) of the cutaway
-	var root_start := Vector2(0, HALF_H + 2)
-	var root_end := Vector2(0, HALF_H + root_depth)
+	var plant_fracs := [0.125, 0.375, 0.625, 0.875]
+
+	# Roots on left face — x positions along the left face width
+	for pf: float in plant_fracs:
+		var x: float = lerpf(-HALF_W, 0.0, pf)
+		var y_base: float = lerpf(0.0, HALF_H, pf)
+		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac)
+
+	# Roots on right face — x positions along the right face width
+	for pf: float in plant_fracs:
+		var x: float = lerpf(0.0, HALF_W, pf)
+		var y_base: float = lerpf(HALF_H, 0.0, pf)
+		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac)
+
+
+func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float) -> void:
+	var root_end := Vector2(base.x, base.y + root_depth)
 	var taproot := Line2D.new()
-	taproot.points = PackedVector2Array([root_start, root_end])
-	taproot.width = clampf(depth_frac * 3.0, 0.5, 2.5)
+	taproot.points = PackedVector2Array(
+		[
+			Vector2(base.x, base.y + 1),
+			root_end,
+		]
+	)
+	taproot.width = clampf(depth_frac * 2.0, 0.3, 1.5)
 	taproot.default_color = ROOT_COLOR
 	_add(taproot)
-
-	var branch_fracs := [0.1, 0.2, 0.35, 0.5, 0.65]
-	for bf: float in branch_fracs:
-		if bf > depth_frac:
+	# Small lateral branches
+	var branch_depths := [0.2, 0.5]
+	for bd: float in branch_depths:
+		if bd > depth_frac:
 			break
-		var y: float = HALF_H + total_depth * bf
-		var density: float = (depth_frac - bf) / depth_frac
-		var spread: float = HALF_W * 0.4 * density
-		var width: float = 1.5 * density
-		if width < 0.3 or spread < 2.0:
+		var y: float = base.y + root_depth * bd
+		var spread: float = 4.0 * (1.0 - bd)
+		if spread < 1.0:
 			continue
-		# Branch into left face
-		var left := Line2D.new()
-		left.points = PackedVector2Array(
+		var br := Line2D.new()
+		br.points = PackedVector2Array(
 			[
-				Vector2(0, y),
-				Vector2(-spread * 0.6, y - spread * 0.15),
+				Vector2(base.x, y),
+				Vector2(base.x + spread, y + 2),
 			]
 		)
-		left.width = width
-		left.default_color = ROOT_COLOR
-		_add(left)
-		# Branch into right face
-		var right := Line2D.new()
-		right.points = PackedVector2Array(
-			[
-				Vector2(0, y),
-				Vector2(spread * 0.6, y - spread * 0.15),
-			]
-		)
-		right.width = width
-		right.default_color = ROOT_COLOR
-		_add(right)
+		br.width = 0.7
+		br.default_color = ROOT_COLOR
+		_add(br)
