@@ -444,35 +444,29 @@ func _draw_procedural_leaves(
 		var len_var: float = (rh.call(0) - 0.5) * 0.35
 		var base_len: float = (3.5 + len_curve * 4.0) * sf * (1.0 + len_var)
 
-		# Droop varies: lower leaves droop more, each leaf slightly different
-		var droop_var: float = (rh.call(1) - 0.5) * 0.3
-		var droop_amount: float = (1.5 - frac * 0.8) * sf * (1.0 + droop_var)
+		# Droop: lower/older leaves droop more at tip
+		var droop_var: float = (rh.call(1) - 0.5) * 0.25
+		var droop_strength: float = (1.2 - frac * 0.5) * sf * (1.0 + droop_var)
 
-		# "Camera angle" per leaf: some face camera (wide), some edge-on (thin)
-		# Simulates 3D rotation around the stem
-		var facing: float = rh.call(2)  # 0 = edge-on, 1 = facing camera
-		var width_mult: float = 0.3 + facing * 0.7  # 0.3x to 1.0x width
+		# Camera facing: wide (facing) vs thin (edge-on)
+		var facing: float = rh.call(2)
+		var width_mult: float = 0.3 + facing * 0.7
 
-		# Curve shape variation: rise amount and peak position vary
-		var rise_var: float = (rh.call(3) - 0.5) * 0.4
-		var peak_shift: float = 0.25 + rh.call(4) * 0.15  # peak between 0.25-0.4
+		# Per-leaf curve variation
+		var curve_var: float = (rh.call(3) - 0.5) * 0.2
 
-		# Build quadratic arc with variation
+		# Inverted sqrt shape: exits stem ~vertically, bends sideways, tip droops.
 		var pts := PackedVector2Array()
-		var segs := 6
+		var segs := 7
+		var eff_len: float = base_len * (0.7 + facing * 0.3)
+		var rise_height: float = eff_len * (0.25 + curve_var * 0.1)
 		for si in range(segs + 1):
 			var t: float = float(si) / float(segs)
-			# Length also varies with facing (edge-on leaves look shorter)
-			var eff_len: float = base_len * (0.7 + facing * 0.3)
-			var x: float = dir * eff_len * t
-			var rise: float = -eff_len * (0.12 + rise_var * 0.05)
-			# Peak at variable position, quadratic falloff
-			var curve_y: float = (
-				y
-				+ rise * (t / peak_shift) * maxf(1.0 - t / peak_shift, 0.0) * 4.0
-				+ droop_amount * t * t
-			)
-			pts.append(Vector2(x, curve_y))
+			var spread: float = sqrt(t)
+			var x: float = dir * eff_len * spread
+			var up_part: float = -rise_height * (1.0 - t)
+			var droop_part: float = droop_strength * t * t
+			pts.append(Vector2(x, y + up_part + droop_part))
 
 		# Senescence: lower leaves yellow first
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
