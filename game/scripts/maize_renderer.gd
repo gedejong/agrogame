@@ -111,7 +111,7 @@ static func draw_leaves(
 				shadow_pts
 				. append(
 					Vector2(
-						cos(angle) * shadow_w * 0.5 + 2.0,
+						cos(angle) * shadow_w * 0.5 - 2.0,
 						sin(angle) * shadow_h * 0.5 + 1.0,
 					)
 				)
