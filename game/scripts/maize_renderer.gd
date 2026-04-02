@@ -118,7 +118,7 @@ static func draw_leaves(
 					. append(
 						Vector2(
 							cos(angle) * (shadow_w * 0.5 + expand) - 1.5,
-							sin(angle) * (shadow_h * 0.5 + expand * 0.3) + 0.8,
+							sin(angle) * (shadow_h * 0.5 + expand * 0.3) + 3.0,
 						)
 					)
 				)
