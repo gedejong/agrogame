@@ -225,26 +225,32 @@ func _build_info_boxes(
 	stable: Array,
 ) -> void:
 	## Info boxes to the right of the cutaway, one per layer.
-	## Each box has mini bar charts for water, N, P, SOM.
+	## Boxes are spaced to avoid overlap; diagonal connector when displaced.
 	var box_x := HALF_W + 20
 	var box_w := 70
 	var box_h := 28
+	var box_gap := 3
 	var bar_max_w := 30
 	var y_off := 0.0
+	var next_box_y := 0.0  # tracks bottom of last box to prevent overlap
 
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
 		var h: float = layer.get("depth_cm", 20.0) * DEPTH_SCALE
 		var sat: float = layer.get("saturation", 0.45)
-		var mid_y: float = y_off + h / 2.0
-		var box_y: float = mid_y - box_h / 2.0
+		var layer_mid_y: float = y_off + h / 2.0
+		# Ideal position centered on layer, but don't overlap previous box
+		var ideal_y: float = layer_mid_y - box_h / 2.0
+		var box_y: float = maxf(ideal_y, next_box_y)
+		var box_mid_y: float = box_y + box_h / 2.0
+		next_box_y = box_y + box_h + box_gap
 
-		# Connector line from right face to box
+		# Connector line — diagonal if box is displaced from layer center
 		var line := Line2D.new()
 		line.points = PackedVector2Array(
 			[
-				Vector2(HALF_W, mid_y),
-				Vector2(box_x, mid_y),
+				Vector2(HALF_W, layer_mid_y),
+				Vector2(box_x, box_mid_y),
 			]
 		)
 		line.width = 1.0
