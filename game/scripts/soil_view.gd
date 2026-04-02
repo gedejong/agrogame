@@ -89,6 +89,37 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 	## Left face runs from Left vertex to Bottom vertex, dropping by h.
 	## Right face runs from Bottom vertex to Right vertex, dropping by h.
 
+	# Calculate total depth for shadow
+	var total_h := 0.0
+	for layer_d: Dictionary in profile_layers:
+		total_h += layer_d.get("depth_cm", 20.0) * DEPTH_SCALE
+
+	# Shadow inside the pit — dark gradient overlay on both faces
+	# Darker at top (near surface), fading toward bottom
+	var shadow_h: float = minf(total_h * 0.4, 12.0)
+	var shadow_left := Polygon2D.new()
+	shadow_left.polygon = PackedVector2Array(
+		[
+			Vector2(-HALF_W, 0),
+			Vector2(0, HALF_H),
+			Vector2(0, HALF_H + shadow_h),
+			Vector2(-HALF_W, shadow_h),
+		]
+	)
+	shadow_left.color = Color(0, 0, 0, 0.35)
+	add_child(shadow_left)
+	var shadow_right := Polygon2D.new()
+	shadow_right.polygon = PackedVector2Array(
+		[
+			Vector2(0, HALF_H),
+			Vector2(HALF_W, 0),
+			Vector2(HALF_W, shadow_h),
+			Vector2(0, HALF_H + shadow_h),
+		]
+	)
+	shadow_right.color = Color(0, 0, 0, 0.25)
+	add_child(shadow_right)
+
 	var y_off := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -182,7 +213,9 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 
 
 func _build_outline(total_y: float) -> void:
-	## Draw dark outline around the cutaway for visual separation.
+	## Dark outline + surface rim to look like a real excavation cut.
+
+	# Outer dark edge (pit walls)
 	var outline := Line2D.new()
 	outline.points = PackedVector2Array(
 		[
@@ -193,9 +226,22 @@ func _build_outline(total_y: float) -> void:
 			Vector2(HALF_W, 0),
 		]
 	)
-	outline.width = 1.5
-	outline.default_color = Color(0, 0, 0, 0.6)
+	outline.width = 2.0
+	outline.default_color = Color(0, 0, 0, 0.7)
 	add_child(outline)
+
+	# Surface rim — light line at ground level where the cut meets the surface
+	var rim := Line2D.new()
+	rim.points = PackedVector2Array(
+		[
+			Vector2(-HALF_W, 0),
+			Vector2(0, HALF_H),
+			Vector2(HALF_W, 0),
+		]
+	)
+	rim.width = 2.0
+	rim.default_color = Color(0.9, 0.85, 0.7, 0.6)
+	add_child(rim)
 
 
 func _build_info_boxes(
