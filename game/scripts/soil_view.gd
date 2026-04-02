@@ -506,9 +506,7 @@ func _add_circle_marker(center: Vector2, radius: float, color: Color) -> void:
 
 
 func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
-	## 4 root systems on each face at 1/8, 3/8, 5/8, 7/8 positions,
-	## matching the 4x4 plant grid on the tile surface.
-	## root_depth_cm comes directly from the simulation.
+	## 4 root systems per face with deterministic random branching.
 	if root_depth_cm < 1.0:
 		return
 	var total_depth := 0.0
@@ -520,83 +518,91 @@ func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
 	var depth_frac: float = clampf(root_depth / total_depth, 0.0, 1.0)
 	var plant_fracs := [0.125, 0.375, 0.625, 0.875]
 
-	# Roots on left face — x positions along the left face width
+	var root_idx := 0
 	for pf: float in plant_fracs:
 		var x: float = lerpf(-HALF_W, 0.0, pf)
 		var y_base: float = lerpf(0.0, HALF_H, pf)
-		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac)
+		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac, root_idx)
+		root_idx += 1
 
-	# Roots on right face — x positions along the right face width
 	for pf: float in plant_fracs:
 		var x: float = lerpf(0.0, HALF_W, pf)
 		var y_base: float = lerpf(HALF_H, 0.0, pf)
-		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac)
+		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac, root_idx)
+		root_idx += 1
 
 
-func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float) -> void:
-	var root_end := Vector2(base.x, base.y + root_depth)
-	var tap_pts := PackedVector2Array(
+func _root_hash(seed_val: int, idx: int) -> float:
+	## Deterministic pseudo-random float in [0, 1) from seed + index.
+	var h := (seed_val * 2654435761 + idx * 40503) & 0x7FFFFFFF
+	return float(h % 1000) / 1000.0
+
+
+func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed_val: int) -> void:
+	var tap_w: float = clampf(depth_frac * 2.0, 0.4, 1.8)
+	# Slight random curvature on the taproot
+	var curve_x: float = (_root_hash(seed_val, 0) - 0.5) * 3.0
+	var mid_y: float = base.y + root_depth * 0.5
+	var root_end := Vector2(base.x + curve_x * 0.3, base.y + root_depth)
+
+	# Main taproot with mid-point curve
+	var taproot := Line2D.new()
+	taproot.points = PackedVector2Array(
 		[
 			Vector2(base.x, base.y + 1),
+			Vector2(base.x + curve_x, mid_y),
 			root_end,
 		]
 	)
-	var tap_w: float = clampf(depth_frac * 2.5, 0.5, 2.0)
-	# Shadow (dark, offset down-right)
-	var shadow := Line2D.new()
-	shadow.points = PackedVector2Array(
-		[
-			Vector2(base.x + 0.5, base.y + 1.5),
-			Vector2(root_end.x + 0.5, root_end.y + 0.5),
-		]
-	)
-	shadow.width = tap_w + 0.5
-	shadow.default_color = Color(0.15, 0.1, 0.05, 0.5)
-	_add(shadow)
-	# Main taproot
-	var taproot := Line2D.new()
-	taproot.points = tap_pts
 	taproot.width = tap_w
 	taproot.default_color = ROOT_COLOR
 	_add(taproot)
-	# Highlight (lighter, offset up-left)
-	var highlight := Line2D.new()
-	highlight.points = PackedVector2Array(
+	# Light highlight
+	var hl := Line2D.new()
+	hl.points = PackedVector2Array(
 		[
-			Vector2(base.x - 0.3, base.y + 0.7),
-			Vector2(root_end.x - 0.3, root_end.y - 0.3),
+			Vector2(base.x - 0.3, base.y + 0.8),
+			Vector2(base.x + curve_x - 0.3, mid_y - 0.2),
 		]
 	)
-	highlight.width = maxf(tap_w * 0.3, 0.3)
-	highlight.default_color = Color(0.75, 0.6, 0.4, 0.4)
-	_add(highlight)
-	# Lateral branches with shadow
-	var branch_depths := [0.15, 0.35, 0.6]
-	for bd: float in branch_depths:
+	hl.width = maxf(tap_w * 0.3, 0.3)
+	hl.default_color = Color(0.8, 0.65, 0.45, 0.35)
+	_add(hl)
+
+	# Deterministic lateral branches — number and angles vary per root
+	var num_branches: int = 2 + int(_root_hash(seed_val, 1) * 3.0)
+	for bi in range(num_branches):
+		var bd: float = _root_hash(seed_val, 10 + bi) * 0.8 + 0.1
 		if bd > depth_frac:
-			break
-		var y: float = base.y + root_depth * bd
-		var spread: float = 5.0 * (1.0 - bd)
-		if spread < 1.5:
 			continue
-		var br_pts := PackedVector2Array(
-			[
-				Vector2(base.x, y),
-				Vector2(base.x + spread, y + 2),
-			]
-		)
-		var br_shadow := Line2D.new()
-		br_shadow.points = PackedVector2Array(
-			[
-				Vector2(base.x + 0.4, y + 0.4),
-				Vector2(base.x + spread + 0.4, y + 2.4),
-			]
-		)
-		br_shadow.width = 1.0
-		br_shadow.default_color = Color(0.15, 0.1, 0.05, 0.4)
-		_add(br_shadow)
+		var y: float = base.y + root_depth * bd
+		var tap_x: float = lerpf(base.x, root_end.x, bd)
+		var spread: float = (3.0 + _root_hash(seed_val, 20 + bi) * 4.0) * (1.0 - bd)
+		var dir: float = 1.0 if _root_hash(seed_val, 30 + bi) > 0.4 else -1.0
+		var dy: float = (_root_hash(seed_val, 40 + bi) - 0.3) * 3.0
+		if spread < 1.0:
+			continue
 		var br := Line2D.new()
-		br.points = br_pts
-		br.width = 0.8
+		br.points = PackedVector2Array(
+			[
+				Vector2(tap_x, y),
+				Vector2(tap_x + spread * dir, y + dy + 2),
+			]
+		)
+		br.width = clampf(0.6 * (1.0 - bd), 0.3, 0.8)
 		br.default_color = ROOT_COLOR
 		_add(br)
+		# Sub-branch on longer branches
+		if spread > 3.0 and _root_hash(seed_val, 50 + bi) > 0.4:
+			var sub := Line2D.new()
+			var sub_spread: float = spread * 0.4
+			var sub_dir: float = dir * (1.0 if _root_hash(seed_val, 60 + bi) > 0.5 else -0.5)
+			sub.points = PackedVector2Array(
+				[
+					Vector2(tap_x + spread * dir * 0.6, y + dy * 0.6 + 1.5),
+					Vector2(tap_x + spread * dir * 0.6 + sub_spread * sub_dir, y + dy + 3),
+				]
+			)
+			sub.width = 0.3
+			sub.default_color = ROOT_COLOR.lightened(0.1)
+			_add(sub)
