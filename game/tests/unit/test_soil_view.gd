@@ -29,5 +29,6 @@ func test_nutrient_colors_distinct() -> void:
 
 
 func test_cutaway_dimensions_positive() -> void:
-	assert_true(SoilView.CUTAWAY_WIDTH > 0, "Width positive")
-	assert_true(SoilView.LAYER_SCALE > 0, "Scale positive")
+	assert_true(SoilView.HALF_W > 0, "Half width positive")
+	assert_true(SoilView.HALF_H > 0, "Half height positive")
+	assert_true(SoilView.DEPTH_SCALE > 0, "Depth scale positive")
