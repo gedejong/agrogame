@@ -47,13 +47,12 @@ const _STAGE_MAP := {
 	"grain_fill": CropStage.MATURE,
 	"maturity": CropStage.MATURE,
 }
-## Crop plant positions: two staggered rows along the isometric diagonal.
-const _PLANT_OFFSETS: Array[Vector2] = [
-	Vector2(-8, -1),
-	Vector2(8, -1),
-	Vector2(0, 3),
-]
-const _PLANT_SCALE := Vector2(0.6, 0.6)
+## 4x4 grid of plants across the tile in isometric coordinates.
+## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
+## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
+const _PLANT_SCALE := Vector2(0.35, 0.35)
+const _PLANT_GRID := 4
+const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
 	SoilColor.Mode.NATURAL: "Natural",
 	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
@@ -211,18 +210,18 @@ func _create_crop_sprite(col: int, row: int) -> void:
 	container.position = world_pos
 	container.z_index = row + col + 1
 	container.visible = false
-	# Deterministic per-tile jitter so each tile looks slightly different
-	var seed_val := col * 7 + row * 13
-	for j in range(_PLANT_OFFSETS.size()):
-		var offset: Vector2 = _PLANT_OFFSETS[j]
-		var jitter := Vector2(
-			fmod(float((seed_val + j * 3) % 7), 4.0) - 2.0,
-			fmod(float((seed_val + j * 5) % 5), 3.0) - 1.5,
-		)
-		var sprite := Sprite2D.new()
-		sprite.position = offset + jitter + Vector2(0, -6)
-		sprite.scale = _PLANT_SCALE
-		container.add_child(sprite)
+	# 4x4 grid mapped to isometric tile coordinates.
+	# u,v in [0,1] map to screen via: x = (u-v)*HW, y = (u+v)*HH - HH
+	for ui in range(_PLANT_GRID):
+		var u: float = _PLANT_FRACS[ui]
+		for vi in range(_PLANT_GRID):
+			var v: float = _PLANT_FRACS[vi]
+			var px: float = (u - v) * HALF_W
+			var py: float = (u + v) * HALF_H - HALF_H
+			var sprite := Sprite2D.new()
+			sprite.position = Vector2(px, py - 4)
+			sprite.scale = _PLANT_SCALE
+			container.add_child(sprite)
 	crop_layer.add_child(container)
 	_crop_sprites.append(container)
 
