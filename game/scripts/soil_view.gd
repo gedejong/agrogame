@@ -36,7 +36,7 @@ const HALF_W := 32.0
 const HALF_H := 16.0
 
 ## Vertical scale: cm to pixels for layer depth
-const DEPTH_SCALE := 0.35
+const DEPTH_SCALE := 0.23
 
 ## Overlay colors
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.5)
