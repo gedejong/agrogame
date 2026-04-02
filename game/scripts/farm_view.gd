@@ -472,12 +472,12 @@ func _draw_procedural_leaves(
 		# Senescence: lower leaves yellow first
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
 		var hue_shift: float = (rh.call(5) - 0.5) * 0.03
-		# Bright mid-green — lower leaves slightly darker (canopy shadow)
-		var base_green := Color(0.28 + hue_shift, 0.58 + hue_shift, 0.18)
-		var shadow_darken: float = age * 0.12  # lower leaves in shadow
-		base_green = base_green.darkened(shadow_darken)
-		# Camera-facing leaves catch light
-		base_green = base_green.lightened(facing * 0.1)
+		# Start darker — most leaves are in partial shadow
+		var base_green := Color(0.2 + hue_shift, 0.42 + hue_shift, 0.14)
+		# Lower leaves even darker (deep canopy shadow)
+		base_green = base_green.darkened(age * 0.15)
+		# Camera-facing leaves catch sunlight — big brightness boost
+		base_green = base_green.lightened(facing * facing * 0.35)
 		var senescent_color := Color(0.65, 0.58, 0.28)
 		var dead_color := Color(0.5, 0.4, 0.22)
 		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
