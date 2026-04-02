@@ -38,3 +38,19 @@ func test_stress_state_enum() -> void:
 	assert_eq(FarmViewScript.StressState.NONE, 0, "NONE = 0")
 	assert_eq(FarmViewScript.StressState.WILTING, 1, "WILTING = 1")
 	assert_eq(FarmViewScript.StressState.N_DEFICIENT, 2, "N_DEFICIENT = 2")
+
+
+func test_crop_sprite_path_maize() -> void:
+	var path: String = FarmViewScript._crop_sprite_path("maize", "seedling")
+	assert_eq(path, "res://assets/crops/maize_seedling.svg")
+
+
+func test_crop_sprite_path_wheat_alias() -> void:
+	var path: String = FarmViewScript._crop_sprite_path("spring_wheat", "flowering")
+	assert_eq(path, "res://assets/crops/wheat_flowering.svg")
+
+
+func test_crop_sprite_path_fallback() -> void:
+	var path: String = FarmViewScript._crop_sprite_path("soybean", "mature")
+	# soybean has no sprites — should fall back to maize
+	assert_eq(path, "res://assets/crops/maize_mature.svg")

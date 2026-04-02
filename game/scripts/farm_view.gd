@@ -23,18 +23,23 @@ const TILE_TEXTURES := {
 }
 
 ## Crop sprite paths by stage
-const CROP_TEXTURES := {
-	CropStage.SEEDLING: "res://assets/crops/maize_seedling.svg",
-	CropStage.VEGETATIVE: "res://assets/crops/maize_vegetative.svg",
-	CropStage.FLOWERING: "res://assets/crops/maize_flowering.svg",
-	CropStage.MATURE: "res://assets/crops/maize_mature.svg",
+## Stage enum to sprite suffix mapping
+const _STAGE_SUFFIX := {
+	CropStage.SEEDLING: "seedling",
+	CropStage.VEGETATIVE: "vegetative",
+	CropStage.FLOWERING: "flowering",
+	CropStage.MATURE: "mature",
 }
-
-## Stress overlay textures
-const STRESS_TEXTURES := {
-	StressState.WILTING: "res://assets/crops/maize_wilting.svg",
-	StressState.N_DEFICIENT: "res://assets/crops/maize_ndeficient.svg",
+const _STRESS_SUFFIX := {
+	StressState.WILTING: "wilting",
+	StressState.N_DEFICIENT: "ndeficient",
 }
+## Crop key prefix mapping (spring_wheat/winter_wheat → wheat sprites)
+const _CROP_PREFIX := {
+	"spring_wheat": "wheat",
+	"winter_wheat": "wheat",
+}
+const _FALLBACK_CROP := "maize"
 
 const SoilColor = preload("res://scripts/soil_color.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
@@ -155,6 +160,7 @@ func _init_grid() -> void:
 						"col": col,
 						"row": row,
 						"soil_type": soil_type,
+						"crop_key": "maize",
 						"crop_stage": CropStage.NONE,
 						"stress": StressState.NONE,
 						"grain_g_m2": 0.0,
@@ -207,6 +213,15 @@ func _update_all_tile_colors() -> void:
 		_update_tile_color(i)
 
 
+static func _crop_sprite_path(crop_key: String, suffix: String) -> String:
+	var prefix: String = _CROP_PREFIX.get(crop_key, crop_key)
+	var path := "res://assets/crops/%s_%s.svg" % [prefix, suffix]
+	if ResourceLoader.exists(path):
+		return path
+	# Fallback to maize
+	return "res://assets/crops/%s_%s.svg" % [_FALLBACK_CROP, suffix]
+
+
 func _create_crop_sprite(col: int, row: int) -> void:
 	var container := Node2D.new()
 	var world_pos := tile_layer.map_to_local(Vector2i(col, row))
@@ -241,11 +256,14 @@ func _update_crop_visuals(idx: int) -> void:
 	var stress: int = data["stress"]
 	var container: Node2D = _crop_sprites[idx]
 
+	var crop_key: String = data.get("crop_key", "maize")
 	var tex: Texture2D = null
-	if stress != StressState.NONE and STRESS_TEXTURES.has(stress):
-		tex = load(STRESS_TEXTURES[stress])
-	elif stage != CropStage.NONE and CROP_TEXTURES.has(stage):
-		tex = load(CROP_TEXTURES[stage])
+	if stress != StressState.NONE and _STRESS_SUFFIX.has(stress):
+		var path := _crop_sprite_path(crop_key, _STRESS_SUFFIX[stress])
+		tex = load(path)
+	elif stage != CropStage.NONE and _STAGE_SUFFIX.has(stage):
+		var path := _crop_sprite_path(crop_key, _STAGE_SUFFIX[stage])
+		tex = load(path)
 
 	if tex:
 		# Scale sprites based on LAI (0 = tiny, ~6 = full size for maize)
@@ -527,6 +545,7 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 			var stage_name: String = patch.get("crop_stage", "")
 			var stage: int = _STAGE_MAP.get(stage_name, CropStage.NONE)
 			var lai: float = patch.get("lai", 0.0)
+			var crop_key: String = patch.get("crop_key", "maize")
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["grain_g_m2"] = patch.get("grain_g_m2", 0.0)
@@ -534,6 +553,7 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
 					_tile_data[i]["crop_stage"] = stage
 					_tile_data[i]["lai"] = lai
+					_tile_data[i]["crop_key"] = crop_key
 					_update_crop_visuals(i)
 
 
