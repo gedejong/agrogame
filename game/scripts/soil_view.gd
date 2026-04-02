@@ -547,6 +547,10 @@ func _draw_root_tube(
 		return
 	var hl_offset := maxf(width * 0.25, 0.3)
 
+	# Compute depth fraction for start and end points
+	var df_start: float = clampf((pts[0].y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
+	var df_end: float = clampf((pts[-1].y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
+
 	# Dark left edge
 	var dark_pts := PackedVector2Array()
 	for p: Vector2 in pts:
@@ -554,22 +558,20 @@ func _draw_root_tube(
 	var dark := Line2D.new()
 	dark.points = dark_pts
 	dark.width = width * 0.4
-	var dark_colors := PackedColorArray()
-	for p: Vector2 in pts:
-		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
-		dark_colors.append(ROOT_COLOR.darkened(0.3 + df * 0.25))
-	dark.colors = dark_colors
+	var dark_grad := Gradient.new()
+	dark_grad.set_color(0, ROOT_COLOR.darkened(0.3 + df_start * 0.25))
+	dark_grad.set_color(1, ROOT_COLOR.darkened(0.3 + df_end * 0.25))
+	dark.gradient = dark_grad
 	_add(dark)
 
 	# Main root body with depth darkening
 	var main := Line2D.new()
 	main.points = pts
 	main.width = width
-	var main_colors := PackedColorArray()
-	for p: Vector2 in pts:
-		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
-		main_colors.append(ROOT_COLOR.darkened(df * 0.3))
-	main.colors = main_colors
+	var main_grad := Gradient.new()
+	main_grad.set_color(0, ROOT_COLOR.darkened(df_start * 0.3))
+	main_grad.set_color(1, ROOT_COLOR.darkened(df_end * 0.3))
+	main.gradient = main_grad
 	_add(main)
 
 	# Highlight right edge (lit side)
@@ -579,11 +581,10 @@ func _draw_root_tube(
 	var hl := Line2D.new()
 	hl.points = hl_pts
 	hl.width = maxf(width * 0.25, 0.2)
-	var hl_colors := PackedColorArray()
-	for p: Vector2 in pts:
-		var df: float = clampf((p.y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
-		hl_colors.append(Color(0.8, 0.65, 0.45, 0.4 - df * 0.2))
-	hl.colors = hl_colors
+	var hl_grad := Gradient.new()
+	hl_grad.set_color(0, Color(0.8, 0.65, 0.45, 0.4 - df_start * 0.2))
+	hl_grad.set_color(1, Color(0.8, 0.65, 0.45, 0.4 - df_end * 0.2))
+	hl.gradient = hl_grad
 	_add(hl)
 
 
