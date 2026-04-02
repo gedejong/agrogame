@@ -116,6 +116,13 @@ func _display_report(data: Dictionary) -> void:
 			var som_label := Label.new()
 			som_label.text = "  %s: SOM %.0f gC/m² | θ %.3f" % [soil2, som2, theta2]
 			som_label.add_theme_font_size_override("font_size", 13)
+			# Color-code SOM: green >3000, yellow 1000-3000, red <1000
+			var som_color := Color(0.3, 0.85, 0.3)
+			if som2 < 1000.0:
+				som_color = Color(0.9, 0.3, 0.3)
+			elif som2 < 3000.0:
+				som_color = Color(0.9, 0.85, 0.2)
+			som_label.add_theme_color_override("font_color", som_color)
 			soil_container.add_child(som_label)
 
 	# Credits
