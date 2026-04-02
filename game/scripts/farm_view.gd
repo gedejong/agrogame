@@ -56,7 +56,7 @@ const _STAGE_MAP := {
 ## 4x4 grid of plants across the tile in isometric coordinates.
 ## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
 ## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
-const _PLANT_SCALE := Vector2(0.55, 0.55)
+const _PLANT_SCALE := Vector2(0.4, 0.4)
 const _PLANT_GRID := 4
 const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
@@ -404,60 +404,78 @@ func _draw_procedural_leaves(
 	stress: int,
 	stem_height_frac: float,
 ) -> void:
-	## Draw individual corn-like leaves alternating left/right along the stem.
-	## Number of leaves proportional to LAI. Lower leaves senesce first.
-	# Clear old leaves
+	## Procedural corn leaves: inverted quadratic arcs, alternating, per-leaf variation.
 	for child in leaf_node.get_children():
 		child.queue_free()
 
-	# Number of visible leaves: 0 at LAI=0, ~14 at LAI=6
 	var max_leaves := 14
 	var num_leaves: int = int(clampf(lai / 6.0, 0.0, 1.0) * max_leaves)
 	if num_leaves < 1:
 		return
 
-	# Stem visual height in pixels (sprite is 32px tall, scaled)
 	var stem_px: float = 32.0 * _PLANT_SCALE.y * stem_height_frac
-	var scale_f: float = _PLANT_SCALE.x
+	var sf: float = _PLANT_SCALE.x
 
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(max_leaves)
-		# Position along stem: bottom = 0.15, top = 0.85
-		var y_frac: float = 0.15 + frac * 0.7
+		# Deterministic per-leaf variation
+		var h := (li * 2654435761) & 0x7FFFFFFF
+		var var_len: float = (float(h % 100) / 100.0 - 0.5) * 0.3
+		var var_angle: float = (float((h * 3) % 100) / 100.0 - 0.5) * 0.15
+		var var_droop: float = (float((h * 7) % 100) / 100.0 - 0.5) * 0.2
+
+		var y_frac: float = 0.12 + frac * 0.72
 		var y: float = -y_frac * stem_px
-		# Alternating left/right
 		var dir: float = -1.0 if li % 2 == 0 else 1.0
-		# Lower leaves longer, upper shorter (and more upright)
-		var length: float = (8.0 - frac * 4.0) * scale_f
-		var droop: float = (3.0 - frac * 2.0) * scale_f  # lower leaves droop more
-		var tip_x: float = dir * length
-		var tip_y: float = y + droop
 
-		# Leaf color: lower leaves senesce first
-		var leaf_senesce: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
-		var green := Color(0.45, 0.8, 0.3)
-		var yellow := Color(0.85, 0.75, 0.35)
-		var brown := Color(0.65, 0.5, 0.25)
-		var color := green.lerp(yellow, leaf_senesce * 0.8)
-		color = color.lerp(brown, maxf(leaf_senesce - 0.5, 0.0) * 1.5)
+		# Leaf dimensions: lower = longer, droopier; upper = shorter, upright
+		var base_len: float = (5.0 - frac * 2.5) * sf * (1.0 + var_len)
+		var droop_amount: float = (2.0 - frac * 1.5) * sf * (1.0 + var_droop)
+
+		# Inverted quadratic arc: leaf goes out, curves up, then droops down
+		# 6 points along the curve for smooth shape
+		var pts := PackedVector2Array()
+		var segs := 5
+		for si in range(segs + 1):
+			var t: float = float(si) / float(segs)
+			var x: float = dir * base_len * t
+			# Quadratic: rises then falls — peaks at t≈0.3
+			var rise: float = -base_len * 0.15 * (1.0 + var_angle)
+			var curve_y: float = y + rise * 4.0 * t * (1.0 - t) + droop_amount * t * t
+			pts.append(Vector2(x, curve_y))
+
+		# Per-leaf senescence: lower leaves yellow/brown first
+		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
+		# Natural green — slight hue variation per leaf
+		var hue_shift: float = (float(h % 30) / 30.0 - 0.5) * 0.05
+		var base_green := Color(0.32 + hue_shift, 0.55 + hue_shift * 0.5, 0.22)
+		var senescent_color := Color(0.65, 0.58, 0.28)
+		var dead_color := Color(0.5, 0.4, 0.22)
+		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
+		color = color.lerp(dead_color, maxf(leaf_sen - 0.5, 0.0) * 1.6)
 		if stress == StressState.WILTING:
-			color = color.lerp(Color(0.55, 0.45, 0.2), 0.4)
+			color = color.lerp(Color(0.45, 0.38, 0.18), 0.45)
 		elif stress == StressState.N_DEFICIENT:
-			color = color.lerp(Color(0.7, 0.75, 0.3), 0.3)
+			color = color.lerp(Color(0.6, 0.62, 0.28), 0.35)
 
-		# Width: thicker at base, thinner at tip
-		var base_width: float = (1.8 - frac * 0.8) * scale_f
+		# Tip color: lighter/more translucent
+		var tip_color := color.lightened(0.15)
+		tip_color.a = 0.85
 
+		# Width curve: tapers from base to tip
+		var base_w: float = (1.2 - frac * 0.4) * sf
 		var leaf := Line2D.new()
-		leaf.points = PackedVector2Array(
-			[
-				Vector2(0, y),
-				Vector2(tip_x * 0.5, y + droop * 0.3),
-				Vector2(tip_x, tip_y),
-			]
-		)
-		leaf.width = base_width
-		leaf.default_color = color
+		leaf.points = pts
+		leaf.width_curve = Curve.new()
+		leaf.width_curve.add_point(Vector2(0.0, 1.0))
+		leaf.width_curve.add_point(Vector2(0.4, 0.9))
+		leaf.width_curve.add_point(Vector2(1.0, 0.1))
+		leaf.width = base_w
+		# Gradient: darker at base, lighter at tip
+		var grad := Gradient.new()
+		grad.set_color(0, color)
+		grad.set_color(1, tip_color)
+		leaf.gradient = grad
 		leaf_node.add_child(leaf)
 
 
