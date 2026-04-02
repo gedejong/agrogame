@@ -554,16 +554,17 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 	# Restore previously hidden tiles
 	_restore_hidden_tiles()
 
-	# In DIAMOND_RIGHT isometric layout:
-	# Col-left: (col-1, row)  Col-right: (col+1, row)
-	# Inv tiles (front 3): (col, row+1), (col-1, row+1), (col+1, row+1)
+	# DIAMOND_RIGHT isometric layout neighbor mapping:
+	# (col,row) screen pos follows: x = (col+row)*32, y = (row-col)*16 + offset
+	# Col-left: (col-1, row-1)  Col-right: (col+1, row+1) — same visual row
+	# Inv (front 3, toward viewer): (col-1, row), (col, row+1), (col-1, row+1)
 	var sel := Vector2i(col, row)
-	var col_left := Vector2i(col - 1, row)
-	var col_right := Vector2i(col + 1, row)
+	var col_left := Vector2i(col - 1, row - 1)
+	var col_right := Vector2i(col + 1, row + 1)
 	var inv_tiles: Array[Vector2i] = [
+		Vector2i(col - 1, row),
 		Vector2i(col, row + 1),
 		Vector2i(col - 1, row + 1),
-		Vector2i(col + 1, row + 1),
 	]
 
 	# Hide front tiles (make invisible) + their crops
