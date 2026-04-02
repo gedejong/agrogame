@@ -69,6 +69,7 @@ var _season_running := false
 var _overlay_mode: int = SoilColor.Mode.NATURAL
 var _soil_view: Node = null
 var _last_step_data: Dictionary = {}
+var _hidden_tiles: Array[Vector2i] = []
 
 @onready var tile_layer: TileMapLayer = $TileLayer
 @onready var soil_overlay_layer: Node2D = $SoilOverlayLayer
@@ -546,12 +547,42 @@ func _on_soil_view() -> void:
 
 
 func _show_soil_cutaway(col: int, row: int) -> void:
+	if _last_step_data.is_empty():
+		status_label.text = "Step at least 1 day to see soil data"
+		return
+
+	# Restore previously hidden tiles
+	_restore_hidden_tiles()
+
+	# In DIAMOND_RIGHT isometric layout:
+	# Col-left: (col-1, row)  Col-right: (col+1, row)
+	# Inv tiles (front 3): (col, row+1), (col-1, row+1), (col+1, row+1)
+	var sel := Vector2i(col, row)
+	var col_left := Vector2i(col - 1, row)
+	var col_right := Vector2i(col + 1, row)
+	var inv_tiles: Array[Vector2i] = [
+		Vector2i(col, row + 1),
+		Vector2i(col - 1, row + 1),
+		Vector2i(col + 1, row + 1),
+	]
+
+	# Hide front tiles (make invisible) + their crops
+	_hidden_tiles.clear()
+	for inv in inv_tiles:
+		if _is_valid_tile(inv):
+			_hidden_tiles.append(inv)
+			tile_layer.erase_cell(inv)
+			var inv_idx := inv.y * GRID_COLS + inv.x
+			_crop_sprites[inv_idx].visible = false
+			if inv_idx < _soil_overlays.size():
+				_soil_overlays[inv_idx].visible = false
+
+	# Get soil state for the selected tile
 	var idx := row * GRID_COLS + col
 	var soil_type: String = _tile_data[idx]["soil_type"]
 	var patch_idx := SOIL_TYPES.find(soil_type)
 	if patch_idx < 0:
 		patch_idx = 0
-
 	var patches: Dictionary = _last_step_data.get("patches", {})
 	var soil_state := {}
 	var crop_stage := ""
@@ -561,24 +592,83 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 			var patch: Dictionary = patch_list[patch_idx]
 			soil_state = patch.get("soil_state", {})
 			crop_stage = patch.get("crop_stage", "")
-
 	if soil_state.is_empty():
+		_restore_hidden_tiles()
 		status_label.text = "Step at least 1 day to see soil data"
 		return
-
 	var profile_layers := _get_profile_layers(soil_type)
+
+	# Build column positions: sel (with info) + left/right (visual only)
+	var columns: Array[Dictionary] = []
+	(
+		columns
+		. append(
+			{
+				"pos": tile_layer.map_to_local(sel),
+				"soil_state": soil_state,
+				"profile": profile_layers,
+				"crop_stage": crop_stage,
+				"show_info": true,
+			}
+		)
+	)
+	for side in [col_left, col_right]:
+		if _is_valid_tile(side):
+			var side_idx: int = side.y * GRID_COLS + side.x
+			var side_soil: String = _tile_data[side_idx]["soil_type"]
+			var side_patch := SOIL_TYPES.find(side_soil)
+			if side_patch < 0:
+				side_patch = 0
+			var side_state := {}
+			for fk: String in patches:
+				var pl: Array = patches[fk]
+				if side_patch < pl.size():
+					side_state = pl[side_patch].get("soil_state", {})
+			(
+				columns
+				. append(
+					{
+						"pos": tile_layer.map_to_local(side),
+						"soil_state": side_state if side_state else soil_state,
+						"profile": _get_profile_layers(side_soil),
+						"crop_stage": "",
+						"show_info": false,
+					}
+				)
+			)
+
 	if not _soil_view:
 		var scene: PackedScene = load("res://scenes/soil_view.tscn")
 		_soil_view = scene.instantiate()
 		_soil_view.z_index = GRID_COLS + GRID_ROWS + 20
 		crop_layer.add_child(_soil_view)
-	var tile_pos := tile_layer.map_to_local(Vector2i(col, row))
-	_soil_view.show_at(tile_pos, soil_state, profile_layers, crop_stage)
+		_soil_view.connect("closed", _on_soil_view_closed)
+	_soil_view.show_columns(columns)
+
+
+func _is_valid_tile(pos: Vector2i) -> bool:
+	return pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS
+
+
+func _restore_hidden_tiles() -> void:
+	for inv in _hidden_tiles:
+		if _is_valid_tile(inv):
+			var inv_idx := inv.y * GRID_COLS + inv.x
+			var soil_type: String = _tile_data[inv_idx]["soil_type"]
+			tile_layer.set_cell(inv, _soil_source_id(soil_type), Vector2i(0, 0))
+			_update_crop_visuals(inv_idx)
+			_update_tile_color(inv_idx)
+	_hidden_tiles.clear()
+
+
+func _on_soil_view_closed() -> void:
+	_restore_hidden_tiles()
 
 
 func _hide_soil_cutaway() -> void:
 	if _soil_view and _soil_view.is_active():
 		_soil_view.hide_view()
+	_restore_hidden_tiles()
 
 
 func _get_profile_layers(soil_type: String) -> Array:

@@ -41,6 +41,7 @@ const ROOT_DEPTH_BY_STAGE := {
 }
 
 var _active := false
+var _cur_parent: Node2D
 
 
 func show_at(
@@ -49,10 +50,30 @@ func show_at(
 	profile_layers: Array,
 	crop_stage: String = "",
 ) -> void:
+	show_columns(
+		[
+			{
+				"pos": tile_pos,
+				"soil_state": soil_state,
+				"profile": profile_layers,
+				"crop_stage": crop_stage,
+				"show_info": true,
+			}
+		]
+	)
+
+
+func show_columns(columns: Array) -> void:
 	_clear()
-	position = tile_pos
+	position = Vector2.ZERO
 	modulate.a = 0.85
-	_build_cutaway(soil_state, profile_layers, crop_stage)
+	for col_data: Dictionary in columns:
+		var pos: Vector2 = col_data.get("pos", Vector2.ZERO)
+		var soil_state: Dictionary = col_data.get("soil_state", {})
+		var profile: Array = col_data.get("profile", [])
+		var stage: String = col_data.get("crop_stage", "")
+		var show_info: bool = col_data.get("show_info", false)
+		_build_column(pos, soil_state, profile, stage, show_info)
 	visible = true
 	_active = true
 
@@ -72,7 +93,30 @@ func _clear() -> void:
 		child.queue_free()
 
 
-func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: String = "") -> void:
+func _build_column(
+	pos: Vector2,
+	soil_state: Dictionary,
+	profile_layers: Array,
+	crop_stage: String = "",
+	show_info: bool = true,
+) -> void:
+	var container := Node2D.new()
+	container.position = pos
+	add_child(container)
+	_cur_parent = container
+	_build_cutaway(soil_state, profile_layers, crop_stage, show_info)
+
+
+func _add(node: Node) -> void:
+	_cur_parent.add_child(node)
+
+
+func _build_cutaway(
+	soil_state: Dictionary,
+	profile_layers: Array,
+	crop_stage: String = "",
+	show_info: bool = true,
+) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var no3_arr: Array = soil_state.get("n_no3", [])
 	var p_arr: Array = soil_state.get("p_available", [])
@@ -107,7 +151,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		]
 	)
 	shadow_left.color = Color(0, 0, 0, 0.35)
-	add_child(shadow_left)
+	_add(shadow_left)
 	var shadow_right := Polygon2D.new()
 	shadow_right.polygon = PackedVector2Array(
 		[
@@ -118,7 +162,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		]
 	)
 	shadow_right.color = Color(0, 0, 0, 0.25)
-	add_child(shadow_right)
+	_add(shadow_right)
 
 	var y_off := 0.0
 	for i in range(profile_layers.size()):
@@ -140,7 +184,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 			]
 		)
 		lf.color = base_color.darkened(0.15)
-		add_child(lf)
+		_add(lf)
 
 		# Right face: bottom vertex (0, HH) to right vertex (HW, 0), dropped by y_off
 		var rf := Polygon2D.new()
@@ -153,7 +197,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 			]
 		)
 		rf.color = base_color
-		add_child(rf)
+		_add(rf)
 
 		# Water fill on BOTH faces (consistent level)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
@@ -173,7 +217,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 				]
 			)
 			wl.color = WATER_COLOR
-			add_child(wl)
+			_add(wl)
 			# Water on right face
 			var wr := Polygon2D.new()
 			wr.polygon = PackedVector2Array(
@@ -185,7 +229,7 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 				]
 			)
 			wr.color = WATER_COLOR
-			add_child(wr)
+			_add(wr)
 
 		# Bottom edge (isometric V-line)
 		var edge := Line2D.new()
@@ -198,15 +242,16 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 		)
 		edge.width = 0.5
 		edge.default_color = Color(0, 0, 0, 0.3)
-		add_child(edge)
+		_add(edge)
 
 		y_off += h
 
 	# Outline edges for visual separation from surroundings
 	_build_outline(y_off)
 
-	# Info boxes with bar charts to the right, one per layer
-	_build_info_boxes(profile_layers, thetas, no3_arr, p_arr, labile, stable)
+	if show_info:
+		# Info boxes with bar charts to the right, one per layer
+		_build_info_boxes(profile_layers, thetas, no3_arr, p_arr, labile, stable)
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
@@ -228,7 +273,7 @@ func _build_outline(total_y: float) -> void:
 	)
 	outline.width = 2.0
 	outline.default_color = Color(0, 0, 0, 0.7)
-	add_child(outline)
+	_add(outline)
 
 	# Surface rim — light line at ground level where the cut meets the surface
 	var rim := Line2D.new()
@@ -241,7 +286,7 @@ func _build_outline(total_y: float) -> void:
 	)
 	rim.width = 2.0
 	rim.default_color = Color(0.9, 0.85, 0.7, 0.6)
-	add_child(rim)
+	_add(rim)
 
 
 func _build_info_boxes(
@@ -283,7 +328,7 @@ func _build_info_boxes(
 		)
 		line.width = 1.0
 		line.default_color = Color(0.5, 0.5, 0.5, 0.6)
-		add_child(line)
+		_add(line)
 
 		# Dark box background
 		var bg := Polygon2D.new()
@@ -296,7 +341,7 @@ func _build_info_boxes(
 			]
 		)
 		bg.color = Color(0.1, 0.1, 0.1, 0.85)
-		add_child(bg)
+		_add(bg)
 
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
@@ -337,7 +382,7 @@ func _add_bar(x: float, y: float, max_w: float, h: float, frac: float, color: Co
 		]
 	)
 	track.color = Color(0.25, 0.25, 0.25, 0.5)
-	add_child(track)
+	_add(track)
 	# Fill bar
 	if frac > 0.01:
 		var fill := Polygon2D.new()
@@ -351,7 +396,7 @@ func _add_bar(x: float, y: float, max_w: float, h: float, frac: float, color: Co
 			]
 		)
 		fill.color = color
-		add_child(fill)
+		_add(fill)
 
 
 func _add_tiny_label(x: float, y: float, text: String, color: Color) -> void:
@@ -360,7 +405,7 @@ func _add_tiny_label(x: float, y: float, text: String, color: Color) -> void:
 	label.add_theme_font_size_override("font_size", 7)
 	label.add_theme_color_override("font_color", color)
 	label.position = Vector2(x, y)
-	add_child(label)
+	_add(label)
 
 
 func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
@@ -382,7 +427,7 @@ func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
 	taproot.points = PackedVector2Array([root_start, root_end])
 	taproot.width = clampf(depth_frac * 3.0, 0.5, 2.5)
 	taproot.default_color = ROOT_COLOR
-	add_child(taproot)
+	_add(taproot)
 
 	var branch_fracs := [0.1, 0.2, 0.35, 0.5, 0.65]
 	for bf: float in branch_fracs:
@@ -404,7 +449,7 @@ func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
 		)
 		left.width = width
 		left.default_color = ROOT_COLOR
-		add_child(left)
+		_add(left)
 		# Branch into right face
 		var right := Line2D.new()
 		right.points = PackedVector2Array(
@@ -415,4 +460,4 @@ func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
 		)
 		right.width = width
 		right.default_color = ROOT_COLOR
-		add_child(right)
+		_add(right)
