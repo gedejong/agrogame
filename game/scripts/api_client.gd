@@ -54,7 +54,7 @@ func create_game(callback: Callable) -> void:
 						},
 						{
 							"soil_profile_key": "loam_temperate",
-							"crop_key": "maize",
+							"crop_key": "spring_wheat",
 							"climate_key": "netherlands_temperate",
 							"area_fraction": 0.334
 						},
