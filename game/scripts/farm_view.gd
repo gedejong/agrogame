@@ -529,11 +529,19 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 
 
 func _show_harvest_report() -> void:
+	_set_buttons_disabled(true)
 	var report_scene: PackedScene = load("res://scenes/harvest_report.tscn")
 	var report: Control = report_scene.instantiate()
-	get_tree().root.add_child(report)
+	# Add as overlay on the UILayer so farm view stays visible behind it
+	var ui_layer: CanvasLayer = $UILayer
+	ui_layer.add_child(report)
 	report.load_report(_game_id)
-	queue_free()
+	report.connect("closed", _on_report_closed)
+
+
+func _on_report_closed() -> void:
+	_set_buttons_disabled(false)
+	status_label.text = "New season — ready to step"
 
 
 func _apply_season_results(field_results: Dictionary) -> void:

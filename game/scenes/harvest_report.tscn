@@ -9,55 +9,67 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1")
 
-[node name="VBox" type="VBoxContainer" parent="."]
+[node name="Backdrop" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 40.0
-offset_top = 30.0
-offset_right = -40.0
-offset_bottom = -30.0
+color = Color(0, 0, 0, 0.7)
 
-[node name="TitleLabel" type="Label" parent="VBox"]
+[node name="Panel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.1
+anchor_top = 0.05
+anchor_right = 0.9
+anchor_bottom = 0.95
+
+[node name="ScrollContainer" type="ScrollContainer" parent="Panel"]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="Panel/ScrollContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="TitleLabel" type="Label" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 text = "Harvest Report"
 theme_override_font_sizes/font_size = 24
 
-[node name="Spacer1" type="Control" parent="VBox"]
+[node name="Spacer1" type="Control" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 10)
 
-[node name="YieldSection" type="VBoxContainer" parent="VBox"]
+[node name="YieldSection" type="VBoxContainer" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 
-[node name="Spacer2" type="Control" parent="VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 10)
-
-[node name="PnLSection" type="VBoxContainer" parent="VBox"]
-layout_mode = 2
-
-[node name="Spacer3" type="Control" parent="VBox"]
+[node name="Spacer2" type="Control" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 10)
 
-[node name="SoilHealthSection" type="VBoxContainer" parent="VBox"]
+[node name="PnLSection" type="VBoxContainer" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 
-[node name="Spacer3b" type="Control" parent="VBox"]
+[node name="Spacer3" type="Control" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 10)
 
-[node name="CreditsLabel" type="Label" parent="VBox"]
+[node name="SoilHealthSection" type="VBoxContainer" parent="Panel/ScrollContainer/VBox"]
+layout_mode = 2
+
+[node name="Spacer3b" type="Control" parent="Panel/ScrollContainer/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 10)
+
+[node name="CreditsLabel" type="Label" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 text = ""
 theme_override_font_sizes/font_size = 18
 
-[node name="Spacer4" type="Control" parent="VBox"]
+[node name="Spacer4" type="Control" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 20)
 
-[node name="NextSeasonButton" type="Button" parent="VBox"]
+[node name="NextSeasonButton" type="Button" parent="Panel/ScrollContainer/VBox"]
 layout_mode = 2
 text = "Next Season"

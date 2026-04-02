@@ -1,6 +1,9 @@
 extends Control
-## End-of-season harvest report screen (#116).
+## End-of-season harvest report popup overlay (#116).
 ## Shows yield/GYGA grade, P&L, soil health, and Next Season button.
+## Emits "closed" signal when dismissed.
+
+signal closed
 
 const GRADE_COLORS := {
 	"A": Color(0.2, 0.8, 0.2),
@@ -13,12 +16,12 @@ const GRADE_COLORS := {
 var _game_id: String = ""
 var _api_client: Node
 
-@onready var title_label: Label = $VBox/TitleLabel
-@onready var yield_container: VBoxContainer = $VBox/YieldSection
-@onready var pnl_container: VBoxContainer = $VBox/PnLSection
-@onready var soil_container: VBoxContainer = $VBox/SoilHealthSection
-@onready var credits_label: Label = $VBox/CreditsLabel
-@onready var next_season_btn: Button = $VBox/NextSeasonButton
+@onready var title_label: Label = $Panel/ScrollContainer/VBox/TitleLabel
+@onready var yield_container: VBoxContainer = $Panel/ScrollContainer/VBox/YieldSection
+@onready var pnl_container: VBoxContainer = $Panel/ScrollContainer/VBox/PnLSection
+@onready var soil_container: VBoxContainer = $Panel/ScrollContainer/VBox/SoilHealthSection
+@onready var credits_label: Label = $Panel/ScrollContainer/VBox/CreditsLabel
+@onready var next_season_btn: Button = $Panel/ScrollContainer/VBox/NextSeasonButton
 
 
 func _ready() -> void:
@@ -139,4 +142,5 @@ func _clear_children(container: Control) -> void:
 
 
 func _on_next_season() -> void:
-	get_tree().change_scene_to_file("res://scenes/farm_view.tscn")
+	closed.emit()
+	queue_free()
