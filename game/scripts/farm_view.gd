@@ -161,7 +161,9 @@ func _init_grid() -> void:
 						"row": row,
 						"soil_type": soil_type,
 						"crop_key": "maize",
+						"crop_stage_name": "",
 						"crop_stage": CropStage.NONE,
+						"root_depth_cm": 0.0,
 						"stress": StressState.NONE,
 						"grain_g_m2": 0.0,
 						"som_total_c_g_m2": 0.0,
@@ -386,10 +388,15 @@ func _handle_tile_click() -> void:
 		_update_selection_indicator()
 		var idx := row * GRID_COLS + col
 		var data: Dictionary = _tile_data[idx]
+		var crop_key: String = data.get("crop_key", "")
+		var stage_name: String = data.get("crop_stage_name", "")
+		var lai: float = data.get("lai", 0.0)
+		var root_cm: float = data.get("root_depth_cm", 0.0)
 		var som_c: float = data.get("som_total_c_g_m2", 0.0)
 		var theta: float = data.get("theta_surface", 0.0)
 		status_label.text = (
-			"[%d,%d] %s | SOM %.0f gC/m² | θ %.2f" % [col, row, data["soil_type"], som_c, theta]
+			"%s %s | LAI %.1f | Root %.0fcm | SOM %.0f | θ %.2f"
+			% [crop_key, stage_name, lai, root_cm, som_c, theta]
 		)
 		# Show inline soil cutaway below the selected tile
 		if not _last_step_data.is_empty():
@@ -545,6 +552,7 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 			var stage_name: String = patch.get("crop_stage", "")
 			var stage: int = _STAGE_MAP.get(stage_name, CropStage.NONE)
 			var lai: float = patch.get("lai", 0.0)
+			var root_cm: float = patch.get("root_depth_cm", 0.0)
 			var crop_key: String = patch.get("crop_key", "maize")
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
@@ -552,7 +560,9 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
 					_tile_data[i]["crop_stage"] = stage
+					_tile_data[i]["crop_stage_name"] = stage_name
 					_tile_data[i]["lai"] = lai
+					_tile_data[i]["root_depth_cm"] = root_cm
 					_tile_data[i]["crop_key"] = crop_key
 					_update_crop_visuals(i)
 
