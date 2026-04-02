@@ -455,16 +455,17 @@ func _draw_procedural_leaves(
 		# Per-leaf curve variation
 		var curve_var: float = (rh.call(3) - 0.5) * 0.2
 
-		# Inverted sqrt shape: exits stem ~vertically, bends sideways, tip droops.
+		# Leaf exits stem vertically upward, arcs over, tip droops.
+		# x(t) = t² (slow spread at first, accelerates outward)
+		# y(t) = -rise*(1-t²) + droop*t² (up first, then down — like -(x²) )
 		var pts := PackedVector2Array()
 		var segs := 7
 		var eff_len: float = base_len * (0.7 + facing * 0.3)
-		var rise_height: float = eff_len * (0.25 + curve_var * 0.1)
+		var rise_height: float = eff_len * (0.35 + curve_var * 0.1)
 		for si in range(segs + 1):
 			var t: float = float(si) / float(segs)
-			var spread: float = sqrt(t)
-			var x: float = dir * eff_len * spread
-			var up_part: float = -rise_height * (1.0 - t)
+			var x: float = dir * eff_len * t * t
+			var up_part: float = -rise_height * (1.0 - t * t)
 			var droop_part: float = droop_strength * t * t
 			pts.append(Vector2(x, y + up_part + droop_part))
 
