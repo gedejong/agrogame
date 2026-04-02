@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Wheat vegetative: ~14px tall, cluster of 5 thin tillers with narrow leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="29" rx="4" ry="1.5" fill="#000000" opacity="0.12" transform="skewX(-15)"/>
+  <!-- Tillers (thin parallel stems fanning slightly along iso axes) -->
+  <line x1="13" y1="28" x2="11" y2="15" stroke="#4a7a2a" stroke-width="0.9" stroke-linecap="round"/>
+  <line x1="14.5" y1="28" x2="13.5" y2="14" stroke="#4a7a2a" stroke-width="0.9" stroke-linecap="round"/>
+  <line x1="16" y1="28" x2="16" y2="14" stroke="#4a7a2a" stroke-width="1" stroke-linecap="round"/>
+  <line x1="17.5" y1="28" x2="18.5" y2="14" stroke="#4a7a2a" stroke-width="0.9" stroke-linecap="round"/>
+  <line x1="19" y1="28" x2="21" y2="15" stroke="#4a7a2a" stroke-width="0.9" stroke-linecap="round"/>
+  <!-- Narrow leaves (along iso axes, small) -->
+  <path d="M13.5,20 Q10,18 9,19.5" fill="none" stroke="#5b9e2a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M18.5,19 Q22,17 23,18.5" fill="none" stroke="#5b9e2a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M14,17 Q11,15.5 10,16.5" fill="none" stroke="#6aad3a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M18,16 Q21,14.5 22,15.5" fill="none" stroke="#6aad3a" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- Highlight on left leaves -->
+  <path d="M13.2,19.8 Q10.5,18 9.5,19" fill="none" stroke="#7abb4a" stroke-width="0.3" opacity="0.5"/>
+</svg>

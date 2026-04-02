@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Dark cloud -->
+  <ellipse cx="8" cy="5" rx="5" ry="2.5" fill="#7088a0"/>
+  <circle cx="5.5" cy="4" r="2.5" fill="#7088a0"/>
+  <circle cx="9" cy="3" r="3" fill="#7088a0"/>
+  <!-- Lightning bolt -->
+  <polygon points="9,7 7,10 8.5,10 6.5,14 10,9.5 8.5,9.5 10,7" fill="#f0d040"/>
+  <!-- Rain drops (heavier) -->
+  <g stroke="#3366aa" stroke-width="1" stroke-linecap="round">
+    <line x1="3.5" y1="8" x2="2.5" y2="11"/>
+    <line x1="12.5" y1="8" x2="11.5" y2="11"/>
+  </g>
+</svg>

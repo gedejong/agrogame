@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Grape vegetative: ~12px tall, woody vine, broad leaves, tendrils -->
+  <!-- Cast shadow -->
+  <ellipse cx="18" cy="29" rx="5" ry="1.8" fill="#000000" opacity="0.12" transform="skewX(-15)"/>
+  <!-- Woody main stem -->
+  <path d="M16,28 Q15.5,24 16,20" fill="none" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <!-- Woody branches (spreading wider than tall) -->
+  <path d="M16,22 Q12,20 9,21" fill="none" stroke="#6b5040" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M16,21 Q20,19 23,20" fill="none" stroke="#6b5040" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Broad leaves (larger than cereal leaves, fan-shaped) -->
+  <path d="M10,20 Q8,18 7,19 Q8,21 10,22 Z" fill="#5b9e2a"/>
+  <path d="M22,19 Q24,17 25,18 Q24,20 22,21 Z" fill="#5b9e2a"/>
+  <path d="M14,19 Q12,17 11,18 Q12,20 14,20 Z" fill="#4d8e22"/>
+  <path d="M18,18 Q20,16 21,17 Q20,19 18,19 Z" fill="#4d8e22"/>
+  <!-- Central top leaf -->
+  <path d="M16,19 Q15,17 14,18 Q15,20 17,20 Q18,18 17,17 Z" fill="#5b9e2a"/>
+  <!-- Tendrils (thin curling lines) -->
+  <path d="M9,21 Q7,20 6.5,21.5" fill="none" stroke="#6aad3a" stroke-width="0.4" stroke-linecap="round"/>
+  <path d="M23,20 Q25,19 25.5,20.5" fill="none" stroke="#6aad3a" stroke-width="0.4" stroke-linecap="round"/>
+  <!-- Highlight on left leaves -->
+  <path d="M9,19.5 Q8,18.5 7.5,19" fill="none" stroke="#7abb4a" stroke-width="0.4" opacity="0.5"/>
+</svg>

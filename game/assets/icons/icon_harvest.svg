@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Sickle blade -->
+  <path d="M3,4 Q8,3 12,6 Q10,8 6,7 Q4,6.5 3,4 Z" fill="#c8a832"/>
+  <!-- Handle -->
+  <line x1="12" y1="6" x2="13" y2="13" stroke="#8b7345" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Blade highlight -->
+  <path d="M4,4.5 Q7,4 10,5.5" fill="none" stroke="#d8c050" stroke-width="0.5" opacity="0.6"/>
+</svg>

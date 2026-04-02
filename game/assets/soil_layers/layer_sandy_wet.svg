@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" viewBox="0 0 128 32">
+  <!-- Saturated sand: darker, blue-shifted, water-filled pores -->
+  <rect width="128" height="32" fill="#a89878"/>
+  <!-- Grain particles (same pattern as dry, denser feel) -->
+  <g fill="#988868" opacity="0.55">
+    <circle cx="4" cy="6" r="1.2"/><circle cx="12" cy="4" r="1"/><circle cx="20" cy="8" r="1.3"/>
+    <circle cx="28" cy="3" r="1.1"/><circle cx="36" cy="7" r="1.2"/><circle cx="44" cy="5" r="1"/>
+    <circle cx="52" cy="9" r="1.3"/><circle cx="60" cy="4" r="1.1"/><circle cx="68" cy="7" r="1.2"/>
+    <circle cx="76" cy="3" r="1"/><circle cx="84" cy="8" r="1.3"/><circle cx="92" cy="5" r="1.1"/>
+    <circle cx="100" cy="6" r="1.2"/><circle cx="108" cy="4" r="1"/><circle cx="116" cy="9" r="1.3"/>
+    <circle cx="124" cy="6" r="1.1"/>
+    <circle cx="8" cy="16" r="1.1"/><circle cx="18" cy="14" r="1.2"/><circle cx="30" cy="18" r="1"/>
+    <circle cx="40" cy="15" r="1.3"/><circle cx="50" cy="17" r="1.1"/><circle cx="62" cy="14" r="1.2"/>
+    <circle cx="72" cy="18" r="1"/><circle cx="82" cy="15" r="1.3"/><circle cx="94" cy="17" r="1.1"/>
+    <circle cx="104" cy="14" r="1.2"/><circle cx="114" cy="18" r="1"/><circle cx="126" cy="15" r="1.1"/>
+    <circle cx="6" cy="24" r="1.2"/><circle cx="16" cy="27" r="1"/><circle cx="26" cy="23" r="1.3"/>
+    <circle cx="38" cy="26" r="1.1"/><circle cx="48" cy="24" r="1.2"/><circle cx="58" cy="28" r="1"/>
+    <circle cx="70" cy="25" r="1.3"/><circle cx="80" cy="27" r="1.1"/><circle cx="90" cy="23" r="1.2"/>
+    <circle cx="102" cy="26" r="1"/><circle cx="112" cy="24" r="1.3"/><circle cx="122" cy="28" r="1.1"/>
+  </g>
+  <!-- Water-filled pores (blue tint instead of light air pores) -->
+  <g fill="#6699cc" opacity="0.2">
+    <circle cx="22" cy="15" r="1.5"/><circle cx="46" cy="10" r="1.2"/><circle cx="78" cy="22" r="1.4"/>
+    <circle cx="110" cy="8" r="1.3"/><circle cx="64" cy="26" r="1.5"/>
+    <circle cx="34" cy="22" r="1.1"/><circle cx="86" cy="6" r="1.2"/><circle cx="118" cy="20" r="1.3"/>
+  </g>
+</svg>

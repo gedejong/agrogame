@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Grape seedling: ~6px tall, small woody stem, 1-2 tiny broad leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="17.5" cy="29" rx="2.5" ry="1" fill="#000000" opacity="0.1" transform="skewX(-15)"/>
+  <!-- Woody stem (brown, not green like cereals) -->
+  <line x1="16" y1="28" x2="16" y2="23" stroke="#6b5040" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Small broad leaf (left, along iso axis) -->
+  <path d="M16,24 Q13,22 11,23 Q12,24 14,25 Z" fill="#6aad3a"/>
+  <!-- Small broad leaf (right) -->
+  <path d="M16,23 Q19,21 21,22 Q20,23 18,24 Z" fill="#6aad3a"/>
+  <!-- Highlight on left leaf -->
+  <path d="M15,23.5 Q13.5,22.5 12,23" fill="none" stroke="#8acc5a" stroke-width="0.4" opacity="0.5"/>
+</svg>

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Grape mature: ~16px tall, purple grape clusters hanging under leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="19" cy="29" rx="6" ry="2.2" fill="#000000" opacity="0.14" transform="skewX(-15)"/>
+  <!-- Woody main stem -->
+  <path d="M16,28 Q15.5,23 16,16" fill="none" stroke="#5a4535" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Woody branches -->
+  <path d="M16,21 Q10,18 7,19.5" fill="none" stroke="#5a4535" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M16,20 Q22,17 25,18.5" fill="none" stroke="#5a4535" stroke-width="1.4" stroke-linecap="round"/>
+  <path d="M16,17 Q12,15 9,16" fill="none" stroke="#5a4535" stroke-width="1.1" stroke-linecap="round"/>
+  <path d="M16,16 Q20,14 23,15" fill="none" stroke="#5a4535" stroke-width="1.1" stroke-linecap="round"/>
+  <!-- Broad leaves (covering top) -->
+  <path d="M8,18.5 Q6,16.5 5,17.5 Q6,19.5 8,20.5 Z" fill="#4d8e22"/>
+  <path d="M24,17.5 Q26,15.5 27,16.5 Q26,18.5 24,19.5 Z" fill="#4d8e22"/>
+  <path d="M10,15 Q8,13.5 7,14.5 Q8,16 10,16.5 Z" fill="#5b9e2a"/>
+  <path d="M22,14 Q24,12.5 25,13.5 Q24,15 22,15.5 Z" fill="#5b9e2a"/>
+  <path d="M15,15.5 Q14,14 13,15 Q14,16.5 16,16.5 Q17,14.5 16,13.5 Z" fill="#4d8e22"/>
+  <!-- Purple grape clusters (the key identifier — hanging below leaves) -->
+  <g fill="#6a3d7a">
+    <!-- Left cluster -->
+    <circle cx="8" cy="21.5" r="1"/>
+    <circle cx="9.2" cy="22.2" r="1"/>
+    <circle cx="8.5" cy="23" r="0.9"/>
+    <circle cx="7.5" cy="22.5" r="0.8"/>
+    <!-- Center cluster -->
+    <circle cx="15.5" cy="22" r="1"/>
+    <circle cx="16.7" cy="22.7" r="1"/>
+    <circle cx="16" cy="23.5" r="0.9"/>
+    <circle cx="15" cy="23" r="0.8"/>
+    <!-- Right cluster -->
+    <circle cx="23.5" cy="20.5" r="1"/>
+    <circle cx="24.5" cy="21.2" r="1"/>
+    <circle cx="24" cy="22" r="0.9"/>
+    <circle cx="23" cy="21.5" r="0.8"/>
+  </g>
+  <!-- Grape highlights (top-left of clusters) -->
+  <g fill="#8a5a9a" opacity="0.45">
+    <circle cx="7.8" cy="21" r="0.5"/>
+    <circle cx="15.3" cy="21.5" r="0.5"/>
+    <circle cx="23.3" cy="20" r="0.5"/>
+  </g>
+</svg>

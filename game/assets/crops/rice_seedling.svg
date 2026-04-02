@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Rice seedling: ~6px tall, thin shoots, narrow leaves -->
+  <!-- Cast shadow -->
+  <ellipse cx="17" cy="29" rx="2" ry="0.8" fill="#000000" opacity="0.09" transform="skewX(-15)"/>
+  <!-- Thin shoots -->
+  <line x1="15" y1="28" x2="14.5" y2="23" stroke="#7aad4a" stroke-width="0.6" stroke-linecap="round"/>
+  <line x1="16" y1="28" x2="16" y2="22" stroke="#7aad4a" stroke-width="0.6" stroke-linecap="round"/>
+  <line x1="17" y1="28" x2="17.5" y2="23" stroke="#7aad4a" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- Tiny narrow leaves -->
+  <path d="M16,24 Q14,23 13,23.5" fill="none" stroke="#a8d86a" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M16.5,23 Q18,22 19,22.5" fill="none" stroke="#a8d86a" stroke-width="0.5" stroke-linecap="round"/>
+</svg>

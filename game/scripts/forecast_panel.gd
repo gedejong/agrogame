@@ -1,5 +1,10 @@
 extends VBoxContainer
-## 5-day weather forecast panel showing temperature and rain.
+## 5-day weather forecast panel with SVG weather icons.
+
+const ICON_SIZE := 16
+const ICON_SUN := "res://assets/icons/icon_sun.svg"
+const ICON_CLOUD := "res://assets/icons/icon_cloud.svg"
+const ICON_RAIN := "res://assets/icons/icon_rain.svg"
 
 var _days: Array = []
 
@@ -13,24 +18,64 @@ func _rebuild_display() -> void:
 	for child in get_children():
 		child.queue_free()
 
+	# Panel background for subtle depth
+	var bg := PanelContainer.new()
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.14, 0.75)
+	style.corner_radius_top_left = 4
+	style.corner_radius_top_right = 4
+	style.corner_radius_bottom_left = 4
+	style.corner_radius_bottom_right = 4
+	style.border_width_bottom = 1
+	style.border_color = Color(0.3, 0.3, 0.35, 0.4)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 4
+	style.content_margin_bottom = 4
+	bg.add_theme_stylebox_override("panel", style)
+
+	var content := VBoxContainer.new()
+	bg.add_child(content)
+	add_child(bg)
+
 	var header := Label.new()
 	header.text = "5-Day Forecast"
-	header.add_theme_font_size_override("font_size", 13)
-	add_child(header)
+	header.add_theme_font_size_override("font_size", 12)
+	header.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	content.add_child(header)
 
 	for day: Dictionary in _days:
-		var label := Label.new()
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+
+		# Weather icon
+		var icon := TextureRect.new()
 		var rain: float = day.get("rain_mm", 0.0)
-		var rain_icon := "☀" if rain < 1.0 else ("🌧" if rain > 5.0 else "⛅")
+		var icon_path := ICON_SUN
+		if rain > 5.0:
+			icon_path = ICON_RAIN
+		elif rain >= 1.0:
+			icon_path = ICON_CLOUD
+		var tex: Texture2D = load(icon_path)
+		if tex:
+			icon.texture = tex
+		icon.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
+
+		# Text
+		var label := Label.new()
 		label.text = (
-			"%s %s %.0f–%.0f°C  %.1fmm"
+			"%s %.0f–%.0f°C %.1fmm"
 			% [
 				str(day.get("date", "")).substr(5),
-				rain_icon,
 				day.get("tmin_c", 0.0),
 				day.get("tmax_c", 0.0),
 				rain,
 			]
 		)
-		label.add_theme_font_size_override("font_size", 11)
-		add_child(label)
+		label.add_theme_font_size_override("font_size", 10)
+		label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85))
+		row.add_child(label)
+
+		content.add_child(row)

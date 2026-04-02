@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Sorghum wilting: ~20px tall, leaves ROLLED INWARD (tubular, not flat) -->
+  <!-- Cast shadow -->
+  <ellipse cx="19" cy="29" rx="4.5" ry="1.5" fill="#000000" opacity="0.11" transform="skewX(-15)"/>
+  <!-- Thick stalk -->
+  <line x1="16" y1="28" x2="16" y2="10" stroke="#7a6a3a" stroke-width="2.5" stroke-linecap="round"/>
+  <!-- Rolled leaf pair 1 (lower — narrow tubes instead of broad flat leaves) -->
+  <path d="M16,24 Q12,22 9,23" fill="none" stroke="#b8943a" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M16,23 Q20,21 23,22" fill="none" stroke="#b8943a" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Rolled leaf pair 2 (mid — tighter roll = thinner) -->
+  <path d="M16,20 Q12,18 9,19.5" fill="none" stroke="#a88a35" stroke-width="1" stroke-linecap="round"/>
+  <path d="M16,19 Q20,17 23,18.5" fill="none" stroke="#a88a35" stroke-width="1" stroke-linecap="round"/>
+  <!-- Rolled leaf pair 3 (upper — tightest) -->
+  <path d="M16,16 Q13,14.5 11,15.5" fill="none" stroke="#b8943a" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M16,15 Q19,13.5 21,14.5" fill="none" stroke="#b8943a" stroke-width="0.8" stroke-linecap="round"/>
+  <!-- Small wilted seed head -->
+  <ellipse cx="16" cy="9" rx="2" ry="2.5" fill="#8a7a4a" opacity="0.7"/>
+  <!-- Highlight on left rolled leaves -->
+  <path d="M15.5,23.5 Q12.5,22 9.5,22.5" fill="none" stroke="#c8a44a" stroke-width="0.4" opacity="0.4"/>
+</svg>

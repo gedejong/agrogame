@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Coin outer -->
+  <circle cx="8" cy="8" r="6" fill="#c8a832"/>
+  <!-- Coin inner ring -->
+  <circle cx="8" cy="8" r="4.5" fill="none" stroke="#b89828" stroke-width="0.8"/>
+  <!-- Currency symbol (C for credits) -->
+  <path d="M10,6 Q7,4.5 6,8 Q7,11.5 10,10" fill="none" stroke="#a08020" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Highlight -->
+  <path d="M5,5 Q6,4 7,4.5" fill="none" stroke="#e0c850" stroke-width="0.6" opacity="0.6"/>
+</svg>

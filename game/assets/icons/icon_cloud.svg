@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Cloud: overlapping rounded shapes -->
+  <ellipse cx="8" cy="9" rx="5.5" ry="3" fill="#b0b0b0"/>
+  <circle cx="5.5" cy="7.5" r="3" fill="#b0b0b0"/>
+  <circle cx="9" cy="6.5" r="3.5" fill="#b0b0b0"/>
+</svg>

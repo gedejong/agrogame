@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" viewBox="0 0 128 32">
+  <!-- Water table line: wavy blue line, semi-transparent -->
+  <!-- Transparent background — this is an overlay -->
+  <!-- Main water table line -->
+  <path d="M0,16 Q8,12 16,16 Q24,20 32,16 Q40,12 48,16 Q56,20 64,16 Q72,12 80,16 Q88,20 96,16 Q104,12 112,16 Q120,20 128,16"
+    fill="none" stroke="#6699cc" stroke-width="1.5" opacity="0.7"/>
+  <!-- Water below the line (subtle blue fill) -->
+  <path d="M0,16 Q8,12 16,16 Q24,20 32,16 Q40,12 48,16 Q56,20 64,16 Q72,12 80,16 Q88,20 96,16 Q104,12 112,16 Q120,20 128,16 L128,32 L0,32 Z"
+    fill="#6699cc" opacity="0.12"/>
+  <!-- Secondary shimmer line -->
+  <path d="M0,18 Q10,15 20,18 Q30,21 40,18 Q50,15 60,18 Q70,21 80,18 Q90,15 100,18 Q110,21 120,18 L128,18"
+    fill="none" stroke="#6699cc" stroke-width="0.5" opacity="0.35"/>
+</svg>

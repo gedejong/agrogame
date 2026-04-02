@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" viewBox="0 0 128 32">
+  <!-- Root network: branching lines, dense at top, sparse deeper -->
+  <!-- Primary roots (thicker, from top) -->
+  <g stroke="#e8dcc8" stroke-linecap="round" fill="none" opacity="0.6">
+    <path d="M16,0 Q18,8 16,16 Q14,22 16,28" stroke-width="1.2"/>
+    <path d="M48,0 Q46,6 48,14 Q50,20 48,26" stroke-width="1.2"/>
+    <path d="M80,0 Q82,8 80,16 Q78,22 80,28" stroke-width="1.2"/>
+    <path d="M112,0 Q110,6 112,14 Q114,20 112,26" stroke-width="1.2"/>
+  </g>
+  <!-- Secondary branches (thinner, more horizontal) -->
+  <g stroke="#e8dcc8" stroke-linecap="round" fill="none" opacity="0.5">
+    <path d="M16,6 Q22,5 26,7" stroke-width="0.7"/>
+    <path d="M16,8 Q10,9 6,8" stroke-width="0.7"/>
+    <path d="M48,10 Q42,9 38,10" stroke-width="0.7"/>
+    <path d="M48,6 Q54,5 58,7" stroke-width="0.7"/>
+    <path d="M80,8 Q86,7 90,9" stroke-width="0.7"/>
+    <path d="M80,5 Q74,6 70,5" stroke-width="0.7"/>
+    <path d="M112,7 Q106,8 102,7" stroke-width="0.7"/>
+    <path d="M112,10 Q118,9 122,10" stroke-width="0.7"/>
+  </g>
+  <!-- Fine root hairs (top zone only, very thin) -->
+  <g stroke="#e8dcc8" stroke-linecap="round" fill="none" opacity="0.35">
+    <path d="M26,7 Q30,6 32,8" stroke-width="0.3"/>
+    <path d="M6,8 Q3,10 2,8" stroke-width="0.3"/>
+    <path d="M38,10 Q35,12 34,10" stroke-width="0.3"/>
+    <path d="M58,7 Q62,8 64,6" stroke-width="0.3"/>
+    <path d="M90,9 Q94,8 96,10" stroke-width="0.3"/>
+    <path d="M70,5 Q66,4 64,6" stroke-width="0.3"/>
+    <path d="M102,7 Q98,6 96,8" stroke-width="0.3"/>
+    <path d="M122,10 Q126,11 128,10" stroke-width="0.3"/>
+  </g>
+  <!-- Sparse deep roots (thin, few) -->
+  <g stroke="#e8dcc8" stroke-linecap="round" fill="none" opacity="0.25">
+    <path d="M16,22 Q20,24 18,28" stroke-width="0.4"/>
+    <path d="M80,20 Q76,24 78,28" stroke-width="0.4"/>
+  </g>
+</svg>

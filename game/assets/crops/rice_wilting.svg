@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Rice wilting: ~16px tall, leaves rolling, browning tips -->
+  <!-- Cast shadow -->
+  <ellipse cx="17.5" cy="29" rx="3.5" ry="1.2" fill="#000000" opacity="0.1" transform="skewX(-15)"/>
+  <!-- Thin stems (sagging) -->
+  <path d="M13,28 Q12,21 11,14" fill="none" stroke="#7a6a3a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M15,28 Q14.5,21 14,13" fill="none" stroke="#7a6a3a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M16.5,28 Q16.5,21 16.5,13" fill="none" stroke="#7a6a3a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M18,28 Q18.5,21 19,14" fill="none" stroke="#7a6a3a" stroke-width="0.7" stroke-linecap="round"/>
+  <!-- Rolling/curling leaves (narrow strokes, curling inward) -->
+  <path d="M13,21 Q10,20 9,21.5" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M18,20 Q21,19 22,20.5" fill="none" stroke="#b8943a" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M14,17 Q11.5,16.5 10.5,17.5" fill="none" stroke="#a88a35" stroke-width="0.6" stroke-linecap="round"/>
+  <path d="M18,16.5 Q20.5,16 21.5,17" fill="none" stroke="#a88a35" stroke-width="0.6" stroke-linecap="round"/>
+  <!-- Browning tips curling down -->
+  <path d="M11,14 Q10,14.5 10,16" fill="none" stroke="#b8943a" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M14,13 Q13,13.5 13,15" fill="none" stroke="#b8943a" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M16.5,13 Q17,14 17,15" fill="none" stroke="#b8943a" stroke-width="0.5" stroke-linecap="round"/>
+  <path d="M19,14 Q20,14.5 20,16" fill="none" stroke="#b8943a" stroke-width="0.5" stroke-linecap="round"/>
+</svg>
