@@ -47,6 +47,18 @@ const _STAGE_MAP := {
 	"grain_fill": CropStage.MATURE,
 	"maturity": CropStage.MATURE,
 }
+## Isometric offsets for crop plant positions within a tile.
+const _PLANT_OFFSETS: Array[Vector2] = [
+	Vector2(0, -6),
+	Vector2(-12, 0),
+	Vector2(12, 0),
+	Vector2(0, 6),
+	Vector2(-6, -3),
+	Vector2(6, -3),
+	Vector2(-6, 3),
+	Vector2(6, 3),
+]
+const _PLANT_SCALE := Vector2(0.45, 0.45)
 const _MODE_NAMES := {
 	SoilColor.Mode.NATURAL: "Natural",
 	SoilColor.Mode.SOM_HEATMAP: "SOM Heatmap",
@@ -56,7 +68,7 @@ const _MODE_NAMES := {
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_data: Array[Dictionary] = []
-var _crop_sprites: Array[Sprite2D] = []
+var _crop_sprites: Array[Node2D] = []
 var _soil_overlays: Array[Sprite2D] = []
 var _api_client: Node
 var _season_running := false
@@ -199,13 +211,19 @@ func _update_all_tile_colors() -> void:
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
-	var sprite := Sprite2D.new()
+	var container := Node2D.new()
 	var world_pos := tile_layer.map_to_local(Vector2i(col, row))
-	sprite.position = world_pos + Vector2(0, -8)
-	sprite.z_index = row + col + 1
-	sprite.visible = false
-	crop_layer.add_child(sprite)
-	_crop_sprites.append(sprite)
+	container.position = world_pos
+	container.z_index = row + col + 1
+	container.visible = false
+	# Create multiple small sprites within the tile
+	for offset: Vector2 in _PLANT_OFFSETS:
+		var sprite := Sprite2D.new()
+		sprite.position = offset + Vector2(0, -4)
+		sprite.scale = _PLANT_SCALE
+		container.add_child(sprite)
+	crop_layer.add_child(container)
+	_crop_sprites.append(container)
 
 
 func _update_crop_visuals(idx: int) -> void:
@@ -214,21 +232,21 @@ func _update_crop_visuals(idx: int) -> void:
 	var data: Dictionary = _tile_data[idx]
 	var stage: int = data["crop_stage"]
 	var stress: int = data["stress"]
-	var sprite: Sprite2D = _crop_sprites[idx]
+	var container: Node2D = _crop_sprites[idx]
+
+	var tex: Texture2D = null
 	if stress != StressState.NONE and STRESS_TEXTURES.has(stress):
-		var tex: Texture2D = load(STRESS_TEXTURES[stress])
-		if tex:
-			sprite.texture = tex
-			sprite.visible = true
-		return
-	if stage == CropStage.NONE:
-		sprite.visible = false
-		return
-	if CROP_TEXTURES.has(stage):
-		var tex: Texture2D = load(CROP_TEXTURES[stage])
-		if tex:
-			sprite.texture = tex
-			sprite.visible = true
+		tex = load(STRESS_TEXTURES[stress])
+	elif stage != CropStage.NONE and CROP_TEXTURES.has(stage):
+		tex = load(CROP_TEXTURES[stage])
+
+	if tex:
+		for child in container.get_children():
+			if child is Sprite2D:
+				child.texture = tex
+		container.visible = true
+	else:
+		container.visible = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
