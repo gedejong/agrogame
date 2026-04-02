@@ -419,8 +419,7 @@ func _draw_procedural_leaves(
 	for child in leaf_node.get_children():
 		child.queue_free()
 
-	var max_leaves := 14
-	# Leaf count: grows with progress, never shrinks (leaves stay, just yellow)
+	var max_leaves := 18
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * max_leaves)
 	if num_leaves < 1:
 		return
@@ -439,18 +438,18 @@ func _draw_procedural_leaves(
 		var y: float = -y_frac * stem_px
 		var dir: float = -1.0 if li % 2 == 0 else 1.0
 
-		# Bell-curve leaf length, with per-leaf variation
+		# Bell-curve leaf length — longer for denser canopy
 		var len_curve: float = 1.0 - 4.0 * (frac - 0.55) * (frac - 0.55)
-		var len_var: float = (rh.call(0) - 0.5) * 0.35
-		var base_len: float = (3.5 + len_curve * 4.0) * sf * (1.0 + len_var)
+		var len_var: float = (rh.call(0) - 0.5) * 0.3
+		var base_len: float = (5.0 + len_curve * 5.0) * sf * (1.0 + len_var)
 
 		# Droop: lower/older leaves droop more at tip
 		var droop_var: float = (rh.call(1) - 0.5) * 0.25
 		var droop_strength: float = (1.2 - frac * 0.5) * sf * (1.0 + droop_var)
 
-		# Camera facing: wide (facing) vs thin (edge-on)
+		# Camera facing: most leaves visible, few edge-on
 		var facing: float = rh.call(2)
-		var width_mult: float = 0.3 + facing * 0.7
+		var width_mult: float = 0.6 + facing * 0.4  # 0.6x to 1.0x (never paper-thin)
 
 		# Per-leaf curve variation
 		var curve_var: float = (rh.call(3) - 0.5) * 0.2
@@ -471,10 +470,13 @@ func _draw_procedural_leaves(
 
 		# Senescence: lower leaves yellow first
 		var leaf_sen: float = clampf(senescence - (1.0 - frac) * 0.3, 0.0, 1.0)
-		var hue_shift: float = (rh.call(5) - 0.5) * 0.04
-		var base_green := Color(0.3 + hue_shift, 0.52 + hue_shift * 0.5, 0.2)
-		var senescent_color := Color(0.62, 0.55, 0.26)
-		var dead_color := Color(0.48, 0.38, 0.2)
+		var hue_shift: float = (rh.call(5) - 0.5) * 0.03
+		# Bright uniform mid-green like real corn field
+		var base_green := Color(0.28 + hue_shift, 0.58 + hue_shift, 0.18)
+		# Camera-facing leaves catch light — slightly brighter
+		base_green = base_green.lightened(facing * 0.08)
+		var senescent_color := Color(0.65, 0.58, 0.28)
+		var dead_color := Color(0.5, 0.4, 0.22)
 		var color := base_green.lerp(senescent_color, leaf_sen * 0.85)
 		color = color.lerp(dead_color, maxf(leaf_sen - 0.5, 0.0) * 1.6)
 		if stress == StressState.WILTING:
@@ -485,8 +487,8 @@ func _draw_procedural_leaves(
 		var tip_color := color.lightened(0.12)
 		tip_color.a = 0.8
 
-		# Width: base width × facing multiplier, tapers to tip
-		var base_w: float = (1.1 - frac * 0.3) * sf * width_mult
+		# Width: thicker for denser canopy
+		var base_w: float = (1.4 - frac * 0.3) * sf * width_mult
 		var leaf := Line2D.new()
 		leaf.points = pts
 		leaf.width_curve = Curve.new()
