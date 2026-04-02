@@ -50,7 +50,7 @@ const _STAGE_MAP := {
 ## 4x4 grid of plants across the tile in isometric coordinates.
 ## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
 ## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
-const _PLANT_SCALE := Vector2(0.35, 0.35)
+const _PLANT_SCALE := Vector2(0.45, 0.45)
 const _PLANT_GRID := 4
 const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
@@ -218,8 +218,12 @@ func _create_crop_sprite(col: int, row: int) -> void:
 			var v: float = _PLANT_FRACS[vi]
 			var px: float = (u - v) * TILE_WIDTH / 2.0
 			var py: float = (u + v) * TILE_HEIGHT / 2.0 - TILE_HEIGHT / 2.0
+			# Deterministic jitter per plant
+			var seed_val := col * 7 + row * 13 + ui * 3 + vi * 5
+			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
+			var jy: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
 			var sprite := Sprite2D.new()
-			sprite.position = Vector2(px, py - 4)
+			sprite.position = Vector2(px + jx, py + jy - 4)
 			sprite.scale = _PLANT_SCALE
 			container.add_child(sprite)
 	crop_layer.add_child(container)
