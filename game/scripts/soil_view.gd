@@ -189,42 +189,52 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 
 		y_off += h
 
-	# N and P indicator dots beside each layer
-	_build_nutrient_dots(profile_layers, no3_arr, p_arr)
+	# Outline edges for visual separation from surroundings
+	_build_outline(y_off)
+
+	# Summary label below cutaway
+	_build_label(y_off, thetas, no3_arr, p_arr, profile_layers)
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
 
 
-func _build_nutrient_dots(profile_layers: Array, no3_arr: Array, p_arr: Array) -> void:
-	var y_off := 0.0
-	for i in range(profile_layers.size()):
-		var h: float = profile_layers[i].get("depth_cm", 20.0) * DEPTH_SCALE
-		var mid_y: float = y_off + h / 2.0
-
-		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var n_r: float = clampf(no3 / 3.0, 1.5, 4.0)
-		var n_dot := Polygon2D.new()
-		n_dot.polygon = _circle_points(Vector2(-HALF_W - 6, mid_y), n_r)
-		n_dot.color = N_COLOR
-		add_child(n_dot)
-
-		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var p_r: float = clampf(p_val / 3.0, 1.5, 4.0)
-		var p_dot := Polygon2D.new()
-		p_dot.polygon = _circle_points(Vector2(HALF_W + 6, mid_y), p_r)
-		p_dot.color = P_COLOR
-		add_child(p_dot)
-
-		y_off += h
+func _build_outline(total_y: float) -> void:
+	## Draw dark outline around the cutaway for visual separation.
+	var outline := Line2D.new()
+	outline.points = PackedVector2Array(
+		[
+			Vector2(-HALF_W, 0),
+			Vector2(-HALF_W, total_y),
+			Vector2(0, HALF_H + total_y),
+			Vector2(HALF_W, total_y),
+			Vector2(HALF_W, 0),
+		]
+	)
+	outline.width = 1.5
+	outline.default_color = Color(0, 0, 0, 0.6)
+	add_child(outline)
 
 
-func _circle_points(center: Vector2, radius: float) -> PackedVector2Array:
-	var pts := PackedVector2Array()
-	for j in range(8):
-		var angle: float = j * TAU / 8.0
-		pts.append(center + Vector2(cos(angle), sin(angle)) * radius)
-	return pts
+func _build_label(
+	total_y: float,
+	thetas: Array,
+	no3_arr: Array,
+	p_arr: Array,
+	profile_layers: Array,
+) -> void:
+	## Compact text summary below the cutaway.
+	var theta_top: float = thetas[0] if thetas.size() > 0 else 0.0
+	var no3_top: float = no3_arr[0] if no3_arr.size() > 0 else 0.0
+	var p_top: float = p_arr[0] if p_arr.size() > 0 else 0.0
+	var tex: String = profile_layers[0].get("texture", "?") if profile_layers.size() > 0 else "?"
+
+	var label := Label.new()
+	label.text = "%s | θ%.2f | N%.1f | P%.1f" % [tex, theta_top, no3_top, p_top]
+	label.add_theme_font_size_override("font_size", 9)
+	label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	label.position = Vector2(-HALF_W, HALF_H + total_y + 4)
+	add_child(label)
 
 
 func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
