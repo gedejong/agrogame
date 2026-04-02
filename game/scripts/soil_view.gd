@@ -202,18 +202,6 @@ func _build_cutaway(
 		rf.color = base_color
 		_add(rf)
 
-		# Diagonal shadow: triangle from top-right to bottom-left of right face
-		var shadow_rf := Polygon2D.new()
-		shadow_rf.polygon = PackedVector2Array(
-			[
-				Vector2(HALF_W, y_off),
-				Vector2(HALF_W, y_off + h),
-				Vector2(0, HALF_H + y_off + h),
-			]
-		)
-		shadow_rf.color = Color(0, 0, 0, 0.15)
-		_add(shadow_rf)
-
 		# Water fill on BOTH faces (consistent level)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
@@ -260,6 +248,19 @@ func _build_cutaway(
 		_add(edge)
 
 		y_off += h
+
+	# Single diagonal shadow across the full column height on the right face.
+	# Represents shadow cast by the soil above into the pit.
+	var shadow := Polygon2D.new()
+	shadow.polygon = PackedVector2Array(
+		[
+			Vector2(HALF_W, 0),
+			Vector2(HALF_W, y_off),
+			Vector2(0, HALF_H + y_off),
+		]
+	)
+	shadow.color = Color(0, 0, 0, 0.18)
+	_add(shadow)
 
 	if show_info:
 		# Info boxes on a high-z container so they render above tiles
