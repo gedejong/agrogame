@@ -548,6 +548,7 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 	if not _soil_view:
 		var scene: PackedScene = load("res://scenes/soil_view.tscn")
 		_soil_view = scene.instantiate()
+		_soil_view.z_index = GRID_COLS + GRID_ROWS + 20
 		crop_layer.add_child(_soil_view)
 	var tile_pos := tile_layer.map_to_local(Vector2i(col, row))
 	_soil_view.show_at(tile_pos, soil_state, profile_layers, crop_stage)

@@ -192,8 +192,8 @@ func _build_cutaway(soil_state: Dictionary, profile_layers: Array, crop_stage: S
 	# Outline edges for visual separation from surroundings
 	_build_outline(y_off)
 
-	# Summary label below cutaway
-	_build_label(y_off, thetas, no3_arr, p_arr, profile_layers)
+	# Info boxes with bar charts to the right, one per layer
+	_build_info_boxes(profile_layers, thetas, no3_arr, p_arr, labile, stable)
 
 	# Root structure (depth tied to crop stage)
 	_build_roots(profile_layers, crop_stage)
@@ -216,24 +216,121 @@ func _build_outline(total_y: float) -> void:
 	add_child(outline)
 
 
-func _build_label(
-	total_y: float,
+func _build_info_boxes(
+	profile_layers: Array,
 	thetas: Array,
 	no3_arr: Array,
 	p_arr: Array,
-	profile_layers: Array,
+	labile: Array,
+	stable: Array,
 ) -> void:
-	## Compact text summary below the cutaway.
-	var theta_top: float = thetas[0] if thetas.size() > 0 else 0.0
-	var no3_top: float = no3_arr[0] if no3_arr.size() > 0 else 0.0
-	var p_top: float = p_arr[0] if p_arr.size() > 0 else 0.0
-	var tex: String = profile_layers[0].get("texture", "?") if profile_layers.size() > 0 else "?"
+	## Info boxes to the right of the cutaway, one per layer.
+	## Each box has mini bar charts for water, N, P, SOM.
+	var box_x := HALF_W + 20
+	var box_w := 70
+	var box_h := 28
+	var bar_max_w := 30
+	var y_off := 0.0
 
+	for i in range(profile_layers.size()):
+		var layer: Dictionary = profile_layers[i]
+		var h: float = layer.get("depth_cm", 20.0) * DEPTH_SCALE
+		var sat: float = layer.get("saturation", 0.45)
+		var mid_y: float = y_off + h / 2.0
+		var box_y: float = mid_y - box_h / 2.0
+
+		# Connector line from right face to box
+		var line := Line2D.new()
+		line.points = PackedVector2Array(
+			[
+				Vector2(HALF_W, mid_y),
+				Vector2(box_x, mid_y),
+			]
+		)
+		line.width = 1.0
+		line.default_color = Color(0.5, 0.5, 0.5, 0.6)
+		add_child(line)
+
+		# Dark box background
+		var bg := Polygon2D.new()
+		bg.polygon = PackedVector2Array(
+			[
+				Vector2(box_x, box_y),
+				Vector2(box_x + box_w, box_y),
+				Vector2(box_x + box_w, box_y + box_h),
+				Vector2(box_x, box_y + box_h),
+			]
+		)
+		bg.color = Color(0.1, 0.1, 0.1, 0.85)
+		add_child(bg)
+
+		var theta: float = thetas[i] if i < thetas.size() else 0.0
+		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
+		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
+		var lab: float = labile[i] if i < labile.size() else 0.0
+		var stab: float = stable[i] if i < stable.size() else 0.0
+
+		# Water bar (blue)
+		var w_frac: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
+		_add_bar(box_x + 2, box_y + 3, bar_max_w, 4, w_frac, WATER_COLOR)
+
+		# N bar (green)
+		var n_frac: float = clampf(no3 / 5.0, 0.0, 1.0)
+		_add_bar(box_x + 2, box_y + 9, bar_max_w, 4, n_frac, N_COLOR)
+
+		# P bar (purple)
+		var p_frac: float = clampf(p_val / 5.0, 0.0, 1.0)
+		_add_bar(box_x + 2, box_y + 15, bar_max_w, 4, p_frac, P_COLOR)
+
+		# SOM bar (dark brown)
+		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 1.0)
+		_add_bar(box_x + 2, box_y + 21, bar_max_w, 4, som_frac, SOM_COLOR)
+
+		# Labels (tiny, right of bars)
+		var lx: float = box_x + bar_max_w + 4
+		_add_tiny_label(lx, box_y + 2, "W", WATER_COLOR)
+		_add_tiny_label(lx, box_y + 8, "N", N_COLOR)
+		_add_tiny_label(lx, box_y + 14, "P", P_COLOR)
+		_add_tiny_label(lx, box_y + 20, "S", Color(0.6, 0.5, 0.3))
+
+		y_off += h
+
+
+func _add_bar(x: float, y: float, max_w: float, h: float, frac: float, color: Color) -> void:
+	# Background track
+	var track := Polygon2D.new()
+	track.polygon = PackedVector2Array(
+		[
+			Vector2(x, y),
+			Vector2(x + max_w, y),
+			Vector2(x + max_w, y + h),
+			Vector2(x, y + h),
+		]
+	)
+	track.color = Color(0.25, 0.25, 0.25, 0.5)
+	add_child(track)
+	# Fill bar
+	if frac > 0.01:
+		var fill := Polygon2D.new()
+		var fw: float = max_w * frac
+		fill.polygon = PackedVector2Array(
+			[
+				Vector2(x, y),
+				Vector2(x + fw, y),
+				Vector2(x + fw, y + h),
+				Vector2(x, y + h),
+			]
+		)
+		fill.color = color
+		add_child(fill)
+
+
+func _add_tiny_label(x: float, y: float, text: String, color: Color) -> void:
 	var label := Label.new()
-	label.text = "%s | θ%.2f | N%.1f | P%.1f" % [tex, theta_top, no3_top, p_top]
-	label.add_theme_font_size_override("font_size", 9)
-	label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
-	label.position = Vector2(-HALF_W, HALF_H + total_y + 4)
+	label.text = text
+	label.add_theme_font_size_override("font_size", 7)
+	label.add_theme_color_override("font_color", color)
+	label.position = Vector2(x, y)
 	add_child(label)
 
 
