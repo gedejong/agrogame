@@ -569,40 +569,64 @@ func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed
 	hl.default_color = Color(0.8, 0.65, 0.45, 0.35)
 	_add(hl)
 
-	# Deterministic lateral branches — number and angles vary per root
-	var num_branches: int = 2 + int(_root_hash(seed_val, 1) * 3.0)
+	# Deterministic lateral branches — more arborisation
+	var num_branches: int = 3 + int(_root_hash(seed_val, 1) * 4.0)
 	for bi in range(num_branches):
-		var bd: float = _root_hash(seed_val, 10 + bi) * 0.8 + 0.1
+		var bd: float = _root_hash(seed_val, 10 + bi) * 0.85 + 0.08
 		if bd > depth_frac:
 			continue
 		var y: float = base.y + root_depth * bd
 		var tap_x: float = lerpf(base.x, root_end.x, bd)
-		var spread: float = (3.0 + _root_hash(seed_val, 20 + bi) * 4.0) * (1.0 - bd)
+		var spread: float = (3.0 + _root_hash(seed_val, 20 + bi) * 5.0) * (1.0 - bd)
 		var dir: float = 1.0 if _root_hash(seed_val, 30 + bi) > 0.4 else -1.0
 		var dy: float = (_root_hash(seed_val, 40 + bi) - 0.3) * 3.0
 		if spread < 1.0:
 			continue
+		var end_x: float = tap_x + spread * dir
+		var end_y: float = y + dy + 2
 		var br := Line2D.new()
 		br.points = PackedVector2Array(
 			[
 				Vector2(tap_x, y),
-				Vector2(tap_x + spread * dir, y + dy + 2),
+				Vector2(end_x, end_y),
 			]
 		)
-		br.width = clampf(0.6 * (1.0 - bd), 0.3, 0.8)
+		br.width = clampf(0.7 * (1.0 - bd), 0.3, 0.9)
 		br.default_color = ROOT_COLOR
 		_add(br)
-		# Sub-branch on longer branches
-		if spread > 3.0 and _root_hash(seed_val, 50 + bi) > 0.4:
+		# Sub-branches (1-2 per lateral)
+		var num_subs: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
+		for si in range(num_subs):
+			var sf: float = 0.4 + _root_hash(seed_val, 60 + bi * 3 + si) * 0.4
+			var sub_x: float = lerpf(tap_x, end_x, sf)
+			var sub_y: float = lerpf(y, end_y, sf)
+			var sub_spread: float = spread * (0.3 + _root_hash(seed_val, 70 + bi * 3 + si) * 0.3)
+			var sub_dir: float = (
+				dir * (1.0 if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -0.6)
+			)
+			var sub_dy: float = 1.0 + _root_hash(seed_val, 90 + bi * 3 + si) * 2.0
 			var sub := Line2D.new()
-			var sub_spread: float = spread * 0.4
-			var sub_dir: float = dir * (1.0 if _root_hash(seed_val, 60 + bi) > 0.5 else -0.5)
 			sub.points = PackedVector2Array(
 				[
-					Vector2(tap_x + spread * dir * 0.6, y + dy * 0.6 + 1.5),
-					Vector2(tap_x + spread * dir * 0.6 + sub_spread * sub_dir, y + dy + 3),
+					Vector2(sub_x, sub_y),
+					Vector2(sub_x + sub_spread * sub_dir, sub_y + sub_dy),
 				]
 			)
-			sub.width = 0.3
-			sub.default_color = ROOT_COLOR.lightened(0.1)
+			sub.width = 0.35
+			sub.default_color = ROOT_COLOR.lightened(0.05)
 			_add(sub)
+			# Tiny rootlets on some sub-branches
+			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.5:
+				var rl_x: float = sub_x + sub_spread * sub_dir * 0.7
+				var rl_y: float = sub_y + sub_dy * 0.7
+				var rl_dir: float = 1.0 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1.0
+				var rootlet := Line2D.new()
+				rootlet.points = PackedVector2Array(
+					[
+						Vector2(rl_x, rl_y),
+						Vector2(rl_x + rl_dir * 1.5, rl_y + 1.0),
+					]
+				)
+				rootlet.width = 0.2
+				rootlet.default_color = ROOT_COLOR.lightened(0.15)
+				_add(rootlet)
