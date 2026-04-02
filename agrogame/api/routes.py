@@ -162,9 +162,11 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         s.base_seed = seed
     effective_seed = s.base_seed + s.run_count
 
-    # Reset crops between runs (preserves soil state).
+    # Reset crops and economics between runs (preserves soil state).
     if s.run_count > 0:
         _reset_all_crops(s)
+        s.season_settled = False
+        s.ledger.reset_season()
 
     start_date = s.current_date
 
@@ -415,6 +417,9 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
         s.day_index = 0
         _reset_all_crops(s)
         s.run_count += 1
+        s.season_settled = False
+        s.ledger.reset_season()
+        s.turn_manager = None
     _ensure_weather(s, seed)
 
     from agrogame.soil.water.types import DailyDrivers as _DD
@@ -585,13 +590,13 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     # Settle season economics (idempotent — only once per season)
     prices = PriceTable.load()
     first_field = next(iter(s.field_manager.fields.values()))
+    balance_before = s.ledger.balance_credits
     if not s.season_settled:
         total_grain = sum(
             p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
         ) / len(first_field.patches)
         s.ledger.settle_season(total_grain, r.crop_key, prices)
         s.season_settled = True
-    balance_before = s.ledger.balance_credits - s.ledger.season_revenue
     balance_after = s.ledger.balance_credits
 
     # Build per-patch yield reports
