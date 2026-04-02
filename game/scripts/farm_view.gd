@@ -40,6 +40,7 @@ const _CROP_PREFIX := {
 	"winter_wheat": "wheat",
 }
 const _FALLBACK_CROP := "maize"
+const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
 const SoilColor = preload("res://scripts/soil_color.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
@@ -74,6 +75,7 @@ var _season_running := false
 var _overlay_mode: int = SoilColor.Mode.NATURAL
 var _soil_view: Node = null
 var _crop_panel: Control = null
+var _crop_popup: PopupMenu = null
 var _last_step_data: Dictionary = {}
 var _hidden_tiles: Array[Vector2i] = []
 
@@ -92,6 +94,7 @@ var _hidden_tiles: Array[Vector2i] = []
 @onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
 @onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
+@onready var plant_btn: Button = $UILayer/ActionBar/PlantButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var camera: Camera2D = $Camera2D
@@ -109,6 +112,8 @@ func _ready() -> void:
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
 	soil_view_btn.pressed.connect(_on_soil_view)
+	plant_btn.pressed.connect(_on_plant_pressed)
+	_setup_crop_popup()
 	_load_selection_texture()
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
@@ -465,6 +470,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	ff_all_btn.disabled = disabled
 	irrigate_btn.disabled = disabled
 	fertilize_btn.disabled = disabled
+	plant_btn.disabled = disabled
 
 
 func _on_next_day() -> void:
@@ -591,6 +597,73 @@ func _on_fertilize() -> void:
 				)
 			)
 	)
+
+
+func _setup_crop_popup() -> void:
+	_crop_popup = PopupMenu.new()
+	for i in range(AVAILABLE_CROPS.size()):
+		var crop_key: String = AVAILABLE_CROPS[i]
+		var icon_path := _crop_sprite_path(crop_key, "seedling")
+		var tex: Texture2D = load(icon_path) if ResourceLoader.exists(icon_path) else null
+		if tex:
+			_crop_popup.add_icon_item(tex, crop_key.capitalize(), i)
+		else:
+			_crop_popup.add_item(crop_key.capitalize(), i)
+	_crop_popup.id_pressed.connect(_on_crop_selected)
+	$UILayer.add_child(_crop_popup)
+
+
+func _on_plant_pressed() -> void:
+	if _selected_tile.x < 0:
+		status_label.text = "Select a tile first to plant"
+		return
+	# Show crop selector popup near the plant button
+	var btn_rect := plant_btn.get_global_rect()
+	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
+	_crop_popup.popup()
+
+
+func _on_crop_selected(id: int) -> void:
+	if id < 0 or id >= AVAILABLE_CROPS.size():
+		return
+	var crop_key: String = AVAILABLE_CROPS[id]
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	_ensure_game(
+		func() -> void:
+			(
+				_api_client
+				. execute_action(
+					_game_id,
+					"plant",
+					{"crop_key": crop_key, "patch_idx": patch_idx},
+					_on_plant_complete.bind(crop_key, soil_type),
+				)
+			)
+	)
+
+
+func _on_plant_complete(
+	success: bool, data: Dictionary, crop_key: String, soil_type: String
+) -> void:
+	if not success:
+		status_label.text = "Plant failed"
+		return
+	var cost: int = data.get("cost_credits", 0)
+	credits_label.text = "%d" % data.get("balance_credits", 0)
+	# Update all tiles of this soil type to the new crop
+	for i in range(_tile_data.size()):
+		if _tile_data[i]["soil_type"] == soil_type:
+			_tile_data[i]["crop_key"] = crop_key
+			_tile_data[i]["crop_stage"] = CropStage.SEEDLING
+			_tile_data[i]["lai"] = 0.0
+			_update_crop_visuals(i)
+	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
+	# Auto-step to see the effect
+	_step_days(1)
 
 
 func _on_soil_view() -> void:
