@@ -124,6 +124,7 @@ func _build_cutaway(
 ) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var no3_arr: Array = soil_state.get("n_no3", [])
+	var nh4_arr: Array = soil_state.get("n_nh4", [])
 	var p_arr: Array = soil_state.get("p_available", [])
 	var labile: Array = soil_state.get("som_labile_c", [])
 	var stable: Array = soil_state.get("som_stable_c", [])
@@ -342,7 +343,7 @@ func _build_cutaway(
 		overlay.z_index = 200
 		add_child(overlay)
 		_cur_parent = overlay
-		_build_info_boxes_overlay(profile_layers, thetas, no3_arr, p_arr, labile, stable)
+		_build_info_boxes_overlay(profile_layers, thetas, no3_arr, nh4_arr, p_arr, labile, stable)
 		_cur_parent = prev_parent
 
 	# Root structure using actual simulation depth
@@ -353,6 +354,7 @@ func _build_info_boxes_overlay(
 	profile_layers: Array,
 	_thetas: Array,
 	no3_arr: Array,
+	nh4_arr: Array,
 	p_arr: Array,
 	labile: Array,
 	stable: Array,
@@ -418,14 +420,18 @@ func _build_info_boxes_overlay(
 		_add(border)
 
 		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
+		var nh4: float = nh4_arr[i] if i < nh4_arr.size() else 0.0
+		var total_n: float = no3 + nh4
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
 		var lab: float = labile[i] if i < labile.size() else 0.0
 		var stab: float = stable[i] if i < stable.size() else 0.0
 
 		var bx: float = box_x + pad
-		var n_frac: float = clampf(no3 / 5.0, 0.0, 1.0)
+		# Total mineral N (NO3 + NH4), normalize to 2.0 g/m² per layer
+		var n_frac: float = clampf(total_n / 2.0, 0.0, 1.0)
 		_add_bar(bx, box_y + 3, bar_max_w, 5, n_frac, N_COLOR)
-		var p_frac: float = clampf(p_val / 5.0, 0.0, 1.0)
+		# P normalize to 2.0 g/m² per layer
+		var p_frac: float = clampf(p_val / 2.0, 0.0, 1.0)
 		_add_bar(bx, box_y + 11, bar_max_w, 5, p_frac, P_COLOR)
 		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 1.0)
 		_add_bar(bx, box_y + 19, bar_max_w, 5, som_frac, SOM_COLOR)
