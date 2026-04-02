@@ -159,6 +159,7 @@ func _init_grid() -> void:
 						"grain_g_m2": 0.0,
 						"som_total_c_g_m2": 0.0,
 						"theta_surface": 0.0,
+						"lai": 0.0,
 					}
 				)
 			)
@@ -246,9 +247,14 @@ func _update_crop_visuals(idx: int) -> void:
 		tex = load(CROP_TEXTURES[stage])
 
 	if tex:
+		# Scale sprites based on LAI (0 = tiny, ~6 = full size for maize)
+		var lai: float = data.get("lai", 0.0)
+		var growth_scale: float = clampf(0.3 + lai * 0.12, 0.3, 1.0)
+		var final_scale := _PLANT_SCALE * growth_scale
 		for child in container.get_children():
 			if child is Sprite2D:
 				child.texture = tex
+				child.scale = final_scale
 		container.visible = true
 	else:
 		container.visible = false
@@ -463,6 +469,9 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
+	# Refresh soil cutaway if it's showing
+	if _soil_view and _soil_view.is_active() and _selected_tile.x >= 0:
+		_show_soil_cutaway(_selected_tile.x, _selected_tile.y)
 
 
 func _on_forecast_received(success: bool, data: Dictionary) -> void:
@@ -505,15 +514,16 @@ func _apply_patch_day_results(patches: Dictionary) -> void:
 			var patch_soil: String = ""
 			if patch_idx < SOIL_TYPES.size():
 				patch_soil = SOIL_TYPES[patch_idx]
-			# Map API phenology stage to CropStage
 			var stage_name: String = patch.get("crop_stage", "")
 			var stage: int = _STAGE_MAP.get(stage_name, CropStage.NONE)
+			var lai: float = patch.get("lai", 0.0)
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["grain_g_m2"] = patch.get("grain_g_m2", 0.0)
 					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
 					_tile_data[i]["crop_stage"] = stage
+					_tile_data[i]["lai"] = lai
 					_update_crop_visuals(i)
 
 
@@ -586,13 +596,13 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 		patch_idx = 0
 	var patches: Dictionary = _last_step_data.get("patches", {})
 	var soil_state := {}
-	var crop_stage := ""
+	var root_depth_cm := 0.0
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		if patch_idx < patch_list.size():
 			var patch: Dictionary = patch_list[patch_idx]
 			soil_state = patch.get("soil_state", {})
-			crop_stage = patch.get("crop_stage", "")
+			root_depth_cm = patch.get("root_depth_cm", 0.0)
 	if soil_state.is_empty():
 		_restore_hidden_tiles()
 		status_label.text = "Step at least 1 day to see soil data"
@@ -608,7 +618,7 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 				"pos": tile_layer.map_to_local(sel),
 				"soil_state": soil_state,
 				"profile": profile_layers,
-				"crop_stage": crop_stage,
+				"root_depth_cm": root_depth_cm,
 				"show_info": true,
 			}
 		)
@@ -632,7 +642,7 @@ func _show_soil_cutaway(col: int, row: int) -> void:
 						"pos": tile_layer.map_to_local(side),
 						"soil_state": side_state if side_state else soil_state,
 						"profile": _get_profile_layers(side_soil),
-						"crop_stage": "",
+						"root_depth_cm": 0.0,
 						"show_info": false,
 					}
 				)

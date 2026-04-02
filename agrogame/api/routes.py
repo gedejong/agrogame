@@ -381,6 +381,8 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
                     crop_key=p.config.crop_key,
                     crop_stage=p.orch.phenology.state.stage.value,
                     grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
+                    root_depth_cm=round(p.orch.root_state.current_depth_cm, 1),
+                    lai=round(p.orch.canopy.state.lai, 2),
                     soil_theta_surface=round(theta_top, 4),
                     som_total_c_g_m2=round(som_total, 1),
                     water_stress=round(w_stress, 2),

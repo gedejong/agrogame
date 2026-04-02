@@ -44,16 +44,6 @@ const N_COLOR := Color(0.2, 0.75, 0.2, 0.7)
 const P_COLOR := Color(0.6, 0.2, 0.75, 0.7)
 const SOM_COLOR := Color(0.7, 0.5, 0.2, 0.7)
 const ROOT_COLOR := Color(0.55, 0.40, 0.20)
-## Root depth fraction by crop stage (fraction of total soil depth).
-## Source: approximate DSSAT/APSIM root growth curves for maize.
-const ROOT_DEPTH_BY_STAGE := {
-	"planted": 0.0,
-	"emerged": 0.1,
-	"vegetative": 0.4,
-	"flowering": 0.7,
-	"grain_fill": 0.85,
-	"maturity": 0.9,
-}
 
 var _active := false
 var _cur_parent: Node2D
@@ -63,7 +53,7 @@ func show_at(
 	tile_pos: Vector2,
 	soil_state: Dictionary,
 	profile_layers: Array,
-	crop_stage: String = "",
+	root_depth_cm: float = 0.0,
 ) -> void:
 	show_columns(
 		[
@@ -71,7 +61,7 @@ func show_at(
 				"pos": tile_pos,
 				"soil_state": soil_state,
 				"profile": profile_layers,
-				"crop_stage": crop_stage,
+				"root_depth_cm": root_depth_cm,
 				"show_info": true,
 			}
 		]
@@ -86,9 +76,9 @@ func show_columns(columns: Array) -> void:
 		var pos: Vector2 = col_data.get("pos", Vector2.ZERO)
 		var soil_state: Dictionary = col_data.get("soil_state", {})
 		var profile: Array = col_data.get("profile", [])
-		var stage: String = col_data.get("crop_stage", "")
+		var rdcm: float = col_data.get("root_depth_cm", 0.0)
 		var show_info: bool = col_data.get("show_info", false)
-		_build_column(pos, soil_state, profile, stage, show_info)
+		_build_column(pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
 
@@ -112,14 +102,14 @@ func _build_column(
 	pos: Vector2,
 	soil_state: Dictionary,
 	profile_layers: Array,
-	crop_stage: String = "",
+	root_depth_cm: float = 0.0,
 	show_info: bool = true,
 ) -> void:
 	var container := Node2D.new()
 	container.position = pos
 	add_child(container)
 	_cur_parent = container
-	_build_cutaway(soil_state, profile_layers, crop_stage, show_info)
+	_build_cutaway(soil_state, profile_layers, root_depth_cm, show_info)
 
 
 func _add(node: Node) -> void:
@@ -129,7 +119,7 @@ func _add(node: Node) -> void:
 func _build_cutaway(
 	soil_state: Dictionary,
 	profile_layers: Array,
-	crop_stage: String = "",
+	root_depth_cm: float = 0.0,
 	show_info: bool = true,
 ) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
@@ -355,8 +345,8 @@ func _build_cutaway(
 		_build_info_boxes_overlay(profile_layers, thetas, no3_arr, p_arr, labile, stable)
 		_cur_parent = prev_parent
 
-	# Root structure (depth tied to crop stage)
-	_build_roots(profile_layers, crop_stage)
+	# Root structure using actual simulation depth
+	_build_roots(profile_layers, root_depth_cm)
 
 
 func _build_info_boxes_overlay(
@@ -509,18 +499,19 @@ func _add_circle_marker(center: Vector2, radius: float, color: Color) -> void:
 	_add(ring)
 
 
-func _build_roots(profile_layers: Array, crop_stage: String = "") -> void:
+func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
 	## 4 root systems on each face at 1/8, 3/8, 5/8, 7/8 positions,
 	## matching the 4x4 plant grid on the tile surface.
-	var depth_frac: float = ROOT_DEPTH_BY_STAGE.get(crop_stage, 0.0)
-	if depth_frac < 0.01:
+	## root_depth_cm comes directly from the simulation.
+	if root_depth_cm < 1.0:
 		return
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 20.0) * DEPTH_SCALE
 	if total_depth <= 0:
 		return
-	var root_depth: float = total_depth * depth_frac
+	var root_depth: float = root_depth_cm * DEPTH_SCALE
+	var depth_frac: float = clampf(root_depth / total_depth, 0.0, 1.0)
 	var plant_fracs := [0.125, 0.375, 0.625, 0.875]
 
 	# Roots on left face — x positions along the left face width
