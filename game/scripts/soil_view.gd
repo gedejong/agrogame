@@ -172,8 +172,11 @@ func _build_cutaway(
 		var texture: String = layer.get("texture", "loam")
 		var sat: float = layer.get("saturation", 0.45)
 		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
+		# Darken deeper layers to hint at depth
+		var depth_darken: float = float(i) * 0.08
+		base_color = base_color.darkened(depth_darken)
 
-		# Left face: left vertex (-HW, 0) to bottom vertex (0, HH), dropped by y_off
+		# Left face (shadow side)
 		var lf := Polygon2D.new()
 		lf.polygon = PackedVector2Array(
 			[
@@ -199,16 +202,13 @@ func _build_cutaway(
 		rf.color = base_color
 		_add(rf)
 
-		# Diagonal shadow on right face — darker toward the bottom-right edge
+		# Diagonal shadow: triangle from top-right to bottom-left of right face
 		var shadow_rf := Polygon2D.new()
-		var sw: float = HALF_W * 0.4
 		shadow_rf.polygon = PackedVector2Array(
 			[
-				Vector2(HALF_W - sw, y_off + h * 0.3),
 				Vector2(HALF_W, y_off),
 				Vector2(HALF_W, y_off + h),
 				Vector2(0, HALF_H + y_off + h),
-				Vector2(0, HALF_H + y_off + h * 0.5),
 			]
 		)
 		shadow_rf.color = Color(0, 0, 0, 0.15)
