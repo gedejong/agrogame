@@ -106,6 +106,10 @@ icon = ExtResource("7")
 
 [node name="Sep2" type="VSeparator" parent="UILayer/ActionBar"]
 
+[node name="PlantButton" type="Button" parent="UILayer/ActionBar"]
+text = "Plant"
+icon = ExtResource("10")
+
 [node name="SoilViewButton" type="Button" parent="UILayer/ActionBar"]
 text = "View Soil"
 icon = ExtResource("10")

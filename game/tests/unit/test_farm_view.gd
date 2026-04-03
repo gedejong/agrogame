@@ -54,3 +54,9 @@ func test_crop_sprite_path_fallback() -> void:
 	var path: String = FarmViewScript._crop_sprite_path("soybean", "mature")
 	# soybean has no sprites — should fall back to maize
 	assert_eq(path, "res://assets/crops/maize_mature.svg")
+
+
+func test_available_crops_defined() -> void:
+	assert_true(FarmViewScript.AVAILABLE_CROPS.size() >= 3, "At least 3 crops available")
+	assert_has(FarmViewScript.AVAILABLE_CROPS, "maize", "maize available")
+	assert_has(FarmViewScript.AVAILABLE_CROPS, "spring_wheat", "wheat available")

@@ -3,10 +3,7 @@ extends Node2D
 ## Uses TileMapLayer for the soil grid (AGRO-118), with crop sprites
 ## and selection overlay on separate Node2D layers.
 
-## Crop growth stage enum
 enum CropStage { NONE, SEEDLING, VEGETATIVE, FLOWERING, MATURE }
-
-## Stress state enum
 enum StressState { NONE, WILTING, N_DEFICIENT }
 
 const TILE_WIDTH := 64
@@ -14,7 +11,6 @@ const TILE_HEIGHT := 32
 const GRID_COLS := 6
 const GRID_ROWS := 6
 
-## Soil types and their tile textures (order = TileSet source ID)
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const TILE_TEXTURES := {
 	"sandy": "res://assets/tiles/tile_sandy.svg",
@@ -22,8 +18,6 @@ const TILE_TEXTURES := {
 	"clay": "res://assets/tiles/tile_clay.svg",
 }
 
-## Crop sprite paths by stage
-## Stage enum to sprite suffix mapping
 const _STAGE_SUFFIX := {
 	CropStage.SEEDLING: "seedling",
 	CropStage.VEGETATIVE: "vegetative",
@@ -34,14 +28,16 @@ const _STRESS_SUFFIX := {
 	StressState.WILTING: "wilting",
 	StressState.N_DEFICIENT: "ndeficient",
 }
-## Crop key prefix mapping (spring_wheat/winter_wheat → wheat sprites)
 const _CROP_PREFIX := {
 	"spring_wheat": "wheat",
 	"winter_wheat": "wheat",
 }
 const _FALLBACK_CROP := "maize"
+const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
 const SoilColor = preload("res://scripts/soil_color.gd")
+const CropRenderer = preload("res://scripts/crop_renderer.gd")
+const MaizeRenderer = preload("res://scripts/maize_renderer.gd")
 const _SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
 const _MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
 const _STAGE_MAP := {
@@ -52,10 +48,7 @@ const _STAGE_MAP := {
 	"grain_fill": CropStage.MATURE,
 	"maturity": CropStage.MATURE,
 }
-## 4x4 grid of plants across the tile in isometric coordinates.
-## Tile diamond: top (0,-HH), right (HW,0), bottom (0,HH), left (-HW,0).
-## Grid positions at 1/8, 3/8, 5/8, 7/8 in both tile axes.
-const _PLANT_SCALE := Vector2(0.45, 0.45)
+const _PLANT_SCALE := Vector2(0.4, 0.4)
 const _PLANT_GRID := 4
 const _PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _MODE_NAMES := {
@@ -74,6 +67,7 @@ var _season_running := false
 var _overlay_mode: int = SoilColor.Mode.NATURAL
 var _soil_view: Node = null
 var _crop_panel: Control = null
+var _crop_popup: PopupMenu = null
 var _last_step_data: Dictionary = {}
 var _hidden_tiles: Array[Vector2i] = []
 
@@ -92,6 +86,7 @@ var _hidden_tiles: Array[Vector2i] = []
 @onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
 @onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
+@onready var plant_btn: Button = $UILayer/ActionBar/PlantButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var camera: Camera2D = $Camera2D
@@ -109,6 +104,8 @@ func _ready() -> void:
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
 	soil_view_btn.pressed.connect(_on_soil_view)
+	plant_btn.pressed.connect(_on_plant_pressed)
+	_setup_crop_popup()
 	_load_selection_texture()
 	selection_indicator.visible = false
 	tile_layer.tile_set = _create_tile_set()
@@ -221,8 +218,16 @@ static func _crop_sprite_path(crop_key: String, suffix: String) -> String:
 	var path := "res://assets/crops/%s_%s.svg" % [prefix, suffix]
 	if ResourceLoader.exists(path):
 		return path
-	# Fallback to maize
 	return "res://assets/crops/%s_%s.svg" % [_FALLBACK_CROP, suffix]
+
+
+static func _crop_layer_path(crop_key: String, layer_name: String) -> String:
+	## Returns path for a crop layer SVG (stem/leaves/grain).
+	var prefix: String = _CROP_PREFIX.get(crop_key, crop_key)
+	var path := "res://assets/crops/%s_%s.svg" % [prefix, layer_name]
+	if ResourceLoader.exists(path):
+		return path
+	return "res://assets/crops/%s_%s.svg" % [_FALLBACK_CROP, layer_name]
 
 
 func _create_crop_sprite(col: int, row: int) -> void:
@@ -231,22 +236,33 @@ func _create_crop_sprite(col: int, row: int) -> void:
 	container.position = world_pos
 	container.z_index = row + col + 1
 	container.visible = false
-	# 4x4 grid mapped to isometric tile coordinates.
-	# u,v in [0,1] map to screen via: x = (u-v)*HW, y = (u+v)*HH - HH
+	# 4x4 grid of plant positions in isometric tile coordinates
 	for ui in range(_PLANT_GRID):
 		var u: float = _PLANT_FRACS[ui]
 		for vi in range(_PLANT_GRID):
 			var v: float = _PLANT_FRACS[vi]
 			var px: float = (u - v) * TILE_WIDTH / 2.0
 			var py: float = (u + v) * TILE_HEIGHT / 2.0 - TILE_HEIGHT / 2.0
-			# Deterministic jitter per plant
 			var seed_val := col * 7 + row * 13 + ui * 3 + vi * 5
 			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
 			var jy: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
-			var sprite := Sprite2D.new()
-			sprite.position = Vector2(px + jx, py + jy - 4)
-			sprite.scale = _PLANT_SCALE
-			container.add_child(sprite)
+			var pos := Vector2(px + jx, py + jy - 4)
+			# 3 layers: stem (Sprite2D), leaves (Node2D for procedural), grain (Sprite2D)
+			var plant := Node2D.new()
+			plant.position = pos
+			var stem := Sprite2D.new()
+			stem.name = "stem"
+			stem.scale = _PLANT_SCALE
+			plant.add_child(stem)
+			var leaves := Node2D.new()
+			leaves.name = "leaves"
+			plant.add_child(leaves)
+			var grain := Sprite2D.new()
+			grain.name = "grain"
+			grain.scale = _PLANT_SCALE
+			grain.visible = false
+			plant.add_child(grain)
+			container.add_child(plant)
 	crop_layer.add_child(container)
 	_crop_sprites.append(container)
 
@@ -258,28 +274,150 @@ func _update_crop_visuals(idx: int) -> void:
 	var stage: int = data["crop_stage"]
 	var stress: int = data["stress"]
 	var container: Node2D = _crop_sprites[idx]
-
 	var crop_key: String = data.get("crop_key", "maize")
-	var tex: Texture2D = null
-	if stress != StressState.NONE and _STRESS_SUFFIX.has(stress):
-		var path := _crop_sprite_path(crop_key, _STRESS_SUFFIX[stress])
-		tex = load(path)
-	elif stage != CropStage.NONE and _STAGE_SUFFIX.has(stage):
-		var path := _crop_sprite_path(crop_key, _STAGE_SUFFIX[stage])
-		tex = load(path)
 
-	if tex:
-		# Scale sprites based on LAI (0 = tiny, ~6 = full size for maize)
-		var lai: float = data.get("lai", 0.0)
-		var growth_scale: float = clampf(0.3 + lai * 0.12, 0.3, 1.0)
-		var final_scale := _PLANT_SCALE * growth_scale
-		for child in container.get_children():
-			if child is Sprite2D:
-				child.texture = tex
-				child.scale = final_scale
-		container.visible = true
-	else:
+	if stage == CropStage.NONE:
 		container.visible = false
+		return
+
+	var lai: float = data.get("lai", 0.0)
+	var grain_val: float = data.get("grain_g_m2", 0.0)
+	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var grain_frac: float = clampf(grain_val / 800.0, 0.0, 1.0)
+
+	# Growth progress: how far through the lifecycle (0=seedling, 1=mature)
+	# This determines height — plant stays tall even when LAI declines
+	var growth_progress: float = 0.2
+	match stage:
+		CropStage.SEEDLING:
+			growth_progress = 0.25
+		CropStage.VEGETATIVE:
+			growth_progress = clampf(0.3 + lai_frac * 0.5, 0.3, 0.8)
+		CropStage.FLOWERING:
+			growth_progress = 0.9
+		CropStage.MATURE:
+			growth_progress = 1.0
+
+	# Senescence factor: LAI declining from peak means leaves are dying
+	# peak LAI ≈ 5-6 for maize; if current is much lower than stage suggests, it's senescing
+	var expected_lai: float = 1.0
+	match stage:
+		CropStage.VEGETATIVE:
+			expected_lai = 4.0
+		CropStage.FLOWERING:
+			expected_lai = 5.5
+		CropStage.MATURE:
+			expected_lai = 3.0
+	var senescence: float = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
+	if stage == CropStage.SEEDLING or stage == CropStage.VEGETATIVE:
+		senescence = 0.0  # no senescence during early growth
+
+	# Load layer textures
+	var stem_path := _crop_layer_path(crop_key, "stem")
+	var leaves_path := _crop_layer_path(crop_key, "leaves")
+	var grain_path := _crop_layer_path(crop_key, "grain")
+	var has_layers: bool = ResourceLoader.exists(stem_path)
+
+	# Stem: height from growth_progress, yellows with senescence
+	var stem_scale: float = growth_progress
+	var stem_color := Color(0.85, 0.95, 0.8)
+	stem_color = stem_color.lerp(Color(0.85, 0.78, 0.45), senescence * 0.7)
+
+	# Leaves: size from LAI during growth, stays large during senescence
+	# (leaves don't shrink — they yellow and dry in place)
+	var leaf_scale: float = clampf(lai_frac, 0.2, 1.0)
+	if stage >= CropStage.FLOWERING:
+		leaf_scale = maxf(leaf_scale, 0.7)  # keep leaves visible at maturity
+	# Vibrant green when healthy
+	var leaf_green := Color(0.55, 0.85, 0.35)
+	# Pale when young
+	var leaf_young := Color(0.7, 0.9, 0.55)
+	var leaf_color := leaf_young.lerp(leaf_green, lai_frac)
+	# Senescence: green → yellow → brown (like real corn drying bottom-up)
+	var leaf_senescent := Color(0.85, 0.75, 0.35)
+	var leaf_dead := Color(0.7, 0.55, 0.3)
+	leaf_color = leaf_color.lerp(leaf_senescent, senescence * 0.7)
+	leaf_color = leaf_color.lerp(leaf_dead, maxf(senescence - 0.5, 0.0) * 1.5)
+	# Stress overrides
+	if stress == StressState.WILTING:
+		leaf_color = leaf_color.lerp(Color(0.6, 0.5, 0.25), 0.5)
+	elif stress == StressState.N_DEFICIENT:
+		leaf_color = leaf_color.lerp(Color(0.75, 0.8, 0.35), 0.4)
+
+	# Grain: appears at flowering, grows, golden at maturity
+	var grain_visible: bool = stage >= CropStage.FLOWERING and grain_val > 1.0
+	var grain_scale: float = clampf(0.3 + grain_frac * 0.7, 0.3, 1.0)
+	var grain_color := Color(0.95, 0.85, 0.45).lerp(Color(0.85, 0.7, 0.3), grain_frac)
+
+	var plant_i := 0
+	for plant in container.get_children():
+		if not plant is Node2D:
+			continue
+		if has_layers:
+			var stem_spr: Sprite2D = plant.get_node_or_null("stem")
+			if stem_spr:
+				var tex: Texture2D = load(stem_path)
+				if tex:
+					stem_spr.texture = tex
+				stem_spr.scale = Vector2(
+					_PLANT_SCALE.x * stem_scale * 0.45, _PLANT_SCALE.y * stem_scale * 0.55
+				)
+				stem_spr.modulate = stem_color
+				stem_spr.visible = true
+			var leaf_node: Node2D = plant.get_node_or_null("leaves")
+			if leaf_node:
+				_render_crop_leaves(
+					crop_key, leaf_node, senescence, stress, stem_scale, growth_progress, plant_i
+				)
+			var grain_spr: Sprite2D = plant.get_node_or_null("grain")
+			if grain_spr:
+				var tex: Texture2D = load(grain_path)
+				if tex:
+					grain_spr.texture = tex
+				grain_spr.scale = _PLANT_SCALE * grain_scale * 0.65
+				grain_spr.modulate = grain_color
+				grain_spr.visible = grain_visible
+				# Randomize ear position per plant
+				var ph := (plant_i * 2654435761) & 0x7FFFFFFF
+				var ear_x: float = (float(ph % 100) / 100.0 - 0.5) * 3.0
+				var ear_y: float = (float((ph * 3) % 100) / 100.0 - 0.5) * 2.0
+				grain_spr.position = Vector2(ear_x, ear_y - 2.0)
+		else:
+			# Fallback: single sprite per stage
+			var suffix: String = _STAGE_SUFFIX.get(stage, "")
+			if suffix.is_empty():
+				continue
+			var path := _crop_sprite_path(crop_key, suffix)
+			var tex: Texture2D = load(path)
+			var stem_spr: Sprite2D = plant.get_node_or_null("stem")
+			if stem_spr and tex:
+				stem_spr.texture = tex
+				stem_spr.scale = _PLANT_SCALE * clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
+				stem_spr.modulate = leaf_color
+				stem_spr.visible = true
+		plant_i += 1
+	container.visible = true
+
+
+func _render_crop_leaves(
+	crop_key: String,
+	leaf_node: Node2D,
+	senescence: float,
+	stress: int,
+	stem_height_frac: float,
+	growth_progress: float = 0.0,
+	plant_seed: int = 0,
+) -> void:
+	## Dispatch to crop-specific leaf renderer.
+	match crop_key:
+		"maize":
+			MaizeRenderer.draw_leaves(
+				leaf_node, senescence, stress, stem_height_frac, growth_progress, plant_seed
+			)
+		_:
+			MaizeRenderer.draw_leaves(
+				leaf_node, senescence, stress, stem_height_frac, growth_progress, plant_seed
+			)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -465,6 +603,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	ff_all_btn.disabled = disabled
 	irrigate_btn.disabled = disabled
 	fertilize_btn.disabled = disabled
+	plant_btn.disabled = disabled
 
 
 func _on_next_day() -> void:
@@ -591,6 +730,73 @@ func _on_fertilize() -> void:
 				)
 			)
 	)
+
+
+func _setup_crop_popup() -> void:
+	_crop_popup = PopupMenu.new()
+	for i in range(AVAILABLE_CROPS.size()):
+		var crop_key: String = AVAILABLE_CROPS[i]
+		var icon_path := _crop_sprite_path(crop_key, "seedling")
+		var tex: Texture2D = load(icon_path) if ResourceLoader.exists(icon_path) else null
+		if tex:
+			_crop_popup.add_icon_item(tex, crop_key.capitalize(), i)
+		else:
+			_crop_popup.add_item(crop_key.capitalize(), i)
+	_crop_popup.id_pressed.connect(_on_crop_selected)
+	$UILayer.add_child(_crop_popup)
+
+
+func _on_plant_pressed() -> void:
+	if _selected_tile.x < 0:
+		status_label.text = "Select a tile first to plant"
+		return
+	# Show crop selector popup near the plant button
+	var btn_rect := plant_btn.get_global_rect()
+	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
+	_crop_popup.popup()
+
+
+func _on_crop_selected(id: int) -> void:
+	if id < 0 or id >= AVAILABLE_CROPS.size():
+		return
+	var crop_key: String = AVAILABLE_CROPS[id]
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	_ensure_game(
+		func() -> void:
+			(
+				_api_client
+				. execute_action(
+					_game_id,
+					"plant",
+					{"crop_key": crop_key, "patch_idx": patch_idx},
+					_on_plant_complete.bind(crop_key, soil_type),
+				)
+			)
+	)
+
+
+func _on_plant_complete(
+	success: bool, data: Dictionary, crop_key: String, soil_type: String
+) -> void:
+	if not success:
+		status_label.text = "Plant failed"
+		return
+	var cost: int = data.get("cost_credits", 0)
+	credits_label.text = "%d" % data.get("balance_credits", 0)
+	# Update all tiles of this soil type to the new crop
+	for i in range(_tile_data.size()):
+		if _tile_data[i]["soil_type"] == soil_type:
+			_tile_data[i]["crop_key"] = crop_key
+			_tile_data[i]["crop_stage"] = CropStage.SEEDLING
+			_tile_data[i]["lai"] = 0.0
+			_update_crop_visuals(i)
+	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
+	# Auto-step to see the effect
+	_step_days(1)
 
 
 func _on_soil_view() -> void:

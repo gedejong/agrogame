@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Maize leaves: alternating broad leaves from nodes -->
+  <!-- Lower leaves (larger) -->
+  <path d="M16,22 Q8,20 4,24" fill="none" stroke="#6aac4f" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M16,22 Q24,20 28,24" fill="none" stroke="#6aac4f" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Mid leaves -->
+  <path d="M16,16 Q7,13 3,17" fill="none" stroke="#6aac4f" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M16,16 Q25,13 29,17" fill="none" stroke="#6aac4f" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Upper leaves (smaller) -->
+  <path d="M16,10 Q10,8 6,11" fill="none" stroke="#6aac4f" stroke-width="1.2" stroke-linecap="round"/>
+  <path d="M16,10 Q22,8 26,11" fill="none" stroke="#6aac4f" stroke-width="1.2" stroke-linecap="round"/>
+</svg>
