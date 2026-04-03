@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Wheat leaves: narrow, upright, grass-like -->
+  <path d="M16,20 Q12,16 10,18" fill="none" stroke="#7ab858" stroke-width="1.0" stroke-linecap="round"/>
+  <path d="M16,20 Q20,16 22,18" fill="none" stroke="#7ab858" stroke-width="1.0" stroke-linecap="round"/>
+  <path d="M14,16 Q10,12 8,14" fill="none" stroke="#7ab858" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M18,16 Q22,12 24,14" fill="none" stroke="#7ab858" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M15,12 Q12,9 10,11" fill="none" stroke="#7ab858" stroke-width="0.7" stroke-linecap="round"/>
+  <path d="M17,12 Q20,9 22,11" fill="none" stroke="#7ab858" stroke-width="0.7" stroke-linecap="round"/>
+</svg>
