@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3 uid="uid://farm_view_3d"]
+[gd_scene load_steps=11 format=3 uid="uid://farm_view_3d"]
 
 [ext_resource type="Script" path="res://scripts/farm_view_3d.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/camera_3d_controller.gd" id="2"]
@@ -10,9 +10,6 @@
 [ext_resource type="Texture2D" path="res://assets/icons/icon_sun.svg" id="8"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_credits.svg" id="9"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_plant.svg" id="10"]
-
-[sub_resource type="PlaneMesh" id="ground_mesh"]
-size = Vector2(6, 6)
 
 [node name="FarmView3D" type="Node3D"]
 script = ExtResource("1")
@@ -35,8 +32,7 @@ directional_shadow_mode = 1
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 
-[node name="GroundPlane" type="MeshInstance3D" parent="."]
-mesh = SubResource("ground_mesh")
+[node name="TileRoot" type="Node3D" parent="."]
 
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 10
