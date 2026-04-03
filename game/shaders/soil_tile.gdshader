@@ -1,4 +1,5 @@
 shader_type spatial;
+render_mode cull_disabled;
 // Soil tile shader — PBR base with SOM/moisture darkening.
 // Replicates soil_color.gd natural mode logic in GPU.
 

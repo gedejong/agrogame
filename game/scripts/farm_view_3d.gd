@@ -104,7 +104,7 @@ func _build_tile_grid() -> void:
 			var body := StaticBody3D.new()
 			var shape := CollisionShape3D.new()
 			var box_shape := BoxShape3D.new()
-			box_shape.size = Vector3(TILE_SIZE, TILE_HEIGHT, TILE_SIZE)
+			box_shape.size = Vector3(TILE_SIZE, 0.01, TILE_SIZE)
 			shape.shape = box_shape
 			body.add_child(shape)
 			body.set_meta("tile_col", col)
