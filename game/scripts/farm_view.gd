@@ -30,6 +30,8 @@ const TERRAIN_TILES := {
 	"W": "res://assets/tiles/tile_water.svg",
 	"Fh": "res://assets/tiles/tile_fence_h.svg",
 	"Fv": "res://assets/tiles/tile_fence_v.svg",
+	"Fhb": "res://assets/tiles/tile_fence_h_bot.svg",
+	"Fvb": "res://assets/tiles/tile_fence_v_bot.svg",
 }
 const _TERRAIN_SOURCE_IDS := {
 	"G": 3,
@@ -45,13 +47,13 @@ const _TERRAIN_SOURCE_IDS := {
 ## 10x10 border layout (rows -2..7, cols -2..7). "." = farm tile (inner 6x6).
 const BORDER_LAYOUT: Array[Array] = [
 	["R", "G", "G", "G", "G", "G", "G", "G", "G", "g"],
-	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["D", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["G", "G", "Fvb", "Fvb", "Fvb", "Fvb", "Fvb", "Fvb", "G", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["D", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
 	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "g"],
 	["G", "G", "g", "G", "G", "G", "G", "g", "W", "g"],
 ]
@@ -202,7 +204,7 @@ func _init_border() -> void:
 			var map_col: int = layout_col + BORDER_MIN
 			var map_row: int = layout_row + BORDER_MIN
 			# Fence tiles: place grass as base, overlay fence sprite
-			var is_fence: bool = tile_key == "Fh" or tile_key == "Fv"
+			var is_fence: bool = tile_key.begins_with("F")
 			var base_id: int = (
 				_TERRAIN_SOURCE_IDS["G"] if is_fence else _TERRAIN_SOURCE_IDS.get(tile_key, 3)
 			)
@@ -214,42 +216,39 @@ func _init_border() -> void:
 func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
 	var pos := tile_layer.position + tile_layer.map_to_local(Vector2i(map_col, map_row))
 	var tex: Texture2D = load(TERRAIN_TILES[tile_key])
-	# SVGs draw posts on the top edge. For top-row (row=-1) and
-	# right-col (col=6) tiles the farm-facing edge is the bottom,
-	# so flip the sprite 180° to put posts on the correct side.
-	var flip: bool = map_row == -1 or map_col == 6
-	_draw_fence_shadows(tile_key, pos, flip)
+	_draw_fence_shadows(tile_key, pos)
 	var fence_spr := Sprite2D.new()
 	if tex:
 		fence_spr.texture = tex
 	fence_spr.position = pos
 	fence_spr.z_index = 2
-	if flip:
-		fence_spr.scale = Vector2(-1, -1)
 	add_child(fence_spr)
 
 
-func _draw_fence_shadows(tile_key: String, tile_pos: Vector2, flip: bool) -> void:
+func _draw_fence_shadows(tile_key: String, tile_pos: Vector2) -> void:
 	## Shadow of posts + rails on the isometric floor.
 	## Light ~25° off tile diagonal: proj = (-0.55, +0.45) per unit h.
 	## Coordinates relative to tile center (32, 16) matching the SVGs.
-	# Fh: top-right edge (32,0)→(64,16). Fv: top-left edge (32,0)→(0,16).
 	var posts: Array[Vector2] = []
 	var rail_a := Vector2.ZERO
 	var rail_b := Vector2.ZERO
-	if tile_key == "Fh":
-		posts = [Vector2(8, -12), Vector2(16, -8), Vector2(24, -4)]
-		rail_a = Vector2(1, -15)
-		rail_b = Vector2(31, 0)
-	else:
-		posts = [Vector2(-8, -12), Vector2(-16, -8), Vector2(-24, -4)]
-		rail_a = Vector2(-1, -15)
-		rail_b = Vector2(-31, 0)
-	if flip:
-		for i in range(posts.size()):
-			posts[i] = posts[i] * -1.0
-		rail_a = rail_a * -1.0
-		rail_b = rail_b * -1.0
+	match tile_key:
+		"Fh":  # top-right edge
+			posts = [Vector2(8, -12), Vector2(16, -8), Vector2(24, -4)]
+			rail_a = Vector2(1, -15)
+			rail_b = Vector2(31, 0)
+		"Fv":  # top-left edge
+			posts = [Vector2(-8, -12), Vector2(-16, -8), Vector2(-24, -4)]
+			rail_a = Vector2(-1, -15)
+			rail_b = Vector2(-31, 0)
+		"Fhb":  # bottom-left edge
+			posts = [Vector2(-24, 2), Vector2(-16, 6), Vector2(-8, 10)]
+			rail_a = Vector2(-31, 0)
+			rail_b = Vector2(-1, 15)
+		"Fvb":  # bottom-right edge
+			posts = [Vector2(24, 2), Vector2(16, 6), Vector2(8, 10)]
+			rail_a = Vector2(31, 0)
+			rail_b = Vector2(1, 15)
 	var proj := Vector2(-0.55, 0.45)
 	# Soft blur: 3 passes — wide/faint → narrow/opaque
 	var passes: Array[Array] = [[3.5, 0.04], [2.2, 0.07], [1.0, 0.12]]

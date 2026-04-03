@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Fence on bottom-right iso edge: (64,16) → (32,32) -->
+  <!-- Posts at 1/4, 1/2, 3/4 along edge, height 6px above base -->
+  <line x1="56" y1="18" x2="56" y2="12" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="48" y1="22" x2="48" y2="16" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="40" y1="26" x2="40" y2="20" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <!-- Upper rail (h≈4 above edge) -->
+  <line x1="63" y1="16" x2="33" y2="31" stroke="#7a6050" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Lower rail (h≈2 above edge) -->
+  <line x1="63" y1="18" x2="33" y2="33" stroke="#7a6050" stroke-width="1" stroke-linecap="round"/>
+  <!-- Post highlights -->
+  <g stroke="#8a7060" stroke-width="0.4" stroke-linecap="round" opacity="0.5">
+    <line x1="55" y1="18" x2="55" y2="12"/>
+    <line x1="47" y1="22" x2="47" y2="16"/>
+    <line x1="39" y1="26" x2="39" y2="20"/>
+  </g>
+</svg>
