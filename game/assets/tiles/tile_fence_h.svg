@@ -1,15 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
-  <!-- Fence along top-right iso edge: posts + rails -->
-  <!-- Post bases sit on the iso edge; posts rise 6px above base -->
-  <line x1="40" y1="7" x2="40" y2="1" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <line x1="50" y1="12" x2="50" y2="6" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <line x1="60" y1="17" x2="60" y2="11" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <!-- Rails -->
-  <line x1="40" y1="3" x2="60" y2="13" stroke="#7a6050" stroke-width="1.2" stroke-linecap="round"/>
-  <line x1="40" y1="5" x2="60" y2="15" stroke="#7a6050" stroke-width="1" stroke-linecap="round"/>
-  <!-- Post highlights -->
+  <!-- Fence spanning full top-right iso edge: (32,0) to (64,16) -->
+  <!-- Posts at 1/6, 3/6, 5/6 along edge, height 6px above base -->
+  <line x1="37" y1="3" x2="37" y2="9" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="48" y1="8" x2="48" y2="14" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="59" y1="13" x2="59" y2="19" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <!-- Upper rail (h≈4 above base) -->
+  <line x1="34" y1="3" x2="62" y2="17" stroke="#7a6050" stroke-width="1.2" stroke-linecap="round"/>
+  <!-- Lower rail (h≈2 above base) -->
+  <line x1="34" y1="5" x2="62" y2="19" stroke="#7a6050" stroke-width="1" stroke-linecap="round"/>
+  <!-- Post highlights (top-left lit) -->
   <g stroke="#8a7060" stroke-width="0.4" stroke-linecap="round" opacity="0.5">
-    <line x1="39" y1="7" x2="39" y2="1"/>
-    <line x1="49" y1="12" x2="49" y2="6"/>
+    <line x1="36" y1="3" x2="36" y2="9"/>
+    <line x1="47" y1="8" x2="47" y2="14"/>
+    <line x1="58" y1="13" x2="58" y2="19"/>
   </g>
 </svg>
