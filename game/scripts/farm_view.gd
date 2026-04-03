@@ -214,59 +214,64 @@ func _init_border() -> void:
 func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
 	var pos := tile_layer.position + tile_layer.map_to_local(Vector2i(map_col, map_row))
 	var tex: Texture2D = load(TERRAIN_TILES[tile_key])
-	_draw_fence_shadows(tile_key, pos)
+	# SVGs draw posts on the top edge. For top-row (row=-1) and
+	# right-col (col=6) tiles the farm-facing edge is the bottom,
+	# so flip the sprite 180° to put posts on the correct side.
+	var flip: bool = map_row == -1 or map_col == 6
+	_draw_fence_shadows(tile_key, pos, flip)
 	var fence_spr := Sprite2D.new()
 	if tex:
 		fence_spr.texture = tex
 	fence_spr.position = pos
 	fence_spr.z_index = 2
+	if flip:
+		fence_spr.scale = Vector2(-1, -1)
 	add_child(fence_spr)
 
 
-func _draw_fence_shadows(tile_key: String, tile_pos: Vector2) -> void:
+func _draw_fence_shadows(tile_key: String, tile_pos: Vector2, flip: bool) -> void:
 	## Shadow of posts + rails on the isometric floor.
-	## Light from top-right at ~25° off tile diagonal so shadow is not
-	## perpendicular to the fence line. Per unit height:
-	## dx = -0.55, dy = +0.45 (angled bottom-left).
-	# Post bases and rail endpoints relative to tile center (32,16).
+	## Light ~25° off tile diagonal: proj = (-0.55, +0.45) per unit h.
+	## Coordinates relative to tile center (32, 16) matching the SVGs.
+	# Fh: top-right edge (32,0)→(64,16). Fv: top-left edge (32,0)→(0,16).
 	var posts: Array[Vector2] = []
 	var rail_a := Vector2.ZERO
 	var rail_b := Vector2.ZERO
 	if tile_key == "Fh":
-		posts = [Vector2(5, -7), Vector2(16, -2), Vector2(27, 3)]
-		rail_a = Vector2(2, -7)
-		rail_b = Vector2(30, 3)
+		posts = [Vector2(8, -12), Vector2(16, -8), Vector2(24, -4)]
+		rail_a = Vector2(1, -15)
+		rail_b = Vector2(31, 0)
 	else:
-		posts = [Vector2(-5, -7), Vector2(-16, -2), Vector2(-27, 3)]
-		rail_a = Vector2(-2, -7)
-		rail_b = Vector2(-30, 3)
-	# Shadow projection per unit height
+		posts = [Vector2(-8, -12), Vector2(-16, -8), Vector2(-24, -4)]
+		rail_a = Vector2(-1, -15)
+		rail_b = Vector2(-31, 0)
+	if flip:
+		for i in range(posts.size()):
+			posts[i] = posts[i] * -1.0
+		rail_a = rail_a * -1.0
+		rail_b = rail_b * -1.0
 	var proj := Vector2(-0.55, 0.45)
-	# Soft blur: 3 passes with increasing width, decreasing opacity
-	var passes: Array[Array] = [
-		[3.5, 0.04],
-		[2.2, 0.07],
-		[1.0, 0.12],
-	]
+	# Soft blur: 3 passes — wide/faint → narrow/opaque
+	var passes: Array[Array] = [[3.5, 0.04], [2.2, 0.07], [1.0, 0.12]]
 	# Post shadows (h=6)
 	var post_off := proj * 6.0
 	for base in posts:
-		for pass_data: Array in passes:
+		for p: Array in passes:
 			var line := Line2D.new()
 			line.points = PackedVector2Array([base, base + post_off])
-			line.width = pass_data[0]
-			line.default_color = Color(0, 0, 0, pass_data[1])
+			line.width = p[0]
+			line.default_color = Color(0, 0, 0, p[1])
 			line.position = tile_pos
 			line.z_index = 1
 			add_child(line)
-	# Rail shadows (upper rail h=4, lower rail h=2)
+	# Rail shadows — offset by proj * rail_height, parallel to rail
 	for rail_h: float in [4.0, 2.0]:
-		var rail_off := proj * rail_h
-		for pass_data: Array in passes:
+		var off := proj * rail_h
+		for p: Array in passes:
 			var line := Line2D.new()
-			line.points = PackedVector2Array([rail_a + rail_off, rail_b + rail_off])
-			line.width = pass_data[0] * 0.8
-			line.default_color = Color(0, 0, 0, pass_data[1] * 0.7)
+			line.points = PackedVector2Array([rail_a + off, rail_b + off])
+			line.width = p[0] * 0.8
+			line.default_color = Color(0, 0, 0, p[1] * 0.7)
 			line.position = tile_pos
 			line.z_index = 1
 			add_child(line)
