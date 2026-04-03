@@ -45,14 +45,14 @@ const _TERRAIN_SOURCE_IDS := {
 ## 10x10 border layout (rows -2..7, cols -2..7). "." = farm tile (inner 6x6).
 const BORDER_LAYOUT: Array[Array] = [
 	["R", "G", "G", "G", "G", "G", "G", "G", "G", "g"],
-	["G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G"],
+	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "G"],
 	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["D", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
-	["G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "g"],
+	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "g"],
 	["G", "G", "g", "G", "G", "G", "G", "g", "W", "g"],
 ]
 
@@ -208,14 +208,35 @@ func _init_border() -> void:
 			)
 			tile_layer.set_cell(Vector2i(map_col, map_row), base_id, Vector2i(0, 0))
 			if is_fence:
-				var fence_spr := Sprite2D.new()
-				var tex: Texture2D = load(TERRAIN_TILES[tile_key])
-				if tex:
-					fence_spr.texture = tex
-				var pos := tile_layer.map_to_local(Vector2i(map_col, map_row))
-				fence_spr.position = tile_layer.position + pos
-				fence_spr.z_index = 2
-				add_child(fence_spr)
+				_add_fence_sprite(tile_key, map_col, map_row)
+
+
+func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
+	var pos := tile_layer.map_to_local(Vector2i(map_col, map_row))
+	# Shift fence toward the farm: Fv (top/bottom rows) nudge down,
+	# Fh (left/right cols) nudge right, in screen coords.
+	var hw: float = TILE_WIDTH / 4.0
+	var hh: float = TILE_HEIGHT / 4.0
+	if tile_key == "Fv":
+		pos.y += hh
+	else:
+		pos.y += hh
+	# Shadow: dark offset copy behind the fence
+	var shadow := Sprite2D.new()
+	var tex: Texture2D = load(TERRAIN_TILES[tile_key])
+	if tex:
+		shadow.texture = tex
+	shadow.position = tile_layer.position + pos + Vector2(1.5, 1.5)
+	shadow.modulate = Color(0, 0, 0, 0.25)
+	shadow.z_index = 1
+	add_child(shadow)
+	# Fence sprite
+	var fence_spr := Sprite2D.new()
+	if tex:
+		fence_spr.texture = tex
+	fence_spr.position = tile_layer.position + pos
+	fence_spr.z_index = 2
+	add_child(fence_spr)
 
 
 func _update_camera_bounds() -> void:
