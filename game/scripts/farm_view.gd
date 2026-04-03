@@ -201,17 +201,30 @@ func _init_border() -> void:
 				continue
 			var map_col: int = layout_col + BORDER_MIN
 			var map_row: int = layout_row + BORDER_MIN
-			var source_id: int = _TERRAIN_SOURCE_IDS.get(tile_key, 3)
-			tile_layer.set_cell(Vector2i(map_col, map_row), source_id, Vector2i(0, 0))
+			# Fence tiles: place grass as base, overlay fence sprite
+			var is_fence: bool = tile_key == "Fh" or tile_key == "Fv"
+			var base_id: int = (
+				_TERRAIN_SOURCE_IDS["G"] if is_fence else _TERRAIN_SOURCE_IDS.get(tile_key, 3)
+			)
+			tile_layer.set_cell(Vector2i(map_col, map_row), base_id, Vector2i(0, 0))
+			if is_fence:
+				var fence_spr := Sprite2D.new()
+				var tex: Texture2D = load(TERRAIN_TILES[tile_key])
+				if tex:
+					fence_spr.texture = tex
+				var pos := tile_layer.map_to_local(Vector2i(map_col, map_row))
+				fence_spr.position = pos
+				fence_spr.z_index = 2
+				add_child(fence_spr)
 
 
 func _update_camera_bounds() -> void:
-	# Compute bounding box of the full 10x10 area including border
+	# Set generous camera limits based on the full border area
 	var min_pos := tile_layer.map_to_local(Vector2i(BORDER_MIN, BORDER_MIN))
 	var max_pos := tile_layer.map_to_local(Vector2i(BORDER_MAX, BORDER_MAX))
 	var top := tile_layer.map_to_local(Vector2i(BORDER_MIN, BORDER_MAX))
 	var bot := tile_layer.map_to_local(Vector2i(BORDER_MAX, BORDER_MIN))
-	var margin := 50.0
+	var margin := 200.0
 	camera.limit_left = int(top.x - margin)
 	camera.limit_right = int(bot.x + margin)
 	camera.limit_top = int(min_pos.y - margin)
