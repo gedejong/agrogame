@@ -72,8 +72,8 @@ func _ready() -> void:
 
 func _build_tile_grid() -> void:
 	var shader: Shader = load("res://shaders/soil_tile.gdshader")
-	var box := BoxMesh.new()
-	box.size = Vector3(TILE_SIZE * 0.95, TILE_HEIGHT, TILE_SIZE * 0.95)
+	var box := PlaneMesh.new()
+	box.size = Vector2(TILE_SIZE * 0.995, TILE_SIZE * 0.995)
 	# Center grid at origin
 	var offset_x: float = (GRID_COLS - 1) * TILE_SIZE / 2.0
 	var offset_z: float = (GRID_ROWS - 1) * TILE_SIZE / 2.0
