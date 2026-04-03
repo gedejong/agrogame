@@ -213,22 +213,15 @@ func _init_border() -> void:
 				if tex:
 					fence_spr.texture = tex
 				var pos := tile_layer.map_to_local(Vector2i(map_col, map_row))
-				fence_spr.position = pos
+				fence_spr.position = tile_layer.position + pos
 				fence_spr.z_index = 2
 				add_child(fence_spr)
 
 
 func _update_camera_bounds() -> void:
-	# Set generous camera limits based on the full border area
-	var min_pos := tile_layer.map_to_local(Vector2i(BORDER_MIN, BORDER_MIN))
-	var max_pos := tile_layer.map_to_local(Vector2i(BORDER_MAX, BORDER_MAX))
-	var top := tile_layer.map_to_local(Vector2i(BORDER_MIN, BORDER_MAX))
-	var bot := tile_layer.map_to_local(Vector2i(BORDER_MAX, BORDER_MIN))
-	var margin := 200.0
-	camera.limit_left = int(top.x - margin)
-	camera.limit_right = int(bot.x + margin)
-	camera.limit_top = int(min_pos.y - margin)
-	camera.limit_bottom = int(max_pos.y + margin)
+	# Center camera on the farm field — no limits, user pans freely.
+	var center := tile_layer.map_to_local(Vector2i(GRID_COLS / 2, GRID_ROWS / 2))
+	camera.position = tile_layer.position + center
 
 
 func _create_soil_overlay(col: int, _row: int, _soil_type: String) -> void:
