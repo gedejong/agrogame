@@ -24,13 +24,11 @@ const STRESS_N_DEFICIENT := 2
 static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3D]:
 	var sprites: Array[Sprite3D] = []
 	for hi in range(PLANTS_H):
-		# Centered: (n + 0.5) / count maps to [0..1] with half-step offset
 		var u: float = (float(hi) + 0.5) / float(PLANTS_H)
 		for vi in range(PLANTS_V):
 			var v: float = (float(vi) + 0.5) / float(PLANTS_V)
 			var lx: float = (u - 0.5) * tile_size
 			var lz: float = (v - 0.5) * tile_size
-			# Deterministic jitter (small, within cell)
 			var seed_val := col * 7 + row * 13 + hi * 3 + vi * 5
 			var cell_w: float = tile_size / float(PLANTS_H)
 			var jitter_max: float = cell_w * 0.08
@@ -38,7 +36,6 @@ static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3
 			var jz: float = (fmod(float((seed_val * 3) % 5), 2.0) - 1.0) * jitter_max
 			var spr := Sprite3D.new()
 			spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-			spr.flip_v = true
 			spr.pixel_size = PIXEL_SIZE_BASE
 			spr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			spr.alpha_scissor_threshold = 0.1
@@ -69,14 +66,14 @@ static func update_sprite(
 		return
 
 	spr.texture = tex
-	# With flip_v, positive offset moves stem base down to ground
-	spr.offset = Vector2(0, tex.get_height())
+	# Shift sprite up so stem base (bottom of texture) sits at ground.
+	# Sprite3D offset is in pixel coords (+Y = down). Move up = negative Y.
+	spr.offset = Vector2(0.0, -tex.get_height() * 0.5)
 	# LAI-based scaling: seedling small, mature large
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var scale_factor: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
 	spr.pixel_size = PIXEL_SIZE_BASE * scale_factor
 
-	# Stress coloring
 	var color := Color.WHITE
 	if stress == STRESS_WILTING:
 		color = Color(0.8, 0.7, 0.5)
