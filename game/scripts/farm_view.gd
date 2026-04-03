@@ -212,29 +212,24 @@ func _init_border() -> void:
 
 
 func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
-	var pos := tile_layer.map_to_local(Vector2i(map_col, map_row))
-	# Shift fence toward the farm: Fv (top/bottom rows) nudge down,
-	# Fh (left/right cols) nudge right, in screen coords.
-	var hw: float = TILE_WIDTH / 4.0
-	var hh: float = TILE_HEIGHT / 4.0
-	if tile_key == "Fv":
-		pos.y += hh
-	else:
-		pos.y += hh
-	# Shadow: dark offset copy behind the fence
-	var shadow := Sprite2D.new()
+	var pos := tile_layer.position + tile_layer.map_to_local(Vector2i(map_col, map_row))
 	var tex: Texture2D = load(TERRAIN_TILES[tile_key])
+	# 2.5D floor shadow: light from top-right, shadow projects down-left.
+	# Skew vertically (flatten) and offset to simulate isometric ground shadow.
+	var shadow := Sprite2D.new()
 	if tex:
 		shadow.texture = tex
-	shadow.position = tile_layer.position + pos + Vector2(1.5, 1.5)
-	shadow.modulate = Color(0, 0, 0, 0.25)
+	shadow.position = pos + Vector2(-4.0, 3.0)
+	shadow.scale = Vector2(1.0, 0.5)
+	shadow.skew = -0.3
+	shadow.modulate = Color(0, 0, 0, 0.18)
 	shadow.z_index = 1
 	add_child(shadow)
 	# Fence sprite
 	var fence_spr := Sprite2D.new()
 	if tex:
 		fence_spr.texture = tex
-	fence_spr.position = tile_layer.position + pos
+	fence_spr.position = pos
 	fence_spr.z_index = 2
 	add_child(fence_spr)
 
