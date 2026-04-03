@@ -68,8 +68,8 @@ static func update_sprite(
 		return
 
 	spr.texture = tex
-	# Offset sprite up by half its height so base sits on ground
-	spr.offset = Vector2(0, -tex.get_height() * 0.5)
+	# Offset so sprite origin is at bottom-center (stem base on ground)
+	spr.offset = Vector2(0, -tex.get_height())
 	# LAI-based scaling: seedling small, mature large
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var scale_factor: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
