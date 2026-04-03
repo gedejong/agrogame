@@ -36,6 +36,15 @@ const _MOISTURE_HEATMAP_LOW := Color(0.8, 0.65, 0.35)
 const _MOISTURE_HEATMAP_MID := Color(0.3, 0.75, 0.8)
 const _MOISTURE_HEATMAP_HIGH := Color(0.15, 0.3, 0.85)
 
+const MODE_NAMES := {
+	Mode.NATURAL: "Natural",
+	Mode.SOM_HEATMAP: "SOM Heatmap",
+	Mode.MOISTURE_HEATMAP: "Moisture Heatmap",
+}
+
+const DEBUG_SOM_PRESETS: Array[float] = [0.0, 500.0, 2000.0, 4000.0]
+const DEBUG_MOISTURE_PRESETS: Array[float] = [0.0, 0.05, 0.20, 0.40]
+
 
 static func calculate(
 	som_total_c_g_m2: float, theta_surface: float, mode: int = Mode.NATURAL

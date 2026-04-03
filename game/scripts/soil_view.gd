@@ -49,6 +49,28 @@ var _active := false
 var _cur_parent: Node2D
 
 
+static func get_profile_layers(soil_type: String) -> Array:
+	match soil_type:
+		"sandy":
+			return [
+				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
+				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
+				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+			]
+		"clay":
+			return [
+				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
+			]
+		_:
+			return [
+				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
+				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
+			]
+
+
 func show_at(
 	tile_pos: Vector2,
 	soil_state: Dictionary,

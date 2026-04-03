@@ -3,6 +3,8 @@ extends RefCounted
 ## Subclass per crop for custom procedural visuals.
 
 const _PLANT_SCALE := Vector2(0.4, 0.4)
+const PLANT_GRID := 4
+const PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
 const _FALLBACK_CROP := "maize"
 const _CROP_PREFIX := {
 	"spring_wheat": "wheat",
@@ -17,6 +19,22 @@ const STAGE_MATURE := 4
 
 const STRESS_WILTING := 1
 const STRESS_N_DEFICIENT := 2
+
+const STAGE_SUFFIX := {
+	STAGE_SEEDLING: "seedling",
+	STAGE_VEGETATIVE: "vegetative",
+	STAGE_FLOWERING: "flowering",
+	STAGE_MATURE: "mature",
+}
+
+const STAGE_MAP := {
+	"planted": STAGE_SEEDLING,
+	"emerged": STAGE_SEEDLING,
+	"vegetative": STAGE_VEGETATIVE,
+	"flowering": STAGE_FLOWERING,
+	"grain_fill": STAGE_MATURE,
+	"maturity": STAGE_MATURE,
+}
 
 
 static func crop_sprite_path(crop_key: String, suffix: String) -> String:
