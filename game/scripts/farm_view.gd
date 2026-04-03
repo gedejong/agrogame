@@ -30,8 +30,6 @@ const TERRAIN_TILES := {
 	"W": "res://assets/tiles/tile_water.svg",
 	"Fh": "res://assets/tiles/tile_fence_h.svg",
 	"Fv": "res://assets/tiles/tile_fence_v.svg",
-	"Fhb": "res://assets/tiles/tile_fence_h_bot.svg",
-	"Fvb": "res://assets/tiles/tile_fence_v_bot.svg",
 }
 const _TERRAIN_SOURCE_IDS := {
 	"G": 3,
@@ -47,13 +45,13 @@ const _TERRAIN_SOURCE_IDS := {
 ## 10x10 border layout (rows -2..7, cols -2..7). "." = farm tile (inner 6x6).
 const BORDER_LAYOUT: Array[Array] = [
 	["R", "G", "G", "G", "G", "G", "G", "G", "G", "g"],
-	["G", "G", "Fvb", "Fvb", "Fvb", "Fvb", "Fvb", "Fvb", "G", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
-	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
-	["D", "Fh", ".", ".", ".", ".", ".", ".", "Fhb", "G"],
+	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["P", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
+	["D", "Fh", ".", ".", ".", ".", ".", ".", "Fh", "G"],
 	["G", "G", "Fv", "Fv", "Fv", "Fv", "Fv", "Fv", "G", "g"],
 	["G", "G", "g", "G", "G", "G", "G", "g", "W", "g"],
 ]
@@ -232,23 +230,17 @@ func _draw_fence_shadows(tile_key: String, tile_pos: Vector2) -> void:
 	var posts: Array[Vector2] = []
 	var rail_a := Vector2.ZERO
 	var rail_b := Vector2.ZERO
-	match tile_key:
-		"Fh":  # top-right edge
-			posts = [Vector2(8, -12), Vector2(16, -8), Vector2(24, -4)]
-			rail_a = Vector2(1, -15)
-			rail_b = Vector2(31, 0)
-		"Fv":  # top-left edge
-			posts = [Vector2(-8, -12), Vector2(-16, -8), Vector2(-24, -4)]
-			rail_a = Vector2(-1, -15)
-			rail_b = Vector2(-31, 0)
-		"Fhb":  # bottom-left edge
-			posts = [Vector2(-24, 2), Vector2(-16, 6), Vector2(-8, 10)]
-			rail_a = Vector2(-31, 0)
-			rail_b = Vector2(-1, 15)
-		"Fvb":  # bottom-right edge
-			posts = [Vector2(24, 2), Vector2(16, 6), Vector2(8, 10)]
-			rail_a = Vector2(31, 0)
-			rail_b = Vector2(1, 15)
+	# Post bases at 1/4, 1/2, 3/4 along edge, relative to center (32,16).
+	# Fh top-right edge: (40,10)→(48,14)→(56,18) minus center.
+	# Fv top-left edge: (24,10)→(16,14)→(8,18) minus center.
+	if tile_key == "Fh":
+		posts = [Vector2(8, -6), Vector2(16, -2), Vector2(24, 2)]
+		rail_a = Vector2(1, -15)
+		rail_b = Vector2(31, 0)
+	else:
+		posts = [Vector2(-8, -6), Vector2(-16, -2), Vector2(-24, 2)]
+		rail_a = Vector2(-1, -15)
+		rail_b = Vector2(-31, 0)
 	var proj := Vector2(-0.55, 0.45)
 	# Soft blur: 3 passes — wide/faint → narrow/opaque
 	var passes: Array[Array] = [[3.5, 0.04], [2.2, 0.07], [1.0, 0.12]]
