@@ -38,6 +38,7 @@ static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3
 			var jz: float = (fmod(float((seed_val * 3) % 5), 2.0) - 1.0) * jitter_max
 			var spr := Sprite3D.new()
 			spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			spr.flip_v = true
 			spr.pixel_size = PIXEL_SIZE_BASE
 			spr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			spr.alpha_scissor_threshold = 0.1
@@ -68,8 +69,8 @@ static func update_sprite(
 		return
 
 	spr.texture = tex
-	# Offset so sprite origin is at bottom-center (stem base on ground)
-	spr.offset = Vector2(0, -tex.get_height())
+	# With flip_v, positive offset moves stem base down to ground
+	spr.offset = Vector2(0, tex.get_height())
 	# LAI-based scaling: seedling small, mature large
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var scale_factor: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
