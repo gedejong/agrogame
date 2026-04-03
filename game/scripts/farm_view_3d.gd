@@ -1,6 +1,7 @@
 extends Node3D
-## 3D farm view — Phase 1 of 2D→3D migration (ADR-007).
+## 3D farm view — Phase 2 of 2D→3D migration (ADR-007).
 ## Renders 6x6 tile grid as MeshInstance3D with soil PBR shader.
+## Crop billboard sprites (Sprite3D) per tile.
 ## Raycast click detection, SOM/moisture shader updates from API.
 
 const GRID_COLS := 6
@@ -29,12 +30,27 @@ const SOIL_TEXTURES := {
 
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
+const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
+
+const CropBillboard = preload("res://scripts/crop_billboard.gd")
+const CropRenderer = preload("res://scripts/crop_renderer.gd")
+
+const _STAGE_MAP := {
+	"planted": 1,
+	"emerged": 1,
+	"vegetative": 2,
+	"flowering": 3,
+	"grain_fill": 4,
+	"maturity": 4,
+}
 
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_meshes: Array[MeshInstance3D] = []
 var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
+var _crop_sprites: Array[Array] = []
+var _crop_popup: PopupMenu = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 
@@ -66,6 +82,7 @@ func _ready() -> void:
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
 	plant_btn.pressed.connect(_on_plant_pressed)
+	_setup_crop_popup()
 	_build_tile_grid()
 	status_label.text = "3D view — click tile to select"
 
@@ -113,6 +130,11 @@ func _build_tile_grid() -> void:
 			tile_root.add_child(mesh_inst)
 			_tile_meshes.append(mesh_inst)
 			_tile_materials.append(mat)
+			# Crop billboard sprites (16 per tile)
+			var sprites := CropBillboard.create_plants(TILE_SIZE, col, row)
+			for spr: Sprite3D in sprites:
+				mesh_inst.add_child(spr)
+			_crop_sprites.append(sprites)
 			(
 				_tile_data
 				. append(
@@ -120,6 +142,10 @@ func _build_tile_grid() -> void:
 						"col": col,
 						"row": row,
 						"soil_type": soil_type,
+						"crop_key": "",
+						"crop_stage": 0,
+						"lai": 0.0,
+						"stress": 0,
 						"som_total_c_g_m2": 0.0,
 						"theta_surface": 0.0,
 					}
@@ -166,12 +192,15 @@ func _select_tile(col: int, row: int) -> void:
 	var idx := row * GRID_COLS + col
 	_tile_materials[idx].set_shader_parameter("selected", 1.0)
 	var data: Dictionary = _tile_data[idx]
+	var crop_key: String = data.get("crop_key", "")
+	var crop_info := " | %s" % crop_key if not crop_key.is_empty() else ""
 	status_label.text = (
-		"[%d,%d] %s | SOM %.0f | θ %.2f"
+		"[%d,%d] %s%s | SOM %.0f | θ %.2f"
 		% [
 			col,
 			row,
 			data["soil_type"],
+			crop_info,
 			data.get("som_total_c_g_m2", 0.0),
 			data.get("theta_surface", 0.0),
 		]
@@ -191,6 +220,17 @@ func _update_tile_shader(idx: int) -> void:
 	var moisture_frac: float = clampf(data.get("theta_surface", 0.0) / THETA_SATURATED, 0.0, 1.0)
 	_tile_materials[idx].set_shader_parameter("som_frac", som_frac)
 	_tile_materials[idx].set_shader_parameter("moisture_frac", moisture_frac)
+
+
+func _update_crop_visuals(idx: int) -> void:
+	var data: Dictionary = _tile_data[idx]
+	var crop_key: String = data.get("crop_key", "")
+	var stage: int = data.get("crop_stage", 0)
+	var lai: float = data.get("lai", 0.0)
+	var stress: int = data.get("stress", 0)
+	var sprites: Array = _crop_sprites[idx]
+	for spr: Sprite3D in sprites:
+		CropBillboard.update_sprite(spr, crop_key, stage, lai, stress)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -299,11 +339,19 @@ func _apply_patch_data(patches: Dictionary) -> void:
 			var patch_soil: String = ""
 			if patch_idx < SOIL_TYPES.size():
 				patch_soil = SOIL_TYPES[patch_idx]
+			var stage_name: String = patch.get("crop_stage", "")
+			var stage: int = _STAGE_MAP.get(stage_name, 0)
+			var lai: float = patch.get("lai", 0.0)
+			var crop_key: String = patch.get("crop_key", "")
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
 					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
+					_tile_data[i]["crop_key"] = crop_key
+					_tile_data[i]["crop_stage"] = stage
+					_tile_data[i]["lai"] = lai
 					_update_tile_shader(i)
+					_update_crop_visuals(i)
 
 
 func _on_irrigate() -> void:
@@ -328,11 +376,63 @@ func _on_fertilize() -> void:
 	)
 
 
+func _setup_crop_popup() -> void:
+	_crop_popup = PopupMenu.new()
+	for i in range(AVAILABLE_CROPS.size()):
+		var crop_key: String = AVAILABLE_CROPS[i]
+		_crop_popup.add_item(crop_key.capitalize(), i)
+	_crop_popup.id_pressed.connect(_on_crop_selected)
+	$UILayer.add_child(_crop_popup)
+
+
 func _on_plant_pressed() -> void:
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to plant"
 		return
-	status_label.text = "Plant action — crop selection coming in Phase 2"
+	var btn_rect := plant_btn.get_global_rect()
+	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
+	_crop_popup.popup()
+
+
+func _on_crop_selected(id: int) -> void:
+	if id < 0 or id >= AVAILABLE_CROPS.size():
+		return
+	var crop_key: String = AVAILABLE_CROPS[id]
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	_ensure_game(
+		func() -> void:
+			(
+				_api_client
+				. execute_action(
+					_game_id,
+					"plant",
+					{"crop_key": crop_key, "patch_idx": patch_idx},
+					_on_plant_complete.bind(crop_key, soil_type),
+				)
+			)
+	)
+
+
+func _on_plant_complete(
+	success: bool, data: Dictionary, crop_key: String, soil_type: String
+) -> void:
+	if not success:
+		status_label.text = "Plant failed"
+		return
+	var cost: int = data.get("cost_credits", 0)
+	credits_label.text = "%d" % data.get("balance_credits", 0)
+	for i in range(_tile_data.size()):
+		if _tile_data[i]["soil_type"] == soil_type:
+			_tile_data[i]["crop_key"] = crop_key
+			_tile_data[i]["crop_stage"] = 1
+			_tile_data[i]["lai"] = 0.0
+			_update_crop_visuals(i)
+	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
+	_step_days(1)
 
 
 func _on_action_complete(success: bool, data: Dictionary) -> void:
