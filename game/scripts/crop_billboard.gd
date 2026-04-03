@@ -4,9 +4,9 @@ extends RefCounted
 
 const CropRenderer = preload("res://scripts/crop_renderer.gd")
 
-const PLANT_GRID := 4
-const PLANT_FRACS: Array[float] = [0.125, 0.375, 0.625, 0.875]
-const PIXEL_SIZE_BASE := 0.008
+const PLANTS_H := 4
+const PLANTS_V := 4
+const PIXEL_SIZE_BASE := 0.012
 const Y_OFFSET := 0.01
 
 const STAGE_SUFFIX := {
@@ -23,19 +23,19 @@ const STRESS_N_DEFICIENT := 2
 
 static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3D]:
 	var sprites: Array[Sprite3D] = []
-	var half := tile_size / 2.0
-	for ui in range(PLANT_GRID):
-		var u: float = PLANT_FRACS[ui]
-		for vi in range(PLANT_GRID):
-			var v: float = PLANT_FRACS[vi]
+	for hi in range(PLANTS_H):
+		# Centered: (n + 0.5) / count maps to [0..1] with half-step offset
+		var u: float = (float(hi) + 0.5) / float(PLANTS_H)
+		for vi in range(PLANTS_V):
+			var v: float = (float(vi) + 0.5) / float(PLANTS_V)
 			var lx: float = (u - 0.5) * tile_size
 			var lz: float = (v - 0.5) * tile_size
-			# Deterministic jitter
-			var seed_val := col * 7 + row * 13 + ui * 3 + vi * 5
-			var jx: float = fmod(float(seed_val % 7), 3.0) - 1.5
-			var jz: float = fmod(float((seed_val * 3) % 5), 2.0) - 1.0
-			jx *= 0.03
-			jz *= 0.03
+			# Deterministic jitter (small, within cell)
+			var seed_val := col * 7 + row * 13 + hi * 3 + vi * 5
+			var cell_w: float = tile_size / float(PLANTS_H)
+			var jitter_max: float = cell_w * 0.2
+			var jx: float = (fmod(float(seed_val % 7), 3.0) - 1.5) * jitter_max
+			var jz: float = (fmod(float((seed_val * 3) % 5), 2.0) - 1.0) * jitter_max
 			var spr := Sprite3D.new()
 			spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			spr.pixel_size = PIXEL_SIZE_BASE

@@ -4,8 +4,8 @@ const CropBillboard = preload("res://scripts/crop_billboard.gd")
 
 
 func test_plant_grid_constants() -> void:
-	assert_eq(CropBillboard.PLANT_GRID, 4, "4x4 plant grid")
-	assert_eq(CropBillboard.PLANT_FRACS.size(), 4, "4 grid fractions")
+	assert_eq(CropBillboard.PLANTS_H, 4, "4 horizontal plants")
+	assert_eq(CropBillboard.PLANTS_V, 4, "4 vertical plants")
 
 
 func test_stage_suffix_mapping() -> void:
