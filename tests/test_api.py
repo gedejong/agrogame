@@ -592,3 +592,36 @@ def test_two_season_economics_roundtrip(client) -> None:
         f"Season 2 balance_before ({r2['balance_before']}) should equal "
         f"season 1 balance_after ({s1_balance_after})"
     )
+
+
+# ---------------------------------------------------------------------------
+# AC (#140): plant action changes crop and deducts seed cost
+# ---------------------------------------------------------------------------
+def test_plant_action_changes_crop(client) -> None:
+    """Plant action with crop_key resets crop and deducts seed cost."""
+    game_id = _create_game(client)
+    # Step 1 day to init weather
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={
+            "field_id": "f1",
+            "action": "plant",
+            "params": {"crop_key": "spring_wheat", "patch_idx": 0},
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["action"] == "plant"
+    assert data["cost_credits"] > 0
+    # Seed cost for wheat should be 150 (from prices.yaml)
+    assert data["balance_credits"] < 10000
+
+    # Step to see the crop is now wheat
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=10")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    # Patch 0 should now be spring_wheat
+    assert patches[0]["crop_key"] == "spring_wheat"

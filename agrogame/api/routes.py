@@ -332,7 +332,8 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
         amount = params.get("amount_kg_ha", 50)
         return int(labor + per_kg * amount)
     if action == "plant":
-        return int(prices.input_costs.get("seed_maize", 200))
+        crop_key = params.get("crop_key", "maize")
+        return int(prices.input_costs.get(f"seed_{crop_key}", 200))
     if action == "harvest":
         return int(prices.input_costs.get("labor_per_action", 50))
     return 0
@@ -500,16 +501,34 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
 
     s.ledger.record_cost(s.day_index, req.action, f"{req.action} {req.params}", cost)
 
-    # Apply to all patches in the field
+    # Apply action
     field = s.field_manager.fields[req.field_id]
-    for patch in field.patches:
-        if req.action == "irrigate":
-            patch.orch.apply_irrigation(req.params.get("amount_mm", 20.0))
-        elif req.action == "fertilize":
-            patch.orch.apply_fertilizer(
-                req.params.get("type", "urea"),
-                req.params.get("amount_kg_ha", 50.0),
+    if req.action == "plant":
+        # Plant targets a specific patch (or all if no patch_idx given)
+        crop_key = req.params.get("crop_key", "maize")
+        patch_idx = req.params.get("patch_idx", -1)
+        crops = load_crop_presets(Path("data/crops/presets.yaml"))
+        for i, patch in enumerate(field.patches):
+            if patch_idx >= 0 and i != int(patch_idx):
+                continue
+            climate_key = patch.config.climate_key
+            preset = crops.get_preset(crop_key, climate_key)
+            patch.orch.reset_crop(preset)
+            patch.config = PatchConfig(
+                soil_profile_key=patch.config.soil_profile_key,
+                crop_key=crop_key,
+                climate_key=climate_key,
+                area_fraction=patch.config.area_fraction,
             )
+    else:
+        for patch in field.patches:
+            if req.action == "irrigate":
+                patch.orch.apply_irrigation(req.params.get("amount_mm", 20.0))
+            elif req.action == "fertilize":
+                patch.orch.apply_fertilizer(
+                    req.params.get("type", "urea"),
+                    req.params.get("amount_kg_ha", 50.0),
+                )
 
     return ActionResponse(
         status="executed",
