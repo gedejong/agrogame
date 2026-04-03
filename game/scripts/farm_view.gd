@@ -214,17 +214,11 @@ func _init_border() -> void:
 func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
 	var pos := tile_layer.position + tile_layer.map_to_local(Vector2i(map_col, map_row))
 	var tex: Texture2D = load(TERRAIN_TILES[tile_key])
-	# 2.5D floor shadow: light from top-right, shadow projects down-left.
-	# Skew vertically (flatten) and offset to simulate isometric ground shadow.
-	var shadow := Sprite2D.new()
-	if tex:
-		shadow.texture = tex
-	shadow.position = pos + Vector2(-4.0, 3.0)
-	shadow.scale = Vector2(1.0, 0.5)
-	shadow.skew = -0.3
-	shadow.modulate = Color(0, 0, 0, 0.18)
-	shadow.z_index = 1
-	add_child(shadow)
+	# Post shadow: vertical posts cast shadow on isometric floor.
+	# Light from top-right → shadow projects bottom-left.
+	# Post height ~6px → shadow length on floor ≈ 6*0.7 ≈ 4px horizontal.
+	# Isometric projection: shadow_dx = -h*0.7, shadow_dy = +h*0.35.
+	_draw_post_shadows(tile_key, pos)
 	# Fence sprite
 	var fence_spr := Sprite2D.new()
 	if tex:
@@ -232,6 +226,27 @@ func _add_fence_sprite(tile_key: String, map_col: int, map_row: int) -> void:
 	fence_spr.position = pos
 	fence_spr.z_index = 2
 	add_child(fence_spr)
+
+
+func _draw_post_shadows(tile_key: String, tile_pos: Vector2) -> void:
+	## Draw ground shadows for each fence post. Posts are vertical,
+	## light from top-right: shadow = (-h*0.7, +h*0.35) on iso floor.
+	# Post base positions relative to tile center (32, 16):
+	# Fh posts on top-right edge, Fv posts on top-left edge.
+	var posts: Array[Vector2] = []
+	if tile_key == "Fh":
+		posts = [Vector2(8, -9), Vector2(18, -4), Vector2(28, 1)]
+	else:
+		posts = [Vector2(-8, -9), Vector2(-18, -4), Vector2(-28, 1)]
+	var shadow_offset := Vector2(-4.2, 2.1)  # h=6: -6*0.7, +6*0.35
+	for base in posts:
+		var shadow_line := Line2D.new()
+		shadow_line.points = PackedVector2Array([base, base + shadow_offset])
+		shadow_line.width = 1.5
+		shadow_line.default_color = Color(0, 0, 0, 0.15)
+		shadow_line.position = tile_pos
+		shadow_line.z_index = 1
+		add_child(shadow_line)
 
 
 func _update_camera_bounds() -> void:

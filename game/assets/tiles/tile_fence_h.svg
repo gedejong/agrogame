@@ -1,16 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="38" viewBox="0 0 64 38">
-  <!-- Horizontal fence: wooden posts along top-right iso edge -->
-  <!-- Offset 6px down to avoid clipping at top -->
-  <!-- Fence posts (along the top-right edge: from top vertex to right vertex) -->
-  <line x1="40" y1="10" x2="40" y2="4" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <line x1="52" y1="16" x2="52" y2="10" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <line x1="62" y1="21" x2="62" y2="15" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
-  <!-- Rails connecting posts -->
-  <line x1="40" y1="6" x2="62" y2="17" stroke="#7a6050" stroke-width="1.2" stroke-linecap="round"/>
-  <line x1="40" y1="4" x2="62" y2="15" stroke="#7a6050" stroke-width="1" stroke-linecap="round"/>
-  <!-- Post highlights (top-left lit) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">
+  <!-- Fence along top-right iso edge: posts + rails -->
+  <!-- Post bases sit on the iso edge; posts rise 6px above base -->
+  <line x1="40" y1="7" x2="40" y2="1" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="50" y1="12" x2="50" y2="6" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <line x1="60" y1="17" x2="60" y2="11" stroke="#6b5040" stroke-width="2" stroke-linecap="round"/>
+  <!-- Rails -->
+  <line x1="40" y1="3" x2="60" y2="13" stroke="#7a6050" stroke-width="1.2" stroke-linecap="round"/>
+  <line x1="40" y1="5" x2="60" y2="15" stroke="#7a6050" stroke-width="1" stroke-linecap="round"/>
+  <!-- Post highlights -->
   <g stroke="#8a7060" stroke-width="0.4" stroke-linecap="round" opacity="0.5">
-    <line x1="39.5" y1="10" x2="39.5" y2="4"/>
-    <line x1="51.5" y1="16" x2="51.5" y2="10"/>
+    <line x1="39" y1="7" x2="39" y2="1"/>
+    <line x1="49" y1="12" x2="49" y2="6"/>
   </g>
 </svg>
