@@ -38,6 +38,7 @@ static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3
 			var jz: float = (fmod(float((seed_val * 3) % 5), 2.0) - 1.0) * jitter_max
 			var spr := Sprite3D.new()
 			spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			spr.centered = false
 			spr.pixel_size = PIXEL_SIZE_BASE
 			spr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			spr.alpha_scissor_threshold = 0.1
