@@ -37,6 +37,10 @@ window/stretch/aspect="expand"
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
+[agrogame]
+
+rendering/use_3d=false
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
