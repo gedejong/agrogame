@@ -206,38 +206,97 @@ func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
 	if root_world < 0.01:
 		return
-	# Draw roots OUTSIDE the pillar on the camera-facing corner
-	var ox: float = CUTAWAY_WIDTH * 0.51
-	var oz: float = CUTAWAY_DEPTH * 0.51
-	# Taproot
-	_add_root_line(container, [Vector3(ox, 0, oz), Vector3(ox, -root_world, oz)], ROOT_COLOR, 3.0)
-	# Laterals at 1/4, 1/2, 3/4 depth
+	# Paint roots as a texture on the two visible pillar faces
+	var total_h: float = total_depth * SCALE_CM
+	var img := _generate_root_image(root_world, total_h)
+	var tex := ImageTexture.create_from_image(img)
+	# +X face (right side from above)
+	_add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
+	# +Z face (front side from above)
+	_add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.002), 1)
+
+
+static func _add_face_quad(
+	container: Node3D, tex: Texture2D, total_h: float, offset: Vector3, face: int
+) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(CUTAWAY_WIDTH, total_h)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.no_depth_test = true
+	mat.emission_enabled = true
+	mat.emission_texture = tex
+	mat.emission_energy_multiplier = 0.3
+	var inst := MeshInstance3D.new()
+	inst.mesh = quad
+	inst.material_override = mat
+	inst.position = offset + Vector3(0, -total_h * 0.5, 0)
+	if face == 0:
+		inst.rotation.y = PI * 0.5
+	container.add_child(inst)
+
+
+static func _generate_root_image(root_depth: float, total_h: float) -> Image:
+	## Draw root diagram: taproot + laterals + rootlets on a transparent image.
+	var w := 128
+	var h := 256
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var cx: int = w / 2
+	var root_px: int = int(root_depth / total_h * float(h))
+	# Taproot: thick center line
+	_draw_line_img(img, cx, 0, cx, root_px, ROOT_COLOR, 3)
+	# Laterals at 1/4, 1/2, 3/4 root depth
 	for frac in [0.25, 0.5, 0.75]:
-		var y: float = -root_world * frac
-		var spread: float = CUTAWAY_WIDTH * 0.35
-		for side in [-1.0, 1.0]:
-			var tx: float = ox + side * spread
-			var tz: float = oz + side * spread * 0.3
-			_add_root_line(
-				container,
-				[Vector3(ox, y, oz), Vector3(tx, y - 0.03, tz)],
-				ROOT_COLOR.darkened(frac * 0.3),
-				2.0,
-			)
+		var y: int = int(float(root_px) * frac)
+		var spread: int = w / 3
+		var dark: float = frac * 0.3
+		for side in [-1, 1]:
+			var tx: int = cx + side * spread
+			var ty: int = y + 8
+			# Main lateral
+			_draw_line_img(img, cx, y, tx, ty, ROOT_COLOR.darkened(dark), 2)
 			# Sub-branch
-			_add_root_line(
-				container,
-				[Vector3(tx, y - 0.03, tz), Vector3(tx + side * spread * 0.2, y - 0.07, tz)],
-				ROOT_COLOR.darkened(frac * 0.3 + 0.1),
-				1.0,
+			var sx: int = tx + side * (spread / 3)
+			_draw_line_img(img, tx, ty, sx, ty + 12, ROOT_COLOR.darkened(dark + 0.1), 1)
+			# Fine rootlets
+			_draw_line_img(img, tx, ty, tx + side * 5, ty + 16, ROOT_COLOR.darkened(dark + 0.15), 1)
+			_draw_line_img(
+				img, sx, ty + 12, sx + side * 4, ty + 22, ROOT_COLOR.darkened(dark + 0.2), 1
 			)
-			# Fine rootlet
-			_add_root_line(
-				container,
-				[Vector3(tx, y - 0.03, tz), Vector3(tx, y - 0.08, tz + side * 0.04)],
-				ROOT_COLOR.darkened(frac * 0.3 + 0.15),
-				0.7,
-			)
+	return img
+
+
+static func _draw_line_img(
+	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
+) -> void:
+	## Bresenham line with thickness via filled circle at each pixel.
+	var dx: int = absi(x1 - x0)
+	var dy: int = absi(y1 - y0)
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
+	var err: int = dx - dy
+	var x := x0
+	var y := y0
+	var r: int = thickness / 2
+	while true:
+		for py in range(-r, r + 1):
+			for px in range(-r, r + 1):
+				var ix: int = x + px
+				var iy: int = y + py
+				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
+					img.set_pixel(ix, iy, color)
+		if x == x1 and y == y1:
+			break
+		var e2: int = 2 * err
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err += dx
+			y += sy
 
 
 func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
@@ -264,47 +323,3 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
 		container.add_child(label)
 		y_offset += h
-
-
-static func _add_root_line(
-	container: Node3D, points: Array, color: Color, thickness: float
-) -> void:
-	## Draw a root segment as a flat ribbon (QuadMesh) between two points.
-	if points.size() < 2:
-		return
-	var from: Vector3 = points[0]
-	var to: Vector3 = points[1]
-	var dir := to - from
-	var length: float = dir.length()
-	if length < 0.001:
-		return
-	var radius: float = thickness * 0.003
-	var quad := QuadMesh.new()
-	quad.size = Vector2(radius * 2.0, length)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = color
-	mat.no_depth_test = true
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.emission_enabled = true
-	mat.emission = color
-	mat.emission_energy_multiplier = 0.5
-	var inst := MeshInstance3D.new()
-	inst.mesh = quad
-	inst.material_override = mat
-	# Position at midpoint
-	inst.position = from + dir * 0.5
-	# Orient the quad to face the camera direction (+X,+Z) and align with segment
-	# QuadMesh default: faces -Z, extends in XY plane
-	# We want it to face roughly toward camera and stretch along the segment
-	if absf(dir.normalized().y) > 0.99:
-		# Vertical segment (taproot): face toward +X,+Z
-		inst.rotation = Vector3(0, -PI / 4.0, 0)
-	else:
-		# Diagonal: use look_at to face camera, then tilt to align
-		var cam_dir := Vector3(1, 0, 1).normalized()
-		inst.look_at(inst.position + cam_dir)
-		# Rotate around the face normal to align the quad height with the segment
-		var seg_dir := dir.normalized()
-		var angle := atan2(seg_dir.x + seg_dir.z, -seg_dir.y)
-		inst.rotate_object_local(Vector3.FORWARD, angle)
-	container.add_child(inst)
