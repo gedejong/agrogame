@@ -89,6 +89,7 @@ func _build_layers(profile_layers: Array, _soil_state: Dictionary) -> void:
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = color
 		mat.roughness = 0.9
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = mesh
 		mesh_inst.material_override = mat

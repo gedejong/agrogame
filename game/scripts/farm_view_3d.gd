@@ -53,6 +53,7 @@ var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _soil_view: Node3D = null
+var _hidden_tiles: Array[int] = []
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 
@@ -481,6 +482,7 @@ func _on_soil_view() -> void:
 
 
 func _show_soil_cutaway() -> void:
+	_restore_hidden_tiles()
 	var col := _selected_tile.x
 	var row := _selected_tile.y
 	var idx := row * GRID_COLS + col
@@ -500,6 +502,8 @@ func _show_soil_cutaway() -> void:
 	if soil_state.is_empty():
 		status_label.text = "No soil data available"
 		return
+	# Hide selected tile and front neighbors
+	_hide_front_tiles(col, row)
 	var profile := SoilView3D.get_profile_layers(soil_type)
 	var tile_pos: Vector3 = _tile_meshes[idx].position
 	if not _soil_view:
@@ -509,6 +513,35 @@ func _show_soil_cutaway() -> void:
 	_soil_view.show_cutaway(tile_pos, soil_state, profile, root_depth_cm)
 
 
+func _hide_front_tiles(col: int, row: int) -> void:
+	# Hide the selected tile and tiles in front of it (closer to camera).
+	# Camera looks from top-right, so "front" = higher row, higher col.
+	_hidden_tiles.clear()
+	var to_hide: Array[Vector2i] = [
+		Vector2i(col, row),
+		Vector2i(col + 1, row),
+		Vector2i(col, row + 1),
+		Vector2i(col + 1, row + 1),
+	]
+	for pos in to_hide:
+		if pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS:
+			var tile_idx: int = pos.y * GRID_COLS + pos.x
+			_hidden_tiles.append(tile_idx)
+			_tile_meshes[tile_idx].visible = false
+			# Also hide crop sprites on this tile
+			var sprites: Array = _crop_sprites[tile_idx]
+			for spr in sprites:
+				spr.visible = false
+
+
+func _restore_hidden_tiles() -> void:
+	for tile_idx in _hidden_tiles:
+		_tile_meshes[tile_idx].visible = true
+		_update_crop_visuals(tile_idx)
+	_hidden_tiles.clear()
+
+
 func _hide_soil_cutaway() -> void:
 	if _soil_view and _soil_view.is_active():
 		_soil_view.hide_view()
+	_restore_hidden_tiles()
