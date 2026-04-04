@@ -486,48 +486,42 @@ func _show_soil_cutaway() -> void:
 	var col := _selected_tile.x
 	var row := _selected_tile.y
 	var patches: Dictionary = _last_step_data.get("patches", {})
-	# Build columns: selected (with info) + left/right neighbors
-	var columns: Array[Dictionary] = []
-	var tile_positions: Array[Vector2i] = [
-		Vector2i(col, row),
-		Vector2i(col - 1, row),
+	# Camera at +X,+Z looking toward -X,-Z.
+	# Front 3 tiles (between selected and camera) must be hidden:
+	var front_tiles: Array[Vector2i] = [
 		Vector2i(col + 1, row),
+		Vector2i(col, row + 1),
+		Vector2i(col + 1, row + 1),
 	]
-	for i in range(tile_positions.size()):
-		var tp := tile_positions[i]
-		if tp.x < 0 or tp.x >= GRID_COLS or tp.y < 0 or tp.y >= GRID_ROWS:
+	# Pillars: selected (center, with info+roots) + left/right neighbors.
+	# Left/right = along visual row (same col+row sum, perpendicular to view).
+	var pillar_tiles: Array[Vector2i] = [
+		Vector2i(col, row),
+		Vector2i(col - 1, row + 1),
+		Vector2i(col + 1, row - 1),
+	]
+	# Hide front tiles + their crops
+	_hidden_tiles.clear()
+	for pos in front_tiles:
+		if _is_valid_grid(pos):
+			var idx: int = pos.y * GRID_COLS + pos.x
+			_hidden_tiles.append(idx)
+			_tile_meshes[idx].visible = false
+			for spr in _crop_sprites[idx]:
+				spr.visible = false
+	# Build pillar columns
+	var columns: Array[Dictionary] = []
+	for i in range(pillar_tiles.size()):
+		var tp := pillar_tiles[i]
+		if not _is_valid_grid(tp):
 			continue
-		var t_idx := tp.y * GRID_COLS + tp.x
-		var soil_type: String = _tile_data[t_idx]["soil_type"]
-		var patch_idx := SOIL_TYPES.find(soil_type)
-		if patch_idx < 0:
-			patch_idx = 0
-		var soil_state := {}
-		var root_depth_cm := 0.0
-		for field_key: String in patches:
-			var patch_list: Array = patches[field_key]
-			if patch_idx < patch_list.size():
-				var patch: Dictionary = patch_list[patch_idx]
-				soil_state = patch.get("soil_state", {})
-				root_depth_cm = patch.get("root_depth_cm", 0.0)
-		if soil_state.is_empty():
-			continue
-		(
-			columns
-			. append(
-				{
-					"pos": _tile_meshes[t_idx].position,
-					"soil_state": soil_state,
-					"profile": SoilView3D.get_profile_layers(soil_type),
-					"root_depth_cm": root_depth_cm if i == 0 else 0.0,
-					"show_info": i == 0,
-				}
-			)
-		)
+		var col_data := _get_soil_column(tp, patches, i == 0)
+		if not col_data.is_empty():
+			columns.append(col_data)
 	if columns.is_empty():
+		_restore_hidden_tiles()
 		status_label.text = "No soil data available"
 		return
-	_hide_front_tiles(col, row)
 	if not _soil_view:
 		_soil_view = Node3D.new()
 		_soil_view.set_script(SoilView3D)
@@ -535,31 +529,39 @@ func _show_soil_cutaway() -> void:
 	_soil_view.show_cutaway(columns)
 
 
-func _hide_front_tiles(col: int, row: int) -> void:
-	# Hide the selected tile and tiles in front of it (closer to camera).
-	# Camera looks from top-right, so "front" = higher row, higher col.
-	_hidden_tiles.clear()
-	var to_hide: Array[Vector2i] = [
-		Vector2i(col, row),
-		Vector2i(col + 1, row),
-		Vector2i(col, row + 1),
-		Vector2i(col + 1, row + 1),
-	]
-	for pos in to_hide:
-		if pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS:
-			var tile_idx: int = pos.y * GRID_COLS + pos.x
-			_hidden_tiles.append(tile_idx)
-			_tile_meshes[tile_idx].visible = false
-			# Also hide crop sprites on this tile
-			var sprites: Array = _crop_sprites[tile_idx]
-			for spr in sprites:
-				spr.visible = false
+func _get_soil_column(tp: Vector2i, patches: Dictionary, is_center: bool) -> Dictionary:
+	var idx: int = tp.y * GRID_COLS + tp.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	var soil_state := {}
+	var root_depth_cm := 0.0
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		if patch_idx < patch_list.size():
+			var patch: Dictionary = patch_list[patch_idx]
+			soil_state = patch.get("soil_state", {})
+			root_depth_cm = patch.get("root_depth_cm", 0.0)
+	if soil_state.is_empty():
+		return {}
+	return {
+		"pos": _tile_meshes[idx].position,
+		"soil_state": soil_state,
+		"profile": SoilView3D.get_profile_layers(soil_type),
+		"root_depth_cm": root_depth_cm if is_center else 0.0,
+		"show_info": is_center,
+	}
+
+
+func _is_valid_grid(pos: Vector2i) -> bool:
+	return pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS
 
 
 func _restore_hidden_tiles() -> void:
-	for tile_idx in _hidden_tiles:
-		_tile_meshes[tile_idx].visible = true
-		_update_crop_visuals(tile_idx)
+	for idx in _hidden_tiles:
+		_tile_meshes[idx].visible = true
+		_update_crop_visuals(idx)
 	_hidden_tiles.clear()
 
 
