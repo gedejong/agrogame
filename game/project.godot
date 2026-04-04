@@ -31,7 +31,7 @@ window/size/viewport_height=720
 window/size/mode=0
 window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="expand"
+window/stretch/aspect="keep"
 
 [editor_plugins]
 
