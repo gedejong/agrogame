@@ -34,10 +34,13 @@ const ROOT_COLOR := Color(0.75, 0.6, 0.4)
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
 const SCALE_CM := 0.01
+const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
 var _last_center_pos := Vector3.INF
+## Cached loaded textures keyed by path to avoid repeated load() calls.
+var _tex_cache := {}
 
 
 static func get_profile_layers(soil_type: String) -> Array:
@@ -121,6 +124,12 @@ func hide_view() -> void:
 	)
 
 
+func _cached_tex(path: String) -> Texture2D:
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path)
+	return _tex_cache[path]
+
+
 func is_active() -> bool:
 	return _active
 
@@ -132,7 +141,6 @@ func _clear() -> void:
 
 
 func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
-	var shader: Shader = load("res://shaders/soil_cutaway.gdshader")
 	var thetas: Array = soil_state.get("water_theta", [])
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
@@ -147,10 +155,10 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill_frac: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
 		var tex_paths: Dictionary = LAYER_TEXTURES.get(tex_name, LAYER_TEXTURES["loam"])
-		var albedo_tex: Texture2D = load(tex_paths["albedo"])
-		var normal_tex: Texture2D = load(tex_paths["normal"])
+		var albedo_tex: Texture2D = _cached_tex(tex_paths["albedo"])
+		var normal_tex: Texture2D = _cached_tex(tex_paths["normal"])
 		var mat := ShaderMaterial.new()
-		mat.shader = shader
+		mat.shader = _SHADER
 		mat.set_shader_parameter("tint_color", color)
 		mat.set_shader_parameter("water_fill", fill_frac)
 		mat.set_shader_parameter("box_height", h)
@@ -228,70 +236,87 @@ static func _generate_root_image(root_depth: float, total_h: float) -> Image:
 static func _draw_single_root_img(
 	img: Image, cx: int, root_px: int, depth_frac: float, seed_val: int
 ) -> void:
+	## Draw one root system. Uses monotonic hash counter (hi) to avoid collisions.
 	var w: int = img.get_width()
+	var hi := 0  # monotonic hash index — incremented for each random sample
 	var tap_w: int = clampi(int(depth_frac * 4.0), 1, 4)
-	var curve_x: int = int((_root_hash(seed_val, 0) - 0.5) * 8.0)
+	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 8.0)
+	hi += 1
 	var mid_y: int = root_px / 2
 	var end_x: int = cx + int(float(curve_x) * 0.3)
-	# Taproot
 	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
 	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
-	# Lateral branches (3-6 per root)
-	var num_b: int = 3 + int(_root_hash(seed_val, 1) * 4.0)
+	var num_b: int = 3 + int(_root_hash(seed_val, hi) * 4.0)
+	hi += 1
 	for bi in range(num_b):
-		var bd: float = _root_hash(seed_val, 10 + bi) * 0.85 + 0.08
+		var bd: float = _root_hash(seed_val, hi) * 0.85 + 0.08
+		hi += 1
 		if bd > depth_frac:
 			continue
 		var by: int = int(float(root_px) * bd)
 		var tap_at_x: int = int(lerpf(float(cx), float(end_x), bd))
-		var spread: int = int((8.0 + _root_hash(seed_val, 20 + bi) * 16.0) * (1.0 - bd))
-		var dir: int = 1 if _root_hash(seed_val, 30 + bi) > 0.4 else -1
-		var dy: int = int((_root_hash(seed_val, 40 + bi) - 0.3) * 10.0)
+		var spread: int = int((8.0 + _root_hash(seed_val, hi) * 16.0) * (1.0 - bd))
+		hi += 1
+		var dir: int = 1 if _root_hash(seed_val, hi) > 0.4 else -1
+		hi += 1
+		var dy: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0)
+		hi += 1
 		if spread < 3:
 			continue
 		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
 		var bey: int = by + dy + 6
 		var lat_w: int = clampi(int(3.0 * (1.0 - bd)), 2, 4)
-		var lat_color := ROOT_COLOR.lightened(0.1).darkened(bd * 0.2)
-		_draw_line_img(img, tap_at_x, by, bx, bey, lat_color, lat_w)
-		# Sub-branches (1-2)
-		var num_s: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
+		_draw_line_img(
+			img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lat_w
+		)
+		var num_s: int = 1 + int(_root_hash(seed_val, hi) * 2.0)
+		hi += 1
 		for si in range(num_s):
-			var sf: float = 0.4 + _root_hash(seed_val, 60 + bi * 3 + si) * 0.4
+			var sf: float = 0.4 + _root_hash(seed_val, hi) * 0.4
+			hi += 1
 			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
 			var sy: int = int(lerpf(float(by), float(bey), sf))
-			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, 70 + bi * 3 + si) * 0.3))
-			var sd: int = dir if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -dir
-			var sdy: int = 3 + int(_root_hash(seed_val, 90 + bi * 3 + si) * 6.0)
+			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, hi) * 0.3))
+			hi += 1
+			var sd: int = dir if _root_hash(seed_val, hi) > 0.5 else -dir
+			hi += 1
+			var sdy: int = 3 + int(_root_hash(seed_val, hi) * 6.0)
+			hi += 1
 			var sex: int = clampi(sx + ss * sd, 2, w - 3)
-			var sub_color := ROOT_COLOR.lightened(0.2).darkened(bd * 0.15)
-			_draw_line_img(img, sx, sy, sex, sy + sdy, sub_color, 2)
-			# Rootlets from sub-branch tip
+			_draw_line_img(
+				img, sx, sy, sex, sy + sdy, ROOT_COLOR.lightened(0.2).darkened(bd * 0.15), 2
+			)
 			var rl_color := ROOT_COLOR.lightened(0.3)
 			for ri in range(3):
-				if _root_hash(seed_val, 100 + bi * 5 + si * 3 + ri) > 0.25:
-					var rd: int = (
-						1 if _root_hash(seed_val, 110 + bi * 5 + si * 3 + ri) > 0.5 else -1
-					)
-					var rl_dx: int = (
-						int((_root_hash(seed_val, 130 + bi * 5 + si * 3 + ri) - 0.3) * 10.0) * rd
-					)
-					var rl_dy: int = 3 + int(_root_hash(seed_val, 140 + bi * 5 + si * 3 + ri) * 8.0)
+				if _root_hash(seed_val, hi) > 0.25:
+					hi += 1
+					var rd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
+					hi += 1
+					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0) * rd
+					hi += 1
+					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 8.0)
+					hi += 1
 					var rx: int = clampi(sex + rl_dx, 2, w - 3)
 					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
+				else:
+					hi += 4
 			# Rootlets from lateral midpoint
-			if _root_hash(seed_val, 200 + bi * 3 + si) > 0.3:
+			if _root_hash(seed_val, hi) > 0.3:
+				hi += 1
 				var mid_lx: int = (tap_at_x + bx) / 2
 				var mid_ly: int = (by + bey) / 2
-				var mrd: int = 1 if _root_hash(seed_val, 210 + bi) > 0.5 else -1
+				var mrd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
+				hi += 1
 				var mrx: int = clampi(mid_lx + mrd * 5, 2, w - 3)
 				_draw_line_img(img, mid_lx, mid_ly, mrx, mid_ly + 6, rl_color, 1)
+			else:
+				hi += 2
 
 
 static func _draw_line_img(
 	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
 ) -> void:
-	## Bresenham line with thickness via filled circle at each pixel.
+	## Bresenham line with thickness via square stamp at each pixel.
 	var dx: int = absi(x1 - x0)
 	var dy: int = absi(y1 - y0)
 	var sx: int = 1 if x0 < x1 else -1
@@ -332,7 +357,7 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
 		var som_val: float = som_labile[i] if i < som_labile.size() else 0.0
 		var label := Label3D.new()
-		label.text = "N:%.1f P:%.1f SOM:%.0f" % [n_val, p_val, som_val]
+		label.text = "N:%.1f P:%.1f SOM:%.0f g/m²" % [n_val, p_val, som_val]
 		label.font_size = 32
 		label.pixel_size = 0.002
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
