@@ -11,6 +11,24 @@ const LAYER_COLORS := {
 	"clay": Color(0.6, 0.5, 0.45),
 }
 
+const LAYER_TEXTURES := {
+	"sand":
+	{
+		"albedo": "res://assets/textures/soil_sandy_albedo.png",
+		"normal": "res://assets/textures/soil_sandy_normal.png",
+	},
+	"loam":
+	{
+		"albedo": "res://assets/textures/soil_loam_albedo.png",
+		"normal": "res://assets/textures/soil_loam_normal.png",
+	},
+	"clay":
+	{
+		"albedo": "res://assets/textures/soil_clay_albedo.png",
+		"normal": "res://assets/textures/soil_clay_normal.png",
+	},
+}
+
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
 const CUTAWAY_WIDTH := 1.0
@@ -113,9 +131,18 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = color
 		mat.roughness = 0.9
+		var tex_paths: Dictionary = LAYER_TEXTURES.get(tex_name, LAYER_TEXTURES["loam"])
+		var albedo_tex: Texture2D = load(tex_paths["albedo"])
+		var normal_tex: Texture2D = load(tex_paths["normal"])
+		if albedo_tex:
+			mat.albedo_texture = albedo_tex
+		if normal_tex:
+			mat.normal_enabled = true
+			mat.normal_texture = normal_tex
 		mat.emission_enabled = true
 		mat.emission = color
 		mat.emission_energy_multiplier = 0.15
+		mat.uv1_triplanar = true
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = mesh
 		mesh_inst.material_override = mat
