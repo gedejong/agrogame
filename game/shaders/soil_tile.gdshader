@@ -28,7 +28,9 @@ void fragment() {
 
 	ALBEDO = color;
 	NORMAL_MAP = texture(normal_texture, UV).rgb;
-	ROUGHNESS = 0.85;
+	// Wet soil: lower roughness (shinier), slight specular reflection
+	ROUGHNESS = mix(0.85, 0.3, moisture_frac);
+	SPECULAR = mix(0.0, 0.5, moisture_frac);
 	METALLIC = 0.0;
 
 	// Selection highlight: soft emission glow

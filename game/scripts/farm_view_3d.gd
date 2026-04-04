@@ -255,7 +255,7 @@ func _update_weather_lighting(rain_mm: float) -> void:
 	# Ambient: brighter on overcast (diffuse sky light), but greyer
 	var e := env.environment
 	if e:
-		e.ambient_light_energy = lerpf(1.5, 2.0, overcast)
+		e.ambient_light_energy = lerpf(0.8, 1.2, overcast)
 		var amb_sunny := Color(0.6, 0.65, 0.75)
 		var amb_overcast := Color(0.55, 0.55, 0.6)
 		e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
