@@ -72,9 +72,9 @@ static func update_sprite(
 	var scale_factor: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
 	spr.pixel_size = PIXEL_SIZE_BASE * scale_factor
 	# Move sprite Y so stem base (bottom of texture) stays at ground.
-	# Half the world-space height of the sprite = height * pixel_size / 2.
+	# Centered sprite: bottom = pos.y - world_h/2, so pos.y = ground + world_h/2.
 	var world_h: float = tex.get_height() * spr.pixel_size
-	spr.position.y = Y_OFFSET + world_h * 0.5
+	spr.position = Vector3(spr.position.x, Y_OFFSET + world_h * 0.5, spr.position.z)
 
 	var color := Color.WHITE
 	if stress == STRESS_WILTING:
