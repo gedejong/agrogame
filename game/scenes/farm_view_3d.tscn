@@ -29,6 +29,8 @@ far = 100.0
 transform = Transform3D(-0.707107, -0.5, 0.5, 0, 0.707107, 0.707107, -0.707107, 0.5, -0.5, 0, 10, 0)
 shadow_enabled = true
 directional_shadow_mode = 1
+shadow_normal_bias = 2.0
+directional_shadow_max_distance = 20.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 
