@@ -509,7 +509,8 @@ func _show_soil_cutaway() -> void:
 			_tile_materials[idx].set_shader_parameter("opacity", 0.25)
 			for spr in _crop_sprites[idx]:
 				if spr is Sprite3D and spr.visible:
-					spr.opacity = 0.25
+					var c: Color = spr.modulate
+					spr.modulate = Color(c.r, c.g, c.b, 0.25)
 	# Build pillar columns
 	var columns: Array[Dictionary] = []
 	for i in range(pillar_tiles.size()):
@@ -564,7 +565,8 @@ func _restore_hidden_tiles() -> void:
 		_tile_materials[idx].set_shader_parameter("opacity", 1.0)
 		for spr in _crop_sprites[idx]:
 			if spr is Sprite3D:
-				spr.opacity = 1.0
+				var c: Color = spr.modulate
+				spr.modulate = Color(c.r, c.g, c.b, 1.0)
 		_update_crop_visuals(idx)
 	_hidden_tiles.clear()
 
