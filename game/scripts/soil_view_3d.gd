@@ -13,8 +13,8 @@ const LAYER_COLORS := {
 
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
-const CUTAWAY_WIDTH := 0.9
-const CUTAWAY_DEPTH := 0.9
+const CUTAWAY_WIDTH := 0.995
+const CUTAWAY_DEPTH := 0.995
 const SCALE_CM := 0.01
 
 var _active := false
@@ -66,7 +66,8 @@ func _build_column(
 	show_info: bool,
 ) -> void:
 	var container := Node3D.new()
-	container.position = pos
+	# Offset slightly below tile surface to avoid z-fighting
+	container.position = Vector3(pos.x, pos.y - 0.005, pos.z)
 	_build_layers(container, profile_layers, soil_state)
 	_build_water(container, profile_layers, soil_state)
 	if root_depth_cm > 0.0:
