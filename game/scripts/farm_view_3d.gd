@@ -34,6 +34,7 @@ const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "ric
 
 const CropBillboard = preload("res://scripts/crop_billboard.gd")
 const CropRenderer = preload("res://scripts/crop_renderer.gd")
+const SoilView3D = preload("res://scripts/soil_view_3d.gd")
 
 const _STAGE_MAP := {
 	"planted": 1,
@@ -51,6 +52,7 @@ var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
+var _soil_view: Node3D = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 
@@ -69,6 +71,7 @@ var _last_step_data: Dictionary = {}
 @onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
 @onready var plant_btn: Button = $UILayer/ActionBar/PlantButton
+@onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 
 
@@ -83,6 +86,7 @@ func _ready() -> void:
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
 	plant_btn.pressed.connect(_on_plant_pressed)
+	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
 	_build_tile_grid()
 	status_label.text = "3D view — click tile to select"
@@ -171,6 +175,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mb := event as InputEventMouseButton
 		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
 			_handle_click(mb.position)
+	elif event is InputEventKey:
+		var ke := event as InputEventKey
+		if ke.pressed and ke.keycode == KEY_ESCAPE:
+			_hide_soil_cutaway()
 
 
 func _handle_click(screen_pos: Vector2) -> void:
@@ -297,6 +305,9 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
+	# Refresh soil cutaway if open
+	if _soil_view and _soil_view.is_active() and _selected_tile.x >= 0:
+		_show_soil_cutaway()
 
 
 func _on_forecast_received(success: bool, data: Dictionary) -> void:
@@ -457,3 +468,47 @@ func _on_season_complete(success: bool, _data: Dictionary) -> void:
 		status_label.text = "Season failed — backend error"
 		return
 	status_label.text = "Season complete"
+
+
+func _on_soil_view() -> void:
+	if _selected_tile.x < 0:
+		status_label.text = "Select a tile first to view soil"
+		return
+	if _last_step_data.is_empty():
+		status_label.text = "Step at least 1 day to see soil data"
+		return
+	_show_soil_cutaway()
+
+
+func _show_soil_cutaway() -> void:
+	var col := _selected_tile.x
+	var row := _selected_tile.y
+	var idx := row * GRID_COLS + col
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	var patches: Dictionary = _last_step_data.get("patches", {})
+	var soil_state := {}
+	var root_depth_cm := 0.0
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		if patch_idx < patch_list.size():
+			var patch: Dictionary = patch_list[patch_idx]
+			soil_state = patch.get("soil_state", {})
+			root_depth_cm = patch.get("root_depth_cm", 0.0)
+	if soil_state.is_empty():
+		status_label.text = "No soil data available"
+		return
+	var profile := SoilView3D.get_profile_layers(soil_type)
+	var tile_pos: Vector3 = _tile_meshes[idx].position
+	if not _soil_view:
+		_soil_view = Node3D.new()
+		_soil_view.set_script(SoilView3D)
+		add_child(_soil_view)
+	_soil_view.show(tile_pos, soil_state, profile, root_depth_cm)
+
+
+func _hide_soil_cutaway() -> void:
+	if _soil_view and _soil_view.is_active():
+		_soil_view.hide_view()
