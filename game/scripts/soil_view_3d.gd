@@ -37,6 +37,7 @@ const SCALE_CM := 0.01
 
 var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
+var _last_center_pos := Vector3.INF
 
 
 static func get_profile_layers(soil_type: String) -> Array:
@@ -64,7 +65,15 @@ static func get_profile_layers(soil_type: String) -> Array:
 func show_cutaway(columns: Array[Dictionary]) -> void:
 	## Each column: {pos: Vector3, soil_state: Dict, profile: Array,
 	##   root_depth_cm: float, show_info: bool}
+	var center_pos := Vector3.ZERO
+	if not columns.is_empty():
+		center_pos = columns[0].get("pos", Vector3.ZERO)
+	# Same tile refresh: animate water instead of rebuilding
+	if _active and center_pos == _last_center_pos and not _layer_materials.is_empty():
+		_update_water_from_columns(columns)
+		return
 	_clear()
+	_last_center_pos = center_pos
 	position = Vector3.ZERO
 	for col_data: Dictionary in columns:
 		var pos: Vector3 = col_data.get("pos", Vector3.ZERO)
@@ -98,6 +107,7 @@ func _build_column(
 func hide_view() -> void:
 	visible = false
 	_active = false
+	_last_center_pos = Vector3.INF
 	closed.emit()
 
 
