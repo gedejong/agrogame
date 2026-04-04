@@ -38,8 +38,8 @@ static func create_plants(tile_size: float, col: int, row: int) -> Array[Sprite3
 			spr.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 			spr.pixel_size = PIXEL_SIZE_BASE
 			spr.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			spr.alpha_cut = SpriteBase3D.ALPHA_CUT_OPAQUE_PREPASS
 			spr.alpha_scissor_threshold = 0.1
-			spr.transparent = true
 			spr.shaded = true
 			spr.position = Vector3(lx + jx, Y_OFFSET, lz + jz)
 			spr.visible = false
