@@ -68,10 +68,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	var center_pos := Vector3.ZERO
 	if not columns.is_empty():
 		center_pos = columns[0].get("pos", Vector3.ZERO)
-	# Same tile refresh: animate water instead of rebuilding
-	if _active and center_pos.is_equal_approx(_last_center_pos) and not _layer_materials.is_empty():
-		_update_water_from_columns(columns)
-		return
+	var is_refresh: bool = _active and center_pos.is_equal_approx(_last_center_pos)
 	_clear()
 	_last_center_pos = center_pos
 	position = Vector3.ZERO
@@ -84,12 +81,12 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		_build_column(pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
-	# Opening animation: scale Y from 0 to 1
-	scale = Vector3(1, 0, 1)
-	var tween := create_tween()
-	tween.set_ease(Tween.EASE_OUT)
-	tween.set_trans(Tween.TRANS_BACK)
-	tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
+	if not is_refresh:
+		scale = Vector3(1, 0, 1)
+		var tween := create_tween()
+		tween.set_ease(Tween.EASE_OUT)
+		tween.set_trans(Tween.TRANS_BACK)
+		tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
 
 
 func _build_column(
@@ -171,32 +168,6 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mesh_inst.position = Vector3(0, -(y_offset + h * 0.5), 0)
 		container.add_child(mesh_inst)
 		y_offset += h
-
-
-func _update_water_from_columns(columns: Array[Dictionary]) -> void:
-	var fills: Array[float] = []
-	for col_data: Dictionary in columns:
-		var soil_state: Dictionary = col_data.get("soil_state", {})
-		var profile: Array = col_data.get("profile", [])
-		var thetas: Array = soil_state.get("water_theta", [])
-		for i in range(profile.size()):
-			var sat: float = profile[i].get("saturation", 0.4)
-			var theta: float = thetas[i] if i < thetas.size() else 0.0
-			fills.append(clampf(theta / maxf(sat, 0.01), 0.0, 1.0))
-	_animate_water(fills)
-
-
-func _animate_water(new_fills: Array[float]) -> void:
-	## Tween water_fill uniforms for smooth animation.
-	for i in range(mini(_layer_materials.size(), new_fills.size())):
-		var mat: ShaderMaterial = _layer_materials[i]
-		var tween := create_tween()
-		tween.tween_method(
-			func(val: float) -> void: mat.set_shader_parameter("water_fill", val),
-			float(mat.get_shader_parameter("water_fill")),
-			new_fills[i],
-			0.4,
-		)
 
 
 func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float) -> void:
