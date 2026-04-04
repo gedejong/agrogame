@@ -11,6 +11,14 @@
 [ext_resource type="Texture2D" path="res://assets/icons/icon_credits.svg" id="9"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_plant.svg" id="10"]
 
+[sub_resource type="Environment" id="env"]
+background_mode = 1
+background_color = Color(0.45, 0.55, 0.7, 1)
+ambient_light_source = 1
+ambient_light_color = Color(0.6, 0.65, 0.75, 1)
+ambient_light_energy = 0.5
+tonemap_mode = 2
+
 [node name="FarmView3D" type="Node3D"]
 script = ExtResource("1")
 
@@ -33,14 +41,6 @@ shadow_enabled = true
 directional_shadow_mode = 1
 shadow_normal_bias = 2.0
 directional_shadow_max_distance = 20.0
-
-[sub_resource type="Environment" id="env"]
-background_mode = 1
-background_color = Color(0.45, 0.55, 0.7, 1)
-ambient_light_source = 1
-ambient_light_color = Color(0.6, 0.65, 0.75, 1)
-ambient_light_energy = 0.5
-tonemap_mode = 2
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
