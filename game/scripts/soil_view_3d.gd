@@ -226,9 +226,6 @@ static func _add_face_quad(
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.no_depth_test = true
-	mat.emission_enabled = true
-	mat.emission_texture = tex
-	mat.emission_energy_multiplier = 0.3
 	var inst := MeshInstance3D.new()
 	inst.mesh = quad
 	inst.material_override = mat
@@ -238,35 +235,70 @@ static func _add_face_quad(
 	container.add_child(inst)
 
 
+static func _root_hash(seed_val: int, idx: int) -> float:
+	var h := (seed_val * 2654435761 + idx * 40503) & 0x7FFFFFFF
+	return float(h % 1000) / 1000.0
+
+
 static func _generate_root_image(root_depth: float, total_h: float) -> Image:
-	## Draw root diagram: taproot + laterals + rootlets on a transparent image.
-	var w := 128
-	var h := 256
+	## 4 root systems per face, matching 2D soil_view.gd approach.
+	var w := 256
+	var h := 512
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	var cx: int = w / 2
 	var root_px: int = int(root_depth / total_h * float(h))
-	# Taproot: thick center line
-	_draw_line_img(img, cx, 0, cx, root_px, ROOT_COLOR, 3)
-	# Laterals at 1/4, 1/2, 3/4 root depth
-	for frac in [0.25, 0.5, 0.75]:
-		var y: int = int(float(root_px) * frac)
-		var spread: int = w / 3
-		var dark: float = frac * 0.3
-		for side in [-1, 1]:
-			var tx: int = cx + side * spread
-			var ty: int = y + 8
-			# Main lateral
-			_draw_line_img(img, cx, y, tx, ty, ROOT_COLOR.darkened(dark), 2)
-			# Sub-branch
-			var sx: int = tx + side * (spread / 3)
-			_draw_line_img(img, tx, ty, sx, ty + 12, ROOT_COLOR.darkened(dark + 0.1), 1)
-			# Fine rootlets
-			_draw_line_img(img, tx, ty, tx + side * 5, ty + 16, ROOT_COLOR.darkened(dark + 0.15), 1)
-			_draw_line_img(
-				img, sx, ty + 12, sx + side * 4, ty + 22, ROOT_COLOR.darkened(dark + 0.2), 1
-			)
+	var depth_frac: float = clampf(root_depth / total_h, 0.0, 1.0)
+	# 4 plants spaced at 1/8, 3/8, 5/8, 7/8 across the face
+	var plant_xs: Array[int] = [w / 8, w * 3 / 8, w * 5 / 8, w * 7 / 8]
+	for pi in range(plant_xs.size()):
+		_draw_single_root_img(img, plant_xs[pi], root_px, depth_frac, pi)
 	return img
+
+
+static func _draw_single_root_img(
+	img: Image, cx: int, root_px: int, depth_frac: float, seed_val: int
+) -> void:
+	var w: int = img.get_width()
+	var tap_w: int = clampi(int(depth_frac * 4.0), 1, 4)
+	var curve_x: int = int((_root_hash(seed_val, 0) - 0.5) * 8.0)
+	var mid_y: int = root_px / 2
+	var end_x: int = cx + int(float(curve_x) * 0.3)
+	# Taproot
+	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
+	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
+	# Lateral branches (3-6 per root)
+	var num_b: int = 3 + int(_root_hash(seed_val, 1) * 4.0)
+	for bi in range(num_b):
+		var bd: float = _root_hash(seed_val, 10 + bi) * 0.85 + 0.08
+		if bd > depth_frac:
+			continue
+		var by: int = int(float(root_px) * bd)
+		var tap_at_x: int = int(lerpf(float(cx), float(end_x), bd))
+		var spread: int = int((8.0 + _root_hash(seed_val, 20 + bi) * 16.0) * (1.0 - bd))
+		var dir: int = 1 if _root_hash(seed_val, 30 + bi) > 0.4 else -1
+		var dy: int = int((_root_hash(seed_val, 40 + bi) - 0.3) * 10.0)
+		if spread < 3:
+			continue
+		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
+		var bey: int = by + dy + 6
+		var lat_w: int = clampi(int(2.0 * (1.0 - bd)), 1, 3)
+		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.darkened(bd * 0.3), lat_w)
+		# Sub-branches (1-2)
+		var num_s: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
+		for si in range(num_s):
+			var sf: float = 0.4 + _root_hash(seed_val, 60 + bi * 3 + si) * 0.4
+			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
+			var sy: int = int(lerpf(float(by), float(bey), sf))
+			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, 70 + bi * 3 + si) * 0.3))
+			var sd: int = dir if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -dir
+			var sdy: int = 3 + int(_root_hash(seed_val, 90 + bi * 3 + si) * 6.0)
+			var sex: int = clampi(sx + ss * sd, 2, w - 3)
+			_draw_line_img(img, sx, sy, sex, sy + sdy, ROOT_COLOR.darkened(bd * 0.3 + 0.1), 1)
+			# Tiny rootlets
+			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.4:
+				var rd: int = 1 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1
+				var rx: int = clampi(sex + rd * 4, 2, w - 3)
+				_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + 4, ROOT_COLOR.darkened(0.35), 1)
 
 
 static func _draw_line_img(
