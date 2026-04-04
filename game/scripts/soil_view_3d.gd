@@ -36,6 +36,7 @@ const CUTAWAY_DEPTH := 1.0
 const SCALE_CM := 0.01
 
 var _active := false
+var _layer_materials: Array[ShaderMaterial] = []
 
 
 static func get_profile_layers(soil_type: String) -> Array:
@@ -63,6 +64,10 @@ static func get_profile_layers(soil_type: String) -> Array:
 func show_cutaway(columns: Array[Dictionary]) -> void:
 	## Each column: {pos: Vector3, soil_state: Dict, profile: Array,
 	##   root_depth_cm: float, show_info: bool}
+	# If already active, animate water levels instead of rebuilding
+	if _active and not _layer_materials.is_empty():
+		_update_water_from_columns(columns)
+		return
 	_clear()
 	position = Vector3.ZERO
 	for col_data: Dictionary in columns:
@@ -105,11 +110,13 @@ func is_active() -> bool:
 
 
 func _clear() -> void:
+	_layer_materials.clear()
 	for child in get_children():
 		child.queue_free()
 
 
 func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
+	var shader: Shader = load("res://shaders/soil_cutaway.gdshader")
 	var thetas: Array = soil_state.get("water_theta", [])
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
@@ -119,62 +126,57 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		var sat: float = layer.get("saturation", 0.4)
 		var h: float = depth_cm * SCALE_CM
 		var base_color: Color = LAYER_COLORS.get(tex_name, LAYER_COLORS["loam"])
-		# Depth darkening: lower layers get progressively darker
 		var darken: float = float(i) * 0.12
 		var color := base_color.darkened(darken)
-		# Moisture tint: lerp toward blue based on water fill fraction
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill_frac: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
-		color = color.lerp(WATER_COLOR, fill_frac * 0.5)
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = color
-		mat.roughness = 0.9
 		var tex_paths: Dictionary = LAYER_TEXTURES.get(tex_name, LAYER_TEXTURES["loam"])
 		var albedo_tex: Texture2D = load(tex_paths["albedo"])
 		var normal_tex: Texture2D = load(tex_paths["normal"])
+		var mat := ShaderMaterial.new()
+		mat.shader = shader
+		mat.set_shader_parameter("tint_color", color)
+		mat.set_shader_parameter("water_fill", fill_frac)
+		mat.set_shader_parameter("emission_strength", 0.15)
 		if albedo_tex:
-			mat.albedo_texture = albedo_tex
+			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:
-			mat.normal_enabled = true
-			mat.normal_texture = normal_tex
-		mat.emission_enabled = true
-		mat.emission = color
-		mat.emission_energy_multiplier = 0.15
-		mat.uv1_triplanar = true
+			mat.set_shader_parameter("normal_texture", normal_tex)
+		_layer_materials.append(mat)
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = mesh
 		mesh_inst.material_override = mat
 		mesh_inst.position = Vector3(0, -(y_offset + h * 0.5), 0)
 		container.add_child(mesh_inst)
-		# Water level indicator: colored strip on visible faces
-		if fill_frac > 0.01:
-			_add_water_level(container, y_offset, h, fill_frac)
 		y_offset += h
 
 
-func _add_water_level(container: Node3D, y_offset: float, layer_h: float, fill_frac: float) -> void:
-	## Render water fill as a semi-transparent box covering the bottom
-	## portion of the layer, slightly larger so it protrudes on visible faces.
-	var water_h: float = layer_h * fill_frac
-	var layer_bottom: float = -(y_offset + layer_h)
-	var water_mid_y: float = layer_bottom + water_h * 0.5
-	var nudge := 0.003
-	var water_mesh := BoxMesh.new()
-	water_mesh.size = Vector3(CUTAWAY_WIDTH + nudge, water_h, CUTAWAY_DEPTH + nudge)
-	var water_mat := StandardMaterial3D.new()
-	var alpha: float = 0.35 + fill_frac * 0.35
-	water_mat.albedo_color = Color(WATER_COLOR.r, WATER_COLOR.g, WATER_COLOR.b, alpha)
-	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	water_mat.emission_enabled = true
-	water_mat.emission = Color(0.25, 0.45, 0.85)
-	water_mat.emission_energy_multiplier = 0.3
-	var water_inst := MeshInstance3D.new()
-	water_inst.mesh = water_mesh
-	water_inst.material_override = water_mat
-	water_inst.position = Vector3(0, water_mid_y, 0)
-	container.add_child(water_inst)
+func _update_water_from_columns(columns: Array[Dictionary]) -> void:
+	var fills: Array[float] = []
+	for col_data: Dictionary in columns:
+		var soil_state: Dictionary = col_data.get("soil_state", {})
+		var profile: Array = col_data.get("profile", [])
+		var thetas: Array = soil_state.get("water_theta", [])
+		for i in range(profile.size()):
+			var sat: float = profile[i].get("saturation", 0.4)
+			var theta: float = thetas[i] if i < thetas.size() else 0.0
+			fills.append(clampf(theta / maxf(sat, 0.01), 0.0, 1.0))
+	_animate_water(fills)
+
+
+func _animate_water(new_fills: Array[float]) -> void:
+	## Tween water_fill uniforms for smooth animation.
+	for i in range(mini(_layer_materials.size(), new_fills.size())):
+		var mat: ShaderMaterial = _layer_materials[i]
+		var tween := create_tween()
+		tween.tween_method(
+			func(val: float) -> void: mat.set_shader_parameter("water_fill", val),
+			float(mat.get_shader_parameter("water_fill")),
+			new_fills[i],
+			0.4,
+		)
 
 
 func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float) -> void:
