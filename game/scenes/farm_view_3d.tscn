@@ -34,6 +34,8 @@ directional_shadow_mode = 1
 
 [node name="TileRoot" type="Node3D" parent="."]
 
+[node name="CropRoot" type="Node3D" parent="."]
+
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 10
 

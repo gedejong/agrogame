@@ -57,6 +57,7 @@ var _last_step_data: Dictionary = {}
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
 @onready var tile_root: Node3D = $TileRoot
+@onready var crop_root: Node3D = $CropRoot
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var date_label: Label = $UILayer/TopBar/DateLabel
 @onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
@@ -130,10 +131,14 @@ func _build_tile_grid() -> void:
 			tile_root.add_child(mesh_inst)
 			_tile_meshes.append(mesh_inst)
 			_tile_materials.append(mat)
-			# Crop billboard sprites (16 per tile)
+			# Crop billboard sprites (16 per tile) — separate from tile mesh
+			# to avoid depth buffer conflicts with parent MeshInstance3D.
+			var crop_container := Node3D.new()
+			crop_container.position = mesh_inst.position
+			crop_root.add_child(crop_container)
 			var sprites := CropBillboard.create_plants(TILE_SIZE, col, row)
 			for spr: Sprite3D in sprites:
-				mesh_inst.add_child(spr)
+				crop_container.add_child(spr)
 			_crop_sprites.append(sprites)
 			(
 				_tile_data
