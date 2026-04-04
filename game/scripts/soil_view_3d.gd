@@ -175,7 +175,6 @@ func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
-	print("ROOT DEBUG: root_depth_cm=", root_depth_cm, " total_depth=", total_depth, " root_world=", root_world)
 	if root_world < 0.01:
 		return
 	# Paint roots as a texture on the two visible pillar faces
