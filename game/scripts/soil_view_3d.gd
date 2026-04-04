@@ -102,10 +102,14 @@ func _build_layers(container: Node3D, profile_layers: Array, _soil_state: Dictio
 		# Depth darkening: lower layers get progressively darker
 		var darken: float = float(i) * 0.12
 		var color := base_color.darkened(darken)
-		var mesh := _create_open_box(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = color
 		mat.roughness = 0.9
+		mat.emission_enabled = true
+		mat.emission = color
+		mat.emission_energy_multiplier = 0.15
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = mesh
 		mesh_inst.material_override = mat
@@ -203,49 +207,6 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
 		container.add_child(label)
 		y_offset += h
-
-
-static func _create_open_box(w: float, h: float, d: float) -> ArrayMesh:
-	## Box with 5 faces (no front face). Front = -Z direction.
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var hw: float = w * 0.5
-	var hh: float = h * 0.5
-	var hd: float = d * 0.5
-	# 8 corners
-	var v := [
-		Vector3(-hw, -hh, -hd),  # 0: front-bottom-left
-		Vector3(hw, -hh, -hd),  # 1: front-bottom-right
-		Vector3(hw, hh, -hd),  # 2: front-top-right
-		Vector3(-hw, hh, -hd),  # 3: front-top-left
-		Vector3(-hw, -hh, hd),  # 4: back-bottom-left
-		Vector3(hw, -hh, hd),  # 5: back-bottom-right
-		Vector3(hw, hh, hd),  # 6: back-top-right
-		Vector3(-hw, hh, hd),  # 7: back-top-left
-	]
-	# All faces with INWARD normals (reversed winding) — we look at the inside.
-	# Back face
-	_add_quad(st, v[4], v[5], v[6], v[7])
-	# Left face
-	_add_quad(st, v[0], v[4], v[7], v[3])
-	# Right face
-	_add_quad(st, v[5], v[1], v[2], v[6])
-	# Top face
-	_add_quad(st, v[7], v[6], v[2], v[3])
-	# Bottom face
-	_add_quad(st, v[0], v[1], v[5], v[4])
-	st.generate_normals()
-	return st.commit()
-
-
-static func _add_quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
-	## Two triangles: a-b-c and a-c-d
-	st.add_vertex(a)
-	st.add_vertex(b)
-	st.add_vertex(c)
-	st.add_vertex(a)
-	st.add_vertex(c)
-	st.add_vertex(d)
 
 
 static func _create_tube(from: Vector3, to: Vector3, radius: float, color: Color) -> MeshInstance3D:

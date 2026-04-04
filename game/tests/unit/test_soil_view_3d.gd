@@ -27,8 +27,6 @@ func test_profile_layers_organic() -> void:
 	assert_eq(layers[0]["texture"], "loam")
 
 
-func test_create_open_box_mesh() -> void:
-	var mesh: ArrayMesh = SoilView3DScript._create_open_box(1.0, 0.5, 1.0)
-	assert_not_null(mesh, "Open box mesh created")
-	# 5 faces x 2 triangles x 3 vertices = 30 vertices
-	assert_eq(mesh.get_faces().size(), 30, "5 quad faces = 30 vertices")
+func test_constants() -> void:
+	assert_gt(SoilView3DScript.CUTAWAY_WIDTH, 0.0, "Cutaway width positive")
+	assert_gt(SoilView3DScript.SCALE_CM, 0.0, "Scale cm positive")
