@@ -122,6 +122,8 @@ func _build_layers(container: Node3D, profile_layers: Array, _soil_state: Dictio
 func _build_water(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var y_offset := 0.0
+	var half_w: float = CUTAWAY_WIDTH * 0.5
+	var half_d: float = CUTAWAY_DEPTH * 0.5
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
 		var depth_cm: float = layer.get("depth_cm", 30.0)
@@ -130,25 +132,36 @@ func _build_water(container: Node3D, profile_layers: Array, soil_state: Dictiona
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill_frac: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
 		if fill_frac > 0.01:
-			# Water as a slightly inset box filling the bottom of the layer
+			# Water as quads on the two camera-facing sides of the soil box.
 			var water_h: float = h * fill_frac
-			var inset := 0.002
-			var water_mesh := BoxMesh.new()
-			water_mesh.size = Vector3(CUTAWAY_WIDTH - inset, water_h, CUTAWAY_DEPTH - inset)
+			var layer_bottom: float = -(y_offset + h)
+			var water_mid_y: float = layer_bottom + water_h * 0.5
 			var water_mat := StandardMaterial3D.new()
-			var alpha: float = 0.3 + fill_frac * 0.4
+			var alpha: float = 0.4 + fill_frac * 0.4
 			water_mat.albedo_color = Color(WATER_COLOR.r, WATER_COLOR.g, WATER_COLOR.b, alpha)
 			water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			water_mat.no_depth_test = true
 			water_mat.emission_enabled = true
 			water_mat.emission = Color(0.2, 0.4, 0.8)
-			water_mat.emission_energy_multiplier = 0.1
-			var water_inst := MeshInstance3D.new()
-			water_inst.mesh = water_mesh
-			water_inst.material_override = water_mat
-			# Position: bottom of layer, water fills upward
-			var layer_bottom: float = -(y_offset + h)
-			water_inst.position = Vector3(0, layer_bottom + water_h * 0.5, 0)
-			container.add_child(water_inst)
+			water_mat.emission_energy_multiplier = 0.2
+			# Front-right face (facing camera at +X): plane at x = +half_w
+			var quad_xz := QuadMesh.new()
+			quad_xz.size = Vector2(CUTAWAY_DEPTH, water_h)
+			var inst_x := MeshInstance3D.new()
+			inst_x.mesh = quad_xz
+			inst_x.material_override = water_mat
+			inst_x.position = Vector3(half_w + 0.001, water_mid_y, 0)
+			inst_x.rotation.y = PI * 0.5
+			container.add_child(inst_x)
+			# Front-right face (facing camera at +Z): plane at z = +half_d
+			var quad_xz2 := QuadMesh.new()
+			quad_xz2.size = Vector2(CUTAWAY_WIDTH, water_h)
+			var inst_z := MeshInstance3D.new()
+			inst_z.mesh = quad_xz2
+			inst_z.material_override = water_mat
+			inst_z.position = Vector3(0, water_mid_y, half_d + 0.001)
+			container.add_child(inst_z)
+		y_offset += h
 		y_offset += h
 
 
