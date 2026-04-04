@@ -206,9 +206,9 @@ func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
 	if root_world < 0.01:
 		return
-	# Draw roots on the camera-facing corner using line meshes
-	var ox: float = CUTAWAY_WIDTH * 0.48
-	var oz: float = CUTAWAY_DEPTH * 0.48
+	# Draw roots OUTSIDE the pillar on the camera-facing corner
+	var ox: float = CUTAWAY_WIDTH * 0.51
+	var oz: float = CUTAWAY_DEPTH * 0.51
 	# Taproot
 	_add_root_line(container, [Vector3(ox, 0, oz), Vector3(ox, -root_world, oz)], ROOT_COLOR, 3.0)
 	# Laterals at 1/4, 1/2, 3/4 depth
@@ -266,20 +266,45 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		y_offset += h
 
 
-static func _add_root_line(container: Node3D, points: Array, color: Color, width: float) -> void:
-	var im := ImmediateMesh.new()
-	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for pt: Vector3 in points:
-		im.surface_add_vertex(pt)
-	im.surface_end()
+static func _add_root_line(
+	container: Node3D, points: Array, color: Color, thickness: float
+) -> void:
+	## Draw a root segment as a flat ribbon (QuadMesh) between two points.
+	if points.size() < 2:
+		return
+	var from: Vector3 = points[0]
+	var to: Vector3 = points[1]
+	var dir := to - from
+	var length: float = dir.length()
+	if length < 0.001:
+		return
+	var radius: float = thickness * 0.003
+	var quad := QuadMesh.new()
+	quad.size = Vector2(radius * 2.0, length)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.no_depth_test = true
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mat.emission_enabled = true
 	mat.emission = color
-	mat.emission_energy_multiplier = 0.4
-	mat.point_size = width
+	mat.emission_energy_multiplier = 0.5
 	var inst := MeshInstance3D.new()
-	inst.mesh = im
+	inst.mesh = quad
 	inst.material_override = mat
+	# Position at midpoint
+	inst.position = from + dir * 0.5
+	# Orient the quad to face the camera direction (+X,+Z) and align with segment
+	# QuadMesh default: faces -Z, extends in XY plane
+	# We want it to face roughly toward camera and stretch along the segment
+	if absf(dir.normalized().y) > 0.99:
+		# Vertical segment (taproot): face toward +X,+Z
+		inst.rotation = Vector3(0, -PI / 4.0, 0)
+	else:
+		# Diagonal: use look_at to face camera, then tilt to align
+		var cam_dir := Vector3(1, 0, 1).normalized()
+		inst.look_at(inst.position + cam_dir)
+		# Rotate around the face normal to align the quad height with the segment
+		var seg_dir := dir.normalized()
+		var angle := atan2(seg_dir.x + seg_dir.z, -seg_dir.y)
+		inst.rotate_object_local(Vector3.FORWARD, angle)
 	container.add_child(inst)

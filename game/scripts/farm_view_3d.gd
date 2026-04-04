@@ -91,6 +91,10 @@ func _ready() -> void:
 	_setup_crop_popup()
 	_build_tile_grid()
 	status_label.text = "3D view — click tile to select"
+	# Debug auto-start: create game, step 7 days, select tile, open cutaway
+	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
+	if debug_auto:
+		_debug_auto_start()
 
 
 func _build_tile_grid() -> void:
@@ -569,3 +573,21 @@ func _hide_soil_cutaway() -> void:
 	if _soil_view and _soil_view.is_active():
 		_soil_view.hide_view()
 	_restore_hidden_tiles()
+
+
+func _debug_auto_start() -> void:
+	_ensure_game(
+		func() -> void:
+			_api_client.step_day(
+				_game_id,
+				7,
+				func(success: bool, data: Dictionary) -> void:
+					if not success:
+						return
+					_last_step_data = data
+					_apply_day_result(data)
+					# Select middle tile and open cutaway
+					_select_tile(3, 3)
+					_show_soil_cutaway()
+			)
+	)
