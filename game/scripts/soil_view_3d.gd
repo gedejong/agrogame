@@ -206,32 +206,27 @@ func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
 	if root_world < 0.01:
 		return
+	# Offset roots toward camera (+X, +Z) so they render on the visible face
+	var face_offset := Vector3(CUTAWAY_WIDTH * 0.45, 0, CUTAWAY_DEPTH * 0.45)
 	# Taproot: vertical cylinder from surface down
 	var tap := _create_tube(
-		Vector3(0, 0, 0),
-		Vector3(0, -root_world, 0),
+		face_offset,
+		face_offset + Vector3(0, -root_world, 0),
 		0.015,
 		ROOT_COLOR,
 	)
 	container.add_child(tap)
 	for frac in [0.33, 0.66]:
 		var y: float = -root_world * frac
-		var spread: float = CUTAWAY_WIDTH * 0.3
+		var spread: float = CUTAWAY_WIDTH * 0.25
 		for side in [-1.0, 1.0]:
-			var lateral := _create_tube(
-				Vector3(0, y, 0),
-				Vector3(side * spread, y - 0.02, 0),
-				0.008,
-				ROOT_COLOR.darkened(frac * 0.3),
-			)
+			var base := face_offset + Vector3(0, y, 0)
+			var tip := face_offset + Vector3(side * spread, y - 0.02, 0)
+			var lateral := _create_tube(base, tip, 0.008, ROOT_COLOR.darkened(frac * 0.3))
 			container.add_child(lateral)
 			var sub_spread: float = spread * 0.5
-			var sub := _create_tube(
-				Vector3(side * spread, y - 0.02, 0),
-				Vector3(side * (spread + sub_spread * 0.3), y - 0.06, side * 0.05),
-				0.004,
-				ROOT_COLOR.darkened(frac * 0.4),
-			)
+			var sub_tip := tip + Vector3(side * sub_spread * 0.3, -0.04, side * 0.03)
+			var sub := _create_tube(tip, sub_tip, 0.004, ROOT_COLOR.darkened(frac * 0.4))
 			container.add_child(sub)
 
 
@@ -274,6 +269,10 @@ static func _create_tube(from: Vector3, to: Vector3, radius: float, color: Color
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
 	mat.roughness = 0.8
+	mat.no_depth_test = true
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 0.3
 	var inst := MeshInstance3D.new()
 	inst.mesh = cyl
 	inst.material_override = mat
