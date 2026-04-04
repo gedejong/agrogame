@@ -42,7 +42,7 @@ static func get_profile_layers(soil_type: String) -> Array:
 			]
 
 
-func show(
+func show_cutaway(
 	tile_pos: Vector3,
 	soil_state: Dictionary,
 	profile_layers: Array,

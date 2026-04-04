@@ -506,7 +506,7 @@ func _show_soil_cutaway() -> void:
 		_soil_view = Node3D.new()
 		_soil_view.set_script(SoilView3D)
 		add_child(_soil_view)
-	_soil_view.show(tile_pos, soil_state, profile, root_depth_cm)
+	_soil_view.show_cutaway(tile_pos, soil_state, profile, root_depth_cm)
 
 
 func _hide_soil_cutaway() -> void:
