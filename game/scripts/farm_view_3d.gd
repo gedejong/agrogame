@@ -62,6 +62,8 @@ var _last_step_data: Dictionary = {}
 @onready var tile_root: Node3D = $TileRoot
 @onready var crop_root: Node3D = $CropRoot
 @onready var rain: GPUParticles3D = $Rain
+@onready var sun: DirectionalLight3D = $DirectionalLight3D
+@onready var env: WorldEnvironment = $WorldEnvironment
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var date_label: Label = $UILayer/TopBar/DateLabel
 @onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
@@ -241,6 +243,26 @@ func _update_tile_shader(idx: int) -> void:
 	_tile_materials[idx].set_shader_parameter("moisture_frac", moisture_frac)
 
 
+func _update_weather_lighting(rain_mm: float) -> void:
+	## Adjust sun and environment based on precipitation.
+	## Sunny: bright warm light. Rainy: dim cool light, darker sky.
+	var overcast: float = clampf(rain_mm / 10.0, 0.0, 1.0)
+	# Sun: dim and cool on rainy days
+	var sunny_color := Color(1.0, 0.96, 0.88)
+	var overcast_color := Color(0.75, 0.78, 0.82)
+	sun.light_color = sunny_color.lerp(overcast_color, overcast)
+	sun.light_energy = lerpf(1.8, 0.8, overcast)
+	# Ambient: brighter on overcast (diffuse sky light), but greyer
+	var e := env.environment
+	if e:
+		e.ambient_light_energy = lerpf(1.5, 2.0, overcast)
+		var amb_sunny := Color(0.6, 0.65, 0.75)
+		var amb_overcast := Color(0.55, 0.55, 0.6)
+		e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
+		# Fog denser in rain
+		e.fog_density = lerpf(0.002, 0.008, overcast)
+
+
 func _update_crop_visuals(idx: int) -> void:
 	var data: Dictionary = _tile_data[idx]
 	var crop_key: String = data.get("crop_key", "")
@@ -348,8 +370,9 @@ func _apply_day_result(data: Dictionary) -> void:
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
-	# 3D rain particles
+	# 3D rain particles + lighting
 	rain.set_raining(rain_mm > 1.0, rain_mm)
+	_update_weather_lighting(rain_mm)
 
 	var patches: Dictionary = data.get("patches", {})
 	_apply_patch_data(patches)
