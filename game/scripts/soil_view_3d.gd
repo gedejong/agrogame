@@ -42,21 +42,38 @@ static func get_profile_layers(soil_type: String) -> Array:
 			]
 
 
-func show_cutaway(
-	tile_pos: Vector3,
-	soil_state: Dictionary,
-	profile_layers: Array,
-	root_depth_cm: float = 0.0,
-) -> void:
+func show_cutaway(columns: Array[Dictionary]) -> void:
+	## Each column: {pos: Vector3, soil_state: Dict, profile: Array,
+	##   root_depth_cm: float, show_info: bool}
 	_clear()
-	position = tile_pos
-	_build_layers(profile_layers, soil_state)
-	_build_water(profile_layers, soil_state)
-	if root_depth_cm > 0.0:
-		_build_roots(profile_layers, root_depth_cm)
-	_build_info_labels(profile_layers, soil_state)
+	position = Vector3.ZERO
+	for col_data: Dictionary in columns:
+		var pos: Vector3 = col_data.get("pos", Vector3.ZERO)
+		var soil_state: Dictionary = col_data.get("soil_state", {})
+		var profile: Array = col_data.get("profile", [])
+		var rdcm: float = col_data.get("root_depth_cm", 0.0)
+		var show_info: bool = col_data.get("show_info", false)
+		_build_column(pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
+
+
+func _build_column(
+	pos: Vector3,
+	soil_state: Dictionary,
+	profile_layers: Array,
+	root_depth_cm: float,
+	show_info: bool,
+) -> void:
+	var container := Node3D.new()
+	container.position = pos
+	_build_layers(container, profile_layers, soil_state)
+	_build_water(container, profile_layers, soil_state)
+	if root_depth_cm > 0.0:
+		_build_roots(container, profile_layers, root_depth_cm)
+	if show_info:
+		_build_info_labels(container, profile_layers, soil_state)
+	add_child(container)
 
 
 func hide_view() -> void:
@@ -74,7 +91,7 @@ func _clear() -> void:
 		child.queue_free()
 
 
-func _build_layers(profile_layers: Array, _soil_state: Dictionary) -> void:
+func _build_layers(container: Node3D, profile_layers: Array, _soil_state: Dictionary) -> void:
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -89,16 +106,15 @@ func _build_layers(profile_layers: Array, _soil_state: Dictionary) -> void:
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = color
 		mat.roughness = 0.9
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		var mesh_inst := MeshInstance3D.new()
 		mesh_inst.mesh = mesh
 		mesh_inst.material_override = mat
 		mesh_inst.position = Vector3(0, -(y_offset + h * 0.5), 0)
-		add_child(mesh_inst)
+		container.add_child(mesh_inst)
 		y_offset += h
 
 
-func _build_water(profile_layers: Array, soil_state: Dictionary) -> void:
+func _build_water(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
@@ -123,11 +139,11 @@ func _build_water(profile_layers: Array, soil_state: Dictionary) -> void:
 			water_inst.material_override = water_mat
 			var water_y: float = -(y_offset + h - water_h)
 			water_inst.position = Vector3(0, water_y, 0)
-			add_child(water_inst)
+			container.add_child(water_inst)
 		y_offset += h
 
 
-func _build_roots(profile_layers: Array, root_depth_cm: float) -> void:
+func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float) -> void:
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
@@ -141,8 +157,7 @@ func _build_roots(profile_layers: Array, root_depth_cm: float) -> void:
 		0.015,
 		ROOT_COLOR,
 	)
-	add_child(tap)
-	# Lateral roots at 1/3 and 2/3 depth
+	container.add_child(tap)
 	for frac in [0.33, 0.66]:
 		var y: float = -root_world * frac
 		var spread: float = CUTAWAY_WIDTH * 0.3
@@ -153,8 +168,7 @@ func _build_roots(profile_layers: Array, root_depth_cm: float) -> void:
 				0.008,
 				ROOT_COLOR.darkened(frac * 0.3),
 			)
-			add_child(lateral)
-			# Sub-branches
+			container.add_child(lateral)
 			var sub_spread: float = spread * 0.5
 			var sub := _create_tube(
 				Vector3(side * spread, y - 0.02, 0),
@@ -162,10 +176,10 @@ func _build_roots(profile_layers: Array, root_depth_cm: float) -> void:
 				0.004,
 				ROOT_COLOR.darkened(frac * 0.4),
 			)
-			add_child(sub)
+			container.add_child(sub)
 
 
-func _build_info_labels(profile_layers: Array, soil_state: Dictionary) -> void:
+func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
 	var no3_arr: Array = soil_state.get("n_no3", [])
 	var p_arr: Array = soil_state.get("p_available", [])
 	var som_labile: Array = soil_state.get("som_labile_c", [])
@@ -187,7 +201,7 @@ func _build_info_labels(profile_layers: Array, soil_state: Dictionary) -> void:
 		label.outline_size = 8
 		label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
 		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
-		add_child(label)
+		container.add_child(label)
 		y_offset += h
 
 
@@ -209,16 +223,17 @@ static func _create_open_box(w: float, h: float, d: float) -> ArrayMesh:
 		Vector3(hw, hh, hd),  # 6: back-top-right
 		Vector3(-hw, hh, hd),  # 7: back-top-left
 	]
-	# Back face (4,5,6,7)
-	_add_quad(st, v[5], v[4], v[7], v[6])
-	# Left face (0,4,7,3)
-	_add_quad(st, v[4], v[0], v[3], v[7])
-	# Right face (1,5,6,2)
-	_add_quad(st, v[1], v[5], v[6], v[2])
-	# Top face (3,7,6,2)
-	_add_quad(st, v[3], v[7], v[6], v[2])
-	# Bottom face (0,1,5,4)
-	_add_quad(st, v[4], v[5], v[1], v[0])
+	# All faces with INWARD normals (reversed winding) — we look at the inside.
+	# Back face
+	_add_quad(st, v[4], v[5], v[6], v[7])
+	# Left face
+	_add_quad(st, v[0], v[4], v[7], v[3])
+	# Right face
+	_add_quad(st, v[5], v[1], v[2], v[6])
+	# Top face
+	_add_quad(st, v[7], v[6], v[2], v[3])
+	# Bottom face
+	_add_quad(st, v[0], v[1], v[5], v[4])
 	st.generate_normals()
 	return st.commit()
 

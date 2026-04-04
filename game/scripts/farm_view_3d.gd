@@ -485,32 +485,54 @@ func _show_soil_cutaway() -> void:
 	_restore_hidden_tiles()
 	var col := _selected_tile.x
 	var row := _selected_tile.y
-	var idx := row * GRID_COLS + col
-	var soil_type: String = _tile_data[idx]["soil_type"]
-	var patch_idx := SOIL_TYPES.find(soil_type)
-	if patch_idx < 0:
-		patch_idx = 0
 	var patches: Dictionary = _last_step_data.get("patches", {})
-	var soil_state := {}
-	var root_depth_cm := 0.0
-	for field_key: String in patches:
-		var patch_list: Array = patches[field_key]
-		if patch_idx < patch_list.size():
-			var patch: Dictionary = patch_list[patch_idx]
-			soil_state = patch.get("soil_state", {})
-			root_depth_cm = patch.get("root_depth_cm", 0.0)
-	if soil_state.is_empty():
+	# Build columns: selected (with info) + left/right neighbors
+	var columns: Array[Dictionary] = []
+	var tile_positions: Array[Vector2i] = [
+		Vector2i(col, row),
+		Vector2i(col - 1, row),
+		Vector2i(col + 1, row),
+	]
+	for i in range(tile_positions.size()):
+		var tp := tile_positions[i]
+		if tp.x < 0 or tp.x >= GRID_COLS or tp.y < 0 or tp.y >= GRID_ROWS:
+			continue
+		var t_idx := tp.y * GRID_COLS + tp.x
+		var soil_type: String = _tile_data[t_idx]["soil_type"]
+		var patch_idx := SOIL_TYPES.find(soil_type)
+		if patch_idx < 0:
+			patch_idx = 0
+		var soil_state := {}
+		var root_depth_cm := 0.0
+		for field_key: String in patches:
+			var patch_list: Array = patches[field_key]
+			if patch_idx < patch_list.size():
+				var patch: Dictionary = patch_list[patch_idx]
+				soil_state = patch.get("soil_state", {})
+				root_depth_cm = patch.get("root_depth_cm", 0.0)
+		if soil_state.is_empty():
+			continue
+		(
+			columns
+			. append(
+				{
+					"pos": _tile_meshes[t_idx].position,
+					"soil_state": soil_state,
+					"profile": SoilView3D.get_profile_layers(soil_type),
+					"root_depth_cm": root_depth_cm if i == 0 else 0.0,
+					"show_info": i == 0,
+				}
+			)
+		)
+	if columns.is_empty():
 		status_label.text = "No soil data available"
 		return
-	# Hide selected tile and front neighbors
 	_hide_front_tiles(col, row)
-	var profile := SoilView3D.get_profile_layers(soil_type)
-	var tile_pos: Vector3 = _tile_meshes[idx].position
 	if not _soil_view:
 		_soil_view = Node3D.new()
 		_soil_view.set_script(SoilView3D)
 		add_child(_soil_view)
-	_soil_view.show_cutaway(tile_pos, soil_state, profile, root_depth_cm)
+	_soil_view.show_cutaway(columns)
 
 
 func _hide_front_tiles(col: int, row: int) -> void:
