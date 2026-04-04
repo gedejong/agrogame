@@ -69,7 +69,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	if not columns.is_empty():
 		center_pos = columns[0].get("pos", Vector3.ZERO)
 	# Same tile refresh: animate water instead of rebuilding
-	if _active and center_pos == _last_center_pos and not _layer_materials.is_empty():
+	if _active and center_pos.is_equal_approx(_last_center_pos) and not _layer_materials.is_empty():
 		_update_water_from_columns(columns)
 		return
 	_clear()
@@ -84,6 +84,12 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		_build_column(pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
+	# Opening animation: scale Y from 0 to 1
+	scale = Vector3(1, 0, 1)
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
 
 
 func _build_column(
@@ -105,10 +111,17 @@ func _build_column(
 
 
 func hide_view() -> void:
-	visible = false
 	_active = false
 	_last_center_pos = Vector3.INF
-	closed.emit()
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(self, "scale", Vector3(1, 0, 1), 0.3)
+	tween.tween_callback(
+		func() -> void:
+			visible = false
+			closed.emit()
+	)
 
 
 func is_active() -> bool:
@@ -144,7 +157,7 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mat.set_shader_parameter("tint_color", color)
 		mat.set_shader_parameter("water_fill", fill_frac)
 		mat.set_shader_parameter("box_height", h)
-		mat.set_shader_parameter("emission_strength", 0.15)
+		mat.set_shader_parameter("emission_strength", 0.35)
 		if albedo_tex:
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:
