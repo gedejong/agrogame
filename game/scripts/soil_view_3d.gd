@@ -64,10 +64,6 @@ static func get_profile_layers(soil_type: String) -> Array:
 func show_cutaway(columns: Array[Dictionary]) -> void:
 	## Each column: {pos: Vector3, soil_state: Dict, profile: Array,
 	##   root_depth_cm: float, show_info: bool}
-	# If already active, animate water levels instead of rebuilding
-	if _active and not _layer_materials.is_empty():
-		_update_water_from_columns(columns)
-		return
 	_clear()
 	position = Vector3.ZERO
 	for col_data: Dictionary in columns:
@@ -137,6 +133,7 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mat.shader = shader
 		mat.set_shader_parameter("tint_color", color)
 		mat.set_shader_parameter("water_fill", fill_frac)
+		mat.set_shader_parameter("box_height", h)
 		mat.set_shader_parameter("emission_strength", 0.15)
 		if albedo_tex:
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
