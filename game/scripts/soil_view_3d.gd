@@ -206,28 +206,38 @@ func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
 	if root_world < 0.01:
 		return
-	# Offset roots toward camera (+X, +Z) so they render on the visible face
-	var face_offset := Vector3(CUTAWAY_WIDTH * 0.45, 0, CUTAWAY_DEPTH * 0.45)
-	# Taproot: vertical cylinder from surface down
-	var tap := _create_tube(
-		face_offset,
-		face_offset + Vector3(0, -root_world, 0),
-		0.015,
-		ROOT_COLOR,
-	)
-	container.add_child(tap)
-	for frac in [0.33, 0.66]:
+	# Draw roots on the camera-facing corner using line meshes
+	var ox: float = CUTAWAY_WIDTH * 0.48
+	var oz: float = CUTAWAY_DEPTH * 0.48
+	# Taproot
+	_add_root_line(container, [Vector3(ox, 0, oz), Vector3(ox, -root_world, oz)], ROOT_COLOR, 3.0)
+	# Laterals at 1/4, 1/2, 3/4 depth
+	for frac in [0.25, 0.5, 0.75]:
 		var y: float = -root_world * frac
-		var spread: float = CUTAWAY_WIDTH * 0.25
+		var spread: float = CUTAWAY_WIDTH * 0.35
 		for side in [-1.0, 1.0]:
-			var base := face_offset + Vector3(0, y, 0)
-			var tip := face_offset + Vector3(side * spread, y - 0.02, 0)
-			var lateral := _create_tube(base, tip, 0.008, ROOT_COLOR.darkened(frac * 0.3))
-			container.add_child(lateral)
-			var sub_spread: float = spread * 0.5
-			var sub_tip := tip + Vector3(side * sub_spread * 0.3, -0.04, side * 0.03)
-			var sub := _create_tube(tip, sub_tip, 0.004, ROOT_COLOR.darkened(frac * 0.4))
-			container.add_child(sub)
+			var tx: float = ox + side * spread
+			var tz: float = oz + side * spread * 0.3
+			_add_root_line(
+				container,
+				[Vector3(ox, y, oz), Vector3(tx, y - 0.03, tz)],
+				ROOT_COLOR.darkened(frac * 0.3),
+				2.0,
+			)
+			# Sub-branch
+			_add_root_line(
+				container,
+				[Vector3(tx, y - 0.03, tz), Vector3(tx + side * spread * 0.2, y - 0.07, tz)],
+				ROOT_COLOR.darkened(frac * 0.3 + 0.1),
+				1.0,
+			)
+			# Fine rootlet
+			_add_root_line(
+				container,
+				[Vector3(tx, y - 0.03, tz), Vector3(tx, y - 0.08, tz + side * 0.04)],
+				ROOT_COLOR.darkened(frac * 0.3 + 0.15),
+				0.7,
+			)
 
 
 func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
@@ -256,35 +266,20 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		y_offset += h
 
 
-static func _create_tube(from: Vector3, to: Vector3, radius: float, color: Color) -> MeshInstance3D:
-	var dir := to - from
-	var length: float = dir.length()
-	if length < 0.001:
-		return MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.top_radius = radius
-	cyl.bottom_radius = radius * 0.7
-	cyl.height = length
-	cyl.radial_segments = 6
+static func _add_root_line(container: Node3D, points: Array, color: Color, width: float) -> void:
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for pt: Vector3 in points:
+		im.surface_add_vertex(pt)
+	im.surface_end()
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = color
-	mat.roughness = 0.8
 	mat.no_depth_test = true
 	mat.emission_enabled = true
 	mat.emission = color
-	mat.emission_energy_multiplier = 0.3
+	mat.emission_energy_multiplier = 0.4
+	mat.point_size = width
 	var inst := MeshInstance3D.new()
-	inst.mesh = cyl
+	inst.mesh = im
 	inst.material_override = mat
-	# Position at midpoint, orient along direction
-	inst.position = from + dir * 0.5
-	# Default cylinder is along Y. Rotate to align with direction.
-	var up := Vector3.UP
-	if absf(dir.normalized().dot(up)) > 0.99:
-		inst.rotation = Vector3.ZERO
-		if dir.y > 0:
-			inst.rotation.z = PI
-	else:
-		inst.look_at_from_position(inst.position, to, up)
-		inst.rotate_object_local(Vector3.RIGHT, PI * 0.5)
-	return inst
+	container.add_child(inst)
