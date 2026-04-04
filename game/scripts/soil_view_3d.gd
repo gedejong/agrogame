@@ -196,7 +196,6 @@ static func _add_face_quad(
 	mat.albedo_texture = tex
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mat.no_depth_test = true
 	var inst := MeshInstance3D.new()
 	inst.mesh = quad
 	inst.material_override = mat
@@ -267,16 +266,26 @@ static func _draw_single_root_img(
 			var sex: int = clampi(sx + ss * sd, 2, w - 3)
 			var sub_color := ROOT_COLOR.lightened(0.2).darkened(bd * 0.15)
 			_draw_line_img(img, sx, sy, sex, sy + sdy, sub_color, 2)
-			# Tiny rootlets — lighter, thinner
-			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.3:
-				var rl_color := ROOT_COLOR.lightened(0.3)
-				var rd: int = 1 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1
-				var rx: int = clampi(sex + rd * 6, 2, w - 3)
-				_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + 6, rl_color, 1)
-				# Second rootlet at different angle
-				if _root_hash(seed_val, 120 + bi * 3 + si) > 0.4:
-					var rx2: int = clampi(sex - rd * 4, 2, w - 3)
-					_draw_line_img(img, sex, sy + sdy, rx2, sy + sdy + 5, rl_color, 1)
+			# Rootlets from sub-branch tip
+			var rl_color := ROOT_COLOR.lightened(0.3)
+			for ri in range(3):
+				if _root_hash(seed_val, 100 + bi * 5 + si * 3 + ri) > 0.25:
+					var rd: int = (
+						1 if _root_hash(seed_val, 110 + bi * 5 + si * 3 + ri) > 0.5 else -1
+					)
+					var rl_dx: int = (
+						int((_root_hash(seed_val, 130 + bi * 5 + si * 3 + ri) - 0.3) * 10.0) * rd
+					)
+					var rl_dy: int = 3 + int(_root_hash(seed_val, 140 + bi * 5 + si * 3 + ri) * 8.0)
+					var rx: int = clampi(sex + rl_dx, 2, w - 3)
+					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
+			# Rootlets from lateral midpoint
+			if _root_hash(seed_val, 200 + bi * 3 + si) > 0.3:
+				var mid_lx: int = (tap_at_x + bx) / 2
+				var mid_ly: int = (by + bey) / 2
+				var mrd: int = 1 if _root_hash(seed_val, 210 + bi) > 0.5 else -1
+				var mrx: int = clampi(mid_lx + mrd * 5, 2, w - 3)
+				_draw_line_img(img, mid_lx, mid_ly, mrx, mid_ly + 6, rl_color, 1)
 
 
 static func _draw_line_img(
