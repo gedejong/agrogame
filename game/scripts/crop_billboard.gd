@@ -76,10 +76,11 @@ static func update_sprite(
 	var world_h: float = tex.get_height() * spr.pixel_size
 	spr.position = Vector3(spr.position.x, Y_OFFSET + world_h * 0.5, spr.position.z)
 
-	var color := Color.WHITE
+	# Base tint slightly darker to compensate for ambient + sun brightness
+	var color := Color(0.75, 0.75, 0.75)
 	if stress == STRESS_WILTING:
-		color = Color(0.8, 0.7, 0.5)
+		color = Color(0.6, 0.55, 0.4)
 	elif stress == STRESS_N_DEFICIENT:
-		color = Color(0.85, 0.9, 0.6)
+		color = Color(0.65, 0.7, 0.45)
 	spr.modulate = color
 	spr.visible = true

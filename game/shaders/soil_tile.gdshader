@@ -26,11 +26,23 @@ void fragment() {
 	// Moisture darkening: lerp toward grey-blue
 	color = mix(color, color * MOISTURE_DARK, moisture_frac * MOISTURE_STRENGTH);
 
-	ALBEDO = color;
+	// Wet sheen: fake specular via view-dependent brightness boost.
+	// gl_compatibility doesn't render PBR specular well, so we
+	// compute a simple fresnel-like highlight and add it to albedo.
+	float wet_sheen = 0.0;
+	if (moisture_frac > 0.05) {
+		// View dot normal: tiles face up, view comes from above
+		float vdn = max(dot(NORMAL, VIEW), 0.0);
+		// Fresnel: brighter at glancing angles (edges of tile)
+		float fresnel = pow(1.0 - vdn, 3.0);
+		// Also add a broad highlight for direct overhead view
+		float broad = pow(vdn, 4.0);
+		wet_sheen = (fresnel * 0.3 + broad * 0.15) * moisture_frac;
+	}
+
+	ALBEDO = color + vec3(wet_sheen);
 	NORMAL_MAP = texture(normal_texture, UV).rgb;
-	// Wet soil: lower roughness (shinier), slight specular reflection
-	ROUGHNESS = mix(0.85, 0.3, moisture_frac);
-	SPECULAR = mix(0.0, 0.5, moisture_frac);
+	ROUGHNESS = mix(0.85, 0.4, moisture_frac);
 	METALLIC = 0.0;
 
 	// Selection highlight: soft emission glow
