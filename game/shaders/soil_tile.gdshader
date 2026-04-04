@@ -8,7 +8,6 @@ uniform sampler2D normal_texture : hint_normal;
 uniform float som_frac : hint_range(0.0, 1.0) = 0.0;
 uniform float moisture_frac : hint_range(0.0, 1.0) = 0.0;
 uniform float selected : hint_range(0.0, 1.0) = 0.0;
-uniform float opacity : hint_range(0.0, 1.0) = 1.0;
 
 // SOM darkening target: rich dark brown (matches SoilColor.SOM_DARK)
 const vec3 SOM_DARK = vec3(0.4, 0.3, 0.2);
@@ -34,6 +33,4 @@ void fragment() {
 
 	// Selection highlight: soft emission glow
 	EMISSION = vec3(0.3, 0.5, 0.9) * selected * 0.4;
-
-	ALPHA = opacity;
 }

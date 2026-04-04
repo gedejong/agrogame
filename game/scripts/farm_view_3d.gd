@@ -500,17 +500,15 @@ func _show_soil_cutaway() -> void:
 		Vector2i(col - 1, row + 1),
 		Vector2i(col + 1, row - 1),
 	]
-	# Make front tiles semi-transparent
+	# Hide front tiles + their crops
 	_hidden_tiles.clear()
 	for pos in front_tiles:
 		if _is_valid_grid(pos):
 			var idx: int = pos.y * GRID_COLS + pos.x
 			_hidden_tiles.append(idx)
-			_tile_materials[idx].set_shader_parameter("opacity", 0.25)
+			_tile_meshes[idx].visible = false
 			for spr in _crop_sprites[idx]:
-				if spr is Sprite3D and spr.visible:
-					var c: Color = spr.modulate
-					spr.modulate = Color(c.r, c.g, c.b, 0.25)
+				spr.visible = false
 	# Build pillar columns
 	var columns: Array[Dictionary] = []
 	for i in range(pillar_tiles.size()):
@@ -562,11 +560,7 @@ func _is_valid_grid(pos: Vector2i) -> bool:
 
 func _restore_hidden_tiles() -> void:
 	for idx in _hidden_tiles:
-		_tile_materials[idx].set_shader_parameter("opacity", 1.0)
-		for spr in _crop_sprites[idx]:
-			if spr is Sprite3D:
-				var c: Color = spr.modulate
-				spr.modulate = Color(c.r, c.g, c.b, 1.0)
+		_tile_meshes[idx].visible = true
 		_update_crop_visuals(idx)
 	_hidden_tiles.clear()
 
