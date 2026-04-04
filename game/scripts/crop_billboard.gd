@@ -7,7 +7,7 @@ const CropRenderer = preload("res://scripts/crop_renderer.gd")
 const PLANTS_H := 4
 const PLANTS_V := 4
 const PIXEL_SIZE_BASE := 0.012
-const Y_OFFSET := 0.01
+const Y_OFFSET := 0.0
 
 const STAGE_SUFFIX := {
 	0: "",

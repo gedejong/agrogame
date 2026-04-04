@@ -28,7 +28,7 @@ GameState="*res://scripts/game_state.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/mode=3
+window/size/mode=0
 window/size/resizable=true
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
@@ -39,7 +39,7 @@ enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
 [agrogame]
 
-rendering/use_3d=false
+rendering/use_3d=true
 
 [rendering]
 
