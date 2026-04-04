@@ -66,13 +66,15 @@ static func update_sprite(
 		return
 
 	spr.texture = tex
-	# Shift sprite up so stem base (bottom of texture) sits at ground.
-	# Sprite3D offset is in pixel coords (+Y = down). Move up = negative Y.
-	spr.offset = Vector2(0.0, -tex.get_height() * 0.5)
-	# LAI-based scaling: seedling small, mature large
+	spr.offset = Vector2.ZERO
+	# LAI-based scaling
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var scale_factor: float = clampf(0.3 + lai_frac * 0.7, 0.3, 1.0)
 	spr.pixel_size = PIXEL_SIZE_BASE * scale_factor
+	# Move sprite Y so stem base (bottom of texture) stays at ground.
+	# Half the world-space height of the sprite = height * pixel_size / 2.
+	var world_h: float = tex.get_height() * spr.pixel_size
+	spr.position.y = Y_OFFSET + world_h * 0.5
 
 	var color := Color.WHITE
 	if stress == STRESS_WILTING:
