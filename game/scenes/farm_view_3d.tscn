@@ -16,7 +16,7 @@ background_mode = 1
 background_color = Color(0.45, 0.55, 0.7, 1)
 ambient_light_source = 1
 ambient_light_color = Color(0.6, 0.65, 0.75, 1)
-ambient_light_energy = 0.5
+ambient_light_energy = 0.8
 tonemap_mode = 2
 
 [node name="FarmView3D" type="Node3D"]

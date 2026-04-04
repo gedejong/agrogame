@@ -13,8 +13,8 @@ const LAYER_COLORS := {
 
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
-const CUTAWAY_WIDTH := 0.995
-const CUTAWAY_DEPTH := 0.995
+const CUTAWAY_WIDTH := 1.0
+const CUTAWAY_DEPTH := 1.0
 const SCALE_CM := 0.01
 
 var _active := false
@@ -130,20 +130,24 @@ func _build_water(container: Node3D, profile_layers: Array, soil_state: Dictiona
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
 		var fill_frac: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
 		if fill_frac > 0.01:
+			# Water as a slightly inset box filling the bottom of the layer
 			var water_h: float = h * fill_frac
-			var water_mesh := PlaneMesh.new()
-			water_mesh.size = Vector2(CUTAWAY_WIDTH * 0.95, CUTAWAY_DEPTH * 0.95)
+			var inset := 0.002
+			var water_mesh := BoxMesh.new()
+			water_mesh.size = Vector3(CUTAWAY_WIDTH - inset, water_h, CUTAWAY_DEPTH - inset)
 			var water_mat := StandardMaterial3D.new()
-			water_mat.albedo_color = Color(
-				WATER_COLOR.r, WATER_COLOR.g, WATER_COLOR.b, 0.2 + fill_frac * 0.4
-			)
+			var alpha: float = 0.3 + fill_frac * 0.4
+			water_mat.albedo_color = Color(WATER_COLOR.r, WATER_COLOR.g, WATER_COLOR.b, alpha)
 			water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-			water_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+			water_mat.emission_enabled = true
+			water_mat.emission = Color(0.2, 0.4, 0.8)
+			water_mat.emission_energy_multiplier = 0.1
 			var water_inst := MeshInstance3D.new()
 			water_inst.mesh = water_mesh
 			water_inst.material_override = water_mat
-			var water_y: float = -(y_offset + h - water_h)
-			water_inst.position = Vector3(0, water_y, 0)
+			# Position: bottom of layer, water fills upward
+			var layer_bottom: float = -(y_offset + h)
+			water_inst.position = Vector3(0, layer_bottom + water_h * 0.5, 0)
 			container.add_child(water_inst)
 		y_offset += h
 
