@@ -121,7 +121,33 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mesh_inst.material_override = mat
 		mesh_inst.position = Vector3(0, -(y_offset + h * 0.5), 0)
 		container.add_child(mesh_inst)
+		# Water level indicator: colored strip on visible faces
+		if fill_frac > 0.01:
+			_add_water_level(container, y_offset, h, fill_frac)
 		y_offset += h
+
+
+func _add_water_level(container: Node3D, y_offset: float, layer_h: float, fill_frac: float) -> void:
+	## Render water fill as a semi-transparent box covering the bottom
+	## portion of the layer, slightly larger so it protrudes on visible faces.
+	var water_h: float = layer_h * fill_frac
+	var layer_bottom: float = -(y_offset + layer_h)
+	var water_mid_y: float = layer_bottom + water_h * 0.5
+	var nudge := 0.003
+	var water_mesh := BoxMesh.new()
+	water_mesh.size = Vector3(CUTAWAY_WIDTH + nudge, water_h, CUTAWAY_DEPTH + nudge)
+	var water_mat := StandardMaterial3D.new()
+	var alpha: float = 0.35 + fill_frac * 0.35
+	water_mat.albedo_color = Color(WATER_COLOR.r, WATER_COLOR.g, WATER_COLOR.b, alpha)
+	water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	water_mat.emission_enabled = true
+	water_mat.emission = Color(0.25, 0.45, 0.85)
+	water_mat.emission_energy_multiplier = 0.3
+	var water_inst := MeshInstance3D.new()
+	water_inst.mesh = water_mesh
+	water_inst.material_override = water_mat
+	water_inst.position = Vector3(0, water_mid_y, 0)
+	container.add_child(water_inst)
 
 
 func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float) -> void:
