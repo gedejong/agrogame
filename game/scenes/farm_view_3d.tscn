@@ -1,8 +1,8 @@
-[gd_scene load_steps=12 format=3 uid="uid://farm_view_3d"]
+[gd_scene load_steps=14 format=3 uid="uid://farm_view_3d"]
 
 [ext_resource type="Script" path="res://scripts/farm_view_3d.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/camera_3d_controller.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/weather_overlay.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/rain_3d.gd" id="3"]
 [ext_resource type="Script" path="res://scripts/forecast_panel.gd" id="4"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_calendar.svg" id="5"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_irrigate.svg" id="6"]
@@ -11,13 +11,25 @@
 [ext_resource type="Texture2D" path="res://assets/icons/icon_credits.svg" id="9"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_plant.svg" id="10"]
 
+[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
+sky_top_color = Color(0.35, 0.5, 0.75, 1)
+sky_horizon_color = Color(0.6, 0.7, 0.85, 1)
+ground_bottom_color = Color(0.3, 0.25, 0.2, 1)
+ground_horizon_color = Color(0.5, 0.55, 0.5, 1)
+
+[sub_resource type="Sky" id="sky"]
+sky_material = SubResource("sky_mat")
+
 [sub_resource type="Environment" id="env"]
-background_mode = 1
-background_color = Color(0.45, 0.55, 0.7, 1)
-ambient_light_source = 1
-ambient_light_color = Color(0.6, 0.65, 0.75, 1)
-ambient_light_energy = 2.0
+background_mode = 2
+sky = SubResource("sky")
+ambient_light_source = 2
+ambient_light_energy = 1.5
 tonemap_mode = 2
+fog_enabled = true
+fog_light_color = Color(0.7, 0.75, 0.85, 1)
+fog_density = 0.002
+fog_aerial_perspective = 0.3
 
 [node name="FarmView3D" type="Node3D"]
 script = ExtResource("1")
@@ -51,12 +63,12 @@ environment = SubResource("env")
 
 [node name="CropRoot" type="Node3D" parent="."]
 
-[node name="UILayer" type="CanvasLayer" parent="."]
-layer = 10
-
-[node name="WeatherOverlay" type="CPUParticles2D" parent="UILayer"]
+[node name="Rain" type="GPUParticles3D" parent="."]
 script = ExtResource("3")
 emitting = false
+
+[node name="UILayer" type="CanvasLayer" parent="."]
+layer = 10
 
 [node name="TopBar" type="HBoxContainer" parent="UILayer"]
 offset_left = 8.0

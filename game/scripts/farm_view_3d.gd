@@ -61,6 +61,7 @@ var _last_step_data: Dictionary = {}
 @onready var camera: Camera3D = $CameraRig/Camera3D
 @onready var tile_root: Node3D = $TileRoot
 @onready var crop_root: Node3D = $CropRoot
+@onready var rain: GPUParticles3D = $Rain
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var date_label: Label = $UILayer/TopBar/DateLabel
 @onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
@@ -330,23 +331,25 @@ func _apply_day_result(data: Dictionary) -> void:
 
 	date_label.text = "Day %d | %s" % [day_num, cur_date]
 	credits_label.text = "%d" % balance
-	var rain: float = w.get("rain_mm", 0.0)
+	var rain_mm: float = w.get("rain_mm", 0.0)
 	weather_label.text = (
 		"%.0f–%.0f°C  %.1fmm"
 		% [
 			w.get("tmin_c", 0.0),
 			w.get("tmax_c", 0.0),
-			rain,
+			rain_mm,
 		]
 	)
 	var icon_path := "res://assets/icons/icon_sun.svg"
-	if rain > 5.0:
+	if rain_mm > 5.0:
 		icon_path = "res://assets/icons/icon_rain.svg"
-	elif rain >= 1.0:
+	elif rain_mm >= 1.0:
 		icon_path = "res://assets/icons/icon_cloud.svg"
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
+	# 3D rain particles
+	rain.set_raining(rain_mm > 1.0, rain_mm)
 
 	var patches: Dictionary = data.get("patches", {})
 	_apply_patch_data(patches)
