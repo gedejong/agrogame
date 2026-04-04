@@ -252,8 +252,9 @@ static func _draw_single_root_img(
 			continue
 		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
 		var bey: int = by + dy + 6
-		var lat_w: int = clampi(int(2.0 * (1.0 - bd)), 1, 3)
-		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.darkened(bd * 0.3), lat_w)
+		var lat_w: int = clampi(int(3.0 * (1.0 - bd)), 2, 4)
+		var lat_color := ROOT_COLOR.lightened(0.1).darkened(bd * 0.2)
+		_draw_line_img(img, tap_at_x, by, bx, bey, lat_color, lat_w)
 		# Sub-branches (1-2)
 		var num_s: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
 		for si in range(num_s):
@@ -264,12 +265,18 @@ static func _draw_single_root_img(
 			var sd: int = dir if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -dir
 			var sdy: int = 3 + int(_root_hash(seed_val, 90 + bi * 3 + si) * 6.0)
 			var sex: int = clampi(sx + ss * sd, 2, w - 3)
-			_draw_line_img(img, sx, sy, sex, sy + sdy, ROOT_COLOR.darkened(bd * 0.3 + 0.1), 1)
-			# Tiny rootlets
-			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.4:
+			var sub_color := ROOT_COLOR.lightened(0.2).darkened(bd * 0.15)
+			_draw_line_img(img, sx, sy, sex, sy + sdy, sub_color, 2)
+			# Tiny rootlets — lighter, thinner
+			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.3:
+				var rl_color := ROOT_COLOR.lightened(0.3)
 				var rd: int = 1 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1
-				var rx: int = clampi(sex + rd * 4, 2, w - 3)
-				_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + 4, ROOT_COLOR.darkened(0.35), 1)
+				var rx: int = clampi(sex + rd * 6, 2, w - 3)
+				_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + 6, rl_color, 1)
+				# Second rootlet at different angle
+				if _root_hash(seed_val, 120 + bi * 3 + si) > 0.4:
+					var rx2: int = clampi(sex - rd * 4, 2, w - 3)
+					_draw_line_img(img, sex, sy + sdy, rx2, sy + sdy + 5, rl_color, 1)
 
 
 static func _draw_line_img(
