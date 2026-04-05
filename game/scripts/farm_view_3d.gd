@@ -255,17 +255,17 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	var temp_spread: float = maxf(tmax - tmin, 1.0)
 	var humidity_proxy: float = clampf((rain_mm / 5.0) + (1.0 - temp_spread / 15.0) * 0.5, 0.0, 1.0)
 	# Sun: dim and cool on rainy days
-	var sunny_color := Color(1.0, 0.96, 0.88)
-	var overcast_color := Color(0.75, 0.78, 0.82)
+	var sunny_color := Color(0.95, 0.9, 0.8)
+	var overcast_color := Color(0.65, 0.65, 0.7)
 	sun.light_color = sunny_color.lerp(overcast_color, overcast)
-	sun.light_energy = lerpf(1.1, 0.5, overcast)
+	sun.light_energy = lerpf(1.0, 0.4, overcast)
 	var e := env.environment
 	if not e:
 		return
 	# Ambient: slightly brighter on overcast (diffuse sky), but greyer
-	e.ambient_light_energy = lerpf(0.4, 0.6, overcast)
-	var amb_sunny := Color(0.6, 0.65, 0.75)
-	var amb_overcast := Color(0.55, 0.55, 0.6)
+	e.ambient_light_energy = lerpf(0.25, 0.35, overcast)
+	var amb_sunny := Color(0.4, 0.42, 0.5)
+	var amb_overcast := Color(0.3, 0.3, 0.35)
 	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
 	# Fog: driven by humidity proxy, not just rain
 	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
