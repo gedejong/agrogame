@@ -27,8 +27,14 @@ void fragment() {
 	// Stress overlay
 	color = mix(color, WILTING, stress * 0.5);
 
+	// Waxy cuticle highlight: broad leaves (maize, sorghum) have a sheen
+	// where sunlight hits. Fresnel + view-dependent brightness.
+	float ndotv = abs(dot(NORMAL, VIEW));
+	float sheen = pow(1.0 - ndotv, 3.0) * 0.15 + pow(ndotv, 6.0) * 0.1;
+	color += vec3(sheen) * (1.0 - senescence);
+
 	ALBEDO = color;
-	ROUGHNESS = 0.7;
+	ROUGHNESS = mix(0.5, 0.8, senescence);  // Young leaves shinier
 	METALLIC = 0.0;
 	ALPHA_SCISSOR_THRESHOLD = 0.3;
 	ALPHA = mask;
