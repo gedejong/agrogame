@@ -93,6 +93,10 @@ func _clear() -> void:
 func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Dictionary) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
+	var track_w := 120
+	var track_h := 14
+	var bar_h := 6
+	var bar_y: int = (track_h - bar_h) / 2
 	# Label
 	var lbl := Label.new()
 	lbl.text = label
@@ -100,37 +104,42 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	lbl.add_theme_color_override("font_color", cfg["color"])
 	lbl.custom_minimum_size.x = 50
 	row.add_child(lbl)
-	# Bar background (shows optimal range)
+	# Track background
 	var bar_bg := Control.new()
-	bar_bg.custom_minimum_size = Vector2(120, 12)
-	# Optimal range background
-	var opt_bg := ColorRect.new()
+	bar_bg.custom_minimum_size = Vector2(track_w, track_h)
+	# Track base (dark)
+	var track := ColorRect.new()
+	track.color = Color(0.12, 0.12, 0.15, 0.6)
+	track.size = Vector2(track_w, track_h)
+	bar_bg.add_child(track)
+	# Optimal range band (green zone — full track height, always visible)
 	var max_val: float = cfg["max"]
 	var opt_min: float = cfg["opt_min"]
 	var opt_max: float = cfg["opt_max"]
 	var opt_min_frac: float = opt_min / max_val
 	var opt_max_frac: float = opt_max / max_val
 	if label == "pH":
-		# pH: optimal range centered, show as green zone
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
-	opt_bg.color = Color(0.15, 0.35, 0.15, 0.4)
-	opt_bg.position = Vector2(opt_min_frac * 120, 0)
-	opt_bg.size = Vector2((opt_max_frac - opt_min_frac) * 120, 12)
+	var opt_bg := ColorRect.new()
+	opt_bg.color = Color(0.12, 0.3, 0.12, 0.5)
+	opt_bg.position = Vector2(opt_min_frac * track_w, 0)
+	opt_bg.size = Vector2((opt_max_frac - opt_min_frac) * track_w, track_h)
 	bar_bg.add_child(opt_bg)
-	# Value bar fill
-	var bar_fill := ColorRect.new()
+	# Value bar (thin, centered in track — doesn't cover optimal zone)
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
 	if label == "pH":
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
 	var bar_color: Color = _stress_color(label, val, opt_min, opt_max)
+	var bar_fill := ColorRect.new()
 	bar_fill.color = bar_color
-	bar_fill.size = Vector2(bar_frac * 120, 12)
+	bar_fill.position = Vector2(0, bar_y)
+	bar_fill.size = Vector2(bar_frac * track_w, bar_h)
 	bar_bg.add_child(bar_fill)
-	# Outline
+	# Thin outline on track
 	var outline := ReferenceRect.new()
-	outline.size = Vector2(120, 12)
-	outline.border_color = Color(0.35, 0.35, 0.4, 0.6)
+	outline.size = Vector2(track_w, track_h)
+	outline.border_color = Color(0.3, 0.3, 0.35, 0.4)
 	outline.border_width = 1.0
 	outline.editor_only = false
 	bar_bg.add_child(outline)
