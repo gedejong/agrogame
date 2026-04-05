@@ -32,9 +32,14 @@ const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
-const CropBillboard = preload("res://scripts/crop_billboard.gd")
 const CropRenderer = preload("res://scripts/crop_renderer.gd")
 const SoilView3D = preload("res://scripts/soil_view_3d.gd")
+const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
+const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
+const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
+const RiceRenderer3D = preload("res://scripts/rice_renderer_3d.gd")
+const GrapeRenderer3D = preload("res://scripts/grape_renderer_3d.gd")
+const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
 
 const _STAGE_MAP := {
 	"planted": 1,
@@ -144,15 +149,29 @@ func _build_tile_grid() -> void:
 			tile_root.add_child(mesh_inst)
 			_tile_meshes.append(mesh_inst)
 			_tile_materials.append(mat)
-			# Crop billboard sprites (16 per tile) — separate from tile mesh
-			# to avoid depth buffer conflicts with parent MeshInstance3D.
+			# 3D crop plants — 16 per tile in separate node tree
 			var crop_container := Node3D.new()
 			crop_container.position = mesh_inst.position
 			crop_root.add_child(crop_container)
-			var sprites := CropBillboard.create_plants(TILE_SIZE, col, row)
-			for spr: Sprite3D in sprites:
-				crop_container.add_child(spr)
-			_crop_sprites.append(sprites)
+			var plants: Array[Node3D] = []
+			var plants_h: int = 4
+			var plants_v: int = 4
+			for hi in range(plants_h):
+				var u: float = (float(hi) + 0.5) / float(plants_h)
+				for vi in range(plants_v):
+					var v: float = (float(vi) + 0.5) / float(plants_v)
+					var lx: float = (u - 0.5) * TILE_SIZE
+					var lz: float = (v - 0.5) * TILE_SIZE
+					var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
+					var jm: float = TILE_SIZE / float(plants_h) * 0.08
+					var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+					var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+					var placeholder := Node3D.new()
+					placeholder.position = Vector3(lx + jx, 0, lz + jz)
+					placeholder.set_meta("plant_seed", sv)
+					crop_container.add_child(placeholder)
+					plants.append(placeholder)
+			_crop_sprites.append(plants)
 			(
 				_tile_data
 				. append(
@@ -281,9 +300,75 @@ func _update_crop_visuals(idx: int) -> void:
 	var stage: int = data.get("crop_stage", 0)
 	var lai: float = data.get("lai", 0.0)
 	var stress: int = data.get("stress", 0)
-	var sprites: Array = _crop_sprites[idx]
-	for spr: Sprite3D in sprites:
-		CropBillboard.update_sprite(spr, crop_key, stage, lai, stress)
+	var grain: float = data.get("grain_g_m2", 0.0)
+	var plants: Array = _crop_sprites[idx]
+	# Compute growth parameters
+	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
+	var growth: float = 0.0
+	match stage:
+		1:
+			growth = 0.25
+		2:
+			growth = clampf(0.3 + lai_frac * 0.5, 0.3, 0.8)
+		3:
+			growth = 0.9
+		4:
+			growth = 1.0
+	var expected_lai: float = 1.0
+	match stage:
+		2:
+			expected_lai = 4.0
+		3:
+			expected_lai = 5.5
+		4:
+			expected_lai = 3.0
+	var senescence: float = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
+	if stage <= 2:
+		senescence = 0.0
+	var stress_f: float = 0.0
+	if stress == 1:
+		stress_f = 0.5
+	elif stress == 2:
+		stress_f = 0.3
+	for plant_node: Node3D in plants:
+		# Clear previous plant geometry
+		for child in plant_node.get_children():
+			child.queue_free()
+		if stage == 0 or crop_key.is_empty():
+			continue
+		var seed_val: int = plant_node.get_meta("plant_seed", 0)
+		var new_plant := _create_3d_plant(
+			crop_key, growth, senescence, stress_f, grain_frac, seed_val
+		)
+		# Reparent children to the placeholder
+		for child in new_plant.get_children():
+			new_plant.remove_child(child)
+			plant_node.add_child(child)
+		new_plant.free()
+
+
+static func _create_3d_plant(
+	crop_key: String,
+	growth: float,
+	senescence: float,
+	stress: float,
+	grain_frac: float,
+	seed_val: int,
+) -> Node3D:
+	match crop_key:
+		"maize":
+			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"spring_wheat", "winter_wheat":
+			return WheatRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"sorghum":
+			return SorghumRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"rice":
+			return RiceRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"grape":
+			return GrapeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		_:
+			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
