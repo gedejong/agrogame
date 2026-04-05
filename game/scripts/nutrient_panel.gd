@@ -4,9 +4,9 @@ extends PanelContainer
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
-	"NO₃":
+	"▪ NO₃":
 	{"color": Color(0.2, 0.72, 0.2), "max": 100.0, "opt_min": 5.0, "opt_max": 60.0, "unit": "g/m²"},
-	"NH₄":
+	"▫ NH₄":
 	{
 		"color": Color(0.45, 0.78, 0.35),
 		"max": 120.0,
@@ -14,9 +14,9 @@ const NUTRIENT_BARS := {
 		"opt_max": 80.0,
 		"unit": "g/m²"
 	},
-	"P":
+	"◆ P":
 	{"color": Color(0.6, 0.35, 0.78), "max": 25.0, "opt_min": 5.0, "opt_max": 20.0, "unit": "g/m²"},
-	"SOM":
+	"▰ SOM":
 	{
 		"color": Color(0.6, 0.42, 0.25),
 		"max": 2500.0,
@@ -24,7 +24,7 @@ const NUTRIENT_BARS := {
 		"opt_max": 2500.0,
 		"unit": "gC/m²"
 	},
-	"θ":
+	"◉ Water":
 	{
 		"color": Color(0.2, 0.55, 0.85),
 		"max": 0.45,
@@ -32,8 +32,9 @@ const NUTRIENT_BARS := {
 		"opt_max": 0.35,
 		"unit": "m³/m³"
 	},
-	"pH": {"color": Color(0.55, 0.55, 0.6), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
-	"Microbe":
+	"◇ pH":
+	{"color": Color(0.55, 0.55, 0.6), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
+	"● Microbe":
 	{
 		"color": Color(0.9, 0.55, 0.1),
 		"max": 250.0,
@@ -160,7 +161,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var opt_max: float = cfg["opt_max"]
 	var opt_min_frac: float = opt_min / max_val
 	var opt_max_frac: float = opt_max / max_val
-	if label == "pH":
+	if label.ends_with("pH"):
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
 	var opt_bg := ColorRect.new()
@@ -171,7 +172,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 	# Value bar — thin, centered
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
-	if label == "pH":
+	if label.ends_with("pH"):
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
 	var bar_color: Color = _stress_color(label, val, opt_min, opt_max)
 	var bar_fill := ColorRect.new()
@@ -192,7 +193,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	# Value text
 	var val_lbl := Label.new()
 	var unit: String = cfg["unit"]
-	if label == "pH":
+	if label.ends_with("pH"):
 		val_lbl.text = "%.1f" % val
 	elif val >= 100.0:
 		val_lbl.text = "%.0f" % val
@@ -210,7 +211,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 
 static func _stress_color(key: String, val: float, opt_min: float, opt_max: float) -> Color:
-	if key == "pH":
+	if key.ends_with("pH"):
 		if val < opt_min - 1.0 or val > opt_max + 1.0:
 			return BAR_STRESS
 		if val < opt_min or val > opt_max:
