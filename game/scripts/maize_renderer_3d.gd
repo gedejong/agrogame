@@ -73,40 +73,60 @@ static func _add_leaves(
 	seed_val: int,
 	leaf_mat: ShaderMaterial,
 ) -> void:
+	var segs := 5
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
 		var hi := li * 7
-		# Position along stem
 		var y_frac: float = 0.05 + frac * 0.8
 		var y: float = y_frac * stem_h
-		# Alternating sides
-		var dir: float = -1.0 if li % 2 == 0 else 1.0
 		# Bell-curve leaf length: longest at 55% height
 		var len_curve: float = 1.0 - 4.0 * (frac - 0.55) * (frac - 0.55)
 		var len_var: float = (CR.hash_val(seed_val, hi) - 0.5) * 0.3
 		var leaf_len: float = (
 			LEAF_LENGTH * (0.5 + len_curve * 0.5) * (1.0 + len_var) * growth_progress
 		)
-		# Width varies with length
 		var leaf_w: float = LEAF_WIDTH * (0.6 + len_curve * 0.4)
-		# Facing angle (rotation around Y)
-		var facing: float = CR.hash_val(seed_val, hi + 1) * TAU
-		# Droop: lower leaves droop more
+		# Azimuthal angle: spread evenly around stem
+		var azimuth: float = float(li) / float(num_leaves) * TAU
+		azimuth += (CR.hash_val(seed_val, hi + 1) - 0.5) * 0.6
+		# Droop: lower (older) leaves droop more
 		var age: float = 1.0 - frac
-		var droop: float = (0.3 + age * 0.8) * (1.0 + (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.3)
-		# Arc angle: leaves start vertical, tip droops
-		var arc_angle: float = PI * 0.15 + droop * 0.4
+		var droop: float = (0.2 + age * 0.6) * (1.0 + (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.3)
+		# Build curved leaf as a pivot node with the mesh
+		var pivot := Node3D.new()
+		pivot.position = Vector3(0, y, 0)
+		pivot.rotation.y = azimuth
+		# Build curved leaf strip: starts up from stem, goes out, then droops
+		var leaf_mesh := _build_curved_leaf(leaf_len, leaf_w, droop, segs)
+		var leaf_inst := MeshInstance3D.new()
+		leaf_inst.mesh = leaf_mesh
+		leaf_inst.material_override = leaf_mat
+		leaf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		pivot.add_child(leaf_inst)
+		plant.add_child(pivot)
 
-		var leaf := CR.create_leaf_quad(leaf_w, leaf_len, Vector3.ZERO, Vector3.ZERO)
-		leaf.material_override = leaf_mat
-		# Each leaf radiates outward from stem at azimuthal angle
-		# Spread evenly around stem + alternating + hash variation
-		var base_angle: float = float(li) / float(num_leaves) * TAU
-		base_angle += (CR.hash_val(seed_val, hi + 3) - 0.5) * 0.5
-		var out_dist: float = leaf_len * 0.3
-		var lx: float = cos(base_angle) * out_dist
-		var lz: float = sin(base_angle) * out_dist
-		leaf.position = Vector3(lx * 0.3, y, lz * 0.3)
-		# Face outward from stem, tilt down for arc/droop
-		leaf.rotation = Vector3(-arc_angle, base_angle, 0)
-		plant.add_child(leaf)
+
+static func _build_curved_leaf(
+	length: float, width: float, droop: float, segments: int
+) -> ArrayMesh:
+	## Build a leaf as a curved quad strip. The leaf starts at the stem
+	## going slightly up, extends outward, then droops at the tip.
+	## Shape: y = -droop * t^2 + rise * t, where t goes 0→1 along length.
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var rise: float = length * 0.3
+	for si in range(segments + 1):
+		var t: float = float(si) / float(segments)
+		# Width narrows: wide in middle, narrow at base and tip
+		var w_frac: float = 4.0 * t * (1.0 - t)
+		var hw: float = width * 0.5 * w_frac
+		# Arc: up then droop. y = rise * 4t(1-t) - droop * t^3
+		var arc_y: float = rise * 4.0 * t * (1.0 - t) - droop * length * t * t * t
+		var out_z: float = length * t
+		# UV: t along length, 0/1 across width
+		st.set_uv(Vector2(t, 0.0))
+		st.add_vertex(Vector3(-hw, arc_y, out_z))
+		st.set_uv(Vector2(t, 1.0))
+		st.add_vertex(Vector3(hw, arc_y, out_z))
+	st.generate_normals()
+	return st.commit()
