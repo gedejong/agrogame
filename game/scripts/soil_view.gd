@@ -43,6 +43,42 @@ const CROP_ROOT_STYLE := {
 }
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
+
+## Nutrient bar display: color-blind safe palette (ColorBrewer + art guide UI accents)
+## Each entry: {color, max_val, optimal_min, optimal_max, unit, label}
+const NUTRIENT_BARS := {
+	"NO3":
+	{"color": Color(0.17, 0.63, 0.17), "max": 5.0, "opt_min": 1.0, "opt_max": 5.0, "unit": "g/m²"},
+	"NH4":
+	{"color": Color(0.6, 0.87, 0.54), "max": 3.0, "opt_min": 0.3, "opt_max": 3.0, "unit": "g/m²"},
+	"P":
+	{"color": Color(0.58, 0.4, 0.74), "max": 2.0, "opt_min": 0.2, "opt_max": 2.0, "unit": "g/m²"},
+	"SOM":
+	{
+		"color": Color(0.55, 0.34, 0.29),
+		"max": 500.0,
+		"opt_min": 50.0,
+		"opt_max": 500.0,
+		"unit": "g/m²"
+	},
+	"Water":
+	{
+		"color": Color(0.12, 0.47, 0.71),
+		"max": 0.45,
+		"opt_min": 0.08,
+		"opt_max": 0.35,
+		"unit": "m³/m³"
+	},
+	"pH": {"color": Color(0.5, 0.5, 0.5), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
+	"Microbe":
+	{"color": Color(1.0, 0.5, 0.05), "max": 50.0, "opt_min": 5.0, "opt_max": 50.0, "unit": "gC/m²"},
+}
+const BAR_STRESS_COLOR := Color(0.9, 0.25, 0.2)
+const BAR_MARGINAL_COLOR := Color(0.95, 0.75, 0.2)
+const BAR_WIDTH := 0.008
+const BAR_MAX_LENGTH := 0.15
+const BAR_SPACING := 0.012
+const CONNECTOR_RADIUS := 0.001
 ## cm → world units. Must match farm_view.METERS_PER_TILE.
 const SCALE_CM := 0.005
 const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
@@ -366,25 +402,115 @@ static func _draw_line_img(
 
 func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
 	var no3_arr: Array = soil_state.get("n_no3", [])
+	var nh4_arr: Array = soil_state.get("n_nh4", [])
 	var p_arr: Array = soil_state.get("p_available", [])
 	var som_labile: Array = soil_state.get("som_labile_c", [])
+	var theta_arr: Array = soil_state.get("water_theta", [])
+	var ph_arr: Array = soil_state.get("ph", [])
+	var microbe_arr: Array = soil_state.get("microbe_c", [])
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
 		var depth_cm: float = layer.get("depth_cm", 30.0)
 		var h: float = depth_cm * SCALE_CM
 		var mid_y: float = -(y_offset + h * 0.5)
-		var n_val: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var som_val: float = som_labile[i] if i < som_labile.size() else 0.0
-		var label := Label3D.new()
-		label.text = "N:%.1f P:%.1f SOM:%.0f g/m²" % [n_val, p_val, som_val]
-		label.font_size = 32
-		label.pixel_size = 0.002
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.modulate = Color(0.9, 0.9, 0.95)
-		label.outline_size = 8
-		label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
-		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
-		container.add_child(label)
+		# Collect per-layer values
+		var vals := {
+			"NO3": no3_arr[i] if i < no3_arr.size() else 0.0,
+			"NH4": nh4_arr[i] if i < nh4_arr.size() else 0.0,
+			"P": p_arr[i] if i < p_arr.size() else 0.0,
+			"SOM": som_labile[i] if i < som_labile.size() else 0.0,
+			"Water": theta_arr[i] if i < theta_arr.size() else 0.0,
+			"pH": ph_arr[i] if i < ph_arr.size() else 6.5,
+			"Microbe": microbe_arr[i] if i < microbe_arr.size() else 0.0,
+		}
+		# Connector line from layer to info panel
+		var panel_x: float = CUTAWAY_WIDTH * 0.6
+		_add_connector(
+			container, Vector3(CUTAWAY_WIDTH * 0.5, mid_y, 0), Vector3(panel_x, mid_y, 0)
+		)
+		# Build bars + label
+		_build_bar_panel(container, vals, Vector3(panel_x, mid_y, 0))
 		y_offset += h
+
+
+func _add_connector(container: Node3D, from: Vector3, to: Vector3) -> void:
+	var length: float = (to - from).length()
+	if length < 0.001:
+		return
+	var line := MeshInstance3D.new()
+	var cyl := CylinderMesh.new()
+	cyl.height = length
+	cyl.top_radius = CONNECTOR_RADIUS
+	cyl.bottom_radius = CONNECTOR_RADIUS
+	cyl.radial_segments = 4
+	line.mesh = cyl
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.6, 0.6, 0.65, 0.6)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	line.material_override = mat
+	line.position = (from + to) * 0.5
+	line.rotation.z = PI * 0.5
+	container.add_child(line)
+
+
+func _build_bar_panel(container: Node3D, vals: Dictionary, pos: Vector3) -> void:
+	var bar_idx := 0
+	var text_parts: PackedStringArray = PackedStringArray()
+	for key: String in NUTRIENT_BARS:
+		var cfg: Dictionary = NUTRIENT_BARS[key]
+		var val: float = vals.get(key, 0.0)
+		var bar_y: float = pos.y + (float(bar_idx) - 3.0) * BAR_SPACING
+		# Normalized bar length
+		var max_val: float = cfg["max"]
+		var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
+		var bar_len: float = BAR_MAX_LENGTH * bar_frac
+		# Stress coloring: green if optimal, yellow if marginal, red if deficient/excess
+		var bar_color: Color = cfg["color"]
+		var opt_min: float = cfg["opt_min"]
+		var opt_max: float = cfg["opt_max"]
+		if key == "pH":
+			# pH: stress at both extremes
+			if val < opt_min - 1.0 or val > opt_max + 1.0:
+				bar_color = BAR_STRESS_COLOR
+			elif val < opt_min or val > opt_max:
+				bar_color = BAR_MARGINAL_COLOR
+		else:
+			if val < opt_min * 0.3:
+				bar_color = BAR_STRESS_COLOR
+			elif val < opt_min:
+				bar_color = BAR_MARGINAL_COLOR
+		# Bar mesh
+		if bar_len > 0.001:
+			var bar := MeshInstance3D.new()
+			var box := BoxMesh.new()
+			box.size = Vector3(bar_len, BAR_WIDTH, BAR_WIDTH)
+			bar.mesh = box
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = bar_color
+			mat.emission_enabled = true
+			mat.emission = bar_color
+			mat.emission_energy_multiplier = 0.2
+			bar.material_override = mat
+			bar.position = Vector3(pos.x + bar_len * 0.5, bar_y, pos.z)
+			container.add_child(bar)
+		# Collect text for label
+		var unit: String = cfg["unit"]
+		if key == "pH":
+			text_parts.append("%s:%.1f" % [key, val])
+		elif val >= 10.0:
+			text_parts.append("%s:%.0f%s" % [key, val, unit])
+		else:
+			text_parts.append("%s:%.1f%s" % [key, val, unit])
+		bar_idx += 1
+	# Summary label
+	var label := Label3D.new()
+	label.text = " ".join(text_parts)
+	label.font_size = 24
+	label.pixel_size = 0.0015
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color(0.9, 0.9, 0.95)
+	label.outline_size = 6
+	label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
+	label.position = Vector3(pos.x + BAR_MAX_LENGTH + 0.02, pos.y, pos.z)
+	container.add_child(label)
