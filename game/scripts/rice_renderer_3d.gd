@@ -4,7 +4,7 @@ extends RefCounted
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
-const NUM_TILLERS := 5
+const NUM_TILLERS := 1
 const STEM_HEIGHT := 1.0
 const LEAF_WIDTH := 0.015
 const LEAF_LENGTH := 0.4

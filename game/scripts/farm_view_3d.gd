@@ -35,11 +35,11 @@ const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 const CROP_GRID := {
-	"maize": Vector2i(5, 5),
-	"spring_wheat": Vector2i(4, 4),
-	"winter_wheat": Vector2i(4, 4),
-	"sorghum": Vector2i(5, 5),
-	"rice": Vector2i(4, 4),
+	"maize": Vector2i(3, 8),
+	"spring_wheat": Vector2i(10, 40),
+	"winter_wheat": Vector2i(10, 40),
+	"sorghum": Vector2i(3, 10),
+	"rice": Vector2i(10, 8),
 	"grape": Vector2i(2, 2),
 }
 
