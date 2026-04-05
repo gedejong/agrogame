@@ -26,8 +26,10 @@ static func create_plant(
 		return plant
 
 	var h: float = STEM_HEIGHT * growth_progress
-	# Stem
-	var stem_mesh := CR.create_stem_mesh(h, STEM_RADIUS_BOTTOM, STEM_RADIUS_TOP)
+	# Stem — radius grows with maturity
+	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
+	var r_top: float = STEM_RADIUS_TOP * growth_progress + 0.001
+	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
 	var stem_mat := CR.create_stem_material(senescence)
 	var stem := MeshInstance3D.new()
 	stem.mesh = stem_mesh
