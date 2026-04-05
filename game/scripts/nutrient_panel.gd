@@ -4,39 +4,64 @@ extends PanelContainer
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
-	"▪ NO₃":
-	{"color": Color(0.2, 0.72, 0.2), "max": 100.0, "opt_min": 5.0, "opt_max": 60.0, "unit": "g/m²"},
-	"▫ NH₄":
+	"NO₃":
+	{
+		"color": Color(0.2, 0.72, 0.2),
+		"icon": "res://assets/icons/icon_no3.svg",
+		"max": 100.0,
+		"opt_min": 5.0,
+		"opt_max": 60.0,
+		"unit": "g/m²"
+	},
+	"NH₄":
 	{
 		"color": Color(0.45, 0.78, 0.35),
+		"icon": "res://assets/icons/icon_nh4.svg",
 		"max": 120.0,
 		"opt_min": 3.0,
 		"opt_max": 80.0,
 		"unit": "g/m²"
 	},
-	"◆ P":
-	{"color": Color(0.6, 0.35, 0.78), "max": 25.0, "opt_min": 5.0, "opt_max": 20.0, "unit": "g/m²"},
-	"▰ SOM":
+	"P":
+	{
+		"color": Color(0.6, 0.35, 0.78),
+		"icon": "res://assets/icons/icon_p.svg",
+		"max": 25.0,
+		"opt_min": 5.0,
+		"opt_max": 20.0,
+		"unit": "g/m²"
+	},
+	"SOM":
 	{
 		"color": Color(0.6, 0.42, 0.25),
+		"icon": "res://assets/icons/icon_som.svg",
 		"max": 2500.0,
 		"opt_min": 200.0,
 		"opt_max": 2500.0,
 		"unit": "gC/m²"
 	},
-	"◉ Water":
+	"Water":
 	{
 		"color": Color(0.2, 0.55, 0.85),
+		"icon": "res://assets/icons/icon_water.svg",
 		"max": 0.45,
 		"opt_min": 0.10,
 		"opt_max": 0.35,
 		"unit": "m³/m³"
 	},
-	"◇ pH":
-	{"color": Color(0.55, 0.55, 0.6), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
-	"● Microbe":
+	"pH":
+	{
+		"color": Color(0.55, 0.55, 0.6),
+		"icon": "res://assets/icons/icon_ph.svg",
+		"max": 9.0,
+		"opt_min": 5.5,
+		"opt_max": 7.5,
+		"unit": ""
+	},
+	"Microbe":
 	{
 		"color": Color(0.9, 0.55, 0.1),
+		"icon": "res://assets/icons/icon_microbe.svg",
 		"max": 250.0,
 		"opt_min": 50.0,
 		"opt_max": 250.0,
@@ -137,12 +162,20 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var bar_h := 5
 	var bar_y: int = (track_h - bar_h) / 2
 
-	# Label — nutrient color, fixed width
+	# Icon (12×12)
+	var icon_path: String = cfg.get("icon", "")
+	if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
+		var icon := TextureRect.new()
+		icon.texture = load(icon_path)
+		icon.custom_minimum_size = Vector2(12, 12)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
+	# Label — nutrient name
 	var lbl := Label.new()
 	lbl.text = label
 	lbl.add_theme_font_size_override("font_size", 10)
 	lbl.add_theme_color_override("font_color", cfg["color"])
-	lbl.custom_minimum_size.x = 48
+	lbl.custom_minimum_size.x = 40
 	row.add_child(lbl)
 
 	# Bar track
@@ -161,7 +194,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var opt_max: float = cfg["opt_max"]
 	var opt_min_frac: float = opt_min / max_val
 	var opt_max_frac: float = opt_max / max_val
-	if label.ends_with("pH"):
+	if label == "pH":
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
 	var opt_bg := ColorRect.new()
@@ -172,7 +205,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 	# Value bar — thin, centered
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
-	if label.ends_with("pH"):
+	if label == "pH":
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
 	var bar_color: Color = _stress_color(label, val, opt_min, opt_max)
 	var bar_fill := ColorRect.new()
@@ -193,7 +226,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	# Value text
 	var val_lbl := Label.new()
 	var unit: String = cfg["unit"]
-	if label.ends_with("pH"):
+	if label == "pH":
 		val_lbl.text = "%.1f" % val
 	elif val >= 100.0:
 		val_lbl.text = "%.0f" % val
@@ -211,7 +244,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 
 static func _stress_color(key: String, val: float, opt_min: float, opt_max: float) -> Color:
-	if key.ends_with("pH"):
+	if key == "pH":
 		if val < opt_min - 1.0 or val > opt_max + 1.0:
 			return BAR_STRESS
 		if val < opt_min or val > opt_max:

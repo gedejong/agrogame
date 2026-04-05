@@ -827,13 +827,13 @@ func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
 						"depth_label": "%d–%dcm" % [0 if i == 0 else depth, depth],
 						"values":
 						{
-							"▪ NO₃": no3[i] if i < no3.size() else 0.0,
-							"▫ NH₄": nh4[i] if i < nh4.size() else 0.0,
-							"◆ P": p[i] if i < p.size() else 0.0,
-							"▰ SOM": som[i] if i < som.size() else 0.0,
-							"◉ Water": theta[i] if i < theta.size() else 0.0,
-							"◇ pH": ph[i] if i < ph.size() else 6.5,
-							"● Microbe": mic[i] if i < mic.size() else 0.0,
+							"NO₃": no3[i] if i < no3.size() else 0.0,
+							"NH₄": nh4[i] if i < nh4.size() else 0.0,
+							"P": p[i] if i < p.size() else 0.0,
+							"SOM": som[i] if i < som.size() else 0.0,
+							"Water": theta[i] if i < theta.size() else 0.0,
+							"pH": ph[i] if i < ph.size() else 6.5,
+							"Microbe": mic[i] if i < mic.size() else 0.0,
 						},
 					}
 				)
