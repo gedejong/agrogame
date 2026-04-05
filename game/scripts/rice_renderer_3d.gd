@@ -30,27 +30,28 @@ static func create_plant(
 		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.06
 		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.06
 		var stem := MeshInstance3D.new()
-		stem.mesh = CR.create_stem_mesh(h, 0.006, 0.003)
+		var stem_r: float = 0.002 * growth_progress + 0.001
+		stem.mesh = CR.create_stem_mesh(h, stem_r, stem_r * 0.6)
 		stem.material_override = stem_mat
 		stem.position = Vector3(ox, h * 0.5, oz)
 		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(stem)
-		# Narrow leaves — alternating along stem
+		# Narrow curved leaves — alternating along stem
 		for li in range(3):
-			var y: float = h * (0.15 + float(li) * 0.25)
+			var y: float = h * (0.1 + float(li) / 3.0 * 0.7)
 			var azimuth: float = (
 				float(li) * PI + (CR.hash_val(seed_val, ti * 8 + 2 + li) - 0.5) * 0.6
 			)
-			var droop: float = 0.2 + CR.hash_val(seed_val, ti * 8 + 5 + li) * 0.4
+			var droop: float = 0.15 + CR.hash_val(seed_val, ti * 8 + 5 + li) * 0.3
+			var leaf_l: float = LEAF_LENGTH * growth_progress
+			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 4)
 			var pivot := Node3D.new()
 			pivot.position = Vector3(ox, y, oz)
 			pivot.rotation.y = azimuth
-			var leaf := CR.create_leaf_quad(
-				LEAF_WIDTH, LEAF_LENGTH * growth_progress, Vector3.ZERO, Vector3.ZERO
-			)
+			var leaf := MeshInstance3D.new()
+			leaf.mesh = leaf_mesh
 			leaf.material_override = leaf_mat
-			leaf.position = Vector3(0, 0, LEAF_LENGTH * growth_progress * 0.35)
-			leaf.rotation.x = -droop
+			leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			pivot.add_child(leaf)
 			plant.add_child(pivot)
 		# Drooping panicle

@@ -154,8 +154,8 @@ func _build_tile_grid() -> void:
 			crop_container.position = mesh_inst.position
 			crop_root.add_child(crop_container)
 			var plants: Array[Node3D] = []
-			var plants_h: int = 4
-			var plants_v: int = 4
+			var plants_h: int = 3
+			var plants_v: int = 3
 			for hi in range(plants_h):
 				var u: float = (float(hi) + 0.5) / float(plants_h)
 				for vi in range(plants_v):

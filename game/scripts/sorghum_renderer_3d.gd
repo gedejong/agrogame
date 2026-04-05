@@ -24,29 +24,30 @@ static func create_plant(
 
 	var h: float = STEM_HEIGHT * growth_progress
 	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
-	# Thick stem
+	# Stem — scales with growth
+	var stem_r: float = 0.008 * growth_progress + 0.003
 	var stem := MeshInstance3D.new()
-	stem.mesh = CR.create_stem_mesh(h, 0.02, 0.01)
+	stem.mesh = CR.create_stem_mesh(h, stem_r, stem_r * 0.6)
 	stem.material_override = CR.create_stem_material(senescence)
 	stem.position = Vector3(0, h * 0.5, 0)
 	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(stem)
-	# Broad drooping leaves — alternating ~120° like maize
+	# Broad drooping leaves with curve — ~120° phyllotaxis
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
-		var y: float = (0.1 + frac * 0.7) * h
+		var y: float = (0.05 + frac * 0.8) * h
 		var azimuth: float = float(li) * TAU / 3.0 + (CR.hash_val(seed_val, li * 3) - 0.5) * 0.7
-		var droop: float = 0.4 + (1.0 - frac) * 0.6
+		var droop: float = 0.3 + (1.0 - frac) * 0.5
+		var leaf_l: float = LEAF_LENGTH * growth_progress
+		var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 5)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		var leaf := CR.create_leaf_quad(
-			LEAF_WIDTH, LEAF_LENGTH * growth_progress, Vector3.ZERO, Vector3.ZERO
-		)
+		var leaf := MeshInstance3D.new()
+		leaf.mesh = leaf_mesh
 		leaf.material_override = leaf_mat
-		leaf.position = Vector3(0, 0, LEAF_LENGTH * growth_progress * 0.4)
-		leaf.rotation.x = -droop
+		leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		pivot.add_child(leaf)
 		plant.add_child(pivot)
 	# Dense spherical seed head

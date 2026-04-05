@@ -30,30 +30,31 @@ static func create_plant(
 	for ti in range(NUM_TILLERS):
 		var offset_x: float = (CR.hash_val(seed_val, ti * 10) - 0.5) * 0.08
 		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.08
-		# Stem
+		# Stem — thin, scales with growth
+		var stem_r: float = 0.003 * growth_progress + 0.001
 		var stem := MeshInstance3D.new()
-		stem.mesh = CR.create_stem_mesh(h, 0.008, 0.004)
+		stem.mesh = CR.create_stem_mesh(h, stem_r, stem_r * 0.6)
 		stem.material_override = stem_mat
 		stem.position = Vector3(offset_x, h * 0.5, offset_z)
 		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(stem)
-		# 3-4 leaves per tiller, alternating ~180° with variation
+		# 3-4 leaves distributed along stem with curved droop
 		var num_leaves: int = 3 + int(CR.hash_val(seed_val, ti * 10 + 2))
 		for li in range(num_leaves):
-			var y: float = h * (0.15 + float(li) * 0.2)
+			var y: float = h * (0.1 + float(li) / float(num_leaves) * 0.75)
 			var azimuth: float = (
 				float(li) * PI + (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.8
 			)
-			var droop: float = 0.3 + (1.0 - float(li) / float(num_leaves)) * 0.5
+			var droop: float = 0.2 + (1.0 - float(li) / float(num_leaves)) * 0.4
+			var leaf_l: float = LEAF_LENGTH * growth_progress
+			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 4)
 			var pivot := Node3D.new()
 			pivot.position = Vector3(offset_x, y, offset_z)
 			pivot.rotation.y = azimuth
-			var leaf := CR.create_leaf_quad(
-				LEAF_WIDTH, LEAF_LENGTH * growth_progress, Vector3.ZERO, Vector3.ZERO
-			)
+			var leaf := MeshInstance3D.new()
+			leaf.mesh = leaf_mesh
 			leaf.material_override = leaf_mat
-			leaf.position = Vector3(0, 0, LEAF_LENGTH * growth_progress * 0.4)
-			leaf.rotation.x = -droop
+			leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			pivot.add_child(leaf)
 			plant.add_child(pivot)
 		# Seed head at top

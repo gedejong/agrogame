@@ -74,3 +74,25 @@ static func create_leaf_quad(
 	inst.rotation = rot
 	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	return inst
+
+
+static func build_curved_leaf(
+	length: float, width: float, droop: float, segments: int = 5
+) -> ArrayMesh:
+	## Curved leaf strip: up from stem, arcs outward, droops at tip.
+	## y = rise * 4t(1-t) - droop * length * t^3
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
+	var rise: float = length * 0.25
+	for si in range(segments + 1):
+		var t: float = float(si) / float(segments)
+		var w_frac: float = 4.0 * t * (1.0 - t)
+		var hw: float = width * 0.5 * maxf(w_frac, 0.1)
+		var arc_y: float = rise * 4.0 * t * (1.0 - t) - droop * length * t * t * t
+		var out_z: float = length * t
+		st.set_uv(Vector2(t, 0.0))
+		st.add_vertex(Vector3(-hw, arc_y, out_z))
+		st.set_uv(Vector2(t, 1.0))
+		st.add_vertex(Vector3(hw, arc_y, out_z))
+	st.generate_normals()
+	return st.commit()
