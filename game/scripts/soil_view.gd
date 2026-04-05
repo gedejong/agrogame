@@ -414,7 +414,6 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		var depth_cm: float = layer.get("depth_cm", 30.0)
 		var h: float = depth_cm * SCALE_CM
 		var mid_y: float = -(y_offset + h * 0.5)
-		# Collect per-layer values
 		var vals := {
 			"NO3": no3_arr[i] if i < no3_arr.size() else 0.0,
 			"NH4": nh4_arr[i] if i < nh4_arr.size() else 0.0,
@@ -424,53 +423,108 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 			"pH": ph_arr[i] if i < ph_arr.size() else 6.5,
 			"Microbe": microbe_arr[i] if i < microbe_arr.size() else 0.0,
 		}
-		# Connector line from layer to info panel
-		var panel_x: float = CUTAWAY_WIDTH * 0.6
-		_add_connector(
-			container, Vector3(CUTAWAY_WIDTH * 0.5, mid_y, 0), Vector3(panel_x, mid_y, 0)
-		)
-		# Build bars + label
-		_build_bar_panel(container, vals, Vector3(panel_x, mid_y, 0))
+		# Render info panel as a 2D image on a billboard quad
+		var img := _render_info_panel(vals)
+		var tex := ImageTexture.create_from_image(img)
+		var quad := QuadMesh.new()
+		var panel_w: float = 0.5
+		var panel_h: float = panel_w * float(img.get_height()) / float(img.get_width())
+		quad.size = Vector2(panel_w, panel_h)
+		var mat := StandardMaterial3D.new()
+		mat.albedo_texture = tex
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		var inst := MeshInstance3D.new()
+		inst.mesh = quad
+		inst.material_override = mat
+		inst.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		var panel_pos := Vector3(CUTAWAY_WIDTH * 0.8, mid_y, 0)
+		inst.position = panel_pos
+		container.add_child(inst)
+		# Per-row text labels (name + value) as Label3D beside the bars
+		var row_idx := 0
+		for key: String in NUTRIENT_BARS:
+			var cfg: Dictionary = NUTRIENT_BARS[key]
+			var val: float = vals.get(key, 0.0)
+			# Row Y in world space — map from image row to 3D
+			var row_y_frac: float = (float(row_idx) + 0.5) / float(NUTRIENT_BARS.size())
+			var row_y: float = mid_y + panel_h * (0.5 - row_y_frac)
+			# Name label (left of bars)
+			var name_lbl := Label3D.new()
+			name_lbl.text = key
+			name_lbl.font_size = 24
+			name_lbl.pixel_size = 0.001
+			name_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			name_lbl.modulate = cfg["color"]
+			name_lbl.outline_size = 4
+			name_lbl.outline_modulate = Color(0, 0, 0, 0.8)
+			name_lbl.position = Vector3(panel_pos.x - panel_w * 0.48, row_y, 0)
+			container.add_child(name_lbl)
+			# Value label (right of bars)
+			var unit: String = cfg["unit"]
+			var val_text: String = ""
+			if key == "pH":
+				val_text = "%.1f" % val
+			elif val >= 100.0:
+				val_text = "%.0f" % val
+			else:
+				val_text = "%.1f" % val
+			if not unit.is_empty():
+				val_text += " " + unit
+			var val_lbl := Label3D.new()
+			val_lbl.text = val_text
+			val_lbl.font_size = 22
+			val_lbl.pixel_size = 0.001
+			val_lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			val_lbl.modulate = Color(0.85, 0.85, 0.9)
+			val_lbl.outline_size = 4
+			val_lbl.outline_modulate = Color(0, 0, 0, 0.8)
+			val_lbl.position = Vector3(panel_pos.x + panel_w * 0.52, row_y, 0)
+			container.add_child(val_lbl)
+			row_idx += 1
 		y_offset += h
 
 
-func _add_connector(container: Node3D, from: Vector3, to: Vector3) -> void:
-	var length: float = (to - from).length()
-	if length < 0.001:
-		return
-	var line := MeshInstance3D.new()
-	var cyl := CylinderMesh.new()
-	cyl.height = length
-	cyl.top_radius = CONNECTOR_RADIUS
-	cyl.bottom_radius = CONNECTOR_RADIUS
-	cyl.radial_segments = 4
-	line.mesh = cyl
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.6, 0.6, 0.65, 0.6)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	line.material_override = mat
-	line.position = (from + to) * 0.5
-	line.rotation.z = PI * 0.5
-	container.add_child(line)
-
-
-func _build_bar_panel(container: Node3D, vals: Dictionary, pos: Vector3) -> void:
-	var bar_idx := 0
-	var text_parts: PackedStringArray = PackedStringArray()
+static func _render_info_panel(vals: Dictionary) -> Image:
+	## Render a clean 2D panel: each nutrient gets a row with
+	## label, colored bar (with optimal range bg), and value.
+	var pw := 320
+	var row_h := 18
+	var num_rows: int = NUTRIENT_BARS.size()
+	var ph: int = num_rows * row_h + 8
+	var img := Image.create(pw, ph, false, Image.FORMAT_RGBA8)
+	# Dark semi-transparent background
+	img.fill(Color(0.08, 0.08, 0.1, 0.85))
+	var label_w := 55
+	var bar_x := 60
+	var bar_max_w := 160
+	var val_x := 228
+	var row_idx := 0
 	for key: String in NUTRIENT_BARS:
 		var cfg: Dictionary = NUTRIENT_BARS[key]
 		var val: float = vals.get(key, 0.0)
-		var bar_y: float = pos.y + (float(bar_idx) - 3.0) * BAR_SPACING
-		# Normalized bar length
+		var y: int = 4 + row_idx * row_h
 		var max_val: float = cfg["max"]
-		var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
-		var bar_len: float = BAR_MAX_LENGTH * bar_frac
-		# Stress coloring: green if optimal, yellow if marginal, red if deficient/excess
-		var bar_color: Color = cfg["color"]
 		var opt_min: float = cfg["opt_min"]
 		var opt_max: float = cfg["opt_max"]
+		var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
+		# Optimal range background (dark green zone)
+		var opt_min_px: int = int(opt_min / max_val * float(bar_max_w))
+		var opt_max_px: int = int(opt_max / max_val * float(bar_max_w))
+		_fill_rect(
+			img,
+			bar_x,
+			y + 2,
+			opt_max_px - opt_min_px,
+			row_h - 4,
+			Color(0.15, 0.3, 0.15, 0.5),
+			opt_min_px
+		)
+		# Bar fill
+		var bar_w: int = int(bar_frac * float(bar_max_w))
+		var bar_color: Color = cfg["color"]
 		if key == "pH":
-			# pH: stress at both extremes
 			if val < opt_min - 1.0 or val > opt_max + 1.0:
 				bar_color = BAR_STRESS_COLOR
 			elif val < opt_min or val > opt_max:
@@ -480,37 +534,29 @@ func _build_bar_panel(container: Node3D, vals: Dictionary, pos: Vector3) -> void
 				bar_color = BAR_STRESS_COLOR
 			elif val < opt_min:
 				bar_color = BAR_MARGINAL_COLOR
-		# Bar mesh
-		if bar_len > 0.001:
-			var bar := MeshInstance3D.new()
-			var box := BoxMesh.new()
-			box.size = Vector3(bar_len, BAR_WIDTH, BAR_WIDTH)
-			bar.mesh = box
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = bar_color
-			mat.emission_enabled = true
-			mat.emission = bar_color
-			mat.emission_energy_multiplier = 0.2
-			bar.material_override = mat
-			bar.position = Vector3(pos.x + bar_len * 0.5, bar_y, pos.z)
-			container.add_child(bar)
-		# Collect text for label
-		var unit: String = cfg["unit"]
-		if key == "pH":
-			text_parts.append("%s:%.1f" % [key, val])
-		elif val >= 10.0:
-			text_parts.append("%s:%.0f%s" % [key, val, unit])
-		else:
-			text_parts.append("%s:%.1f%s" % [key, val, unit])
-		bar_idx += 1
-	# Summary label
-	var label := Label3D.new()
-	label.text = " ".join(text_parts)
-	label.font_size = 24
-	label.pixel_size = 0.0015
-	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.modulate = Color(0.9, 0.9, 0.95)
-	label.outline_size = 6
-	label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
-	label.position = Vector3(pos.x + BAR_MAX_LENGTH + 0.02, pos.y, pos.z)
-	container.add_child(label)
+		_fill_rect(img, bar_x, y + 3, bar_w, row_h - 6, bar_color)
+		# Bar outline
+		_draw_rect_outline(img, bar_x, y + 2, bar_max_w, row_h - 4, Color(0.4, 0.4, 0.45, 0.6))
+		row_idx += 1
+	return img
+
+
+static func _fill_rect(
+	img: Image, x: int, y: int, w: int, h: int, color: Color, x_offset: int = 0
+) -> void:
+	for py in range(maxi(y, 0), mini(y + h, img.get_height())):
+		for px in range(maxi(x + x_offset, 0), mini(x + x_offset + w, img.get_width())):
+			img.set_pixel(px, py, color)
+
+
+static func _draw_rect_outline(img: Image, x: int, y: int, w: int, h: int, color: Color) -> void:
+	for px in range(maxi(x, 0), mini(x + w, img.get_width())):
+		if y >= 0 and y < img.get_height():
+			img.set_pixel(px, y, color)
+		if y + h - 1 >= 0 and y + h - 1 < img.get_height():
+			img.set_pixel(px, y + h - 1, color)
+	for py in range(maxi(y, 0), mini(y + h, img.get_height())):
+		if x >= 0 and x < img.get_width():
+			img.set_pixel(x, py, color)
+		if x + w - 1 >= 0 and x + w - 1 < img.get_width():
+			img.set_pixel(x + w - 1, py, color)
