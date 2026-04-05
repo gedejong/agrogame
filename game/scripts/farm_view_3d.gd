@@ -271,9 +271,6 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
 	# Height fog: creates "further = foggier" look in isometric view.
 	# Fog layer at ground level, fades upward.
-	e.fog_height_enabled = humidity_proxy > 0.1
-	e.fog_height = 0.5
-	e.fog_height_density = lerpf(0.0, 0.15, humidity_proxy)
 	# Animated fog wisps
 	fog_clouds.set_fog_intensity(humidity_proxy)
 
