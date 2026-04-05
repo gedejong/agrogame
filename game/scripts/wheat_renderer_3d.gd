@@ -35,7 +35,8 @@ static func create_plant(
 		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.08
 		# Leaf sheath "stem": green cylinder formed by wrapped leaves.
 		# Tapers from base to top. Always visible — this IS the plant body.
-		var sheath_top: float = h * (0.8 if not has_grain else 0.7)
+		# Sheath gradually recedes as grain develops (0.8 → 0.7)
+		var sheath_top: float = h * lerpf(0.8, 0.7, grain_frac)
 		var sheath_r_bot: float = 0.005 * growth_progress + 0.002
 		var sheath_r_top: float = sheath_r_bot * 0.5
 		var sheath_mat := CR.create_leaf_material("wheat", senescence, stress)

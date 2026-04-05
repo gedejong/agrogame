@@ -26,7 +26,7 @@ static func create_plant(
 	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
 	# Leaf sheath: green cylinder (wrapped leaf bases = visible "stem")
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7
-	var sheath_top: float = h * (0.9 if not has_grain else 0.7)
+	var sheath_top: float = h * lerpf(0.9, 0.7, grain_frac)
 	var sheath_r: float = 0.008 * growth_progress + 0.003
 	var sheath := MeshInstance3D.new()
 	sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)
@@ -44,7 +44,7 @@ static func create_plant(
 		ped.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(ped)
 	# Broad drooping leaves with curve — ~120° phyllotaxis
-	var leaf_top: float = 0.95 if not has_grain else 0.75
+	var leaf_top: float = lerpf(0.95, 0.75, grain_frac)
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
 	for li in range(num_leaves):

@@ -31,7 +31,7 @@ static func create_plant(
 		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.06
 		var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 		# Leaf sheath: green cylinder (wrapped leaves form the visible "stem")
-		var sheath_top: float = h * (0.85 if not has_grain else 0.7)
+		var sheath_top: float = h * lerpf(0.85, 0.7, grain_frac)
 		var sheath_r: float = 0.003 * growth_progress + 0.001
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)

@@ -311,17 +311,17 @@ func _update_crop_visuals(idx: int) -> void:
 			growth = clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
 		4:
 			growth = clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
-	var expected_lai: float = 1.0
-	match stage:
-		2:
-			expected_lai = 4.0
-		3:
-			expected_lai = 5.5
-		4:
-			expected_lai = 3.0
-	var senescence: float = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
-	if stage <= 2:
-		senescence = 0.0
+	# Senescence: gradual onset from flowering onward.
+	# During vegetative (stages 1-2): no senescence regardless of LAI.
+	# At flowering (3): senescence ramps in smoothly based on LAI decline.
+	# At maturity (4): senescence increases further.
+	var senescence: float = 0.0
+	if stage >= 3:
+		# Expected LAI declines: 5.5 at flowering start → 3.0 at full maturity
+		var expected_lai: float = lerpf(5.5, 3.0, grain_frac)
+		senescence = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
+		# Smooth onset: grain_frac drives how much senescence is "allowed"
+		senescence *= clampf(grain_frac * 2.0, 0.0, 1.0)
 	var stress_f: float = 0.0
 	if stress == 1:
 		stress_f = 0.5
