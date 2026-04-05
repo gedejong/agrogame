@@ -33,7 +33,8 @@ const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
-const SCALE_CM := 0.01
+## cm → world units. Must match farm_view_3d.METERS_PER_TILE.
+const SCALE_CM := 0.005
 const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false

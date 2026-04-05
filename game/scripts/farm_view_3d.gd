@@ -8,6 +8,9 @@ const GRID_COLS := 6
 const GRID_ROWS := 6
 const TILE_SIZE := 1.0
 const TILE_HEIGHT := 0.1
+## How many real-world meters one tile represents.
+## Crop heights and soil depths are divided by this to get world units.
+const METERS_PER_TILE := 2.0
 
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const SOIL_TEXTURES := {
@@ -341,11 +344,11 @@ func _update_crop_visuals(idx: int) -> void:
 		var new_plant := _create_3d_plant(
 			crop_key, growth, senescence, stress_f, grain_frac, seed_val
 		)
-		# Reparent children to the placeholder
-		for child in new_plant.get_children():
-			new_plant.remove_child(child)
-			plant_node.add_child(child)
-		new_plant.free()
+		# Scale from real-world meters to tile units
+		var s: float = 1.0 / METERS_PER_TILE
+		new_plant.scale = Vector3(s, s, s)
+		# Add as child directly (scaled)
+		plant_node.add_child(new_plant)
 
 
 static func _create_3d_plant(
