@@ -789,11 +789,13 @@ func _get_soil_column(tp: Vector2i, patches: Dictionary, is_center: bool) -> Dic
 			root_depth_cm = patch.get("root_depth_cm", 0.0)
 	if soil_state.is_empty():
 		return {}
+	var crop_key: String = _tile_data[idx].get("crop_key", "")
 	return {
 		"pos": _tile_meshes[idx].position,
 		"soil_state": soil_state,
 		"profile": SoilView3D.get_profile_layers(soil_type),
 		"root_depth_cm": root_depth_cm if is_center else 0.0,
+		"crop_key": crop_key,
 		"show_info": is_center,
 	}
 

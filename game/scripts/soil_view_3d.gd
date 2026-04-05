@@ -31,6 +31,16 @@ const LAYER_TEXTURES := {
 
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
+
+## Per-crop root style: {plants_per_face, tap_thickness, lateral_thickness, max_branches}
+const CROP_ROOT_STYLE := {
+	"maize": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 5},
+	"spring_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
+	"winter_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
+	"sorghum": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 6},
+	"rice": {"plants": 8, "tap_w": 1, "lat_w": 1, "branches": 2},
+	"grape": {"plants": 2, "tap_w": 4, "lat_w": 3, "branches": 4},
+}
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
 ## cm → world units. Must match farm_view_3d.METERS_PER_TILE.
@@ -82,7 +92,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		var profile: Array = col_data.get("profile", [])
 		var rdcm: float = col_data.get("root_depth_cm", 0.0)
 		var show_info: bool = col_data.get("show_info", false)
-		_build_column(pos, soil_state, profile, rdcm, show_info)
+		_build_column(col_data, pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
 	if not is_refresh:
@@ -94,6 +104,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 
 
 func _build_column(
+	col_data: Dictionary,
 	pos: Vector3,
 	soil_state: Dictionary,
 	profile_layers: Array,
@@ -101,11 +112,11 @@ func _build_column(
 	show_info: bool,
 ) -> void:
 	var container := Node3D.new()
-	# Offset slightly below tile surface to avoid z-fighting
 	container.position = Vector3(pos.x, pos.y - 0.005, pos.z)
+	var crop_key: String = col_data.get("crop_key", "")
 	_build_layers(container, profile_layers, soil_state)
 	if root_depth_cm > 0.0:
-		_build_roots(container, profile_layers, root_depth_cm)
+		_build_roots(container, profile_layers, root_depth_cm, crop_key)
 	if show_info:
 		_build_info_labels(container, profile_layers, soil_state)
 	add_child(container)
@@ -179,16 +190,18 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		y_offset += h
 
 
-func _build_roots(container: Node3D, profile_layers: Array, root_depth_cm: float) -> void:
+func _build_roots(
+	container: Node3D, profile_layers: Array, root_depth_cm: float, crop_key: String
+) -> void:
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
 	if root_world < 0.01:
 		return
-	# Paint roots as a texture on the two visible pillar faces
 	var total_h: float = total_depth * SCALE_CM
-	var img := _generate_root_image(root_world, total_h)
+	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
+	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
 	# +X face (right side from above)
 	_add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
@@ -219,35 +232,44 @@ static func _root_hash(seed_val: int, idx: int) -> float:
 	return float(h % 1000) / 1000.0
 
 
-static func _generate_root_image(root_depth: float, total_h: float) -> Image:
-	## 4 root systems per face, matching 2D soil_view.gd approach.
+static func _generate_root_image(root_depth: float, total_h: float, style: Dictionary) -> Image:
+	## Root systems per face, density matching the crop above.
 	var w := 256
 	var h := 512
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var root_px: int = int(root_depth / total_h * float(h))
 	var depth_frac: float = clampf(root_depth / total_h, 0.0, 1.0)
-	# 4 plants spaced at 1/8, 3/8, 5/8, 7/8 across the face
-	var plant_xs: Array[int] = [w / 8, w * 3 / 8, w * 5 / 8, w * 7 / 8]
-	for pi in range(plant_xs.size()):
-		_draw_single_root_img(img, plant_xs[pi], root_px, depth_frac, pi)
+	var num_plants: int = style.get("plants", 4)
+	var tap_w: int = style.get("tap_w", 2)
+	var lat_w: int = style.get("lat_w", 1)
+	var max_branches: int = style.get("branches", 4)
+	for pi in range(num_plants):
+		var cx: int = int((float(pi) + 0.5) / float(num_plants) * float(w))
+		_draw_single_root_img(img, cx, root_px, depth_frac, pi, tap_w, lat_w, max_branches)
 	return img
 
 
 static func _draw_single_root_img(
-	img: Image, cx: int, root_px: int, depth_frac: float, seed_val: int
+	img: Image,
+	cx: int,
+	root_px: int,
+	depth_frac: float,
+	seed_val: int,
+	tap_w: int = 3,
+	lat_w: int = 2,
+	max_branches: int = 5,
 ) -> void:
 	## Draw one root system. Uses monotonic hash counter (hi) to avoid collisions.
 	var w: int = img.get_width()
-	var hi := 0  # monotonic hash index — incremented for each random sample
-	var tap_w: int = clampi(int(depth_frac * 4.0), 1, 4)
+	var hi := 0
 	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 8.0)
 	hi += 1
 	var mid_y: int = root_px / 2
 	var end_x: int = cx + int(float(curve_x) * 0.3)
 	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
 	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
-	var num_b: int = 3 + int(_root_hash(seed_val, hi) * 4.0)
+	var num_b: int = maxi(1, int(_root_hash(seed_val, hi) * float(max_branches)))
 	hi += 1
 	for bi in range(num_b):
 		var bd: float = _root_hash(seed_val, hi) * 0.85 + 0.08
@@ -266,10 +288,8 @@ static func _draw_single_root_img(
 			continue
 		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
 		var bey: int = by + dy + 6
-		var lat_w: int = clampi(int(3.0 * (1.0 - bd)), 2, 4)
-		_draw_line_img(
-			img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lat_w
-		)
+		var lw: int = clampi(int(float(lat_w) * (1.0 - bd) + 0.5), 1, lat_w)
+		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lw)
 		var num_s: int = 1 + int(_root_hash(seed_val, hi) * 2.0)
 		hi += 1
 		for si in range(num_s):
