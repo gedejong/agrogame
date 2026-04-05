@@ -1,14 +1,26 @@
 extends Camera3D
-## Orthographic 3D camera with zoom and pan.
+## Orthographic 3D camera with smooth zoom and pan.
 ## Matches isometric angle: 45° azimuth, 30° elevation.
 ## Zoom adjusts orthographic size; pan translates the camera rig.
 
-const ZOOM_STEP := 0.5
-const ZOOM_MIN := 4.0
+const ZOOM_SENSITIVITY := 0.08
+const ZOOM_MIN := 1.5
 const ZOOM_MAX := 30.0
+const ZOOM_SMOOTH := 8.0
 const PAN_SPEED := 0.05
 
 var _dragging := false
+var _target_size: float = 10.0
+
+
+func _ready() -> void:
+	_target_size = size
+
+
+func _process(delta: float) -> void:
+	# Smooth zoom interpolation
+	if not is_equal_approx(size, _target_size):
+		size = lerpf(size, _target_size, minf(ZOOM_SMOOTH * delta, 1.0))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -32,7 +44,6 @@ func _handle_mouse_button(event: InputEventMouseButton) -> void:
 
 
 func _handle_drag(event: InputEventMouseMotion) -> void:
-	# Translate camera rig (parent) in its local XZ plane
 	var rig: Node3D = get_parent()
 	if not rig:
 		return
@@ -56,8 +67,9 @@ func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
 
 
 func _zoom_in() -> void:
-	size = maxf(size - ZOOM_STEP, ZOOM_MIN)
+	# Proportional step: smaller size = finer steps
+	_target_size = maxf(_target_size * (1.0 - ZOOM_SENSITIVITY), ZOOM_MIN)
 
 
 func _zoom_out() -> void:
-	size = minf(size + ZOOM_STEP, ZOOM_MAX)
+	_target_size = minf(_target_size * (1.0 + ZOOM_SENSITIVITY), ZOOM_MAX)

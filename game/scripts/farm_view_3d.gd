@@ -8,6 +8,9 @@ const GRID_COLS := 6
 const GRID_ROWS := 6
 const TILE_SIZE := 1.0
 const TILE_HEIGHT := 0.1
+## How many real-world meters one tile represents.
+## Crop heights and soil depths are divided by this to get world units.
+const METERS_PER_TILE := 2.0
 
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const SOIL_TEXTURES := {
@@ -31,10 +34,23 @@ const SOIL_TEXTURES := {
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
+const CROP_GRID := {
+	"maize": Vector2i(3, 8),
+	"spring_wheat": Vector2i(10, 40),
+	"winter_wheat": Vector2i(10, 40),
+	"sorghum": Vector2i(3, 10),
+	"rice": Vector2i(10, 8),
+	"grape": Vector2i(2, 2),
+}
 
-const CropBillboard = preload("res://scripts/crop_billboard.gd")
 const CropRenderer = preload("res://scripts/crop_renderer.gd")
 const SoilView3D = preload("res://scripts/soil_view_3d.gd")
+const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
+const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
+const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
+const RiceRenderer3D = preload("res://scripts/rice_renderer_3d.gd")
+const GrapeRenderer3D = preload("res://scripts/grape_renderer_3d.gd")
+const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
 
 const _STAGE_MAP := {
 	"planted": 1,
@@ -144,15 +160,11 @@ func _build_tile_grid() -> void:
 			tile_root.add_child(mesh_inst)
 			_tile_meshes.append(mesh_inst)
 			_tile_materials.append(mat)
-			# Crop billboard sprites (16 per tile) — separate from tile mesh
-			# to avoid depth buffer conflicts with parent MeshInstance3D.
+			# 3D crop container — plants rebuilt per crop type
 			var crop_container := Node3D.new()
 			crop_container.position = mesh_inst.position
 			crop_root.add_child(crop_container)
-			var sprites := CropBillboard.create_plants(TILE_SIZE, col, row)
-			for spr: Sprite3D in sprites:
-				crop_container.add_child(spr)
-			_crop_sprites.append(sprites)
+			_crop_sprites.append([crop_container])
 			(
 				_tile_data
 				. append(
@@ -281,9 +293,171 @@ func _update_crop_visuals(idx: int) -> void:
 	var stage: int = data.get("crop_stage", 0)
 	var lai: float = data.get("lai", 0.0)
 	var stress: int = data.get("stress", 0)
-	var sprites: Array = _crop_sprites[idx]
-	for spr: Sprite3D in sprites:
-		CropBillboard.update_sprite(spr, crop_key, stage, lai, stress)
+	var grain: float = data.get("grain_g_m2", 0.0)
+	var plants: Array = _crop_sprites[idx]
+	# Compute growth parameters
+	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
+	# Growth progress: continuous ramp driven by LAI, not stage jumps.
+	# LAI is the best proxy for vegetative development.
+	# Stages set the range; LAI fills it in smoothly.
+	var growth: float = 0.0
+	match stage:
+		1:
+			growth = clampf(0.05 + lai_frac * 0.2, 0.05, 0.25)
+		2:
+			growth = clampf(0.25 + lai_frac * 0.55, 0.25, 0.8)
+		3:
+			growth = clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
+		4:
+			growth = clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
+	# Senescence: gradual onset from flowering onward.
+	# During vegetative (stages 1-2): no senescence regardless of LAI.
+	# At flowering (3): senescence ramps in smoothly based on LAI decline.
+	# At maturity (4): senescence increases further.
+	var senescence: float = 0.0
+	if stage >= 3:
+		# Expected LAI declines: 5.5 at flowering start → 3.0 at full maturity
+		var expected_lai: float = lerpf(5.5, 3.0, grain_frac)
+		senescence = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
+		# Smooth onset: grain_frac drives how much senescence is "allowed"
+		senescence *= clampf(grain_frac * 2.0, 0.0, 1.0)
+	var stress_f: float = 0.0
+	if stress == 1:
+		stress_f = 0.5
+	elif stress == 2:
+		stress_f = 0.3
+	# plants[0] is the crop container for this tile
+	var container: Node3D = plants[0]
+	# Clear all previous plant geometry
+	for child in container.get_children():
+		child.queue_free()
+	if stage == 0 or crop_key.is_empty():
+		return
+	# Build plant grid based on crop-specific density
+	var grid: Vector2i = CROP_GRID.get(crop_key, Vector2i(4, 4))
+	var total_plants: int = grid.x * grid.y
+	var col: int = _tile_data[idx]["col"]
+	var row: int = _tile_data[idx]["row"]
+	var s: float = 1.0 / METERS_PER_TILE
+	if total_plants > 50:
+		# High density: single baked mesh per tile for performance
+		_build_baked_plants(
+			container, crop_key, grid, col, row, s, growth, senescence, stress_f, grain_frac
+		)
+	else:
+		# Low density: individual Node3D plants
+		for hi in range(grid.x):
+			var u: float = (float(hi) + 0.5) / float(grid.x)
+			for vi in range(grid.y):
+				var v: float = (float(vi) + 0.5) / float(grid.y)
+				var lx: float = (u - 0.5) * TILE_SIZE
+				var lz: float = (v - 0.5) * TILE_SIZE
+				var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
+				var jm: float = TILE_SIZE / float(grid.x) * 0.1
+				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+				var new_plant := _create_3d_plant(
+					crop_key, growth, senescence, stress_f, grain_frac, sv
+				)
+				new_plant.scale = Vector3(s, s, s)
+				new_plant.position = Vector3(lx + jx, 0, lz + jz)
+				container.add_child(new_plant)
+
+
+func _build_baked_plants(
+	container: Node3D,
+	crop_key: String,
+	grid: Vector2i,
+	col: int,
+	row: int,
+	s: float,
+	growth: float,
+	senescence: float,
+	stress_f: float,
+	grain_frac: float,
+) -> void:
+	## Bake all plants into a single mesh using SurfaceTool for performance.
+	## Used for high-density crops (wheat, rice) where individual nodes are too slow.
+	# Build one representative plant, then instance it via MultiMesh
+	var sv_base: int = col * 7 + row * 13
+	var sample_plant := _create_3d_plant(
+		crop_key, growth, senescence, stress_f, grain_frac, sv_base
+	)
+	# Collect all meshes from the sample plant
+	var meshes: Array[Dictionary] = []
+	_collect_meshes(sample_plant, Transform3D(), meshes)
+	sample_plant.queue_free()
+	if meshes.is_empty():
+		return
+	# Each mesh layer gets its own MultiMesh, with intra-plant transform baked in
+	var total: int = grid.x * grid.y
+	for entry: Dictionary in meshes:
+		var layer_mm := MultiMesh.new()
+		layer_mm.transform_format = MultiMesh.TRANSFORM_3D
+		layer_mm.mesh = entry["mesh"]
+		layer_mm.instance_count = total
+		var local_t: Transform3D = entry["transform"]
+		var i := 0
+		for hi in range(grid.x):
+			var u: float = (float(hi) + 0.5) / float(grid.x)
+			for vi in range(grid.y):
+				var v: float = (float(vi) + 0.5) / float(grid.y)
+				var lx: float = (u - 0.5) * TILE_SIZE
+				var lz: float = (v - 0.5) * TILE_SIZE
+				var sv: int = sv_base + hi * 3 + vi * 5
+				var jm: float = TILE_SIZE / float(grid.x) * 0.1
+				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
+				var plant_t := Transform3D()
+				plant_t = plant_t.scaled(Vector3(s, s, s))
+				plant_t = plant_t.rotated(Vector3.UP, rot_y)
+				plant_t.origin = Vector3(lx + jx, 0, lz + jz)
+				# Bake intra-plant transform (leaf pivot, stem offset) into instance
+				layer_mm.set_instance_transform(i, plant_t * local_t)
+				i += 1
+		var layer_mmi := MultiMeshInstance3D.new()
+		layer_mmi.multimesh = layer_mm
+		if entry["material"]:
+			layer_mmi.material_override = entry["material"]
+		layer_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		container.add_child(layer_mmi)
+
+
+static func _collect_meshes(
+	node: Node, parent_transform: Transform3D, out: Array[Dictionary]
+) -> void:
+	var t: Transform3D = parent_transform * node.transform if node is Node3D else parent_transform
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node as MeshInstance3D
+		if mi.mesh:
+			out.append({"mesh": mi.mesh, "material": mi.material_override, "transform": t})
+	for child in node.get_children():
+		_collect_meshes(child, t, out)
+
+
+static func _create_3d_plant(
+	crop_key: String,
+	growth: float,
+	senescence: float,
+	stress: float,
+	grain_frac: float,
+	seed_val: int,
+) -> Node3D:
+	match crop_key:
+		"maize":
+			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"spring_wheat", "winter_wheat":
+			return WheatRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"sorghum":
+			return SorghumRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"rice":
+			return RiceRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		"grape":
+			return GrapeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+		_:
+			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -587,11 +761,13 @@ func _get_soil_column(tp: Vector2i, patches: Dictionary, is_center: bool) -> Dic
 			root_depth_cm = patch.get("root_depth_cm", 0.0)
 	if soil_state.is_empty():
 		return {}
+	var crop_key: String = _tile_data[idx].get("crop_key", "")
 	return {
 		"pos": _tile_meshes[idx].position,
 		"soil_state": soil_state,
 		"profile": SoilView3D.get_profile_layers(soil_type),
 		"root_depth_cm": root_depth_cm if is_center else 0.0,
+		"crop_key": crop_key,
 		"show_info": is_center,
 	}
 
@@ -603,6 +779,9 @@ func _is_valid_grid(pos: Vector2i) -> bool:
 func _restore_hidden_tiles() -> void:
 	for idx in _hidden_tiles:
 		_tile_meshes[idx].visible = true
+		# Restore crop container visibility (hidden in _hide_front_tiles)
+		var container: Node3D = _crop_sprites[idx][0]
+		container.visible = true
 		_update_crop_visuals(idx)
 	_hidden_tiles.clear()
 
@@ -614,18 +793,40 @@ func _hide_soil_cutaway() -> void:
 
 
 func _debug_auto_start() -> void:
-	_ensure_game(
-		func() -> void:
-			_api_client.step_day(
+	_ensure_game(func() -> void: _debug_plant_crops())
+
+
+func _debug_plant_crops() -> void:
+	# Plant maize on sandy, wheat on organic, sorghum on clay
+	_api_client.execute_action(
+		_game_id,
+		"plant",
+		{"crop_key": "maize", "patch_idx": 0},
+		func(_s: bool, _d: Dictionary) -> void:
+			_api_client.execute_action(
 				_game_id,
-				7,
-				func(success: bool, data: Dictionary) -> void:
-					if not success:
-						return
-					_last_step_data = data
-					_apply_day_result(data)
-					# Select middle tile and open cutaway
-					_select_tile(3, 3)
-					_show_soil_cutaway()
+				"plant",
+				{"crop_key": "spring_wheat", "patch_idx": 1},
+				func(_s2: bool, _d2: Dictionary) -> void:
+					_api_client.execute_action(
+						_game_id,
+						"plant",
+						{"crop_key": "sorghum", "patch_idx": 2},
+						func(_s3: bool, _d3: Dictionary) -> void: _debug_step_and_show()
+					)
 			)
+	)
+
+
+func _debug_step_and_show() -> void:
+	_api_client.step_day(
+		_game_id,
+		7,
+		func(success: bool, data: Dictionary) -> void:
+			if not success:
+				return
+			_last_step_data = data
+			_apply_day_result(data)
+			_select_tile(3, 3)
+			_show_soil_cutaway()
 	)
