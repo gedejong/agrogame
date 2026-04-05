@@ -81,25 +81,37 @@ static func _add_leaves(
 		var hi := li * 7
 		var y_frac: float = 0.05 + frac * 0.8
 		var y: float = y_frac * stem_h
-		# Bell-curve leaf length: longest at 55% height
-		var len_curve: float = 1.0 - 4.0 * (frac - 0.55) * (frac - 0.55)
-		var len_var: float = (CR.hash_val(seed_val, hi) - 0.5) * 0.3
-		var leaf_len: float = (
-			LEAF_LENGTH * (0.5 + len_curve * 0.5) * (1.0 + len_var) * growth_progress
+		# Bell-curve leaf length: longest at ~55% stem height, shorter at top/bottom.
+		# len_curve peaks at frac=0.55, ranges 0→1→0
+		var len_curve: float = maxf(1.0 - 4.0 * (frac - 0.55) * (frac - 0.55), 0.0)
+		var len_var: float = (CR.hash_val(seed_val, hi) - 0.5) * 0.2
+		# Base length from position on stem (short→long→short)
+		var base_len: float = LEAF_LENGTH * (0.3 + len_curve * 0.7) * (1.0 + len_var)
+		# Leaf maturity: each leaf matures as overall plant grows.
+		# Bottom leaves mature first, top leaves last.
+		# leaf_maturity=0 (just emerging) → 1 (fully grown)
+		var leaf_appear: float = frac * 0.8
+		var leaf_maturity: float = clampf(
+			(growth_progress - leaf_appear) / maxf(1.0 - leaf_appear, 0.01), 0.0, 1.0
 		)
-		var leaf_w: float = LEAF_WIDTH * (0.6 + len_curve * 0.4)
-		# Azimuthal angle: spread evenly around stem
-		# ~120° between successive leaves + random variation (natural phyllotaxis)
+		var leaf_len: float = base_len * leaf_maturity
+		var leaf_w: float = LEAF_WIDTH * (0.5 + len_curve * 0.5) * leaf_maturity
+		if leaf_len < 0.01:
+			continue
+		# ~120° phyllotaxis + random variation
 		var azimuth: float = float(li) * TAU / 3.0
 		azimuth += (CR.hash_val(seed_val, hi + 1) - 0.5) * 0.8
-		# Droop: lower (older) leaves droop more
-		var age: float = 1.0 - frac
-		var droop: float = (0.2 + age * 0.6) * (1.0 + (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.3)
-		# Build curved leaf as a pivot node with the mesh
+		# Droop depends on both leaf length AND maturity:
+		# Short/young leaves point up, long mature leaves droop.
+		# len_curve drives potential droop (long leaves can droop more).
+		# leaf_maturity drives actual droop (young leaves still upright).
+		var droop_potential: float = len_curve * 0.8
+		var droop_var: float = (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.2
+		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var)
+		# Build curved leaf
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		# Build curved leaf strip: starts up from stem, goes out, then droops
 		var leaf_mesh := _build_curved_leaf(leaf_len, leaf_w, droop, segs)
 		var leaf_inst := MeshInstance3D.new()
 		leaf_inst.mesh = leaf_mesh

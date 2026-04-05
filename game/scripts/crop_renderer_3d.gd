@@ -81,9 +81,11 @@ static func build_curved_leaf(
 ) -> ArrayMesh:
 	## Curved leaf strip: up from stem, arcs outward, droops at tip.
 	## y = rise * 4t(1-t) - droop * length * t^3
+	## Low droop → leaf mostly goes up. High droop → tip sags down.
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	var rise: float = length * 0.25
+	# Rise is stronger when droop is low (young upright leaves)
+	var rise: float = length * (0.3 + (1.0 - droop) * 0.3)
 	for si in range(segments + 1):
 		var t: float = float(si) / float(segments)
 		var w_frac: float = 4.0 * t * (1.0 - t)
