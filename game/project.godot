@@ -39,7 +39,6 @@ enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
 [agrogame]
 
-rendering/use_3d=true
 debug/auto_cutaway=true
 
 [rendering]
