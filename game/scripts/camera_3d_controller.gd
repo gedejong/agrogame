@@ -1,13 +1,15 @@
 extends Camera3D
 ## Orthographic 3D camera with smooth zoom and pan.
-## Matches isometric angle: 45° azimuth, 30° elevation.
-## Zoom adjusts orthographic size; pan translates the camera rig.
+## Controls: WASD pan, R/F zoom, mouse wheel zoom, middle-drag pan,
+## trackpad pan/pinch.
 
-const ZOOM_SENSITIVITY := 0.08
+const ZOOM_SENSITIVITY := 0.05
 const ZOOM_MIN := 1.5
 const ZOOM_MAX := 30.0
 const ZOOM_SMOOTH := 8.0
 const PAN_SPEED := 0.05
+const KEY_PAN_SPEED := 5.0
+const KEY_ZOOM_SPEED := 0.3
 
 var _dragging := false
 var _target_size: float = 10.0
@@ -21,6 +23,26 @@ func _process(delta: float) -> void:
 	# Smooth zoom interpolation
 	if not is_equal_approx(size, _target_size):
 		size = lerpf(size, _target_size, minf(ZOOM_SMOOTH * delta, 1.0))
+	# WASD keyboard panning
+	var rig: Node3D = get_parent()
+	if not rig:
+		return
+	var pan := Vector3.ZERO
+	if Input.is_key_pressed(KEY_W):
+		pan.z -= 1.0
+	if Input.is_key_pressed(KEY_S):
+		pan.z += 1.0
+	if Input.is_key_pressed(KEY_A):
+		pan.x -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		pan.x += 1.0
+	if pan.length_squared() > 0.0:
+		rig.translate(pan.normalized() * KEY_PAN_SPEED * delta * (size / 10.0))
+	# R/F keyboard zoom
+	if Input.is_key_pressed(KEY_R):
+		_target_size = maxf(_target_size - KEY_ZOOM_SPEED * delta * size, ZOOM_MIN)
+	if Input.is_key_pressed(KEY_F):
+		_target_size = minf(_target_size + KEY_ZOOM_SPEED * delta * size, ZOOM_MAX)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -67,7 +89,6 @@ func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
 
 
 func _zoom_in() -> void:
-	# Proportional step: smaller size = finer steps
 	_target_size = maxf(_target_size * (1.0 - ZOOM_SENSITIVITY), ZOOM_MIN)
 
 

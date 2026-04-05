@@ -435,10 +435,10 @@ func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Di
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		var inst := MeshInstance3D.new()
 		inst.mesh = quad
 		inst.material_override = mat
-		inst.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		var panel_pos := Vector3(CUTAWAY_WIDTH * 0.8, mid_y, 0)
 		inst.position = panel_pos
 		container.add_child(inst)
