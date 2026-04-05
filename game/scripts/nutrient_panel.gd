@@ -1,78 +1,105 @@
 extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
-## Displayed on CanvasLayer when soil cutaway is open.
+## Styled per art guide: muted earth-tone bg, vivid UI accents.
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
-	"NO3":
-	{"color": Color(0.17, 0.63, 0.17), "max": 100.0, "opt_min": 5.0, "opt_max": 60.0, "unit": "g/m²"},
-	"NH4":
-	{"color": Color(0.6, 0.87, 0.54), "max": 120.0, "opt_min": 3.0, "opt_max": 80.0, "unit": "g/m²"},
+	"NO₃":
+	{"color": Color(0.2, 0.72, 0.2), "max": 100.0, "opt_min": 5.0, "opt_max": 60.0, "unit": "g/m²"},
+	"NH₄":
+	{
+		"color": Color(0.45, 0.78, 0.35),
+		"max": 120.0,
+		"opt_min": 3.0,
+		"opt_max": 80.0,
+		"unit": "g/m²"
+	},
 	"P":
-	{"color": Color(0.58, 0.4, 0.74), "max": 25.0, "opt_min": 5.0, "opt_max": 20.0, "unit": "g/m²"},
+	{"color": Color(0.6, 0.35, 0.78), "max": 25.0, "opt_min": 5.0, "opt_max": 20.0, "unit": "g/m²"},
 	"SOM":
 	{
-		"color": Color(0.55, 0.34, 0.29),
+		"color": Color(0.6, 0.42, 0.25),
 		"max": 2500.0,
 		"opt_min": 200.0,
 		"opt_max": 2500.0,
 		"unit": "gC/m²"
 	},
-	"Water":
+	"θ":
 	{
-		"color": Color(0.12, 0.47, 0.71),
+		"color": Color(0.2, 0.55, 0.85),
 		"max": 0.45,
 		"opt_min": 0.10,
 		"opt_max": 0.35,
 		"unit": "m³/m³"
 	},
-	"pH": {"color": Color(0.5, 0.5, 0.5), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
+	"pH": {"color": Color(0.55, 0.55, 0.6), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
 	"Microbe":
-	{"color": Color(1.0, 0.5, 0.05), "max": 250.0, "opt_min": 50.0, "opt_max": 250.0, "unit": "gC/m²"},
+	{
+		"color": Color(0.9, 0.55, 0.1),
+		"max": 250.0,
+		"opt_min": 50.0,
+		"opt_max": 250.0,
+		"unit": "gC/m²"
+	},
 }
-const BAR_STRESS := Color(0.9, 0.25, 0.2)
-const BAR_MARGINAL := Color(0.95, 0.75, 0.2)
-const BAR_OK := Color(0.2, 0.7, 0.3)
+const BAR_STRESS := Color(0.85, 0.2, 0.15)
+const BAR_MARGINAL := Color(0.9, 0.72, 0.15)
+const BAR_OK := Color(0.25, 0.7, 0.3)
+
+## Art guide colors
+const BG_COLOR := Color(0.1, 0.09, 0.08, 0.93)
+const BORDER_COLOR := Color(0.3, 0.27, 0.22, 0.5)
+const HEADER_COLOR := Color(0.82, 0.76, 0.65)
+const SUBHEADER_COLOR := Color(0.6, 0.55, 0.48)
+const VALUE_COLOR := Color(0.78, 0.76, 0.72)
+const TRACK_BG := Color(0.15, 0.14, 0.13, 0.7)
+const OPT_ZONE := Color(0.18, 0.28, 0.15, 0.5)
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
+	# Panel background — dark earth tone, rounded
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.06, 0.06, 0.08, 0.92)
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	style.content_margin_left = 10
-	style.content_margin_right = 10
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
+	style.bg_color = BG_COLOR
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
 	style.border_width_left = 1
 	style.border_width_right = 1
 	style.border_width_top = 1
 	style.border_width_bottom = 1
-	style.border_color = Color(0.3, 0.3, 0.35, 0.5)
+	style.border_color = BORDER_COLOR
+	style.shadow_color = Color(0, 0, 0, 0.3)
+	style.shadow_size = 4
 	add_theme_stylebox_override("panel", style)
+
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
+	vbox.add_theme_constant_override("separation", 4)
 	add_child(vbox)
+
+	# Title
+	var title := Label.new()
+	title.text = "SOIL ANALYSIS"
+	title.add_theme_font_size_override("font_size", 11)
+	title.add_theme_color_override("font_color", SUBHEADER_COLOR)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(title)
+
 	for i in range(layers_data.size()):
 		if i > 0:
-			var sep := HSeparator.new()
-			(
-				sep
-				. add_theme_stylebox_override(
-					"separator",
-					_make_sep_style(),
-				)
-			)
-			vbox.add_child(sep)
+			_add_separator(vbox)
 		var layer: Dictionary = layers_data[i]
 		var depth: String = layer.get("depth_label", "Layer %d" % (i + 1))
+		# Layer header
 		var header := Label.new()
-		header.text = depth
-		header.add_theme_font_size_override("font_size", 12)
-		header.add_theme_color_override("font_color", Color(0.7, 0.7, 0.75))
+		header.text = "▸ %s" % depth
+		header.add_theme_font_size_override("font_size", 11)
+		header.add_theme_color_override("font_color", HEADER_COLOR)
 		vbox.add_child(header)
 		var vals: Dictionary = layer.get("values", {})
 		for key: String in NUTRIENT_BARS:
@@ -91,29 +118,43 @@ func _clear() -> void:
 		child.queue_free()
 
 
+func _add_separator(parent: VBoxContainer) -> void:
+	var sep := HSeparator.new()
+	var s := StyleBoxFlat.new()
+	s.bg_color = Color(0.3, 0.27, 0.22, 0.25)
+	s.content_margin_top = 3
+	s.content_margin_bottom = 3
+	sep.add_theme_stylebox_override("separator", s)
+	parent.add_child(sep)
+
+
 func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Dictionary) -> void:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	var track_w := 120
-	var track_h := 14
-	var bar_h := 6
+	row.add_theme_constant_override("separation", 6)
+	var track_w := 100
+	var track_h := 12
+	var bar_h := 5
 	var bar_y: int = (track_h - bar_h) / 2
-	# Label
+
+	# Label — nutrient color, fixed width
 	var lbl := Label.new()
 	lbl.text = label
-	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_font_size_override("font_size", 10)
 	lbl.add_theme_color_override("font_color", cfg["color"])
-	lbl.custom_minimum_size.x = 50
+	lbl.custom_minimum_size.x = 48
 	row.add_child(lbl)
-	# Track background
+
+	# Bar track
 	var bar_bg := Control.new()
 	bar_bg.custom_minimum_size = Vector2(track_w, track_h)
-	# Track base (dark)
+
+	# Track background
 	var track := ColorRect.new()
-	track.color = Color(0.12, 0.12, 0.15, 0.6)
+	track.color = TRACK_BG
 	track.size = Vector2(track_w, track_h)
 	bar_bg.add_child(track)
-	# Optimal range band (green zone — full track height, always visible)
+
+	# Optimal range zone — full track height
 	var max_val: float = cfg["max"]
 	var opt_min: float = cfg["opt_min"]
 	var opt_max: float = cfg["opt_max"]
@@ -123,11 +164,12 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
 	var opt_bg := ColorRect.new()
-	opt_bg.color = Color(0.12, 0.3, 0.12, 0.5)
+	opt_bg.color = OPT_ZONE
 	opt_bg.position = Vector2(opt_min_frac * track_w, 0)
 	opt_bg.size = Vector2((opt_max_frac - opt_min_frac) * track_w, track_h)
 	bar_bg.add_child(opt_bg)
-	# Value bar (thin, centered in track — doesn't cover optimal zone)
+
+	# Value bar — thin, centered
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
 	if label == "pH":
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
@@ -135,28 +177,34 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var bar_fill := ColorRect.new()
 	bar_fill.color = bar_color
 	bar_fill.position = Vector2(0, bar_y)
-	bar_fill.size = Vector2(bar_frac * track_w, bar_h)
+	bar_fill.size = Vector2(maxf(bar_frac * track_w, 1.0), bar_h)
 	bar_bg.add_child(bar_fill)
-	# Thin outline on track
+
+	# Track outline
 	var outline := ReferenceRect.new()
 	outline.size = Vector2(track_w, track_h)
-	outline.border_color = Color(0.3, 0.3, 0.35, 0.4)
+	outline.border_color = Color(0.25, 0.23, 0.2, 0.4)
 	outline.border_width = 1.0
 	outline.editor_only = false
 	bar_bg.add_child(outline)
 	row.add_child(bar_bg)
+
 	# Value text
 	var val_lbl := Label.new()
 	var unit: String = cfg["unit"]
 	if label == "pH":
 		val_lbl.text = "%.1f" % val
 	elif val >= 100.0:
-		val_lbl.text = "%.0f %s" % [val, unit]
+		val_lbl.text = "%.0f" % val
+	elif val >= 1.0:
+		val_lbl.text = "%.1f" % val
 	else:
-		val_lbl.text = "%.1f %s" % [val, unit]
-	val_lbl.add_theme_font_size_override("font_size", 10)
-	val_lbl.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85))
-	val_lbl.custom_minimum_size.x = 65
+		val_lbl.text = "%.2f" % val
+	if not unit.is_empty():
+		val_lbl.text += " " + unit
+	val_lbl.add_theme_font_size_override("font_size", 9)
+	val_lbl.add_theme_color_override("font_color", VALUE_COLOR)
+	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
 	parent.add_child(row)
 
@@ -173,11 +221,3 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 	if val < opt_min:
 		return BAR_MARGINAL
 	return BAR_OK
-
-
-static func _make_sep_style() -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.3, 0.3, 0.35, 0.3)
-	s.content_margin_top = 1
-	s.content_margin_bottom = 1
-	return s

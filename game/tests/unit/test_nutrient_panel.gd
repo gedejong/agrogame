@@ -4,23 +4,23 @@ const NutrientPanel = preload("res://scripts/nutrient_panel.gd")
 
 
 func test_nutrient_bars_defined() -> void:
-	for key: String in ["NO3", "NH4", "P", "SOM", "Water", "pH", "Microbe"]:
+	for key: String in ["NO₃", "NH₄", "P", "SOM", "θ", "pH", "Microbe"]:
 		assert_true(NutrientPanel.NUTRIENT_BARS.has(key), "Bar config for %s" % key)
 
 
 func test_stress_color_optimal() -> void:
-	var c: Color = NutrientPanel._stress_color("NO3", 3.0, 1.0, 5.0)
-	assert_eq(c, NutrientPanel.BAR_OK, "Optimal NO3 = green")
+	var c: Color = NutrientPanel._stress_color("NO₃", 30.0, 5.0, 60.0)
+	assert_eq(c, NutrientPanel.BAR_OK, "Optimal NO₃ = green")
 
 
 func test_stress_color_deficient() -> void:
-	var c: Color = NutrientPanel._stress_color("NO3", 0.1, 1.0, 5.0)
-	assert_eq(c, NutrientPanel.BAR_STRESS, "Very low NO3 = red")
+	var c: Color = NutrientPanel._stress_color("NO₃", 0.5, 5.0, 60.0)
+	assert_eq(c, NutrientPanel.BAR_STRESS, "Very low NO₃ = red")
 
 
 func test_stress_color_marginal() -> void:
-	var c: Color = NutrientPanel._stress_color("NO3", 0.5, 1.0, 5.0)
-	assert_eq(c, NutrientPanel.BAR_MARGINAL, "Low NO3 = yellow")
+	var c: Color = NutrientPanel._stress_color("NO₃", 3.0, 5.0, 60.0)
+	assert_eq(c, NutrientPanel.BAR_MARGINAL, "Low NO₃ = yellow")
 
 
 func test_stress_color_ph_extreme() -> void:
