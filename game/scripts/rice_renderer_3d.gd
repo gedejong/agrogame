@@ -36,11 +36,14 @@ static func create_plant(
 		stem.position = Vector3(ox, h * 0.5, oz)
 		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(stem)
-		# Narrow curved leaves — alternating along stem
+		# Narrow curved leaves — alternating along stem, to the top
+		var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
+		var leaf_top: float = 0.95 if not has_grain else 0.7
+		var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
 		for li in range(3):
-			var y: float = h * (0.1 + float(li) / 3.0 * 0.7)
+			var y: float = h * (0.05 + float(li) / 3.0 * leaf_top)
 			var azimuth: float = (
-				float(li) * PI + (CR.hash_val(seed_val, ti * 8 + 2 + li) - 0.5) * 0.6
+				plant_rot + float(li) * PI + (CR.hash_val(seed_val, ti * 8 + 2 + li) - 0.5) * 0.6
 			)
 			var droop: float = 0.15 + CR.hash_val(seed_val, ti * 8 + 5 + li) * 0.3
 			var leaf_l: float = LEAF_LENGTH * growth_progress

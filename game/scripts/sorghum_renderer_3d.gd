@@ -33,11 +33,16 @@ static func create_plant(
 	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(stem)
 	# Broad drooping leaves with curve — ~120° phyllotaxis
+	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7
+	var leaf_top: float = 0.95 if not has_grain else 0.75
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
+	var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
-		var y: float = (0.05 + frac * 0.8) * h
-		var azimuth: float = float(li) * TAU / 3.0 + (CR.hash_val(seed_val, li * 3) - 0.5) * 0.7
+		var y: float = (0.02 + frac * leaf_top) * h
+		var azimuth: float = (
+			plant_rot + float(li) * TAU / 3.0 + (CR.hash_val(seed_val, li * 3) - 0.5) * 0.7
+		)
 		var droop: float = 0.3 + (1.0 - frac) * 0.5
 		var leaf_l: float = LEAF_LENGTH * growth_progress
 		var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 5)
