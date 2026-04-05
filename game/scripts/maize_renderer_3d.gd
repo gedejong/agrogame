@@ -8,7 +8,7 @@ const MAX_LEAVES := 10
 const STEM_HEIGHT := 2.5
 const STEM_RADIUS_BOTTOM := 0.015
 const STEM_RADIUS_TOP := 0.008
-const LEAF_WIDTH := 0.08
+const LEAF_WIDTH := 0.10
 const LEAF_LENGTH := 0.8
 const EAR_RADIUS := 0.025
 const EAR_HEIGHT := 0.15
@@ -102,7 +102,10 @@ static func _add_leaves(
 			(growth_progress - leaf_appear) / maxf(1.0 - leaf_appear, 0.01), 0.0, 1.0
 		)
 		var leaf_len: float = base_len * leaf_maturity
-		var leaf_w: float = LEAF_WIDTH * (0.5 + len_curve * 0.5) * leaf_maturity
+		# Width: middle leaves widest, scales with overall growth
+		var w_pos: float = 0.4 + len_curve * 0.6
+		var w_grow: float = 0.5 + growth_progress * 0.5
+		var leaf_w: float = LEAF_WIDTH * w_pos * leaf_maturity * w_grow
 		if leaf_len < 0.01:
 			continue
 		# ~120° phyllotaxis + per-plant base rotation + per-leaf variation
