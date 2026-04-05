@@ -1,92 +1,145 @@
-extends Node2D
-## Inline 2.5D isometric soil cutaway rendered below a selected tile (#114).
-## Two visible faces (left + right) extend down from the tile diamond,
-## like looking into a hole dug in the isometric ground.
+extends Node3D
+## 3D soil cross-section — replaces 2D soil_view.gd for 3D mode.
+## Renders soil layers as open-front box meshes, water as transparent
+## planes, roots as tube meshes, and nutrient info as Label3D billboards.
 
 signal closed
 
-## Layer colors by soil texture class (ADR-005)
 const LAYER_COLORS := {
 	"sand": Color(0.85, 0.78, 0.62),
-	"sandy_loam": Color(0.78, 0.70, 0.55),
-	"loam": Color(0.60, 0.50, 0.38),
-	"clay_loam": Color(0.50, 0.42, 0.32),
-	"clay": Color(0.40, 0.32, 0.25),
-	"peat": Color(0.25, 0.20, 0.15),
+	"loam": Color(0.55, 0.45, 0.35),
+	"clay": Color(0.6, 0.5, 0.45),
 }
-const DEFAULT_LAYER_COLOR := Color(0.55, 0.45, 0.35)
 
-## SVG texture paths per soil texture class
 const LAYER_TEXTURES := {
-	"sand": "res://assets/soil_layers/layer_sandy.svg",
-	"sandy_loam": "res://assets/soil_layers/layer_sandy.svg",
-	"loam": "res://assets/soil_layers/layer_loam.svg",
-	"clay_loam": "res://assets/soil_layers/layer_clay.svg",
-	"clay": "res://assets/soil_layers/layer_clay.svg",
-	"peat": "res://assets/soil_layers/layer_loam.svg",
+	"sand":
+	{
+		"albedo": "res://assets/textures/soil_sandy_albedo.png",
+		"normal": "res://assets/textures/soil_sandy_normal.png",
+	},
+	"loam":
+	{
+		"albedo": "res://assets/textures/soil_loam_albedo.png",
+		"normal": "res://assets/textures/soil_loam_normal.png",
+	},
+	"clay":
+	{
+		"albedo": "res://assets/textures/soil_clay_albedo.png",
+		"normal": "res://assets/textures/soil_clay_normal.png",
+	},
 }
-const LAYER_WET_TEXTURES := {
-	"sand": "res://assets/soil_layers/layer_sandy_wet.svg",
-	"loam": "res://assets/soil_layers/layer_loam_wet.svg",
-	"clay": "res://assets/soil_layers/layer_clay_wet.svg",
+
+const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
+const ROOT_COLOR := Color(0.75, 0.6, 0.4)
+
+## Per-crop root style: {plants_per_face, tap_thickness, lateral_thickness, max_branches}
+const CROP_ROOT_STYLE := {
+	"maize": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 5},
+	"spring_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
+	"winter_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
+	"sorghum": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 6},
+	"rice": {"plants": 8, "tap_w": 1, "lat_w": 1, "branches": 2},
+	"grape": {"plants": 2, "tap_w": 4, "lat_w": 3, "branches": 4},
 }
-
-## Isometric tile half-dimensions (must match TileMapLayer tile size)
-const HALF_W := 32.0
-const HALF_H := 16.0
-
-## Vertical scale: cm to pixels for layer depth
-const DEPTH_SCALE := 0.23
-
-## Overlay colors
-const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.5)
-const N_COLOR := Color(0.2, 0.75, 0.2, 0.7)
-const P_COLOR := Color(0.6, 0.2, 0.75, 0.7)
-const SOM_COLOR := Color(0.7, 0.5, 0.2, 0.7)
-const ROOT_COLOR := Color(0.55, 0.40, 0.20)
+const CUTAWAY_WIDTH := 1.0
+const CUTAWAY_DEPTH := 1.0
+## cm → world units. Must match farm_view.METERS_PER_TILE.
+const SCALE_CM := 0.005
+const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false
-var _cur_parent: Node2D
+var _layer_materials: Array[ShaderMaterial] = []
+var _last_center_pos := Vector3.INF
+## Cached loaded textures keyed by path to avoid repeated load() calls.
+var _tex_cache := {}
 
 
-func show_at(
-	tile_pos: Vector2,
-	soil_state: Dictionary,
-	profile_layers: Array,
-	root_depth_cm: float = 0.0,
-) -> void:
-	show_columns(
-		[
-			{
-				"pos": tile_pos,
-				"soil_state": soil_state,
-				"profile": profile_layers,
-				"root_depth_cm": root_depth_cm,
-				"show_info": true,
-			}
-		]
-	)
+static func get_profile_layers(soil_type: String) -> Array:
+	match soil_type:
+		"sandy":
+			return [
+				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
+				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
+				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+			]
+		"clay":
+			return [
+				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
+			]
+		_:
+			return [
+				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
+				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
+			]
 
 
-func show_columns(columns: Array) -> void:
+func show_cutaway(columns: Array[Dictionary]) -> void:
+	## Each column: {pos: Vector3, soil_state: Dict, profile: Array,
+	##   root_depth_cm: float, show_info: bool}
+	var center_pos := Vector3.ZERO
+	if not columns.is_empty():
+		center_pos = columns[0].get("pos", Vector3.ZERO)
+	var is_refresh: bool = _active and center_pos.is_equal_approx(_last_center_pos)
 	_clear()
-	position = Vector2.ZERO
-	modulate.a = 0.85
+	_last_center_pos = center_pos
+	position = Vector3.ZERO
 	for col_data: Dictionary in columns:
-		var pos: Vector2 = col_data.get("pos", Vector2.ZERO)
+		var pos: Vector3 = col_data.get("pos", Vector3.ZERO)
 		var soil_state: Dictionary = col_data.get("soil_state", {})
 		var profile: Array = col_data.get("profile", [])
 		var rdcm: float = col_data.get("root_depth_cm", 0.0)
 		var show_info: bool = col_data.get("show_info", false)
-		_build_column(pos, soil_state, profile, rdcm, show_info)
+		_build_column(col_data, pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
+	if not is_refresh:
+		scale = Vector3(1, 0, 1)
+		var tween := create_tween()
+		tween.set_ease(Tween.EASE_OUT)
+		tween.set_trans(Tween.TRANS_BACK)
+		tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
+
+
+func _build_column(
+	col_data: Dictionary,
+	pos: Vector3,
+	soil_state: Dictionary,
+	profile_layers: Array,
+	root_depth_cm: float,
+	show_info: bool,
+) -> void:
+	var container := Node3D.new()
+	container.position = Vector3(pos.x, pos.y - 0.005, pos.z)
+	var crop_key: String = col_data.get("crop_key", "")
+	_build_layers(container, profile_layers, soil_state)
+	if root_depth_cm > 0.0:
+		_build_roots(container, profile_layers, root_depth_cm, crop_key)
+	if show_info:
+		_build_info_labels(container, profile_layers, soil_state)
+	add_child(container)
 
 
 func hide_view() -> void:
-	visible = false
 	_active = false
-	closed.emit()
+	_last_center_pos = Vector3.INF
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_IN)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(self, "scale", Vector3(1, 0, 1), 0.3)
+	tween.tween_callback(
+		func() -> void:
+			visible = false
+			closed.emit()
+	)
+
+
+func _cached_tex(path: String) -> Texture2D:
+	if not _tex_cache.has(path):
+		_tex_cache[path] = load(path)
+	return _tex_cache[path]
 
 
 func is_active() -> bool:
@@ -94,581 +147,244 @@ func is_active() -> bool:
 
 
 func _clear() -> void:
+	_layer_materials.clear()
 	for child in get_children():
 		child.queue_free()
 
 
-func _build_column(
-	pos: Vector2,
-	soil_state: Dictionary,
-	profile_layers: Array,
-	root_depth_cm: float = 0.0,
-	show_info: bool = true,
-) -> void:
-	var container := Node2D.new()
-	container.position = pos
-	add_child(container)
-	_cur_parent = container
-	_build_cutaway(soil_state, profile_layers, root_depth_cm, show_info)
-
-
-func _add(node: Node) -> void:
-	_cur_parent.add_child(node)
-
-
-func _build_cutaway(
-	soil_state: Dictionary,
-	profile_layers: Array,
-	root_depth_cm: float = 0.0,
-	show_info: bool = true,
-) -> void:
+func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
-	var no3_arr: Array = soil_state.get("n_no3", [])
-	var nh4_arr: Array = soil_state.get("n_nh4", [])
-	var p_arr: Array = soil_state.get("p_available", [])
-	var labile: Array = soil_state.get("som_labile_c", [])
-	var stable: Array = soil_state.get("som_stable_c", [])
-
-	## Tile diamond vertices (local coords, center = 0,0):
-	##   Top:   (0, -HH)
-	##   Right: (HW, 0)
-	##   Bottom:(0, HH)
-	##   Left:  (-HW, 0)
-	##
-	## The cutaway shows two inner faces of an isometric box below the tile.
-	## Left face runs from Left vertex to Bottom vertex, dropping by h.
-	## Right face runs from Bottom vertex to Right vertex, dropping by h.
-
-	# Calculate total depth for shadow
-	var total_h := 0.0
-	for layer_d: Dictionary in profile_layers:
-		total_h += layer_d.get("depth_cm", 20.0) * DEPTH_SCALE
-
-	# Shadow inside the pit — dark gradient overlay on both faces
-	# Darker at top (near surface), fading toward bottom
-	var shadow_h: float = minf(total_h * 0.4, 12.0)
-	var shadow_left := Polygon2D.new()
-	shadow_left.polygon = PackedVector2Array(
-		[
-			Vector2(-HALF_W, 0),
-			Vector2(0, HALF_H),
-			Vector2(0, HALF_H + shadow_h),
-			Vector2(-HALF_W, shadow_h),
-		]
-	)
-	shadow_left.color = Color(0, 0, 0, 0.35)
-	_add(shadow_left)
-	var shadow_right := Polygon2D.new()
-	shadow_right.polygon = PackedVector2Array(
-		[
-			Vector2(0, HALF_H),
-			Vector2(HALF_W, 0),
-			Vector2(HALF_W, shadow_h),
-			Vector2(0, HALF_H + shadow_h),
-		]
-	)
-	shadow_right.color = Color(0, 0, 0, 0.25)
-	_add(shadow_right)
-
-	var y_off := 0.0
+	var y_offset := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
-		var depth_cm: float = layer.get("depth_cm", 20.0)
-		var h: float = depth_cm * DEPTH_SCALE
-		var texture: String = layer.get("texture", "loam")
-		var sat: float = layer.get("saturation", 0.45)
-		var base_color: Color = LAYER_COLORS.get(texture, DEFAULT_LAYER_COLOR)
-		var depth_darken: float = float(i) * 0.08
-		base_color = base_color.darkened(depth_darken)
-
-		# Load soil texture SVG
-		var tex_path: String = LAYER_TEXTURES.get(texture, "")
-		var soil_tex: Texture2D = load(tex_path) if tex_path else null
-		var tex_w := 128.0
-		var tex_h := 32.0
-
-		# Left face (shadow side) with texture UV mapping
-		var lf := Polygon2D.new()
-		lf.polygon = PackedVector2Array(
-			[
-				Vector2(-HALF_W, y_off),
-				Vector2(0, HALF_H + y_off),
-				Vector2(0, HALF_H + y_off + h),
-				Vector2(-HALF_W, y_off + h),
-			]
-		)
-		if soil_tex:
-			lf.texture = soil_tex
-			lf.uv = PackedVector2Array(
-				[
-					Vector2(0, 0),
-					Vector2(tex_w, 0),
-					Vector2(tex_w, tex_h),
-					Vector2(0, tex_h),
-				]
-			)
-			lf.color = Color.WHITE.darkened(0.15 + depth_darken)
-		else:
-			lf.color = base_color.darkened(0.15)
-		_add(lf)
-
-		# Right face (lit side) with texture
-		var rf := Polygon2D.new()
-		rf.polygon = PackedVector2Array(
-			[
-				Vector2(0, HALF_H + y_off),
-				Vector2(HALF_W, y_off),
-				Vector2(HALF_W, y_off + h),
-				Vector2(0, HALF_H + y_off + h),
-			]
-		)
-		if soil_tex:
-			rf.texture = soil_tex
-			rf.uv = PackedVector2Array(
-				[
-					Vector2(0, 0),
-					Vector2(tex_w, 0),
-					Vector2(tex_w, tex_h),
-					Vector2(0, tex_h),
-				]
-			)
-			rf.color = Color.WHITE.darkened(depth_darken)
-		else:
-			rf.color = base_color
-		_add(rf)
-
-		# Water fill on BOTH faces (consistent level)
+		var depth_cm: float = layer.get("depth_cm", 30.0)
+		var tex_name: String = layer.get("texture", "loam")
+		var sat: float = layer.get("saturation", 0.4)
+		var h: float = depth_cm * SCALE_CM
+		var base_color: Color = LAYER_COLORS.get(tex_name, LAYER_COLORS["loam"])
+		var darken: float = float(i) * 0.12
+		var color := base_color.darkened(darken)
 		var theta: float = thetas[i] if i < thetas.size() else 0.0
-		var fill: float = clampf(theta / sat, 0.0, 1.0) if sat > 0 else 0.0
-		if fill > 0.02:
-			var wh: float = h * fill
-			var wb := y_off + h
-			var wt := wb - wh
-			# Water on left face
-			var wl := Polygon2D.new()
-			wl.polygon = PackedVector2Array(
-				[
-					Vector2(-HALF_W, wt),
-					Vector2(0, HALF_H + wt),
-					Vector2(0, HALF_H + wb),
-					Vector2(-HALF_W, wb),
-				]
-			)
-			wl.color = WATER_COLOR
-			_add(wl)
-			# Water on right face
-			var wr := Polygon2D.new()
-			wr.polygon = PackedVector2Array(
-				[
-					Vector2(0, HALF_H + wt),
-					Vector2(HALF_W, wt),
-					Vector2(HALF_W, wb),
-					Vector2(0, HALF_H + wb),
-				]
-			)
-			wr.color = WATER_COLOR
-			_add(wr)
-
-		# Bottom edge (isometric V-line)
-		var edge := Line2D.new()
-		edge.points = PackedVector2Array(
-			[
-				Vector2(-HALF_W, y_off + h),
-				Vector2(0, HALF_H + y_off + h),
-				Vector2(HALF_W, y_off + h),
-			]
-		)
-		edge.width = 0.5
-		edge.default_color = Color(0, 0, 0, 0.3)
-		_add(edge)
-
-		y_off += h
-
-	# Single diagonal shadow across the full column height on the right face
-	var shadow := Polygon2D.new()
-	shadow.polygon = PackedVector2Array(
-		[
-			Vector2(HALF_W, 0),
-			Vector2(HALF_W, y_off),
-			Vector2(0, HALF_H + y_off),
-		]
-	)
-	shadow.color = Color(0, 0, 0, 0.18)
-	_add(shadow)
-
-	# Depth gradient: darkening overlay from top (transparent) to bottom (dark)
-	# Covers both faces to simulate decreasing light with depth
-	var grad_left := Polygon2D.new()
-	grad_left.polygon = PackedVector2Array(
-		[
-			Vector2(-HALF_W, 0),
-			Vector2(0, HALF_H),
-			Vector2(0, HALF_H + y_off),
-			Vector2(-HALF_W, y_off),
-		]
-	)
-	grad_left.vertex_colors = PackedColorArray(
-		[
-			Color(0, 0, 0, 0.0),
-			Color(0, 0, 0, 0.0),
-			Color(0, 0, 0, 0.3),
-			Color(0, 0, 0, 0.3),
-		]
-	)
-	_add(grad_left)
-	var grad_right := Polygon2D.new()
-	grad_right.polygon = PackedVector2Array(
-		[
-			Vector2(0, HALF_H),
-			Vector2(HALF_W, 0),
-			Vector2(HALF_W, y_off),
-			Vector2(0, HALF_H + y_off),
-		]
-	)
-	grad_right.vertex_colors = PackedColorArray(
-		[
-			Color(0, 0, 0, 0.0),
-			Color(0, 0, 0, 0.0),
-			Color(0, 0, 0, 0.3),
-			Color(0, 0, 0, 0.3),
-		]
-	)
-	_add(grad_right)
-
-	if show_info:
-		# Info boxes on a high-z container so they render above tiles
-		var prev_parent := _cur_parent
-		var overlay := Node2D.new()
-		overlay.position = _cur_parent.position
-		overlay.z_index = 200
-		add_child(overlay)
-		_cur_parent = overlay
-		_build_info_boxes_overlay(profile_layers, thetas, no3_arr, nh4_arr, p_arr, labile, stable)
-		_cur_parent = prev_parent
-
-	# Root structure using actual simulation depth
-	_build_roots(profile_layers, root_depth_cm)
+		var fill_frac: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
+		var tex_paths: Dictionary = LAYER_TEXTURES.get(tex_name, LAYER_TEXTURES["loam"])
+		var albedo_tex: Texture2D = _cached_tex(tex_paths["albedo"])
+		var normal_tex: Texture2D = _cached_tex(tex_paths["normal"])
+		var mat := ShaderMaterial.new()
+		mat.shader = _SHADER
+		mat.set_shader_parameter("tint_color", color)
+		mat.set_shader_parameter("water_fill", fill_frac)
+		mat.set_shader_parameter("box_height", h)
+		mat.set_shader_parameter("emission_strength", 0.35)
+		if albedo_tex:
+			mat.set_shader_parameter("albedo_texture", albedo_tex)
+		if normal_tex:
+			mat.set_shader_parameter("normal_texture", normal_tex)
+		_layer_materials.append(mat)
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
+		var mesh_inst := MeshInstance3D.new()
+		mesh_inst.mesh = mesh
+		mesh_inst.material_override = mat
+		mesh_inst.position = Vector3(0, -(y_offset + h * 0.5), 0)
+		container.add_child(mesh_inst)
+		y_offset += h
 
 
-func _build_info_boxes_overlay(
-	profile_layers: Array,
-	_thetas: Array,
-	no3_arr: Array,
-	nh4_arr: Array,
-	p_arr: Array,
-	labile: Array,
-	stable: Array,
+func _build_roots(
+	container: Node3D, profile_layers: Array, root_depth_cm: float, crop_key: String
 ) -> void:
-	## Info boxes to the right of the cutaway, one per layer.
-	## Boxes are spaced to avoid overlap; diagonal connector when displaced.
-	var box_x := HALF_W + 20
-	var box_w := 70
-	var box_h := 28
-	var box_gap := 3
-	var pad := 3
-	var label_w := 12
-	var bar_max_w: int = int(box_w - pad * 2 - label_w)
-	var y_off := 0.0
-	var next_box_y := 0.0
-	var marker_positions: Array[Array] = []
-
-	for i in range(profile_layers.size()):
-		var layer: Dictionary = profile_layers[i]
-		var h: float = layer.get("depth_cm", 20.0) * DEPTH_SCALE
-		var sat: float = layer.get("saturation", 0.45)
-		var layer_mid_y: float = y_off + h / 2.0
-		# Ideal position centered on layer, but don't overlap previous box
-		var ideal_y: float = layer_mid_y - box_h / 2.0
-		var box_y: float = maxf(ideal_y, next_box_y)
-		var box_mid_y: float = box_y + box_h / 2.0
-		next_box_y = box_y + box_h + box_gap
-
-		# Connector line with outline + endpoint markers
-		var p_start := Vector2(HALF_W, layer_mid_y)
-		var p_end := Vector2(box_x, box_mid_y)
-		var pts := PackedVector2Array([p_start, p_end])
-		var line_bg := Line2D.new()
-		line_bg.points = pts
-		line_bg.width = 3.5
-		line_bg.default_color = Color(0, 0, 0, 0.5)
-		_add(line_bg)
-		var line_fg := Line2D.new()
-		line_fg.points = pts
-		line_fg.width = 1.5
-		line_fg.default_color = Color(0.85, 0.85, 0.85, 0.8)
-		_add(line_fg)
-		marker_positions.append([p_start, p_end])
-
-		# Box background with border
-		var bg := Polygon2D.new()
-		var box_pts := PackedVector2Array(
-			[
-				Vector2(box_x, box_y),
-				Vector2(box_x + box_w, box_y),
-				Vector2(box_x + box_w, box_y + box_h),
-				Vector2(box_x, box_y + box_h),
-			]
-		)
-		bg.polygon = box_pts
-		bg.color = Color(0.08, 0.08, 0.08, 0.9)
-		_add(bg)
-		var border := Line2D.new()
-		border.points = box_pts
-		border.closed = true
-		border.width = 1.0
-		border.default_color = Color(0.5, 0.5, 0.5, 0.5)
-		_add(border)
-
-		var no3: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var nh4: float = nh4_arr[i] if i < nh4_arr.size() else 0.0
-		var total_n: float = no3 + nh4
-		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var lab: float = labile[i] if i < labile.size() else 0.0
-		var stab: float = stable[i] if i < stable.size() else 0.0
-
-		var bx: float = box_x + pad
-		# Total mineral N (NO3 + NH4), normalize to 2.0 g/m² per layer
-		var n_frac: float = clampf(total_n / 2.0, 0.0, 1.0)
-		_add_bar(bx, box_y + 3, bar_max_w, 5, n_frac, N_COLOR)
-		# P normalize to 2.0 g/m² per layer
-		var p_frac: float = clampf(p_val / 2.0, 0.0, 1.0)
-		_add_bar(bx, box_y + 11, bar_max_w, 5, p_frac, P_COLOR)
-		var som_frac: float = clampf((lab + stab) / 50000.0, 0.0, 1.0)
-		_add_bar(bx, box_y + 19, bar_max_w, 5, som_frac, SOM_COLOR)
-
-		var lx: float = box_x + pad + bar_max_w + 2
-		_add_tiny_label(lx, box_y + 2, "N", N_COLOR)
-		_add_tiny_label(lx, box_y + 10, "P", P_COLOR)
-		_add_tiny_label(lx, box_y + 18, "S", SOM_COLOR)
-
-		y_off += h
-
-	# Circle markers drawn last so they render above boxes
-	for mp: Array in marker_positions:
-		_add_circle_marker(mp[0], 3.0, Color(0.9, 0.9, 0.9, 0.9))
-		_add_circle_marker(mp[1], 2.5, Color(0.9, 0.9, 0.9, 0.7))
-
-
-func _add_bar(x: float, y: float, max_w: float, h: float, frac: float, color: Color) -> void:
-	# Background track
-	var track := Polygon2D.new()
-	track.polygon = PackedVector2Array(
-		[
-			Vector2(x, y),
-			Vector2(x + max_w, y),
-			Vector2(x + max_w, y + h),
-			Vector2(x, y + h),
-		]
-	)
-	track.color = Color(0.25, 0.25, 0.25, 0.5)
-	_add(track)
-	# Fill bar
-	if frac > 0.01:
-		var fill := Polygon2D.new()
-		var fw: float = max_w * frac
-		fill.polygon = PackedVector2Array(
-			[
-				Vector2(x, y),
-				Vector2(x + fw, y),
-				Vector2(x + fw, y + h),
-				Vector2(x, y + h),
-			]
-		)
-		fill.color = color
-		_add(fill)
-
-
-func _add_tiny_label(x: float, y: float, text: String, color: Color) -> void:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 7)
-	label.add_theme_color_override("font_color", color)
-	label.position = Vector2(x, y)
-	_add(label)
-
-
-func _add_circle_marker(center: Vector2, radius: float, color: Color) -> void:
-	var circle := Polygon2D.new()
-	var pts := PackedVector2Array()
-	for j in range(10):
-		var angle: float = j * TAU / 10.0
-		pts.append(center + Vector2(cos(angle), sin(angle)) * radius)
-	circle.polygon = pts
-	circle.color = color
-	_add(circle)
-	# Dark outline ring
-	var ring := Line2D.new()
-	ring.points = pts
-	ring.closed = true
-	ring.width = 1.0
-	ring.default_color = Color(0, 0, 0, 0.5)
-	_add(ring)
-
-
-func _build_roots(profile_layers: Array, root_depth_cm: float = 0.0) -> void:
-	## 4 root systems per face with deterministic random branching.
-	if root_depth_cm < 1.0:
-		return
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
-		total_depth += layer.get("depth_cm", 20.0) * DEPTH_SCALE
-	if total_depth <= 0:
+		total_depth += layer.get("depth_cm", 30.0)
+	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
+	if root_world < 0.01:
 		return
-	var root_depth: float = root_depth_cm * DEPTH_SCALE * 0.5
-	var depth_frac: float = clampf(root_depth / total_depth, 0.0, 1.0)
-	var plant_fracs := [0.125, 0.375, 0.625, 0.875]
-
-	var root_idx := 0
-	for pf: float in plant_fracs:
-		var x: float = lerpf(-HALF_W, 0.0, pf)
-		var y_base: float = lerpf(0.0, HALF_H, pf)
-		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac, root_idx)
-		root_idx += 1
-
-	for pf: float in plant_fracs:
-		var x: float = lerpf(0.0, HALF_W, pf)
-		var y_base: float = lerpf(HALF_H, 0.0, pf)
-		_draw_single_root(Vector2(x, y_base), root_depth, depth_frac, root_idx)
-		root_idx += 1
+	var total_h: float = total_depth * SCALE_CM
+	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
+	var img := _generate_root_image(root_world, total_h, style)
+	var tex := ImageTexture.create_from_image(img)
+	# +X face (right side from above)
+	_add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
+	# +Z face (front side from above)
+	_add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.002), 1)
 
 
-func _root_hash(seed_val: int, idx: int) -> float:
-	## Deterministic pseudo-random float in [0, 1) from seed + index.
+static func _add_face_quad(
+	container: Node3D, tex: Texture2D, total_h: float, offset: Vector3, face: int
+) -> void:
+	var quad := QuadMesh.new()
+	quad.size = Vector2(CUTAWAY_WIDTH, total_h)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var inst := MeshInstance3D.new()
+	inst.mesh = quad
+	inst.material_override = mat
+	inst.position = offset + Vector3(0, -total_h * 0.5, 0)
+	if face == 0:
+		inst.rotation.y = PI * 0.5
+	container.add_child(inst)
+
+
+static func _root_hash(seed_val: int, idx: int) -> float:
 	var h := (seed_val * 2654435761 + idx * 40503) & 0x7FFFFFFF
 	return float(h % 1000) / 1000.0
 
 
-func _draw_root_tube(
-	pts: PackedVector2Array, width: float, base_y: float, total_depth: float
+static func _generate_root_image(root_depth: float, total_h: float, style: Dictionary) -> Image:
+	## Root systems per face, density matching the crop above.
+	var w := 256
+	var h := 512
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var root_px: int = int(root_depth / total_h * float(h))
+	var depth_frac: float = clampf(root_depth / total_h, 0.0, 1.0)
+	var num_plants: int = style.get("plants", 4)
+	var tap_w: int = style.get("tap_w", 2)
+	var lat_w: int = style.get("lat_w", 1)
+	var max_branches: int = style.get("branches", 4)
+	for pi in range(num_plants):
+		var cx: int = int((float(pi) + 0.5) / float(num_plants) * float(w))
+		_draw_single_root_img(img, cx, root_px, depth_frac, pi, tap_w, lat_w, max_branches)
+	return img
+
+
+static func _draw_single_root_img(
+	img: Image,
+	cx: int,
+	root_px: int,
+	depth_frac: float,
+	seed_val: int,
+	tap_w: int = 3,
+	lat_w: int = 2,
+	max_branches: int = 5,
 ) -> void:
-	## Draw a root segment as a lit tube with depth darkening.
-	## 3 layers: dark left, main, highlight right. Vertex colors darken with depth.
-	if pts.size() < 2 or width < 0.15:
-		return
-	var hl_offset := maxf(width * 0.25, 0.3)
-	# Taper: thicker at start, thinner at end
-	var taper := Curve.new()
-	taper.add_point(Vector2(0.0, 1.0))
-	taper.add_point(Vector2(0.5, 0.7))
-	taper.add_point(Vector2(1.0, 0.2))
-
-	# Compute depth fraction for start and end points
-	var df_start: float = clampf((pts[0].y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
-	var df_end: float = clampf((pts[-1].y - base_y) / maxf(total_depth, 1.0), 0.0, 1.0)
-
-	# Dark left edge
-	var dark_pts := PackedVector2Array()
-	for p: Vector2 in pts:
-		dark_pts.append(Vector2(p.x - hl_offset, p.y))
-	var dark := Line2D.new()
-	dark.points = dark_pts
-	dark.width = width * 0.4
-	dark.width_curve = taper
-	var dark_grad := Gradient.new()
-	dark_grad.set_color(0, ROOT_COLOR.darkened(0.3 + df_start * 0.25))
-	dark_grad.set_color(1, ROOT_COLOR.darkened(0.3 + df_end * 0.25))
-	dark.gradient = dark_grad
-	_add(dark)
-
-	# Main root body with depth darkening
-	var main := Line2D.new()
-	main.points = pts
-	main.width = width
-	main.width_curve = taper
-	var main_grad := Gradient.new()
-	main_grad.set_color(0, ROOT_COLOR.darkened(df_start * 0.3))
-	main_grad.set_color(1, ROOT_COLOR.darkened(df_end * 0.3))
-	main.gradient = main_grad
-	_add(main)
-
-	# Highlight right edge (lit side)
-	var hl_pts := PackedVector2Array()
-	for p: Vector2 in pts:
-		hl_pts.append(Vector2(p.x + hl_offset * 0.7, p.y - 0.2))
-	var hl := Line2D.new()
-	hl.points = hl_pts
-	hl.width = maxf(width * 0.25, 0.2)
-	hl.width_curve = taper
-	var hl_grad := Gradient.new()
-	hl_grad.set_color(0, Color(0.8, 0.65, 0.45, 0.4 - df_start * 0.2))
-	hl_grad.set_color(1, Color(0.8, 0.65, 0.45, 0.4 - df_end * 0.2))
-	hl.gradient = hl_grad
-	_add(hl)
-
-
-func _draw_single_root(base: Vector2, root_depth: float, depth_frac: float, seed_val: int) -> void:
-	var tap_w: float = clampf(depth_frac * 1.4, 0.3, 1.2)
-	var curve_x: float = (_root_hash(seed_val, 0) - 0.5) * 3.0
-	var mid_y: float = base.y + root_depth * 0.5
-	var root_end := Vector2(base.x + curve_x * 0.3, base.y + root_depth)
-
-	# Taproot as lit tube with depth gradient
-	_draw_root_tube(
-		PackedVector2Array(
-			[
-				Vector2(base.x, base.y + 1),
-				Vector2(base.x + curve_x, mid_y),
-				root_end,
-			]
-		),
-		tap_w,
-		base.y,
-		root_depth,
-	)
-
-	# Deterministic lateral branches — more arborisation
-	var num_branches: int = 3 + int(_root_hash(seed_val, 1) * 4.0)
-	for bi in range(num_branches):
-		var bd: float = _root_hash(seed_val, 10 + bi) * 0.85 + 0.08
+	## Draw one root system. Uses monotonic hash counter (hi) to avoid collisions.
+	var w: int = img.get_width()
+	var hi := 0
+	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 8.0)
+	hi += 1
+	var mid_y: int = root_px / 2
+	var end_x: int = cx + int(float(curve_x) * 0.3)
+	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
+	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
+	var num_b: int = maxi(1, int(_root_hash(seed_val, hi) * float(max_branches)))
+	hi += 1
+	for bi in range(num_b):
+		var bd: float = _root_hash(seed_val, hi) * 0.85 + 0.08
+		hi += 1
 		if bd > depth_frac:
 			continue
-		var y: float = base.y + root_depth * bd
-		var tap_x: float = lerpf(base.x, root_end.x, bd)
-		var spread: float = (3.0 + _root_hash(seed_val, 20 + bi) * 5.0) * (1.0 - bd)
-		var dir: float = 1.0 if _root_hash(seed_val, 30 + bi) > 0.4 else -1.0
-		var dy: float = (_root_hash(seed_val, 40 + bi) - 0.3) * 3.0
-		if spread < 1.0:
+		var by: int = int(float(root_px) * bd)
+		var tap_at_x: int = int(lerpf(float(cx), float(end_x), bd))
+		var spread: int = int((8.0 + _root_hash(seed_val, hi) * 16.0) * (1.0 - bd))
+		hi += 1
+		var dir: int = 1 if _root_hash(seed_val, hi) > 0.4 else -1
+		hi += 1
+		var dy: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0)
+		hi += 1
+		if spread < 3:
 			continue
-		var end_x: float = tap_x + spread * dir
-		var end_y: float = y + dy + 2
-		_draw_root_tube(
-			PackedVector2Array([Vector2(tap_x, y), Vector2(end_x, end_y)]),
-			clampf(0.7 * (1.0 - bd), 0.3, 0.9),
-			base.y,
-			root_depth,
-		)
-		# Sub-branches (1-2 per lateral)
-		var num_subs: int = 1 + int(_root_hash(seed_val, 50 + bi) * 2.0)
-		for si in range(num_subs):
-			var sf: float = 0.4 + _root_hash(seed_val, 60 + bi * 3 + si) * 0.4
-			var sub_x: float = lerpf(tap_x, end_x, sf)
-			var sub_y: float = lerpf(y, end_y, sf)
-			var sub_spread: float = spread * (0.3 + _root_hash(seed_val, 70 + bi * 3 + si) * 0.3)
-			var sub_dir: float = (
-				dir * (1.0 if _root_hash(seed_val, 80 + bi * 3 + si) > 0.5 else -0.6)
+		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
+		var bey: int = by + dy + 6
+		var lw: int = clampi(int(float(lat_w) * (1.0 - bd) + 0.5), 1, lat_w)
+		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lw)
+		var num_s: int = 1 + int(_root_hash(seed_val, hi) * 2.0)
+		hi += 1
+		for si in range(num_s):
+			var sf: float = 0.4 + _root_hash(seed_val, hi) * 0.4
+			hi += 1
+			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
+			var sy: int = int(lerpf(float(by), float(bey), sf))
+			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, hi) * 0.3))
+			hi += 1
+			var sd: int = dir if _root_hash(seed_val, hi) > 0.5 else -dir
+			hi += 1
+			var sdy: int = 3 + int(_root_hash(seed_val, hi) * 6.0)
+			hi += 1
+			var sex: int = clampi(sx + ss * sd, 2, w - 3)
+			_draw_line_img(
+				img, sx, sy, sex, sy + sdy, ROOT_COLOR.lightened(0.2).darkened(bd * 0.15), 2
 			)
-			var sub_dy: float = 1.0 + _root_hash(seed_val, 90 + bi * 3 + si) * 2.0
-			var sub_end_x: float = sub_x + sub_spread * sub_dir
-			var sub_end_y: float = sub_y + sub_dy
-			_draw_root_tube(
-				PackedVector2Array([Vector2(sub_x, sub_y), Vector2(sub_end_x, sub_end_y)]),
-				0.35,
-				base.y,
-				root_depth,
-			)
-			# Tiny rootlets
-			if _root_hash(seed_val, 100 + bi * 3 + si) > 0.5:
-				var rl_x: float = sub_end_x * 0.7 + sub_x * 0.3
-				var rl_y: float = sub_end_y * 0.7 + sub_y * 0.3
-				var rl_dir: float = 1.0 if _root_hash(seed_val, 110 + bi * 3 + si) > 0.5 else -1.0
-				_draw_root_tube(
-					PackedVector2Array(
-						[
-							Vector2(rl_x, rl_y),
-							Vector2(rl_x + rl_dir * 1.5, rl_y + 1.0),
-						]
-					),
-					0.2,
-					base.y,
-					root_depth,
-				)
+			var rl_color := ROOT_COLOR.lightened(0.3)
+			for ri in range(3):
+				if _root_hash(seed_val, hi) > 0.25:
+					hi += 1
+					var rd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
+					hi += 1
+					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0) * rd
+					hi += 1
+					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 8.0)
+					hi += 1
+					var rx: int = clampi(sex + rl_dx, 2, w - 3)
+					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
+				else:
+					hi += 4
+			# Rootlets from lateral midpoint
+			if _root_hash(seed_val, hi) > 0.3:
+				hi += 1
+				var mid_lx: int = (tap_at_x + bx) / 2
+				var mid_ly: int = (by + bey) / 2
+				var mrd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
+				hi += 1
+				var mrx: int = clampi(mid_lx + mrd * 5, 2, w - 3)
+				_draw_line_img(img, mid_lx, mid_ly, mrx, mid_ly + 6, rl_color, 1)
+			else:
+				hi += 2
+
+
+static func _draw_line_img(
+	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
+) -> void:
+	## Bresenham line with thickness via square stamp at each pixel.
+	var dx: int = absi(x1 - x0)
+	var dy: int = absi(y1 - y0)
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
+	var err: int = dx - dy
+	var x := x0
+	var y := y0
+	var r: int = thickness / 2
+	while true:
+		for py in range(-r, r + 1):
+			for px in range(-r, r + 1):
+				var ix: int = x + px
+				var iy: int = y + py
+				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
+					img.set_pixel(ix, iy, color)
+		if x == x1 and y == y1:
+			break
+		var e2: int = 2 * err
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err += dx
+			y += sy
+
+
+func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
+	var no3_arr: Array = soil_state.get("n_no3", [])
+	var p_arr: Array = soil_state.get("p_available", [])
+	var som_labile: Array = soil_state.get("som_labile_c", [])
+	var y_offset := 0.0
+	for i in range(profile_layers.size()):
+		var layer: Dictionary = profile_layers[i]
+		var depth_cm: float = layer.get("depth_cm", 30.0)
+		var h: float = depth_cm * SCALE_CM
+		var mid_y: float = -(y_offset + h * 0.5)
+		var n_val: float = no3_arr[i] if i < no3_arr.size() else 0.0
+		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
+		var som_val: float = som_labile[i] if i < som_labile.size() else 0.0
+		var label := Label3D.new()
+		label.text = "N:%.1f P:%.1f SOM:%.0f g/m²" % [n_val, p_val, som_val]
+		label.font_size = 32
+		label.pixel_size = 0.002
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.modulate = Color(0.9, 0.9, 0.95)
+		label.outline_size = 8
+		label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
+		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
+		container.add_child(label)
+		y_offset += h
