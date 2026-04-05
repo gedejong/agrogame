@@ -298,16 +298,19 @@ func _update_crop_visuals(idx: int) -> void:
 	# Compute growth parameters
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
+	# Growth progress: continuous ramp driven by LAI, not stage jumps.
+	# LAI is the best proxy for vegetative development.
+	# Stages set the range; LAI fills it in smoothly.
 	var growth: float = 0.0
 	match stage:
 		1:
-			growth = 0.25
+			growth = clampf(0.05 + lai_frac * 0.2, 0.05, 0.25)
 		2:
-			growth = clampf(0.3 + lai_frac * 0.5, 0.3, 0.8)
+			growth = clampf(0.25 + lai_frac * 0.55, 0.25, 0.8)
 		3:
-			growth = 0.9
+			growth = clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
 		4:
-			growth = 1.0
+			growth = clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
 	var expected_lai: float = 1.0
 	match stage:
 		2:
