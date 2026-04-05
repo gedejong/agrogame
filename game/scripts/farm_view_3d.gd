@@ -34,6 +34,14 @@ const SOIL_TEXTURES := {
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
+const CROP_GRID := {
+	"maize": Vector2i(5, 5),
+	"spring_wheat": Vector2i(4, 4),
+	"winter_wheat": Vector2i(4, 4),
+	"sorghum": Vector2i(5, 5),
+	"rice": Vector2i(4, 4),
+	"grape": Vector2i(2, 2),
+}
 
 const CropRenderer = preload("res://scripts/crop_renderer.gd")
 const SoilView3D = preload("res://scripts/soil_view_3d.gd")
@@ -152,29 +160,11 @@ func _build_tile_grid() -> void:
 			tile_root.add_child(mesh_inst)
 			_tile_meshes.append(mesh_inst)
 			_tile_materials.append(mat)
-			# 3D crop plants — 16 per tile in separate node tree
+			# 3D crop container — plants rebuilt per crop type
 			var crop_container := Node3D.new()
 			crop_container.position = mesh_inst.position
 			crop_root.add_child(crop_container)
-			var plants: Array[Node3D] = []
-			var plants_h: int = 4
-			var plants_v: int = 4
-			for hi in range(plants_h):
-				var u: float = (float(hi) + 0.5) / float(plants_h)
-				for vi in range(plants_v):
-					var v: float = (float(vi) + 0.5) / float(plants_v)
-					var lx: float = (u - 0.5) * TILE_SIZE
-					var lz: float = (v - 0.5) * TILE_SIZE
-					var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
-					var jm: float = TILE_SIZE / float(plants_h) * 0.08
-					var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
-					var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-					var placeholder := Node3D.new()
-					placeholder.position = Vector3(lx + jx, 0, lz + jz)
-					placeholder.set_meta("plant_seed", sv)
-					crop_container.add_child(placeholder)
-					plants.append(placeholder)
-			_crop_sprites.append(plants)
+			_crop_sprites.append([crop_container])
 			(
 				_tile_data
 				. append(
@@ -334,21 +324,34 @@ func _update_crop_visuals(idx: int) -> void:
 		stress_f = 0.5
 	elif stress == 2:
 		stress_f = 0.3
-	for plant_node: Node3D in plants:
-		# Clear previous plant geometry
-		for child in plant_node.get_children():
-			child.queue_free()
-		if stage == 0 or crop_key.is_empty():
-			continue
-		var seed_val: int = plant_node.get_meta("plant_seed", 0)
-		var new_plant := _create_3d_plant(
-			crop_key, growth, senescence, stress_f, grain_frac, seed_val
-		)
-		# Scale from real-world meters to tile units
-		var s: float = 1.0 / METERS_PER_TILE
-		new_plant.scale = Vector3(s, s, s)
-		# Add as child directly (scaled)
-		plant_node.add_child(new_plant)
+	# plants[0] is the crop container for this tile
+	var container: Node3D = plants[0]
+	# Clear all previous plant geometry
+	for child in container.get_children():
+		child.queue_free()
+	if stage == 0 or crop_key.is_empty():
+		return
+	# Build plant grid based on crop-specific density
+	var grid: Vector2i = CROP_GRID.get(crop_key, Vector2i(4, 4))
+	var col: int = _tile_data[idx]["col"]
+	var row: int = _tile_data[idx]["row"]
+	var s: float = 1.0 / METERS_PER_TILE
+	for hi in range(grid.x):
+		var u: float = (float(hi) + 0.5) / float(grid.x)
+		for vi in range(grid.y):
+			var v: float = (float(vi) + 0.5) / float(grid.y)
+			var lx: float = (u - 0.5) * TILE_SIZE
+			var lz: float = (v - 0.5) * TILE_SIZE
+			var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
+			var jm: float = TILE_SIZE / float(grid.x) * 0.1
+			var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+			var new_plant := _create_3d_plant(
+				crop_key, growth, senescence, stress_f, grain_frac, sv
+			)
+			new_plant.scale = Vector3(s, s, s)
+			new_plant.position = Vector3(lx + jx, 0, lz + jz)
+			container.add_child(new_plant)
 
 
 static func _create_3d_plant(
