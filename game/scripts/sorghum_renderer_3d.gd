@@ -22,7 +22,7 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var h: float = STEM_HEIGHT * growth_progress
+	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
 	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
 	# Stem — scales with growth
 	var stem_r: float = 0.008 * growth_progress + 0.003

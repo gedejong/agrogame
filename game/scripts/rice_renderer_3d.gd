@@ -24,7 +24,7 @@ static func create_plant(
 
 	var leaf_mat := CR.create_leaf_material("rice", senescence, stress)
 	var stem_mat := CR.create_stem_material(senescence)
-	var h: float = STEM_HEIGHT * growth_progress
+	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
 
 	for ti in range(NUM_TILLERS):
 		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.06

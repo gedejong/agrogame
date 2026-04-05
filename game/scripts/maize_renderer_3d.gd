@@ -25,10 +25,13 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var h: float = STEM_HEIGHT * growth_progress
-	# Stem — radius grows with maturity
+	# Stem elongation is nonlinear: stays short during vegetative phase,
+	# then elongates rapidly during stem extension (~growth 0.5-0.8).
+	# h = STEM_HEIGHT * growth^2.5 — at growth 0.25: h=3cm, at 0.5: h=44cm
+	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
+	# Stem tapers: bottom thicker than top, both scale with growth
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
-	var r_top: float = STEM_RADIUS_TOP * growth_progress + 0.001
+	var r_top: float = r_bot * 0.5
 	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
 	var stem_mat := CR.create_stem_material(senescence)
 	var stem := MeshInstance3D.new()
@@ -79,7 +82,11 @@ static func _add_leaves(
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
 		var hi := li * 7
-		var y_frac: float = 0.05 + frac * 0.8
+		# Leaf position: during early growth, all leaves near the base.
+		# As stem elongates, leaves spread along it.
+		# y_frac compressed toward 0 at low growth, spreads to full range at maturity.
+		var spread: float = clampf(growth_progress * 1.5, 0.0, 1.0)
+		var y_frac: float = 0.02 + frac * 0.8 * spread
 		var y: float = y_frac * stem_h
 		# Bell-curve leaf length: longest at ~55% stem height, shorter at top/bottom.
 		# len_curve peaks at frac=0.55, ranges 0→1→0
@@ -98,8 +105,9 @@ static func _add_leaves(
 		var leaf_w: float = LEAF_WIDTH * (0.5 + len_curve * 0.5) * leaf_maturity
 		if leaf_len < 0.01:
 			continue
-		# ~120° phyllotaxis + random variation
-		var azimuth: float = float(li) * TAU / 3.0
+		# ~120° phyllotaxis + per-plant base rotation + per-leaf variation
+		var plant_rotation: float = CR.hash_val(seed_val, 0) * TAU
+		var azimuth: float = plant_rotation + float(li) * TAU / 3.0
 		azimuth += (CR.hash_val(seed_val, hi + 1) - 0.5) * 0.8
 		# Droop depends on both leaf length AND maturity:
 		# Short/young leaves point up, long mature leaves droop.
