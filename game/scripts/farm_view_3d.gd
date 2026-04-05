@@ -253,6 +253,8 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	# Approximate humidity: high rain + small temp spread + cool = humid/foggy.
 	# Wet-bulb depression proxy: large tmax-tmin = dry, small = humid.
 	var temp_spread: float = maxf(tmax - tmin, 1.0)
+	# Intentionally produces nonzero humidity on dry days with small temp spread
+	# (e.g., calm overcast mornings with dew) — this creates subtle ground fog.
 	var humidity_proxy: float = clampf((rain_mm / 5.0) + (1.0 - temp_spread / 15.0) * 0.5, 0.0, 1.0)
 	# Sun: dim and cool on rainy days
 	var sunny_color := Color(0.95, 0.9, 0.8)
@@ -269,8 +271,6 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
 	# Fog: driven by humidity proxy, not just rain
 	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
-	# Height fog: creates "further = foggier" look in isometric view.
-	# Fog layer at ground level, fades upward.
 	# Animated fog wisps
 	fog_clouds.set_fog_intensity(humidity_proxy)
 

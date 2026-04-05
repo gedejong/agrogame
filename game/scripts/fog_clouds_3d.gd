@@ -50,7 +50,7 @@ func set_fog_intensity(humidity: float) -> void:
 
 static func _generate_soft_circle() -> ImageTexture:
 	## Radial gradient: white center fading to transparent edges.
-	var size := 64
+	var size: int = 64
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var center := float(size) / 2.0
 	for y in range(size):

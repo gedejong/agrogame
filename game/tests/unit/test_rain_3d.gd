@@ -16,3 +16,33 @@ func test_rain_color() -> void:
 func test_emission_box() -> void:
 	assert_gt(Rain3D.EMISSION_BOX.x, 0.0, "Box width positive")
 	assert_gt(Rain3D.EMISSION_BOX.z, 0.0, "Box depth positive")
+
+
+func test_set_raining_on() -> void:
+	var node := GPUParticles3D.new()
+	node.set_script(Rain3D)
+	add_child_autofree(node)
+	node.set_raining(true, 5.0)
+	assert_true(node.is_raining(), "Should be raining")
+	assert_true(node.emitting, "Should be emitting")
+	assert_eq(node.amount, 400, "5mm * 80 = 400 particles")
+
+
+func test_set_raining_off() -> void:
+	var node := GPUParticles3D.new()
+	node.set_script(Rain3D)
+	add_child_autofree(node)
+	node.set_raining(true, 5.0)
+	node.set_raining(false)
+	assert_false(node.is_raining())
+	assert_false(node.emitting)
+
+
+func test_set_raining_clamps_amount() -> void:
+	var node := GPUParticles3D.new()
+	node.set_script(Rain3D)
+	add_child_autofree(node)
+	node.set_raining(true, 100.0)
+	assert_lte(node.amount, Rain3D.MAX_AMOUNT, "Amount clamped to max")
+	node.set_raining(true, 0.1)
+	assert_gte(node.amount, 50, "Amount has minimum floor")

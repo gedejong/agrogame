@@ -2,13 +2,18 @@ extends GPUParticles3D
 ## 3D rain particle system — replaces CPUParticles2D for 3D mode.
 ## Rain falls in world space over the farm grid.
 ## Intensity scales with daily precipitation from the API.
+## Gusts modulate direction and intensity over time.
 
 const RAIN_COLOR := Color(0.55, 0.65, 0.85, 0.5)
 const MAX_AMOUNT := 800
 const EMISSION_BOX := Vector3(4.0, 0.1, 4.0)
 const FALL_HEIGHT := 6.0
+const GUST_PERIOD := 3.0
+const GUST_STRENGTH := 0.3
 
 var _is_raining := false
+var _base_amount: int = 0
+var _time := 0.0
 
 
 func _ready() -> void:
@@ -29,7 +34,6 @@ func _ready() -> void:
 	mat.scale_min = 0.3
 	mat.scale_max = 0.6
 	process_material = mat
-	# Thin stretched quad for each raindrop
 	var mesh := QuadMesh.new()
 	mesh.size = Vector2(0.01, 0.08)
 	draw_pass_1 = mesh
@@ -41,10 +45,31 @@ func _ready() -> void:
 	material_override = draw_mat
 
 
+func _process(delta: float) -> void:
+	if not _is_raining:
+		return
+	_time += delta
+	# Gust: sinusoidal wind shifts + intensity modulation
+	var gust: float = sin(_time * TAU / GUST_PERIOD)
+	var gust2: float = sin(_time * TAU / (GUST_PERIOD * 1.7) + 1.0)
+	var mat: ParticleProcessMaterial = process_material as ParticleProcessMaterial
+	if mat:
+		# Wind direction shifts with gusts
+		var wind_x: float = 0.05 + gust * GUST_STRENGTH
+		var wind_z: float = 0.05 + gust2 * GUST_STRENGTH * 0.6
+		mat.direction = Vector3(wind_x, -1, wind_z)
+		# Spread widens during gusts
+		mat.spread = 3.0 + absf(gust) * 5.0
+	# Amount pulses slightly with gusts
+	var pulse: float = 1.0 + gust * 0.15 + gust2 * 0.1
+	amount = clampi(int(float(_base_amount) * pulse), 50, MAX_AMOUNT)
+
+
 func set_raining(raining: bool, intensity_mm: float = 5.0) -> void:
 	_is_raining = raining
 	if raining:
-		amount = clampi(int(intensity_mm * 80.0), 50, MAX_AMOUNT)
+		_base_amount = clampi(int(intensity_mm * 80.0), 50, MAX_AMOUNT)
+		amount = _base_amount
 		emitting = true
 	else:
 		emitting = false
