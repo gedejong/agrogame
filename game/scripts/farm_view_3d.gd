@@ -384,51 +384,18 @@ func _build_baked_plants(
 	# Collect all meshes from the sample plant
 	var meshes: Array[Dictionary] = []
 	_collect_meshes(sample_plant, Transform3D(), meshes)
-	sample_plant.free()
+	sample_plant.queue_free()
 	if meshes.is_empty():
 		return
-	# For each unique mesh+material combo, create a MultiMeshInstance3D
-	# Simplified: use the first mesh found for the MultiMesh
-	var first: Dictionary = meshes[0]
-	var base_mesh: Mesh = first["mesh"]
-	var base_mat: Material = first["material"]
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.mesh = base_mesh
+	# Each mesh layer gets its own MultiMesh, with intra-plant transform baked in
 	var total: int = grid.x * grid.y
-	mm.instance_count = total
-	var i := 0
-	for hi in range(grid.x):
-		var u: float = (float(hi) + 0.5) / float(grid.x)
-		for vi in range(grid.y):
-			var v: float = (float(vi) + 0.5) / float(grid.y)
-			var lx: float = (u - 0.5) * TILE_SIZE
-			var lz: float = (v - 0.5) * TILE_SIZE
-			var sv: int = sv_base + hi * 3 + vi * 5
-			var jm: float = TILE_SIZE / float(grid.x) * 0.1
-			var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
-			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-			# Per-plant rotation for variety
-			var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
-			var t := Transform3D()
-			t = t.scaled(Vector3(s, s, s))
-			t = t.rotated(Vector3.UP, rot_y)
-			t.origin = Vector3(lx + jx, 0, lz + jz)
-			mm.set_instance_transform(i, t)
-			i += 1
-	var mmi := MultiMeshInstance3D.new()
-	mmi.multimesh = mm
-	mmi.material_override = base_mat
-	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	container.add_child(mmi)
-	# Additional mesh layers (leaves, grain) as separate MultiMeshes
-	for mi in range(1, meshes.size()):
-		var entry: Dictionary = meshes[mi]
+	for entry: Dictionary in meshes:
 		var layer_mm := MultiMesh.new()
 		layer_mm.transform_format = MultiMesh.TRANSFORM_3D
 		layer_mm.mesh = entry["mesh"]
 		layer_mm.instance_count = total
-		i = 0
+		var local_t: Transform3D = entry["transform"]
+		var i := 0
 		for hi in range(grid.x):
 			var u: float = (float(hi) + 0.5) / float(grid.x)
 			for vi in range(grid.y):
@@ -440,15 +407,17 @@ func _build_baked_plants(
 				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
 				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
 				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
-				var t := Transform3D()
-				t = t.scaled(Vector3(s, s, s))
-				t = t.rotated(Vector3.UP, rot_y)
-				t.origin = Vector3(lx + jx, 0, lz + jz)
-				layer_mm.set_instance_transform(i, t)
+				var plant_t := Transform3D()
+				plant_t = plant_t.scaled(Vector3(s, s, s))
+				plant_t = plant_t.rotated(Vector3.UP, rot_y)
+				plant_t.origin = Vector3(lx + jx, 0, lz + jz)
+				# Bake intra-plant transform (leaf pivot, stem offset) into instance
+				layer_mm.set_instance_transform(i, plant_t * local_t)
 				i += 1
 		var layer_mmi := MultiMeshInstance3D.new()
 		layer_mmi.multimesh = layer_mm
-		layer_mmi.material_override = entry["material"]
+		if entry["material"]:
+			layer_mmi.material_override = entry["material"]
 		layer_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		container.add_child(layer_mmi)
 
@@ -807,6 +776,9 @@ func _is_valid_grid(pos: Vector2i) -> bool:
 func _restore_hidden_tiles() -> void:
 	for idx in _hidden_tiles:
 		_tile_meshes[idx].visible = true
+		# Restore crop container visibility (hidden in _hide_front_tiles)
+		var container: Node3D = _crop_sprites[idx][0]
+		container.visible = true
 		_update_crop_visuals(idx)
 	_hidden_tiles.clear()
 

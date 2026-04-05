@@ -120,36 +120,10 @@ static func _add_leaves(
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		var leaf_mesh := _build_curved_leaf(leaf_len, leaf_w, droop, segs)
+		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs)
 		var leaf_inst := MeshInstance3D.new()
 		leaf_inst.mesh = leaf_mesh
 		leaf_inst.material_override = leaf_mat
 		leaf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		pivot.add_child(leaf_inst)
 		plant.add_child(pivot)
-
-
-static func _build_curved_leaf(
-	length: float, width: float, droop: float, segments: int
-) -> ArrayMesh:
-	## Build a leaf as a curved quad strip. The leaf starts at the stem
-	## going slightly up, extends outward, then droops at the tip.
-	## Shape: y = -droop * t^2 + rise * t, where t goes 0→1 along length.
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	var rise: float = length * 0.3
-	for si in range(segments + 1):
-		var t: float = float(si) / float(segments)
-		# Width narrows: wide in middle, narrow at base and tip
-		var w_frac: float = 4.0 * t * (1.0 - t)
-		var hw: float = width * 0.5 * w_frac
-		# Arc: up then droop. y = rise * 4t(1-t) - droop * t^3
-		var arc_y: float = rise * 4.0 * t * (1.0 - t) - droop * length * t * t * t
-		var out_z: float = length * t
-		# UV: t along length, 0/1 across width
-		st.set_uv(Vector2(t, 0.0))
-		st.add_vertex(Vector3(-hw, arc_y, out_z))
-		st.set_uv(Vector2(t, 1.0))
-		st.add_vertex(Vector3(hw, arc_y, out_z))
-	st.generate_normals()
-	return st.commit()
