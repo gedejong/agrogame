@@ -49,20 +49,16 @@ func _process(delta: float) -> void:
 	if not _is_raining:
 		return
 	_time += delta
-	# Gust: sinusoidal wind shifts + intensity modulation
 	var gust: float = sin(_time * TAU / GUST_PERIOD)
 	var gust2: float = sin(_time * TAU / (GUST_PERIOD * 1.7) + 1.0)
 	var mat: ParticleProcessMaterial = process_material as ParticleProcessMaterial
-	if mat:
-		# Wind direction shifts with gusts
-		var wind_x: float = 0.05 + gust * GUST_STRENGTH
-		var wind_z: float = 0.05 + gust2 * GUST_STRENGTH * 0.6
-		mat.direction = Vector3(wind_x, -1, wind_z)
-		# Spread widens during gusts
-		mat.spread = 3.0 + absf(gust) * 5.0
-	# Amount pulses slightly with gusts
-	var pulse: float = 1.0 + gust * 0.15 + gust2 * 0.1
-	amount = clampi(int(float(_base_amount) * pulse), 50, MAX_AMOUNT)
+	if not mat:
+		return
+	# Wind direction shifts with gusts
+	var wind_x: float = 0.05 + gust * GUST_STRENGTH
+	var wind_z: float = 0.05 + gust2 * GUST_STRENGTH * 0.6
+	mat.direction = Vector3(wind_x, -1, wind_z)
+	mat.spread = 3.0 + absf(gust) * 5.0
 
 
 func set_raining(raining: bool, intensity_mm: float = 5.0) -> void:
