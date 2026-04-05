@@ -87,8 +87,9 @@ static func _add_leaves(
 		)
 		var leaf_w: float = LEAF_WIDTH * (0.6 + len_curve * 0.4)
 		# Azimuthal angle: spread evenly around stem
-		var azimuth: float = float(li) / float(num_leaves) * TAU
-		azimuth += (CR.hash_val(seed_val, hi + 1) - 0.5) * 0.6
+		# ~120° between successive leaves + random variation (natural phyllotaxis)
+		var azimuth: float = float(li) * TAU / 3.0
+		azimuth += (CR.hash_val(seed_val, hi + 1) - 0.5) * 0.8
 		# Droop: lower (older) leaves droop more
 		var age: float = 1.0 - frac
 		var droop: float = (0.2 + age * 0.6) * (1.0 + (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.3)
