@@ -86,7 +86,7 @@ static func _add_leaves(
 		# As stem elongates, leaves spread along it.
 		# y_frac compressed toward 0 at low growth, spreads to full range at maturity.
 		var spread: float = clampf(growth_progress * 1.5, 0.0, 1.0)
-		var y_frac: float = 0.02 + frac * 0.8 * spread
+		var y_frac: float = 0.02 + frac * 0.95 * spread
 		var y: float = y_frac * stem_h
 		# Bell-curve leaf length: longest at ~55% stem height, shorter at top/bottom.
 		# len_curve peaks at frac=0.55, ranges 0→1→0

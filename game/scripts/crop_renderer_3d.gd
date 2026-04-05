@@ -13,8 +13,8 @@ const LEAF_MASKS := {
 	"grape": preload("res://assets/textures/leaf_grape_alpha.png"),
 }
 
-const STEM_COLOR := Color(0.55, 0.65, 0.35)
-const STEM_SENESCENT := Color(0.65, 0.55, 0.3)
+const STEM_COLOR := Color(0.3, 0.5, 0.2)
+const STEM_SENESCENT := Color(0.55, 0.45, 0.25)
 const GRAIN_COLOR := Color(0.85, 0.75, 0.35)
 
 
