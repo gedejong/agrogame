@@ -61,6 +61,10 @@ var _last_step_data: Dictionary = {}
 @onready var camera: Camera3D = $CameraRig/Camera3D
 @onready var tile_root: Node3D = $TileRoot
 @onready var crop_root: Node3D = $CropRoot
+@onready var rain: GPUParticles3D = $Rain
+@onready var fog_clouds: GPUParticles3D = $FogClouds
+@onready var sun: DirectionalLight3D = $DirectionalLight3D
+@onready var env: WorldEnvironment = $WorldEnvironment
 @onready var status_label: Label = $UILayer/StatusLabel
 @onready var date_label: Label = $UILayer/TopBar/DateLabel
 @onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
@@ -240,6 +244,37 @@ func _update_tile_shader(idx: int) -> void:
 	_tile_materials[idx].set_shader_parameter("moisture_frac", moisture_frac)
 
 
+func _update_weather_lighting(weather: Dictionary) -> void:
+	## Adjust sun, ambient, and fog based on weather conditions.
+	var rain_mm: float = weather.get("rain_mm", 0.0)
+	var tmin: float = weather.get("tmin_c", 10.0)
+	var tmax: float = weather.get("tmax_c", 20.0)
+	var overcast: float = clampf(rain_mm / 10.0, 0.0, 1.0)
+	# Approximate humidity: high rain + small temp spread + cool = humid/foggy.
+	# Wet-bulb depression proxy: large tmax-tmin = dry, small = humid.
+	var temp_spread: float = maxf(tmax - tmin, 1.0)
+	# Intentionally produces nonzero humidity on dry days with small temp spread
+	# (e.g., calm overcast mornings with dew) — this creates subtle ground fog.
+	var humidity_proxy: float = clampf((rain_mm / 5.0) + (1.0 - temp_spread / 15.0) * 0.5, 0.0, 1.0)
+	# Sun: dim and cool on rainy days
+	var sunny_color := Color(0.95, 0.9, 0.8)
+	var overcast_color := Color(0.65, 0.65, 0.7)
+	sun.light_color = sunny_color.lerp(overcast_color, overcast)
+	sun.light_energy = lerpf(1.15, 0.5, overcast)
+	var e := env.environment
+	if not e:
+		return
+	# Ambient: slightly brighter on overcast (diffuse sky), but greyer
+	e.ambient_light_energy = lerpf(0.4, 0.5, overcast)
+	var amb_sunny := Color(0.4, 0.42, 0.5)
+	var amb_overcast := Color(0.3, 0.3, 0.35)
+	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
+	# Fog: driven by humidity proxy, not just rain
+	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
+	# Animated fog wisps
+	fog_clouds.set_fog_intensity(humidity_proxy)
+
+
 func _update_crop_visuals(idx: int) -> void:
 	var data: Dictionary = _tile_data[idx]
 	var crop_key: String = data.get("crop_key", "")
@@ -330,23 +365,26 @@ func _apply_day_result(data: Dictionary) -> void:
 
 	date_label.text = "Day %d | %s" % [day_num, cur_date]
 	credits_label.text = "%d" % balance
-	var rain: float = w.get("rain_mm", 0.0)
+	var rain_mm: float = w.get("rain_mm", 0.0)
 	weather_label.text = (
 		"%.0f–%.0f°C  %.1fmm"
 		% [
 			w.get("tmin_c", 0.0),
 			w.get("tmax_c", 0.0),
-			rain,
+			rain_mm,
 		]
 	)
 	var icon_path := "res://assets/icons/icon_sun.svg"
-	if rain > 5.0:
+	if rain_mm > 5.0:
 		icon_path = "res://assets/icons/icon_rain.svg"
-	elif rain >= 1.0:
+	elif rain_mm >= 1.0:
 		icon_path = "res://assets/icons/icon_cloud.svg"
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
+	# 3D rain particles + lighting
+	rain.set_raining(rain_mm > 1.0, rain_mm)
+	_update_weather_lighting(w)
 
 	var patches: Dictionary = data.get("patches", {})
 	_apply_patch_data(patches)
