@@ -333,25 +333,136 @@ func _update_crop_visuals(idx: int) -> void:
 		return
 	# Build plant grid based on crop-specific density
 	var grid: Vector2i = CROP_GRID.get(crop_key, Vector2i(4, 4))
+	var total_plants: int = grid.x * grid.y
 	var col: int = _tile_data[idx]["col"]
 	var row: int = _tile_data[idx]["row"]
 	var s: float = 1.0 / METERS_PER_TILE
+	if total_plants > 50:
+		# High density: single baked mesh per tile for performance
+		_build_baked_plants(
+			container, crop_key, grid, col, row, s, growth, senescence, stress_f, grain_frac
+		)
+	else:
+		# Low density: individual Node3D plants
+		for hi in range(grid.x):
+			var u: float = (float(hi) + 0.5) / float(grid.x)
+			for vi in range(grid.y):
+				var v: float = (float(vi) + 0.5) / float(grid.y)
+				var lx: float = (u - 0.5) * TILE_SIZE
+				var lz: float = (v - 0.5) * TILE_SIZE
+				var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
+				var jm: float = TILE_SIZE / float(grid.x) * 0.1
+				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+				var new_plant := _create_3d_plant(
+					crop_key, growth, senescence, stress_f, grain_frac, sv
+				)
+				new_plant.scale = Vector3(s, s, s)
+				new_plant.position = Vector3(lx + jx, 0, lz + jz)
+				container.add_child(new_plant)
+
+
+func _build_baked_plants(
+	container: Node3D,
+	crop_key: String,
+	grid: Vector2i,
+	col: int,
+	row: int,
+	s: float,
+	growth: float,
+	senescence: float,
+	stress_f: float,
+	grain_frac: float,
+) -> void:
+	## Bake all plants into a single mesh using SurfaceTool for performance.
+	## Used for high-density crops (wheat, rice) where individual nodes are too slow.
+	# Build one representative plant, then instance it via MultiMesh
+	var sv_base: int = col * 7 + row * 13
+	var sample_plant := _create_3d_plant(
+		crop_key, growth, senescence, stress_f, grain_frac, sv_base
+	)
+	# Collect all meshes from the sample plant
+	var meshes: Array[Dictionary] = []
+	_collect_meshes(sample_plant, Transform3D(), meshes)
+	sample_plant.free()
+	if meshes.is_empty():
+		return
+	# For each unique mesh+material combo, create a MultiMeshInstance3D
+	# Simplified: use the first mesh found for the MultiMesh
+	var first: Dictionary = meshes[0]
+	var base_mesh: Mesh = first["mesh"]
+	var base_mat: Material = first["material"]
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = base_mesh
+	var total: int = grid.x * grid.y
+	mm.instance_count = total
+	var i := 0
 	for hi in range(grid.x):
 		var u: float = (float(hi) + 0.5) / float(grid.x)
 		for vi in range(grid.y):
 			var v: float = (float(vi) + 0.5) / float(grid.y)
 			var lx: float = (u - 0.5) * TILE_SIZE
 			var lz: float = (v - 0.5) * TILE_SIZE
-			var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
+			var sv: int = sv_base + hi * 3 + vi * 5
 			var jm: float = TILE_SIZE / float(grid.x) * 0.1
 			var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
 			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-			var new_plant := _create_3d_plant(
-				crop_key, growth, senescence, stress_f, grain_frac, sv
-			)
-			new_plant.scale = Vector3(s, s, s)
-			new_plant.position = Vector3(lx + jx, 0, lz + jz)
-			container.add_child(new_plant)
+			# Per-plant rotation for variety
+			var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
+			var t := Transform3D()
+			t = t.scaled(Vector3(s, s, s))
+			t = t.rotated(Vector3.UP, rot_y)
+			t.origin = Vector3(lx + jx, 0, lz + jz)
+			mm.set_instance_transform(i, t)
+			i += 1
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = base_mat
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	container.add_child(mmi)
+	# Additional mesh layers (leaves, grain) as separate MultiMeshes
+	for mi in range(1, meshes.size()):
+		var entry: Dictionary = meshes[mi]
+		var layer_mm := MultiMesh.new()
+		layer_mm.transform_format = MultiMesh.TRANSFORM_3D
+		layer_mm.mesh = entry["mesh"]
+		layer_mm.instance_count = total
+		i = 0
+		for hi in range(grid.x):
+			var u: float = (float(hi) + 0.5) / float(grid.x)
+			for vi in range(grid.y):
+				var v: float = (float(vi) + 0.5) / float(grid.y)
+				var lx: float = (u - 0.5) * TILE_SIZE
+				var lz: float = (v - 0.5) * TILE_SIZE
+				var sv: int = sv_base + hi * 3 + vi * 5
+				var jm: float = TILE_SIZE / float(grid.x) * 0.1
+				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
+				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
+				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
+				var t := Transform3D()
+				t = t.scaled(Vector3(s, s, s))
+				t = t.rotated(Vector3.UP, rot_y)
+				t.origin = Vector3(lx + jx, 0, lz + jz)
+				layer_mm.set_instance_transform(i, t)
+				i += 1
+		var layer_mmi := MultiMeshInstance3D.new()
+		layer_mmi.multimesh = layer_mm
+		layer_mmi.material_override = entry["material"]
+		layer_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		container.add_child(layer_mmi)
+
+
+static func _collect_meshes(
+	node: Node, parent_transform: Transform3D, out: Array[Dictionary]
+) -> void:
+	var t := parent_transform * node.transform if node is Node3D else parent_transform
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node as MeshInstance3D
+		if mi.mesh:
+			out.append({"mesh": mi.mesh, "material": mi.material_override, "transform": t})
+	for child in node.get_children():
+		_collect_meshes(child, t, out)
 
 
 static func _create_3d_plant(
