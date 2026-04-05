@@ -24,16 +24,20 @@ static func create_plant(
 
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
 	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
-	# Stem — scales with growth
-	var stem_r: float = 0.008 * growth_progress + 0.003
-	var stem := MeshInstance3D.new()
-	stem.mesh = CR.create_stem_mesh(h, stem_r, stem_r * 0.6)
-	stem.material_override = CR.create_stem_material(senescence)
-	stem.position = Vector3(0, h * 0.5, 0)
-	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	plant.add_child(stem)
-	# Broad drooping leaves with curve — ~120° phyllotaxis
+	# Stem: mostly hidden by leaf sheaths during vegetative.
+	# Only upper portion visible during flowering.
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7
+	if has_grain or growth_progress > 0.6:
+		var visible_frac: float = 0.3 if has_grain else 0.15
+		var stem_h: float = h * visible_frac
+		var stem_r: float = 0.006 * growth_progress + 0.002
+		var stem := MeshInstance3D.new()
+		stem.mesh = CR.create_stem_mesh(stem_h, stem_r, stem_r * 0.6)
+		stem.material_override = CR.create_stem_material(senescence)
+		stem.position = Vector3(0, h - stem_h * 0.5, 0)
+		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		plant.add_child(stem)
+	# Broad drooping leaves with curve — ~120° phyllotaxis
 	var leaf_top: float = 0.95 if not has_grain else 0.75
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	var plant_rot: float = CR.hash_val(seed_val, 0) * TAU

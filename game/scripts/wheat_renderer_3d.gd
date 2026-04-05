@@ -1,6 +1,7 @@
 extends RefCounted
 ## Procedural 3D wheat renderer.
-## Single tiller with narrow blade leaves close to stem + seed head.
+## Grass-like: leaves sheath the stem, hiding it. Only the peduncle
+## (top of stem above flag leaf) is visible during flowering/grain fill.
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
@@ -32,26 +33,31 @@ static func create_plant(
 	for ti in range(NUM_TILLERS):
 		var offset_x: float = (CR.hash_val(seed_val, ti * 10) - 0.5) * 0.08
 		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.08
-		var stem_r: float = 0.003 * growth_progress + 0.001
-		var stem := MeshInstance3D.new()
-		stem.mesh = CR.create_stem_mesh(h, stem_r, stem_r * 0.6)
-		stem.material_override = stem_mat
-		stem.position = Vector3(offset_x, h * 0.5, offset_z)
-		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		plant.add_child(stem)
-		# Leaves: close to stem, ~40% of stem length.
-		# During vegetative: extend all the way to the top.
-		# During grain fill: leaves stay below the head.
-		var leaf_top: float = 0.95 if not has_grain else 0.7
+		# Stem: only the exposed peduncle above the flag leaf is visible.
+		# During vegetative: no visible stem (hidden by leaf sheaths).
+		# During flowering: short bare section at top.
+		if has_grain:
+			var peduncle_h: float = h * 0.2
+			var peduncle_y: float = h - peduncle_h * 0.5
+			var stem_r: float = 0.002 * growth_progress + 0.001
+			var stem := MeshInstance3D.new()
+			stem.mesh = CR.create_stem_mesh(peduncle_h, stem_r, stem_r * 0.7)
+			stem.material_override = stem_mat
+			stem.position = Vector3(offset_x, peduncle_y, offset_z)
+			stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+			plant.add_child(stem)
+		# Leaves: tightly upright, hugging the stem axis.
+		# They form the visible "body" of the plant.
+		var leaf_top: float = 0.95 if not has_grain else 0.75
 		var leaf_l: float = h * LEAF_LENGTH_FRAC * growth_progress
 		var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
 		for li in range(NUM_LEAVES):
 			var frac: float = float(li) / float(NUM_LEAVES)
-			var y: float = h * (0.05 + frac * leaf_top)
+			var y: float = h * (0.02 + frac * leaf_top)
 			var azimuth: float = plant_rot + float(li) * PI
-			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.6
-			# Lower leaves droop more, upper leaves upright
-			var droop: float = 0.1 + (1.0 - frac) * 0.3
+			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.4
+			# Very low droop — leaves hug the stem, mostly upright
+			var droop: float = 0.05 + (1.0 - frac) * 0.1
 			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 3)
 			var pivot := Node3D.new()
 			pivot.position = Vector3(offset_x, y, offset_z)
@@ -62,7 +68,7 @@ static func create_plant(
 			leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			pivot.add_child(leaf)
 			plant.add_child(pivot)
-		# Grain head at the top — only during flowering/maturity
+		# Grain head at the top
 		if has_grain:
 			var head := MeshInstance3D.new()
 			var head_mesh := CylinderMesh.new()
