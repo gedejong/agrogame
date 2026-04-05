@@ -456,7 +456,7 @@ func _build_baked_plants(
 static func _collect_meshes(
 	node: Node, parent_transform: Transform3D, out: Array[Dictionary]
 ) -> void:
-	var t := parent_transform * node.transform if node is Node3D else parent_transform
+	var t: Transform3D = parent_transform * node.transform if node is Node3D else parent_transform
 	if node is MeshInstance3D:
 		var mi: MeshInstance3D = node as MeshInstance3D
 		if mi.mesh:
