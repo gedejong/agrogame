@@ -258,12 +258,12 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	var sunny_color := Color(0.95, 0.9, 0.8)
 	var overcast_color := Color(0.65, 0.65, 0.7)
 	sun.light_color = sunny_color.lerp(overcast_color, overcast)
-	sun.light_energy = lerpf(1.0, 0.4, overcast)
+	sun.light_energy = lerpf(1.15, 0.5, overcast)
 	var e := env.environment
 	if not e:
 		return
 	# Ambient: slightly brighter on overcast (diffuse sky), but greyer
-	e.ambient_light_energy = lerpf(0.25, 0.35, overcast)
+	e.ambient_light_energy = lerpf(0.4, 0.5, overcast)
 	var amb_sunny := Color(0.4, 0.42, 0.5)
 	var amb_overcast := Color(0.3, 0.3, 0.35)
 	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
