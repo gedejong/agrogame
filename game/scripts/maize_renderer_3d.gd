@@ -5,13 +5,13 @@ extends RefCounted
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const MAX_LEAVES := 10
-const STEM_HEIGHT := 0.25
-const STEM_RADIUS_BOTTOM := 0.004
-const STEM_RADIUS_TOP := 0.002
-const LEAF_WIDTH := 0.04
-const LEAF_LENGTH := 0.08
-const EAR_RADIUS := 0.008
-const EAR_HEIGHT := 0.025
+const STEM_HEIGHT := 2.5
+const STEM_RADIUS_BOTTOM := 0.015
+const STEM_RADIUS_TOP := 0.008
+const LEAF_WIDTH := 0.08
+const LEAF_LENGTH := 0.8
+const EAR_RADIUS := 0.025
+const EAR_HEIGHT := 0.15
 
 
 static func create_plant(
@@ -55,7 +55,7 @@ static func create_plant(
 		ear.material_override = ear_mat
 		# Offset ear to side + hash variation
 		var ear_side: float = -1.0 if CR.hash_val(seed_val, 50) > 0.5 else 1.0
-		var ear_x: float = ear_side * 0.008
+		var ear_x: float = ear_side * 0.04
 		ear.position = Vector3(ear_x, h * 0.67, 0)
 		ear.rotation.z = ear_side * 0.3
 		ear.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON

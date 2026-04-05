@@ -4,10 +4,10 @@ extends RefCounted
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
-const TRUNK_HEIGHT := 0.1
-const LEAF_SIZE := 0.04
+const TRUNK_HEIGHT := 1.5
+const LEAF_SIZE := 0.15
 const MAX_LEAVES := 6
-const BERRY_RADIUS := 0.006
+const BERRY_RADIUS := 0.03
 
 
 static func create_plant(
@@ -36,7 +36,7 @@ static func create_plant(
 		var angle: float = float(li) / float(MAX_LEAVES) * TAU
 		angle += CR.hash_val(seed_val, li * 3) * 0.5
 		var tilt: float = 0.4 + CR.hash_val(seed_val, li * 3 + 1) * 0.4
-		var dist: float = 0.01 + CR.hash_val(seed_val, li * 3 + 2) * 0.01
+		var dist: float = 0.08 + CR.hash_val(seed_val, li * 3 + 2) * 0.08
 		var lx: float = cos(angle) * dist
 		var lz: float = sin(angle) * dist
 		var ly: float = h * (0.6 + float(li) * 0.05)
@@ -56,8 +56,8 @@ static func create_plant(
 	# Berry clusters
 	if grain_frac > 0.01 and growth_progress > 0.5:
 		for ci in range(2):
-			var cx: float = (CR.hash_val(seed_val, 40 + ci) - 0.5) * 0.015
-			var cz: float = (CR.hash_val(seed_val, 42 + ci) - 0.5) * 0.015
+			var cx: float = (CR.hash_val(seed_val, 40 + ci) - 0.5) * 0.1
+			var cz: float = (CR.hash_val(seed_val, 42 + ci) - 0.5) * 0.1
 			var berry := MeshInstance3D.new()
 			var berry_mesh := SphereMesh.new()
 			berry_mesh.radius = BERRY_RADIUS * grain_frac

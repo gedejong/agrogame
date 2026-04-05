@@ -5,10 +5,10 @@ extends RefCounted
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const NUM_TILLERS := 5
-const STEM_HEIGHT := 0.15
-const LEAF_WIDTH := 0.005
-const LEAF_LENGTH := 0.05
-const PANICLE_HEIGHT := 0.015
+const STEM_HEIGHT := 1.0
+const LEAF_WIDTH := 0.015
+const LEAF_LENGTH := 0.4
+const PANICLE_HEIGHT := 0.06
 
 
 static func create_plant(
@@ -27,26 +27,32 @@ static func create_plant(
 	var h: float = STEM_HEIGHT * growth_progress
 
 	for ti in range(NUM_TILLERS):
-		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.012
-		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.012
+		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.06
+		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.06
 		var stem := MeshInstance3D.new()
-		stem.mesh = CR.create_stem_mesh(h, 0.0015, 0.001)
+		stem.mesh = CR.create_stem_mesh(h, 0.006, 0.003)
 		stem.material_override = stem_mat
 		stem.position = Vector3(ox, h * 0.5, oz)
 		stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(stem)
-		# Narrow leaves
+		# Narrow leaves — alternating along stem
 		for li in range(3):
 			var y: float = h * (0.15 + float(li) * 0.25)
-			var angle: float = CR.hash_val(seed_val, ti * 8 + 2 + li) * TAU
+			var azimuth: float = (
+				float(li) * PI + (CR.hash_val(seed_val, ti * 8 + 2 + li) - 0.5) * 0.6
+			)
 			var droop: float = 0.2 + CR.hash_val(seed_val, ti * 8 + 5 + li) * 0.4
+			var pivot := Node3D.new()
+			pivot.position = Vector3(ox, y, oz)
+			pivot.rotation.y = azimuth
 			var leaf := CR.create_leaf_quad(
 				LEAF_WIDTH, LEAF_LENGTH * growth_progress, Vector3.ZERO, Vector3.ZERO
 			)
 			leaf.material_override = leaf_mat
-			leaf.position = Vector3(ox, y, oz)
-			leaf.rotation = Vector3(-droop, angle, 0)
-			plant.add_child(leaf)
+			leaf.position = Vector3(0, 0, LEAF_LENGTH * growth_progress * 0.35)
+			leaf.rotation.x = -droop
+			pivot.add_child(leaf)
+			plant.add_child(pivot)
 		# Drooping panicle
 		if grain_frac > 0.01 and growth_progress > 0.6:
 			var pan := MeshInstance3D.new()

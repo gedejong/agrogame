@@ -4,11 +4,11 @@ extends RefCounted
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
-const STEM_HEIGHT := 0.22
-const LEAF_WIDTH := 0.04
-const LEAF_LENGTH := 0.07
+const STEM_HEIGHT := 2.0
+const LEAF_WIDTH := 0.07
+const LEAF_LENGTH := 0.7
 const MAX_LEAVES := 8
-const HEAD_RADIUS := 0.012
+const HEAD_RADIUS := 0.06
 
 
 static func create_plant(
@@ -26,25 +26,29 @@ static func create_plant(
 	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
 	# Thick stem
 	var stem := MeshInstance3D.new()
-	stem.mesh = CR.create_stem_mesh(h, 0.005, 0.003)
+	stem.mesh = CR.create_stem_mesh(h, 0.02, 0.01)
 	stem.material_override = CR.create_stem_material(senescence)
 	stem.position = Vector3(0, h * 0.5, 0)
 	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(stem)
-	# Broad drooping leaves
+	# Broad drooping leaves — alternating ~120° like maize
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
 		var y: float = (0.1 + frac * 0.7) * h
-		var angle: float = CR.hash_val(seed_val, li * 3) * TAU
-		var droop: float = 0.5 + (1.0 - frac) * 0.8
+		var azimuth: float = float(li) * TAU / 3.0 + (CR.hash_val(seed_val, li * 3) - 0.5) * 0.7
+		var droop: float = 0.4 + (1.0 - frac) * 0.6
+		var pivot := Node3D.new()
+		pivot.position = Vector3(0, y, 0)
+		pivot.rotation.y = azimuth
 		var leaf := CR.create_leaf_quad(
 			LEAF_WIDTH, LEAF_LENGTH * growth_progress, Vector3.ZERO, Vector3.ZERO
 		)
 		leaf.material_override = leaf_mat
-		leaf.position = Vector3(0, y, 0)
-		leaf.rotation = Vector3(-droop, angle, 0)
-		plant.add_child(leaf)
+		leaf.position = Vector3(0, 0, LEAF_LENGTH * growth_progress * 0.4)
+		leaf.rotation.x = -droop
+		pivot.add_child(leaf)
+		plant.add_child(pivot)
 	# Dense spherical seed head
 	if grain_frac > 0.01 and growth_progress > 0.7:
 		var head := MeshInstance3D.new()
