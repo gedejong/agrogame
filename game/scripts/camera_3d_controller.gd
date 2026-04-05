@@ -23,22 +23,22 @@ func _process(delta: float) -> void:
 	# Smooth zoom interpolation
 	if not is_equal_approx(size, _target_size):
 		size = lerpf(size, _target_size, minf(ZOOM_SMOOTH * delta, 1.0))
-	# WASD keyboard panning
+	# WASD keyboard panning — screen-aligned directions
 	var rig: Node3D = get_parent()
 	if not rig:
 		return
-	var pan := Vector3.ZERO
+	var screen_input := Vector2.ZERO
 	if Input.is_key_pressed(KEY_W):
-		pan.z -= 1.0
+		screen_input.y -= 1.0
 	if Input.is_key_pressed(KEY_S):
-		pan.z += 1.0
+		screen_input.y += 1.0
 	if Input.is_key_pressed(KEY_A):
-		pan.x -= 1.0
+		screen_input.x -= 1.0
 	if Input.is_key_pressed(KEY_D):
-		pan.x += 1.0
-	if pan.length_squared() > 0.0:
-		# Use global translation so directions match world XZ, not rotated rig
-		rig.global_translate(pan.normalized() * KEY_PAN_SPEED * delta * (size / 10.0))
+		screen_input.x += 1.0
+	if screen_input.length_squared() > 0.0:
+		var world_pan := _screen_to_world(screen_input.normalized())
+		rig.global_translate(world_pan * KEY_PAN_SPEED * delta * (size / 10.0))
 	# R/F keyboard zoom
 	if Input.is_key_pressed(KEY_R):
 		_target_size = maxf(_target_size - KEY_ZOOM_SPEED * delta * size, ZOOM_MIN)
@@ -71,7 +71,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 	if not rig:
 		return
 	var d := event.relative * PAN_SPEED * (size / 10.0)
-	rig.global_translate(Vector3(-d.x, 0, -d.y))
+	var world_pan := _screen_to_world(Vector2(-d.x, -d.y))
+	rig.global_translate(world_pan)
 
 
 func _handle_pan_gesture(event: InputEventPanGesture) -> void:
@@ -79,7 +80,8 @@ func _handle_pan_gesture(event: InputEventPanGesture) -> void:
 	if not rig:
 		return
 	var pan_delta := event.delta * PAN_SPEED * 2.0 * (size / 10.0)
-	rig.global_translate(Vector3(pan_delta.x, 0, pan_delta.y))
+	var world_pan := _screen_to_world(Vector2(pan_delta.x, pan_delta.y))
+	rig.global_translate(world_pan)
 
 
 func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
@@ -87,6 +89,17 @@ func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
 		_zoom_in()
 	elif event.factor < 1.0:
 		_zoom_out()
+
+
+func _screen_to_world(screen_delta: Vector2) -> Vector3:
+	## Map 2D screen-space delta to 3D world XZ movement.
+	## Uses the camera's right and up vectors projected onto XZ.
+	var cam_right := global_transform.basis.x
+	var cam_up := global_transform.basis.y
+	# Project onto XZ plane (zero out Y, normalize)
+	var right_xz := Vector3(cam_right.x, 0, cam_right.z).normalized()
+	var up_xz := Vector3(cam_up.x, 0, cam_up.z).normalized()
+	return right_xz * screen_delta.x + up_xz * (-screen_delta.y)
 
 
 func _zoom_in() -> void:
