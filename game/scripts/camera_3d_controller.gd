@@ -37,7 +37,8 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_D):
 		pan.x += 1.0
 	if pan.length_squared() > 0.0:
-		rig.translate(pan.normalized() * KEY_PAN_SPEED * delta * (size / 10.0))
+		# Use global translation so directions match world XZ, not rotated rig
+		rig.global_translate(pan.normalized() * KEY_PAN_SPEED * delta * (size / 10.0))
 	# R/F keyboard zoom
 	if Input.is_key_pressed(KEY_R):
 		_target_size = maxf(_target_size - KEY_ZOOM_SPEED * delta * size, ZOOM_MIN)
@@ -69,8 +70,8 @@ func _handle_drag(event: InputEventMouseMotion) -> void:
 	var rig: Node3D = get_parent()
 	if not rig:
 		return
-	var delta := event.relative * PAN_SPEED * (size / 10.0)
-	rig.translate(Vector3(-delta.x, 0, -delta.y))
+	var d := event.relative * PAN_SPEED * (size / 10.0)
+	rig.global_translate(Vector3(-d.x, 0, -d.y))
 
 
 func _handle_pan_gesture(event: InputEventPanGesture) -> void:
@@ -78,7 +79,7 @@ func _handle_pan_gesture(event: InputEventPanGesture) -> void:
 	if not rig:
 		return
 	var pan_delta := event.delta * PAN_SPEED * 2.0 * (size / 10.0)
-	rig.translate(Vector3(pan_delta.x, 0, pan_delta.y))
+	rig.global_translate(Vector3(pan_delta.x, 0, pan_delta.y))
 
 
 func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
