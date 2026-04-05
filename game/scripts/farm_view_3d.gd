@@ -699,18 +699,40 @@ func _hide_soil_cutaway() -> void:
 
 
 func _debug_auto_start() -> void:
-	_ensure_game(
-		func() -> void:
-			_api_client.step_day(
+	_ensure_game(func() -> void: _debug_plant_crops())
+
+
+func _debug_plant_crops() -> void:
+	# Plant maize on sandy, wheat on organic, sorghum on clay
+	_api_client.execute_action(
+		_game_id,
+		"plant",
+		{"crop_key": "maize", "patch_idx": 0},
+		func(_s: bool, _d: Dictionary) -> void:
+			_api_client.execute_action(
 				_game_id,
-				7,
-				func(success: bool, data: Dictionary) -> void:
-					if not success:
-						return
-					_last_step_data = data
-					_apply_day_result(data)
-					# Select middle tile and open cutaway
-					_select_tile(3, 3)
-					_show_soil_cutaway()
+				"plant",
+				{"crop_key": "spring_wheat", "patch_idx": 1},
+				func(_s2: bool, _d2: Dictionary) -> void:
+					_api_client.execute_action(
+						_game_id,
+						"plant",
+						{"crop_key": "sorghum", "patch_idx": 2},
+						func(_s3: bool, _d3: Dictionary) -> void: _debug_step_and_show()
+					)
 			)
+	)
+
+
+func _debug_step_and_show() -> void:
+	_api_client.step_day(
+		_game_id,
+		7,
+		func(success: bool, data: Dictionary) -> void:
+			if not success:
+				return
+			_last_step_data = data
+			_apply_day_result(data)
+			_select_tile(3, 3)
+			_show_soil_cutaway()
 	)

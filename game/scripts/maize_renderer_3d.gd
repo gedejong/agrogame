@@ -99,8 +99,14 @@ static func _add_leaves(
 
 		var leaf := CR.create_leaf_quad(leaf_w, leaf_len, Vector3.ZERO, Vector3.ZERO)
 		leaf.material_override = leaf_mat
-		# Position at stem height, offset outward
-		leaf.position = Vector3(dir * 0.003, y, 0)
-		# Rotate: face outward, then tilt for arc/droop
-		leaf.rotation = Vector3(-arc_angle * dir * 0.3, facing, dir * arc_angle)
+		# Each leaf radiates outward from stem at azimuthal angle
+		# Spread evenly around stem + alternating + hash variation
+		var base_angle: float = float(li) / float(num_leaves) * TAU
+		base_angle += (CR.hash_val(seed_val, hi + 3) - 0.5) * 0.5
+		var out_dist: float = leaf_len * 0.3
+		var lx: float = cos(base_angle) * out_dist
+		var lz: float = sin(base_angle) * out_dist
+		leaf.position = Vector3(lx * 0.3, y, lz * 0.3)
+		# Face outward from stem, tilt down for arc/droop
+		leaf.rotation = Vector3(-arc_angle, base_angle, 0)
 		plant.add_child(leaf)
