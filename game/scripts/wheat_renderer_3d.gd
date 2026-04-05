@@ -6,8 +6,8 @@ const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const NUM_TILLERS := 1
 const STEM_HEIGHT := 0.9
-const LEAF_WIDTH := 0.02
-const LEAF_LENGTH_FRAC := 0.4
+const LEAF_WIDTH := 0.012
+const LEAF_LENGTH_FRAC := 0.25
 const HEAD_RADIUS := 0.015
 const HEAD_HEIGHT := 0.08
 const NUM_LEAVES := 4
