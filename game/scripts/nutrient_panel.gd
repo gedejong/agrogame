@@ -2,32 +2,33 @@ extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
 ## Displayed on CanvasLayer when soil cutaway is open.
 
+## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
 	"NO3":
-	{"color": Color(0.17, 0.63, 0.17), "max": 5.0, "opt_min": 1.0, "opt_max": 5.0, "unit": "g/m²"},
+	{"color": Color(0.17, 0.63, 0.17), "max": 100.0, "opt_min": 5.0, "opt_max": 60.0, "unit": "g/m²"},
 	"NH4":
-	{"color": Color(0.6, 0.87, 0.54), "max": 3.0, "opt_min": 0.3, "opt_max": 3.0, "unit": "g/m²"},
+	{"color": Color(0.6, 0.87, 0.54), "max": 120.0, "opt_min": 3.0, "opt_max": 80.0, "unit": "g/m²"},
 	"P":
-	{"color": Color(0.58, 0.4, 0.74), "max": 2.0, "opt_min": 0.2, "opt_max": 2.0, "unit": "g/m²"},
+	{"color": Color(0.58, 0.4, 0.74), "max": 25.0, "opt_min": 5.0, "opt_max": 20.0, "unit": "g/m²"},
 	"SOM":
 	{
 		"color": Color(0.55, 0.34, 0.29),
-		"max": 500.0,
-		"opt_min": 50.0,
-		"opt_max": 500.0,
+		"max": 2500.0,
+		"opt_min": 200.0,
+		"opt_max": 2500.0,
 		"unit": "gC/m²"
 	},
 	"Water":
 	{
 		"color": Color(0.12, 0.47, 0.71),
 		"max": 0.45,
-		"opt_min": 0.08,
+		"opt_min": 0.10,
 		"opt_max": 0.35,
 		"unit": "m³/m³"
 	},
 	"pH": {"color": Color(0.5, 0.5, 0.5), "max": 9.0, "opt_min": 5.5, "opt_max": 7.5, "unit": ""},
 	"Microbe":
-	{"color": Color(1.0, 0.5, 0.05), "max": 50.0, "opt_min": 5.0, "opt_max": 50.0, "unit": "gC/m²"},
+	{"color": Color(1.0, 0.5, 0.05), "max": 250.0, "opt_min": 50.0, "opt_max": 250.0, "unit": "gC/m²"},
 }
 const BAR_STRESS := Color(0.9, 0.25, 0.2)
 const BAR_MARGINAL := Color(0.95, 0.75, 0.2)
