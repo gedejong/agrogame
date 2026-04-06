@@ -43,6 +43,7 @@ const CROP_ROOT_STYLE := {
 }
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
+
 ## cm → world units. Must match farm_view.METERS_PER_TILE.
 const SCALE_CM := 0.005
 const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
@@ -364,27 +365,9 @@ static func _draw_line_img(
 			y += sy
 
 
-func _build_info_labels(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
-	var no3_arr: Array = soil_state.get("n_no3", [])
-	var p_arr: Array = soil_state.get("p_available", [])
-	var som_labile: Array = soil_state.get("som_labile_c", [])
-	var y_offset := 0.0
-	for i in range(profile_layers.size()):
-		var layer: Dictionary = profile_layers[i]
-		var depth_cm: float = layer.get("depth_cm", 30.0)
-		var h: float = depth_cm * SCALE_CM
-		var mid_y: float = -(y_offset + h * 0.5)
-		var n_val: float = no3_arr[i] if i < no3_arr.size() else 0.0
-		var p_val: float = p_arr[i] if i < p_arr.size() else 0.0
-		var som_val: float = som_labile[i] if i < som_labile.size() else 0.0
-		var label := Label3D.new()
-		label.text = "N:%.1f P:%.1f SOM:%.0f g/m²" % [n_val, p_val, som_val]
-		label.font_size = 32
-		label.pixel_size = 0.002
-		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		label.modulate = Color(0.9, 0.9, 0.95)
-		label.outline_size = 8
-		label.outline_modulate = Color(0.1, 0.1, 0.15, 0.8)
-		label.position = Vector3(CUTAWAY_WIDTH * 0.7, mid_y, 0)
-		container.add_child(label)
-		y_offset += h
+func _build_info_labels(
+	_container: Node3D, _profile_layers: Array, _soil_state: Dictionary
+) -> void:
+	# Info display is now handled by the 2D nutrient_panel.gd on CanvasLayer.
+	# This function is kept for interface compatibility but does nothing.
+	pass

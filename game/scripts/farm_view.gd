@@ -68,6 +68,7 @@ var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _soil_view: Node3D = null
+var _nutrient_panel: PanelContainer = null
 var _hidden_tiles: Array[int] = []
 var _api_client: Node
 var _last_step_data: Dictionary = {}
@@ -742,6 +743,8 @@ func _show_soil_cutaway() -> void:
 		_soil_view.set_script(SoilView)
 		add_child(_soil_view)
 	_soil_view.show_cutaway(columns)
+	# Show 2D nutrient panel on UILayer
+	_show_nutrient_panel(columns)
 
 
 func _get_soil_column(tp: Vector2i, patches: Dictionary, is_center: bool) -> Dictionary:
@@ -788,7 +791,62 @@ func _restore_hidden_tiles() -> void:
 func _hide_soil_cutaway() -> void:
 	if _soil_view and _soil_view.is_active():
 		_soil_view.hide_view()
+	_hide_nutrient_panel()
 	_restore_hidden_tiles()
+
+
+func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
+	_hide_nutrient_panel()
+	var NutrientPanel := preload("res://scripts/nutrient_panel.gd")
+	_nutrient_panel = PanelContainer.new()
+	_nutrient_panel.set_script(NutrientPanel)
+	# Position: right side of screen
+	_nutrient_panel.position = Vector2(get_viewport().get_visible_rect().size.x - 280, 70)
+	_nutrient_panel.size = Vector2(260, 0)
+	# Build layer data for the center column
+	var layers_data: Array[Dictionary] = []
+	for col_data: Dictionary in columns:
+		if not col_data.get("show_info", false):
+			continue
+		var soil_state: Dictionary = col_data.get("soil_state", {})
+		var profile: Array = col_data.get("profile", [])
+		var no3: Array = soil_state.get("n_no3", [])
+		var nh4: Array = soil_state.get("n_nh4", [])
+		var p: Array = soil_state.get("p_available", [])
+		var som: Array = soil_state.get("som_labile_c", [])
+		var theta: Array = soil_state.get("water_theta", [])
+		var ph: Array = soil_state.get("ph", [])
+		var mic: Array = soil_state.get("microbe_c", [])
+		for i in range(profile.size()):
+			var layer: Dictionary = profile[i]
+			var depth: int = layer.get("depth_cm", 30)
+			(
+				layers_data
+				. append(
+					{
+						"depth_label": "%d–%dcm" % [0 if i == 0 else depth, depth],
+						"values":
+						{
+							"NO₃": no3[i] if i < no3.size() else 0.0,
+							"NH₄": nh4[i] if i < nh4.size() else 0.0,
+							"P": p[i] if i < p.size() else 0.0,
+							"SOM": som[i] if i < som.size() else 0.0,
+							"Water": theta[i] if i < theta.size() else 0.0,
+							"pH": ph[i] if i < ph.size() else 6.5,
+							"Microbe": mic[i] if i < mic.size() else 0.0,
+						},
+					}
+				)
+			)
+	_nutrient_panel.show_layers(layers_data)
+	_nutrient_panel.visible = true
+	$UILayer.add_child(_nutrient_panel)
+
+
+func _hide_nutrient_panel() -> void:
+	if _nutrient_panel:
+		_nutrient_panel.queue_free()
+		_nutrient_panel = null
 
 
 func _debug_auto_start() -> void:
