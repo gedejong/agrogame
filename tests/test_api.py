@@ -426,6 +426,33 @@ def test_step_multiple_days(client) -> None:
     assert data["date"] == "2024-04-11"
 
 
+def test_step_daily_snapshots(client) -> None:
+    """POST /step?days=5 returns daily_snapshots for all intermediate days."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    snaps = data["daily_snapshots"]
+    # 5 days × 1 patch = 5 snapshots
+    assert len(snaps) == 5, f"Expected 5 snapshots, got {len(snaps)}"
+    # Each snapshot has required fields
+    for s in snaps:
+        assert "day_number" in s
+        assert "date" in s
+        assert "field_id" in s
+        assert "patch_idx" in s
+        assert "lai" in s
+        assert "water_stress" in s
+        assert "soil_theta_surface" in s
+        assert "n_available_total" in s
+        assert "rain_mm" in s
+    # Day numbers should be 1-5
+    day_nums = [s["day_number"] for s in snaps]
+    assert day_nums == [1, 2, 3, 4, 5]
+    # All should reference field "f1"
+    assert all(s["field_id"] == "f1" for s in snaps)
+
+
 def test_water_stress_is_transpiration_based(client) -> None:
     """water_stress reflects transpiration supply/demand, not θ/FC proxy."""
     game_id = _create_game(client)

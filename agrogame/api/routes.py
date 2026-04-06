@@ -433,6 +433,9 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     if steps <= 0:
         raise HTTPException(400, "Season complete — no more days to simulate")
 
+    from agrogame.api.models import DailySnapshot
+
+    snapshots: list[DailySnapshot] = []
     last_rec = s.weather[s.day_index]
     for i in range(steps):
         idx = s.day_index + i
@@ -448,11 +451,35 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
             par_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
+        # Lightweight snapshot per patch per day
+        day_num = s.day_index + i + 1
+        day_date = str(rec.day) if rec.day else ""
+        for fid, fld in s.field_manager.fields.items():
+            for pi, p in enumerate(fld.patches):
+                snap = p.orch.snapshot_soil()
+                n_total = sum(snap.n_no3) + sum(snap.n_nh4)
+                theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+                snapshots.append(
+                    DailySnapshot(
+                        day_number=day_num,
+                        date=day_date,
+                        field_id=fid,
+                        patch_idx=pi,
+                        crop_stage=p.orch.phenology.state.stage.value,
+                        lai=round(p.orch.canopy.state.lai, 2),
+                        grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
+                        water_stress=round(p.orch.canopy.state.last_water_stress, 2),
+                        soil_theta_surface=round(theta_top, 4),
+                        n_available_total=round(n_total, 1),
+                        rain_mm=round(rec.precip_mm or 0.0, 1),
+                    )
+                )
 
     s.day_index += steps
     s.current_date = s.current_date + timedelta(days=steps)
 
     result = _build_day_result(s, last_rec)
+    result.daily_snapshots = snapshots
 
     # Create SeasonResult when season completes so /report works
     if result.season_complete and (not s.turn_manager or not s.turn_manager.result):

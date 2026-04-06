@@ -569,11 +569,44 @@ func _apply_day_result(data: Dictionary) -> void:
 	rain.set_raining(rain_mm > 1.0, rain_mm)
 	_update_weather_lighting(w)
 
+	# Process daily snapshots for sparkline history (multi-day stepping)
+	var snapshots: Array = data.get("daily_snapshots", [])
+	_apply_daily_snapshots(snapshots)
+
 	var patches: Dictionary = data.get("patches", {})
-	_apply_patch_data(patches)
+	# Skip history in _apply_patch_data if snapshots already provided it
+	_apply_patch_data(patches, not snapshots.is_empty())
 
 
-func _apply_patch_data(patches: Dictionary) -> void:
+func _apply_daily_snapshots(snapshots: Array) -> void:
+	## Append lightweight per-day snapshots to _daily_history.
+	for snap: Dictionary in snapshots:
+		var patch_idx: int = snap.get("patch_idx", 0)
+		var patch_soil: String = ""
+		if patch_idx < SOIL_TYPES.size():
+			patch_soil = SOIL_TYPES[patch_idx]
+		if patch_soil.is_empty():
+			continue
+		if not _daily_history.has(patch_soil):
+			_daily_history[patch_soil] = []
+		(
+			_daily_history[patch_soil]
+			. append(
+				{
+					"crop_stage": snap.get("crop_stage", ""),
+					"lai": snap.get("lai", 0.0),
+					"grain_g_m2": snap.get("grain_g_m2", 0.0),
+					"water_stress": 1.0 - snap.get("water_stress", 1.0),
+					"theta_surface": snap.get("soil_theta_surface", 0.0),
+					"n_available": snap.get("n_available_total", 0.0),
+				}
+			)
+		)
+		if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
+			_daily_history[patch_soil].pop_front()
+
+
+func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		for patch_idx in range(patch_list.size()):
@@ -588,8 +621,8 @@ func _apply_patch_data(patches: Dictionary) -> void:
 			var theta: float = patch.get("soil_theta_surface", 0.0)
 			var grain: float = patch.get("grain_g_m2", 0.0)
 			var som: float = patch.get("som_total_c_g_m2", 0.0)
-			# Accumulate per-patch history
-			if not patch_soil.is_empty():
+			# Accumulate per-patch history (skip when daily_snapshots covered it)
+			if not skip_history and not patch_soil.is_empty():
 				if not _daily_history.has(patch_soil):
 					_daily_history[patch_soil] = []
 				var soil_state: Dictionary = patch.get("soil_state", {})
