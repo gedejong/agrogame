@@ -136,6 +136,22 @@ class PatchDayResponse(BaseModel):
     )
 
 
+class DailySnapshot(BaseModel):
+    """Lightweight per-day per-patch snapshot for sparkline history."""
+
+    day_number: int
+    date: str
+    field_id: str
+    patch_idx: int
+    crop_stage: str = ""
+    lai: float = 0.0
+    grain_g_m2: float = 0.0
+    water_stress: float = 1.0
+    soil_theta_surface: float = 0.0
+    n_available_total: float = 0.0
+    rain_mm: float = 0.0
+
+
 class DayResultResponse(BaseModel):
     day_number: int
     date: str = Field(description="Current date (ISO format)")
@@ -145,6 +161,10 @@ class DayResultResponse(BaseModel):
         default=False, description="True when crop mature or max days"
     )
     balance_credits: int
+    daily_snapshots: list[DailySnapshot] = Field(
+        default_factory=list,
+        description="Per-day snapshots for all stepped days" " (populated when days>1)",
+    )
 
 
 class ActionRequest(BaseModel):
