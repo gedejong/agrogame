@@ -374,8 +374,8 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
                 + sum(snap.som_stable_c)
             )
             theta_top = snap.water_theta[0] if snap.water_theta else 0.0
-            fc = p.orch.profile.layers[0].field_capacity
-            w_stress = min(theta_top / fc, 1.0) if fc > 0 else 1.0
+            # Actual plant water stress from transpiration supply/demand ratio
+            w_stress = p.orch.canopy.state.last_water_stress
             patches[fid].append(
                 PatchDayResponse(
                     patch_idx=i,

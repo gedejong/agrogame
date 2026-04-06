@@ -607,7 +607,8 @@ func _apply_patch_data(patches: Dictionary) -> void:
 							"crop_stage": stage_name,
 							"lai": lai,
 							"grain_g_m2": grain,
-							# API water_stress = θ/FC (1=saturated, 0=dry). Invert to show deficit.
+							# API water_stress = transpiration supply/demand (1=no stress, 0=severe).
+							# Invert so graph shows stress intensity (0=healthy, 1=severe).
 							"water_stress": 1.0 - patch.get("water_stress", 1.0),
 							"theta_surface": theta,
 							"n_available": n_total,

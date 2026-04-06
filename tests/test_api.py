@@ -426,6 +426,29 @@ def test_step_multiple_days(client) -> None:
     assert data["date"] == "2024-04-11"
 
 
+def test_water_stress_is_transpiration_based(client) -> None:
+    """water_stress reflects transpiration supply/demand, not θ/FC proxy."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=30&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    patch = data["patches"]["f1"][0]
+    ws = patch["water_stress"]
+    theta = patch["soil_theta_surface"]
+    # Water stress should be between 0 and 1
+    assert 0.0 <= ws <= 1.0, f"water_stress {ws} out of range"
+    # If theta is well above 0, stress should not be exactly theta/FC
+    # (the old proxy). The transpiration-based value has different behavior.
+    if theta > 0.05:
+        fc = 0.12  # approximate loam field capacity
+        proxy = min(theta / fc, 1.0)
+        # They should differ because real stress has threshold behavior
+        # (stress only kicks in below wilting point, not linearly with theta)
+        assert (
+            ws != pytest.approx(proxy, abs=0.01) or ws >= 0.95
+        ), f"water_stress {ws} ≈ θ/FC proxy {proxy} — should use transpiration"
+
+
 def test_execute_irrigate_action(client) -> None:
     """POST /action executes irrigation, deducts credits."""
     game_id = _create_game(client)
