@@ -72,36 +72,20 @@ const BAR_STRESS := Color(0.85, 0.2, 0.15)
 const BAR_MARGINAL := Color(0.9, 0.72, 0.15)
 const BAR_OK := Color(0.25, 0.7, 0.3)
 
-## Art guide colors
-const BG_COLOR := Color(0.1, 0.09, 0.08, 0.93)
-const BORDER_COLOR := Color(0.3, 0.27, 0.22, 0.5)
-const HEADER_COLOR := Color(0.82, 0.76, 0.65)
+## Art guide colors (delegated to UiTheme for shared palette)
 const SUBHEADER_COLOR := Color(0.6, 0.55, 0.48)
-const VALUE_COLOR := Color(0.78, 0.76, 0.72)
 const TRACK_BG := Color(0.15, 0.14, 0.13, 0.7)
 const OPT_ZONE := Color(0.18, 0.28, 0.15, 0.5)
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
-	# Panel background — dark earth tone, rounded
-	var style := StyleBoxFlat.new()
-	style.bg_color = BG_COLOR
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
+	# Panel background — shared dark earth-tone theme
+	var style := UiTheme.create_panel_style()
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 10
 	style.content_margin_bottom = 10
-	style.border_width_left = 1
-	style.border_width_right = 1
-	style.border_width_top = 1
-	style.border_width_bottom = 1
-	style.border_color = BORDER_COLOR
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 4
 	add_theme_stylebox_override("panel", style)
 
 	var vbox := VBoxContainer.new()
@@ -125,7 +109,7 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 		var header := Label.new()
 		header.text = "▸ %s" % depth
 		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override("font_color", HEADER_COLOR)
+		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 		vbox.add_child(header)
 		var vals: Dictionary = layer.get("values", {})
 		for key: String in NUTRIENT_BARS:
@@ -147,7 +131,7 @@ func _clear() -> void:
 func _add_separator(parent: VBoxContainer) -> void:
 	var sep := HSeparator.new()
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.3, 0.27, 0.22, 0.25)
+	s.bg_color = UiTheme.SEPARATOR_COLOR
 	s.content_margin_top = 3
 	s.content_margin_bottom = 3
 	sep.add_theme_stylebox_override("separator", s)
@@ -237,7 +221,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	if not unit.is_empty():
 		val_lbl.text += " " + unit
 	val_lbl.add_theme_font_size_override("font_size", 9)
-	val_lbl.add_theme_color_override("font_color", VALUE_COLOR)
+	val_lbl.add_theme_color_override("font_color", UiTheme.VALUE_COLOR)
 	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
 	parent.add_child(row)

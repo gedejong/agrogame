@@ -114,12 +114,34 @@ func _ready() -> void:
 	plant_btn.pressed.connect(_on_plant_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
+	_apply_ui_theme()
 	_build_tile_grid()
-	status_label.text = "3D view — click tile to select"
+	status_label.text = "3D view \u2014 click tile to select"
 	# Debug auto-start: create game, step 7 days, select tile, open cutaway
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
 		_debug_auto_start()
+
+
+func _apply_ui_theme() -> void:
+	var top_bar: HBoxContainer = $UILayer/TopBar
+	UiTheme.wrap_in_panel(top_bar, UiTheme.create_bar_style())
+	UiTheme.style_label(date_label, "header")
+	UiTheme.style_label(credits_label, "header")
+	UiTheme.style_label(weather_label, "body")
+	for icon_name: String in ["DateIcon", "CreditsIcon", "WeatherIcon"]:
+		top_bar.get_node(icon_name).modulate = UiTheme.ICON_TINT
+	UiTheme.replace_spacers(top_bar, ["Spacer1", "Spacer2"])
+	var action_bar: HBoxContainer = $UILayer/ActionBar
+	var a_style := UiTheme.create_bar_style()
+	a_style.shadow_size = 2
+	UiTheme.wrap_in_panel(action_bar, a_style)
+	for child: Node in action_bar.get_children():
+		if child is Button:
+			UiTheme.style_button(child)
+		elif child is VSeparator:
+			UiTheme.style_vseparator(child)
+	UiTheme.style_label(status_label, "body")
 
 
 func _build_tile_grid() -> void:
@@ -696,6 +718,7 @@ func _setup_crop_popup() -> void:
 		var crop_key: String = AVAILABLE_CROPS[i]
 		_crop_popup.add_item(crop_key.capitalize(), i)
 	_crop_popup.id_pressed.connect(_on_crop_selected)
+	UiTheme.style_popup_menu(_crop_popup)
 	$UILayer.add_child(_crop_popup)
 
 
@@ -901,10 +924,8 @@ func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
 	var NutrientPanel := preload("res://scripts/nutrient_panel.gd")
 	_nutrient_panel = PanelContainer.new()
 	_nutrient_panel.set_script(NutrientPanel)
-	# Position: right side of screen
 	_nutrient_panel.position = Vector2(get_viewport().get_visible_rect().size.x - 280, 70)
 	_nutrient_panel.size = Vector2(260, 0)
-	# Build layer data for the center column
 	var layers_data: Array[Dictionary] = []
 	for col_data: Dictionary in columns:
 		if not col_data.get("show_info", false):
@@ -919,26 +940,18 @@ func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
 		var ph: Array = soil_state.get("ph", [])
 		var mic: Array = soil_state.get("microbe_c", [])
 		for i in range(profile.size()):
-			var layer: Dictionary = profile[i]
-			var depth: int = layer.get("depth_cm", 30)
-			(
-				layers_data
-				. append(
-					{
-						"depth_label": "%d–%dcm" % [0 if i == 0 else depth, depth],
-						"values":
-						{
-							"NO₃": no3[i] if i < no3.size() else 0.0,
-							"NH₄": nh4[i] if i < nh4.size() else 0.0,
-							"P": p[i] if i < p.size() else 0.0,
-							"SOM": som[i] if i < som.size() else 0.0,
-							"Water": theta[i] if i < theta.size() else 0.0,
-							"pH": ph[i] if i < ph.size() else 6.5,
-							"Microbe": mic[i] if i < mic.size() else 0.0,
-						},
-					}
-				)
-			)
+			var depth: int = profile[i].get("depth_cm", 30)
+			var vals := {
+				"NO₃": no3[i] if i < no3.size() else 0.0,
+				"NH₄": nh4[i] if i < nh4.size() else 0.0,
+				"P": p[i] if i < p.size() else 0.0,
+				"SOM": som[i] if i < som.size() else 0.0,
+				"Water": theta[i] if i < theta.size() else 0.0,
+				"pH": ph[i] if i < ph.size() else 6.5,
+				"Microbe": mic[i] if i < mic.size() else 0.0,
+			}
+			var lbl := "%d\u2013%dcm" % [0 if i == 0 else depth, depth]
+			layers_data.append({"depth_label": lbl, "values": vals})
 	_nutrient_panel.show_layers(layers_data)
 	_nutrient_panel.visible = true
 	$UILayer.add_child(_nutrient_panel)
@@ -955,24 +968,20 @@ func _debug_auto_start() -> void:
 
 
 func _debug_plant_crops() -> void:
-	# Plant maize on sandy, wheat on organic, sorghum on clay
+	var crops := [["maize", 0], ["spring_wheat", 1], ["sorghum", 2]]
+	_debug_plant_next(crops, 0)
+
+
+func _debug_plant_next(crops: Array, idx: int) -> void:
+	if idx >= crops.size():
+		_debug_step_and_show()
+		return
+	var c: Array = crops[idx]
 	_api_client.execute_action(
 		_game_id,
 		"plant",
-		{"crop_key": "maize", "patch_idx": 0},
-		func(_s: bool, _d: Dictionary) -> void:
-			_api_client.execute_action(
-				_game_id,
-				"plant",
-				{"crop_key": "spring_wheat", "patch_idx": 1},
-				func(_s2: bool, _d2: Dictionary) -> void:
-					_api_client.execute_action(
-						_game_id,
-						"plant",
-						{"crop_key": "sorghum", "patch_idx": 2},
-						func(_s3: bool, _d3: Dictionary) -> void: _debug_step_and_show()
-					)
-			)
+		{"crop_key": c[0], "patch_idx": c[1]},
+		func(_s: bool, _d: Dictionary) -> void: _debug_plant_next(crops, idx + 1)
 	)
 
 
