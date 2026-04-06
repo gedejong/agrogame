@@ -188,6 +188,7 @@ class CanopyModule:
         water_stress: float,
         n_stress: float,
     ) -> CanopyFluxes:
+        self.state.last_water_stress = water_stress
         fx = self.calculate_light_interception(incident_par_mj_m2)
         biomass_inc = self.calculate_biomass_growth(
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
