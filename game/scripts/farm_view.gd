@@ -11,6 +11,7 @@ const TILE_HEIGHT := 0.1
 ## How many real-world meters one tile represents.
 ## Crop heights and soil depths are divided by this to get world units.
 const METERS_PER_TILE := 2.0
+const MAX_HISTORY_DAYS := 365
 
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const SOIL_TEXTURES := {
@@ -69,9 +70,13 @@ var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _soil_view: Node3D = null
 var _nutrient_panel: PanelContainer = null
+var _tile_info_panel: PanelContainer = null
 var _hidden_tiles: Array[int] = []
 var _api_client: Node
 var _last_step_data: Dictionary = {}
+## Per-patch history: keyed by soil_type, each an Array[Dictionary].
+## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
+var _daily_history: Dictionary = {}
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -200,6 +205,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var ke := event as InputEventKey
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
 			_hide_soil_cutaway()
+			_deselect()
 
 
 func _handle_click(screen_pos: Vector2) -> void:
@@ -239,6 +245,8 @@ func _select_tile(col: int, row: int) -> void:
 			data.get("theta_surface", 0.0),
 		]
 	)
+	# Show tile info panel with history
+	_show_tile_info(data)
 
 
 func _deselect() -> void:
@@ -246,6 +254,7 @@ func _deselect() -> void:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		_tile_materials[idx].set_shader_parameter("selected", 0.0)
 	_selected_tile = Vector2i(-1, -1)
+	_hide_tile_info()
 
 
 func _update_tile_shader(idx: int) -> void:
@@ -576,15 +585,53 @@ func _apply_patch_data(patches: Dictionary) -> void:
 			var stage: int = _STAGE_MAP.get(stage_name, 0)
 			var lai: float = patch.get("lai", 0.0)
 			var crop_key: String = patch.get("crop_key", "")
+			var theta: float = patch.get("soil_theta_surface", 0.0)
+			var grain: float = patch.get("grain_g_m2", 0.0)
+			var som: float = patch.get("som_total_c_g_m2", 0.0)
+			# Accumulate per-patch history
+			if not patch_soil.is_empty():
+				if not _daily_history.has(patch_soil):
+					_daily_history[patch_soil] = []
+				var soil_state: Dictionary = patch.get("soil_state", {})
+				var no3_arr: Array = soil_state.get("n_no3", [])
+				var nh4_arr: Array = soil_state.get("n_nh4", [])
+				var n_total: float = 0.0
+				for v: float in no3_arr:
+					n_total += v
+				for v: float in nh4_arr:
+					n_total += v
+				(
+					_daily_history[patch_soil]
+					. append(
+						{
+							"crop_stage": stage_name,
+							"lai": lai,
+							"grain_g_m2": grain,
+							# API water_stress = θ/FC (1=saturated, 0=dry). Invert to show deficit.
+							"water_stress": 1.0 - patch.get("water_stress", 1.0),
+							"theta_surface": theta,
+							"n_available": n_total,
+						}
+					)
+				)
+				# Cap history length
+				if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
+					_daily_history[patch_soil].pop_front()
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
-					_tile_data[i]["som_total_c_g_m2"] = patch.get("som_total_c_g_m2", 0.0)
-					_tile_data[i]["theta_surface"] = patch.get("soil_theta_surface", 0.0)
+					_tile_data[i]["som_total_c_g_m2"] = som
+					_tile_data[i]["theta_surface"] = theta
 					_tile_data[i]["crop_key"] = crop_key
 					_tile_data[i]["crop_stage"] = stage
 					_tile_data[i]["lai"] = lai
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
+	# Update tile info panel if open
+	if _tile_info_panel and _tile_info_panel.visible and _selected_tile.x >= 0:
+		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+		var soil_type: String = _tile_data[idx]["soil_type"]
+		var history: Array = _daily_history.get(soil_type, [])
+		_tile_info_panel.update_history(history)
 
 
 func _on_irrigate() -> void:
@@ -793,6 +840,26 @@ func _hide_soil_cutaway() -> void:
 		_soil_view.hide_view()
 	_hide_nutrient_panel()
 	_restore_hidden_tiles()
+
+
+func _show_tile_info(data: Dictionary) -> void:
+	_hide_tile_info()
+	var soil_type: String = data.get("soil_type", "")
+	var crop_key: String = data.get("crop_key", "")
+	var history: Array = _daily_history.get(soil_type, [])
+	var TileInfoPanel := preload("res://scripts/tile_info_panel.gd")
+	_tile_info_panel = PanelContainer.new()
+	_tile_info_panel.set_script(TileInfoPanel)
+	_tile_info_panel.position = Vector2(10, 250)
+	_tile_info_panel.size = Vector2(240, 0)
+	_tile_info_panel.show_history(history, soil_type, crop_key)
+	$UILayer.add_child(_tile_info_panel)
+
+
+func _hide_tile_info() -> void:
+	if _tile_info_panel:
+		_tile_info_panel.queue_free()
+		_tile_info_panel = null
 
 
 func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
