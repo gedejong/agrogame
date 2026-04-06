@@ -8,7 +8,7 @@ const Sparkline = preload("res://scripts/sparkline.gd")
 const GRAPHS := {
 	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.2, 0.72, 0.2)},
 	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.85, 0.7, 0.2)},
-	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.2, 0.55, 0.85)},
+	"water_stress": {"label": "Drought stress", "unit": "0–1", "color": Color(0.85, 0.3, 0.2)},
 	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.3, 0.75, 0.9)},
 	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.17, 0.63, 0.17)},
 }

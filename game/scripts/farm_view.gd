@@ -604,7 +604,7 @@ func _apply_patch_data(patches: Dictionary) -> void:
 							"crop_stage": stage_name,
 							"lai": lai,
 							"grain_g_m2": grain,
-							"water_stress": patch.get("water_stress", 1.0),
+							"water_stress": 1.0 - patch.get("water_stress", 1.0),
 							"theta_surface": theta,
 							"n_available": n_total,
 						}
