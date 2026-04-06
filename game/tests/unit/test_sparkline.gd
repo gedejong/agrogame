@@ -47,3 +47,16 @@ func test_color_parameter() -> void:
 	spark.setup("LAI", "m²/m²", Color.GREEN)
 	assert_eq(spark._color, Color.GREEN, "Color matches setup")
 	spark.free()
+
+
+func test_stage_days_stored() -> void:
+	var spark := Control.new()
+	spark.set_script(SparklineScript)
+	spark.setup("Test", "", Color.WHITE)
+	var stages := PackedInt32Array([5, 10])
+	spark.set_data(
+		PackedFloat64Array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]), stages
+	)
+	assert_eq(spark._stage_days.size(), 2, "Stage days stored")
+	assert_eq(spark._stage_days[0], 5)
+	spark.free()

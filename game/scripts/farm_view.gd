@@ -11,6 +11,7 @@ const TILE_HEIGHT := 0.1
 ## How many real-world meters one tile represents.
 ## Crop heights and soil depths are divided by this to get world units.
 const METERS_PER_TILE := 2.0
+const MAX_HISTORY_DAYS := 365
 
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const SOIL_TEXTURES := {
@@ -73,8 +74,9 @@ var _tile_info_panel: PanelContainer = null
 var _hidden_tiles: Array[int] = []
 var _api_client: Node
 var _last_step_data: Dictionary = {}
-## Per-patch history: keyed by soil_type, each an Array[Dictionary]
-var _daily_history := {}
+## Per-patch history: keyed by soil_type, each an Array[Dictionary].
+## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
+var _daily_history: Dictionary = {}
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -203,6 +205,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		var ke := event as InputEventKey
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
 			_hide_soil_cutaway()
+			_deselect()
 
 
 func _handle_click(screen_pos: Vector2) -> void:
@@ -604,12 +607,16 @@ func _apply_patch_data(patches: Dictionary) -> void:
 							"crop_stage": stage_name,
 							"lai": lai,
 							"grain_g_m2": grain,
+							# API water_stress = θ/FC (1=saturated, 0=dry). Invert to show deficit.
 							"water_stress": 1.0 - patch.get("water_stress", 1.0),
 							"theta_surface": theta,
 							"n_available": n_total,
 						}
 					)
 				)
+				# Cap history length
+				if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
+					_daily_history[patch_soil].pop_front()
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["som_total_c_g_m2"] = som
@@ -840,8 +847,6 @@ func _show_tile_info(data: Dictionary) -> void:
 	var soil_type: String = data.get("soil_type", "")
 	var crop_key: String = data.get("crop_key", "")
 	var history: Array = _daily_history.get(soil_type, [])
-	if history.is_empty():
-		return
 	var TileInfoPanel := preload("res://scripts/tile_info_panel.gd")
 	_tile_info_panel = PanelContainer.new()
 	_tile_info_panel.set_script(TileInfoPanel)

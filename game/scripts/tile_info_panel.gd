@@ -8,12 +8,12 @@ const Sparkline = preload("res://scripts/sparkline.gd")
 const GRAPHS := {
 	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.2, 0.72, 0.2)},
 	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.85, 0.7, 0.2)},
-	"water_stress": {"label": "Water deficit", "unit": "θ/FC", "color": Color(0.85, 0.3, 0.2)},
+	"water_stress": {"label": "Water deficit", "unit": "1−θ/FC", "color": Color(0.85, 0.3, 0.2)},
 	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.3, 0.75, 0.9)},
 	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.17, 0.63, 0.17)},
 }
 
-var _sparklines := {}
+var _sparklines: Dictionary = {}
 
 
 func show_history(history: Array, soil_type: String, crop_key: String) -> void:
@@ -51,13 +51,20 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
-	# Day count
+	# Day count or no-data message
 	var days_label := Label.new()
-	days_label.text = "%d days" % history.size()
+	if history.is_empty():
+		days_label.text = "Step days to see history"
+	else:
+		days_label.text = "%d days" % history.size()
 	days_label.add_theme_font_size_override("font_size", 10)
 	days_label.add_theme_color_override("font_color", Color(0.55, 0.52, 0.48))
 	days_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(days_label)
+
+	if history.is_empty():
+		visible = true
+		return
 
 	# Collect stage transition days for markers
 	var stage_days := _find_stage_transitions(history)

@@ -33,3 +33,10 @@ func test_find_stage_transitions() -> void:
 	assert_eq(transitions.size(), 2, "Two transitions: planted→veg, veg→flower")
 	assert_eq(transitions[0], 2)
 	assert_eq(transitions[1], 4)
+
+
+func test_extract_series_missing_key() -> void:
+	var history := [{"lai": 1.0}, {"lai": 2.0}]
+	var data := TileInfoPanel._extract_series(history, "nonexistent")
+	assert_eq(data.size(), 2)
+	assert_eq(data[0], 0.0, "Missing key defaults to 0")
