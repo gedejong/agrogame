@@ -138,6 +138,7 @@ class CanopyModule:
         self.state.biomass_g_m2 *= frac
         self.state.stem_biomass_g_m2 *= frac
         self.state.grain_biomass_g_m2 *= frac
+        self.state.last_water_stress = 1.0  # Reset to no-stress after harvest
         if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
             self.event_bus.emit(
                 LAIUpdated(previous_lai=prev_lai, new_lai=self.state.lai)
