@@ -13,7 +13,9 @@ Clean, minimalist isometric style with:
 - Soft shadows and clean outlines
 - Educational readability — a player should be able to identify soil type and crop stage at a glance
 
-**Reference games**: Monument Valley, Alto's Adventure, Pocket City, Stardew Valley (for crop stage clarity, not pixel style)
+**Reference games**:
+- **3D world**: Monument Valley, Alto's Adventure, Pocket City, Stardew Valley (crop stage clarity)
+- **UI panels**: Cities: Skylines II (glassmorphism, data density), Frostpunk (dark management UI)
 
 ## Color Space Rules (HSV Guardrails)
 
@@ -87,18 +89,24 @@ When in doubt: if a soil tile looks more vivid than a crop sprite, the soil is t
 | N deficiency | Pale yellow-green | `#c8d86a` |
 | Severe stress | Brown/dead | `#8b6b3a` |
 
-### UI Colors
-| Element | Color | Hex |
-|---------|-------|-----|
-| Grade A | Green | `#33cc33` |
-| Grade B | Yellow-green | `#80cc33` |
-| Grade C | Yellow | `#e6cc1a` |
-| Grade D | Orange | `#e6801a` |
-| Grade F | Red | `#e63333` |
-| Revenue/Positive | Green | `#4dcc4d` |
-| Cost/Negative | Red | `#cc4d4d` |
-| Rain | Blue | `#6699cc` |
-| Sun | Yellow | `#f0d040` |
+### UI Colors — Functional Accents
+| Element | Color | Hex | Usage |
+|---------|-------|-----|-------|
+| Positive/Revenue | Green | `#4ADE80` | Income, unlocked, healthy |
+| Negative/Cost | Red | `#EF4444` | Expenses, alerts, severe stress |
+| Milestone/Active | Gold | `#FBBF24` | Achievements, active selections |
+| Selected State | Blue | `#60A5FA` | Highlighted interactive elements |
+| Rain | Blue | `#6699cc` | Weather overlay |
+| Sun | Yellow | `#f0d040` | Weather overlay |
+
+### UI Colors — Grades
+| Grade | Color | Hex |
+|-------|-------|-----|
+| A | Green | `#4ADE80` |
+| B | Yellow-green | `#80cc33` |
+| C | Yellow | `#FBBF24` |
+| D | Orange | `#e6801a` |
+| F | Red | `#EF4444` |
 
 ## Lighting Model
 
@@ -107,6 +115,127 @@ When in doubt: if a soil tile looks more vivid than a crop sprite, the soil is t
 - **Highlights**: Flat lighter accent strokes on the **top-left edges** of leaves, seed heads, and other surfaces facing the light. Use a color ~20% lighter than the base fill, at 0.4–0.6 opacity. Only apply to light-facing (left) elements — right-side elements are in relative shadow.
 - **Cast shadows**: Flat semi-transparent dark ellipse (`#000000`, opacity 0.09–0.15) at the base of crops, offset toward the **bottom-right** to match the light direction. Skew with `skewX(-15)` to align with the isometric ground plane. Shadow size should scale with plant size (seedlings get tiny shadows, mature crops get larger ones).
 - **Tiles**: The top-left half of a tile surface may have a slightly lighter tone than the bottom-right. This is optional and should be very subtle if used.
+
+## UI Design System
+
+### Philosophy
+
+The UI employs a **modern utilitarian glassmorphism** style inspired by Cities: Skylines II. It is designed to be unobtrusive — the 3D farm world remains visible behind semi-transparent panels — while ensuring high readability for dense simulation data. The design is modular, using nested containers with consistent spacing.
+
+**Reference games**: Cities: Skylines II (glassmorphism panels, data density), Frostpunk (dark management UI, warm accents), SimCity (information-rich overlays)
+
+### The Glass Effect
+
+This is the defining characteristic. All UI panels share these rendering properties:
+
+| Property | Value | Notes |
+|----------|-------|-------|
+| **Base color** | `#1E2532` (dark slate-navy) | Warm-shifted compared to pure grey |
+| **Opacity** | 75–85% | Game world visible behind panels |
+| **Background blur** | Gaussian, ~8px radius | Ensures text readability over any 3D content (bright sky or dark soil). Godot: `BackBufferCopy` + blur shader, or `SubViewport` approach. |
+| **Gradient** | Optional very subtle linear (lighter top → darker bottom) | Adds volume without looking glossy |
+
+### Panel Hierarchy
+
+Three levels of container, each slightly different:
+
+| Level | Example | Background | Corner Radius | Padding |
+|-------|---------|-----------|---------------|---------|
+| **Primary panel** | Forecast, Tile Info, Nutrient Panel | `#1E2532` at 80% | 10px | 16px |
+| **Inner card** | Individual stat card, graph area | `#FFFFFF` at 5–8% | 8px | 12px |
+| **Inline element** | Progress bar track, divider | `#FFFFFF` at 3–5% | 4px or pill (50%) | 4px |
+
+### Borders, Shadows, Dividers
+
+| Element | Specification |
+|---------|--------------|
+| **Panel border** | 1px `#FFFFFF` at 10–15% opacity, all sides |
+| **Panel shadow** | 6px blur, `#000000` at 30% opacity, offset (0, 2) |
+| **Section divider** | 1px `#FFFFFF` at 12% opacity, horizontal line |
+| **No hard edges** — every container has rounded corners |
+
+### Typography
+
+Use a clean sans-serif font (Godot default or Inter/Roboto).
+
+| Role | Style | Color | Size |
+|------|-------|-------|------|
+| **Section header** | ALL-CAPS, bold, wide tracking (+1px letter-spacing) | `#FFFFFF` | 11–12px |
+| **Label** | Sentence case, medium weight | `#A0AAB5` (70% white) | 10–11px |
+| **Value/data** | Regular weight, tabular figures | `#FFFFFF` | 11–13px |
+| **Muted/secondary** | Regular weight | `#A0AAB5` at 70% | 9–10px |
+
+### Spacing & Layout
+
+| Property | Value |
+|----------|-------|
+| **Screen edge → panel** | 16–24px margin |
+| **Panel edge → content** | 16px padding |
+| **Between sections** | 12px gap |
+| **Between items** | 8px gap |
+| **Between icon and label** | 6px |
+| **Column gap (multi-column layouts)** | 10–12px |
+
+### Buttons
+
+Dark flat buttons with clear state feedback:
+
+| State | Background | Border | Text |
+|-------|-----------|--------|------|
+| **Normal** | `#FFFFFF` at 8% | 1px `#FFFFFF` at 10% | `#A0AAB5` |
+| **Hover** | `#FFFFFF` at 14% | 1px `#FFFFFF` at 25% | `#FFFFFF` |
+| **Pressed** | `#FFFFFF` at 5% | 1px `#FFFFFF` at 10% | `#FFFFFF` |
+| **Disabled** | `#FFFFFF` at 3% | none | `#FFFFFF` at 30% |
+
+Corner radius: 6px. Padding: 8px horizontal, 6px vertical. Icons: 16x16, tinted to match text color per state.
+
+### Progress Bars & Indicators
+
+| Element | Style |
+|---------|-------|
+| **Track** | `#FFFFFF` at 5%, pill shape (border-radius 50%) |
+| **Fill** | Functional accent color (green/red/gold), pill shape |
+| **Height** | 4–6px for compact bars, 8px for prominent ones |
+
+### Bottom HUD Bar
+
+A continuous horizontal strip across the bottom of the screen:
+- Background: slightly darker than floating panels (`#161C24` at 85%)
+- Groups information using subtle internal dividers (not separate boxes)
+- Left: game status. Center: action buttons. Right: resource indicators.
+
+### Iconography
+
+- Flat, minimalist, single-color (white `#FFFFFF` or `#A0AAB5`)
+- Sized to 16x16 or 24x24 grid
+- Tinted via Godot `modulate` to match button state
+- Must be recognizable at smallest size
+
+### Color Usage in UI
+
+Functional colors are used **sparingly** — most of the UI is monochrome (white/grey on dark). Color signals meaning:
+
+| Color | Meaning | Hex |
+|-------|---------|-----|
+| **Green** | Positive, healthy, income, unlocked | `#4ADE80` |
+| **Red** | Negative, stress, cost, alert | `#EF4444` |
+| **Gold** | Milestone, active, achievement | `#FBBF24` |
+| **Blue** | Selected, water, interactive | `#60A5FA` |
+| **White** | Primary text, icons | `#FFFFFF` |
+| **Grey** | Secondary text, labels, muted | `#A0AAB5` |
+
+### Data Visualization in Panels
+
+Sparkline graphs and bar indicators follow these rules:
+- Graph line: 1.5px, functional accent color
+- Fill under curve: same color at 8% opacity
+- Graph background: `#FFFFFF` at 3% (inner card level)
+- Axis labels: `#A0AAB5`, 9px
+- Stage markers: 1px dotted `#FFFFFF` at 15%
+
+### What This Replaces
+
+The previous art guide referenced "Monument Valley meets agricultural textbook" — that aesthetic applies to the **3D world** (terrain, crops, soil). The UI design system described above applies to all **2D overlay panels, buttons, and HUD elements**. The two coexist: warm 3D world visible through cool-dark glassmorphism panels.
 
 ## Asset Specifications
 
@@ -223,6 +352,8 @@ game/assets/
 - **Alto's Adventure** — Minimalist landscape with vivid accent colors
 - **Pocket City** — Isometric city builder with clear, readable tiles
 - **Stardew Valley** — Crop stage visual language (growth = height + density + color shift)
+- **Cities: Skylines II** — Glassmorphism UI panels, data-dense overlays, modern sans-serif
+- **Frostpunk** — Dark management UI with warm accent colors, information density
 
 **Tools:**
 - **Inkscape** — Free SVG editor with isometric grid extension (good for 64x32 tiles)

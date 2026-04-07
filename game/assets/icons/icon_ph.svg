@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- pH / Hydronium H₃O⁺: trigonal pyramidal — O center + 3 H around -->
+  <!-- Bonds -->
+  <line x1="8" y1="9" x2="4" y2="4" stroke="#8C8C99" stroke-width="1"/>
+  <line x1="8" y1="9" x2="12" y2="4" stroke="#8C8C99" stroke-width="1"/>
+  <line x1="8" y1="9" x2="8" y2="14.5" stroke="#8C8C99" stroke-width="1"/>
+  <!-- Center atom (O) -->
+  <circle cx="8" cy="9" r="2.5" fill="#8C8C99"/>
+  <!-- Outer atoms (H) -->
+  <circle cx="3.5" cy="3.5" r="1.5" fill="#8C8C99"/>
+  <circle cx="12.5" cy="3.5" r="1.5" fill="#8C8C99"/>
+  <circle cx="8" cy="15" r="1.5" fill="#8C8C99"/>
+</svg>

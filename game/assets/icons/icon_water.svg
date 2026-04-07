@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Water H₂O: bent molecule, 104.5° bond angle (Mickey Mouse shape) -->
+  <!-- Bonds -->
+  <line x1="8" y1="9" x2="3.5" y2="4.5" stroke="#338CD9" stroke-width="1.2"/>
+  <line x1="8" y1="9" x2="12.5" y2="4.5" stroke="#338CD9" stroke-width="1.2"/>
+  <!-- Center atom (O, larger) -->
+  <circle cx="8" cy="9" r="2.8" fill="#338CD9"/>
+  <!-- Outer atoms (H, smaller) -->
+  <circle cx="3" cy="4" r="1.8" fill="#338CD9"/>
+  <circle cx="13" cy="4" r="1.8" fill="#338CD9"/>
+</svg>

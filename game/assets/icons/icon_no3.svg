@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Nitrate NO₃⁻: trigonal planar — 1 center N + 3 outer O at 120° -->
+  <!-- Bonds -->
+  <line x1="8" y1="6" x2="8" y2="2.5" stroke="#33B833" stroke-width="1.2"/>
+  <line x1="8" y1="6" x2="4" y2="10" stroke="#33B833" stroke-width="1.2"/>
+  <line x1="8" y1="6" x2="12" y2="10" stroke="#33B833" stroke-width="1.2"/>
+  <!-- Center atom (N) -->
+  <circle cx="8" cy="6" r="2.2" fill="#33B833"/>
+  <!-- Outer atoms (O) -->
+  <circle cx="8" cy="2" r="1.8" fill="#33B833"/>
+  <circle cx="3.5" cy="10.5" r="1.8" fill="#33B833"/>
+  <circle cx="12.5" cy="10.5" r="1.8" fill="#33B833"/>
+</svg>
