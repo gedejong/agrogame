@@ -59,7 +59,7 @@ const OPT_ZONE := Color(1.0, 1.0, 1.0, 0.06)
 
 # --- Blur shader ---
 const BLUR_SHADER_PATH := "res://shaders/ui_blur.gdshader"
-const BLUR_RADIUS := 16.0
+const BLUR_AMOUNT := 3.0
 
 # --- Legacy aliases for panels that still reference old names ---
 const HEADER_COLOR := TEXT_PRIMARY
@@ -256,12 +256,15 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 		return null
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
-	mat.set_shader_parameter("blur_radius", BLUR_RADIUS)
+	mat.set_shader_parameter("blur_amount", BLUR_AMOUNT)
 	mat.set_shader_parameter("tint_color", tint)
 	var rect := ColorRect.new()
 	rect.material = mat
+	rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rect.color = Color(1, 1, 1, 1)  # Shader overrides this
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
 	# Make panel bg transparent so blur shows through
