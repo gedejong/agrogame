@@ -908,7 +908,7 @@ func _show_tile_info(data: Dictionary) -> void:
 	var TileInfoPanel := preload("res://scripts/tile_info_panel.gd")
 	_tile_info_panel = PanelContainer.new()
 	_tile_info_panel.set_script(TileInfoPanel)
-	_tile_info_panel.position = Vector2(10, 250)
+	_tile_info_panel.position = Vector2(16, 40)
 	_tile_info_panel.size = Vector2(240, 0)
 	_tile_info_panel.show_history(history, soil_type, crop_key)
 	$UILayer.add_child(_tile_info_panel)
