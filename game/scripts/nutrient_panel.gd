@@ -90,7 +90,8 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 
 	# Title
 	var title := Label.new()
-	title.text = "SOIL ANALYSIS"
+	title.text = "Soil Analysis"
+	title.uppercase = true
 	title.add_theme_font_size_override("font_size", 11)
 	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

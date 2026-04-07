@@ -268,10 +268,11 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 
 
 static func style_label(label: Label, type: String) -> void:
-	"""Set label font color by type: header, body, muted, value."""
+	"""Set label font color and style by type: header, body, muted, value."""
 	match type:
 		"header":
 			label.add_theme_color_override("font_color", TEXT_PRIMARY)
+			label.uppercase = true
 		"muted":
 			label.add_theme_color_override("font_color", TEXT_SECONDARY)
 		"value":

@@ -6,11 +6,11 @@ const Sparkline = preload("res://scripts/sparkline.gd")
 
 ## Graph configs: key matches _daily_history fields
 const GRAPHS := {
-	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.2, 0.72, 0.2)},
-	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.85, 0.7, 0.2)},
-	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.85, 0.3, 0.2)},
-	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.3, 0.75, 0.9)},
-	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.17, 0.63, 0.17)},
+	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.290, 0.871, 0.502)},
+	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.984, 0.749, 0.141)},
+	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.937, 0.267, 0.267)},
+	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.376, 0.647, 0.980)},
+	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.502, 0.800, 0.333)},
 }
 
 var _sparklines: Dictionary = {}
@@ -27,8 +27,9 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 
 	# Title
 	var title := Label.new()
-	var title_text := crop_key.to_upper() if not crop_key.is_empty() else "EMPTY"
-	title.text = "%s — %s" % [title_text, soil_type.to_upper()]
+	var title_text := crop_key.capitalize() if not crop_key.is_empty() else "Empty"
+	title.text = "%s — %s" % [title_text, soil_type]
+	title.uppercase = true
 	title.add_theme_font_size_override("font_size", 12)
 	title.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

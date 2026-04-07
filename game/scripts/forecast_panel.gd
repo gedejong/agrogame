@@ -27,7 +27,8 @@ func _rebuild_display() -> void:
 	add_child(bg)
 
 	var header := Label.new()
-	header.text = "5-DAY FORECAST"
+	header.text = "5-Day Forecast"
+	header.uppercase = true
 	header.add_theme_font_size_override("font_size", 12)
 	header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 	content.add_child(header)
