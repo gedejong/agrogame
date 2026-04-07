@@ -15,8 +15,8 @@ const BAR_BG := Color(0.086, 0.110, 0.141, 0.85)
 
 # --- Borders & shadows ---
 const BORDER_COLOR := Color(1.0, 1.0, 1.0, 0.12)
-const SHADOW_COLOR := Color(0, 0, 0, 0.15)
-const SHADOW_SIZE := 2
+const SHADOW_COLOR := Color(0, 0, 0, 0.3)
+const SHADOW_SIZE := 6
 const DIVIDER_COLOR := Color(1.0, 1.0, 1.0, 0.12)
 
 # --- Corner radii ---

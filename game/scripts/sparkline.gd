@@ -67,7 +67,7 @@ func _draw() -> void:
 	var graph_y := label_h
 	var graph_h: float = h - label_h - 2
 	# Background
-	draw_rect(Rect2(0, graph_y, w, graph_h), Color(1.0, 1.0, 1.0, 0.04))
+	draw_rect(Rect2(0, graph_y, w, graph_h), Color(1.0, 1.0, 1.0, 0.03))
 	# Label + current value
 	var val_text := ""
 	if not _data.is_empty():
