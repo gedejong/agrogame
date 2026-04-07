@@ -83,18 +83,35 @@ static func build_curved_leaf(
 	## y = rise * 4t(1-t) - droop * length * t^3
 	## Low droop → leaf mostly goes up. High droop → tip sags down.
 	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
-	# Rise is stronger when droop is low (young upright leaves)
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rise: float = length * (0.3 + (1.0 - droop) * 0.3)
-	for si in range(segments + 1):
-		var t: float = float(si) / float(segments)
-		var w_frac: float = 4.0 * t * (1.0 - t)
-		var hw: float = width * 0.5 * maxf(w_frac, 0.1)
-		var arc_y: float = rise * 4.0 * t * (1.0 - t) - droop * length * t * t * t
-		var out_z: float = length * t
-		st.set_uv(Vector2(t, 0.0))
-		st.add_vertex(Vector3(-hw, arc_y, out_z))
-		st.set_uv(Vector2(t, 1.0))
-		st.add_vertex(Vector3(hw, arc_y, out_z))
+	# Build quad strip as explicit triangles for generate_normals()
+	for si in range(segments):
+		var t0: float = float(si) / float(segments)
+		var t1: float = float(si + 1) / float(segments)
+		var w0: float = width * 0.5 * maxf(4.0 * t0 * (1.0 - t0), 0.1)
+		var w1: float = width * 0.5 * maxf(4.0 * t1 * (1.0 - t1), 0.1)
+		var y0: float = rise * 4.0 * t0 * (1.0 - t0) - droop * length * t0 * t0 * t0
+		var y1: float = rise * 4.0 * t1 * (1.0 - t1) - droop * length * t1 * t1 * t1
+		var z0: float = length * t0
+		var z1: float = length * t1
+		var bl := Vector3(-w0, y0, z0)
+		var br := Vector3(w0, y0, z0)
+		var tl := Vector3(-w1, y1, z1)
+		var tr := Vector3(w1, y1, z1)
+		# Triangle 1: bl, br, tr
+		st.set_uv(Vector2(t0, 0.0))
+		st.add_vertex(bl)
+		st.set_uv(Vector2(t0, 1.0))
+		st.add_vertex(br)
+		st.set_uv(Vector2(t1, 1.0))
+		st.add_vertex(tr)
+		# Triangle 2: bl, tr, tl
+		st.set_uv(Vector2(t0, 0.0))
+		st.add_vertex(bl)
+		st.set_uv(Vector2(t1, 1.0))
+		st.add_vertex(tr)
+		st.set_uv(Vector2(t1, 0.0))
+		st.add_vertex(tl)
 	st.generate_normals()
 	return st.commit()

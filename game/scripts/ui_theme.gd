@@ -268,9 +268,10 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
 	# Make panel bg transparent so blur shows through
-	var existing: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
-	if existing:
-		existing.bg_color = Color(0, 0, 0, 0)
+	if panel.has_theme_stylebox_override("panel"):
+		var sb: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
+		if sb:
+			sb.bg_color = Color(0, 0, 0, 0)
 	return rect
 
 
