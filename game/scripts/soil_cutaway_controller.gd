@@ -11,19 +11,21 @@ var _tile_info_panel: PanelContainer = null
 var _hidden_tiles: Array[int] = []
 
 
-func show_cutaway(
-	selected: Vector2i,
-	tile_data: Array[Dictionary],
-	tile_meshes: Array[MeshInstance3D],
-	crop_sprites: Array[Array],
-	patches: Dictionary,
-	grid_cols: int,
-	grid_rows: int,
-	parent_3d: Node3D,
-	ui_layer: CanvasLayer,
-	update_crop_fn: Callable,
-) -> bool:
-	"""Build and display the soil cutaway. Returns false if no data."""
+func show_cutaway(ctx: Dictionary, parent_3d: Node3D, ui_layer: CanvasLayer) -> bool:
+	"""Build and display the soil cutaway. Returns false if no data.
+
+	ctx keys: selected, tile_data, tile_meshes, crop_sprites, patches,
+	grid_cols, grid_rows, soil_types, update_crop_fn.
+	"""
+	var selected: Vector2i = ctx["selected"]
+	var tile_data: Array = ctx["tile_data"]
+	var tile_meshes: Array = ctx["tile_meshes"]
+	var crop_sprites: Array = ctx["crop_sprites"]
+	var patches: Dictionary = ctx["patches"]
+	var grid_cols: int = ctx["grid_cols"]
+	var grid_rows: int = ctx["grid_rows"]
+	var soil_types: Array = ctx["soil_types"]
+	var update_crop_fn: Callable = ctx["update_crop_fn"]
 	restore_hidden_tiles(tile_meshes, crop_sprites, update_crop_fn)
 	var col := selected.x
 	var row := selected.y
@@ -50,7 +52,9 @@ func show_cutaway(
 		var tp := pillar_tiles[i]
 		if not _is_valid(tp, grid_cols, grid_rows):
 			continue
-		var col_data := _get_soil_column(tp, patches, i == 0, tile_data, tile_meshes, grid_cols)
+		var col_data := _get_soil_column(
+			tp, patches, i == 0, tile_data, tile_meshes, grid_cols, soil_types
+		)
 		if not col_data.is_empty():
 			columns.append(col_data)
 	if columns.is_empty():
@@ -134,10 +138,10 @@ func _get_soil_column(
 	tile_data: Array[Dictionary],
 	tile_meshes: Array[MeshInstance3D],
 	grid_cols: int,
+	soil_types: Array[String],
 ) -> Dictionary:
 	var idx: int = tp.y * grid_cols + tp.x
 	var soil_type: String = tile_data[idx]["soil_type"]
-	var soil_types: Array[String] = ["sandy", "organic", "clay"]
 	var patch_idx := soil_types.find(soil_type)
 	if patch_idx < 0:
 		patch_idx = 0

@@ -635,23 +635,18 @@ func _on_soil_view() -> void:
 
 
 func _show_soil_cutaway() -> void:
-	var patches: Dictionary = _last_step_data.get("patches", {})
-	var ok := (
-		_cutaway
-		. show_cutaway(
-			_selected_tile,
-			_tile_data,
-			_tile_meshes,
-			_crop_sprites,
-			patches,
-			GRID_COLS,
-			GRID_ROWS,
-			self,
-			$UILayer,
-			_update_crop_visuals,
-		)
-	)
-	if not ok:
+	var ctx := {
+		"selected": _selected_tile,
+		"tile_data": _tile_data,
+		"tile_meshes": _tile_meshes,
+		"crop_sprites": _crop_sprites,
+		"patches": _last_step_data.get("patches", {}),
+		"grid_cols": GRID_COLS,
+		"grid_rows": GRID_ROWS,
+		"soil_types": SOIL_TYPES,
+		"update_crop_fn": _update_crop_visuals,
+	}
+	if not _cutaway.show_cutaway(ctx, self, $UILayer):
 		status_label.text = "No soil data available"
 
 
