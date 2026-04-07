@@ -59,7 +59,7 @@ const OPT_ZONE := Color(1.0, 1.0, 1.0, 0.06)
 
 # --- Blur shader ---
 const BLUR_SHADER_PATH := "res://shaders/ui_blur.gdshader"
-const BLUR_RADIUS := 6.0
+const BLUR_RADIUS := 16.0
 
 # --- Legacy aliases for panels that still reference old names ---
 const HEADER_COLOR := TEXT_PRIMARY
