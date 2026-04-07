@@ -248,10 +248,10 @@ static func style_popup_menu(popup: PopupMenu) -> void:
 
 
 static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
-	"""Add blur ColorRect that covers the full panel rect including margins.
+	"""Add blur ColorRect as first child of panel (content area).
 
-	Uses top_level=true so PanelContainer layout doesn't constrain it,
-	then syncs position/size to the panel's screen rect.
+	Draws before content children so content renders on top of the frosted
+	glass effect. Panel border/shadow are drawn by the StyleBoxFlat.
 	"""
 	var shader: Shader = load(BLUR_SHADER_PATH)
 	if not shader:
@@ -262,18 +262,12 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	mat.set_shader_parameter("tint_color", tint)
 	var rect := ColorRect.new()
 	rect.material = mat
-	rect.top_level = true
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.show_behind_parent = true
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
-	var sync_rect := func() -> void:
-		if is_instance_valid(panel) and is_instance_valid(rect):
-			rect.global_position = panel.global_position
-			rect.size = panel.size
-	panel.resized.connect(sync_rect)
-	panel.item_rect_changed.connect(sync_rect)
-	sync_rect.call_deferred()
 	return rect
 
 
