@@ -19,7 +19,7 @@ func _rebuild_display() -> void:
 		child.queue_free()
 
 	var bg := PanelContainer.new()
-	bg.add_theme_stylebox_override("panel", UiTheme.create_panel_style())
+	bg.add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
 	UiTheme.add_blur_bg(bg)
 
 	var content := VBoxContainer.new()

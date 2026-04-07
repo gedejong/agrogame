@@ -76,7 +76,7 @@ const BAR_OK := Color(0.290, 0.871, 0.502)  # #4ADE80
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
-	var style := UiTheme.create_panel_style()
+	var style := UiTheme.create_panel_style(true)
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 10

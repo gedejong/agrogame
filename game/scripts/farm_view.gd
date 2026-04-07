@@ -124,7 +124,7 @@ func _ready() -> void:
 
 func _apply_ui_theme() -> void:
 	var bottom_bar: PanelContainer = $UILayer/BottomBar
-	bottom_bar.add_theme_stylebox_override("panel", UiTheme.create_hud_style())
+	bottom_bar.add_theme_stylebox_override("panel", UiTheme.create_hud_style(true))
 	UiTheme.add_blur_bg(bottom_bar, UiTheme.BAR_BG)
 	var info_bar: HBoxContainer = $UILayer/BottomBar/BottomVBox/TopBar
 	UiTheme.style_label(date_label, "header")
@@ -146,6 +146,7 @@ func _apply_ui_theme() -> void:
 	UiTheme.add_divider($UILayer/BottomBar/BottomVBox, 1)
 	UiTheme.style_label(status_label, "muted")
 	forecast_panel.visible = false
+
 
 func _build_tile_grid() -> void:
 	var shader: Shader = load("res://shaders/soil_tile.gdshader")
@@ -294,7 +295,6 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 	var tmin: float = weather.get("tmin_c", 10.0)
 	var tmax: float = weather.get("tmax_c", 20.0)
 	var overcast: float = clampf(rain_mm / 10.0, 0.0, 1.0)
-	# Approximate humidity: high rain + small temp spread + cool = humid/foggy.
 	# Wet-bulb depression proxy: large tmax-tmin = dry, small = humid.
 	var temp_spread: float = maxf(tmax - tmin, 1.0)
 	# Intentionally produces nonzero humidity on dry days with small temp spread

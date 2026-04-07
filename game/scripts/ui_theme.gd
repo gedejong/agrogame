@@ -69,10 +69,10 @@ const VALUE_COLOR := TEXT_PRIMARY
 const SEPARATOR_COLOR := DIVIDER_COLOR
 
 
-static func create_panel_style() -> StyleBoxFlat:
+static func create_panel_style(transparent: bool = false) -> StyleBoxFlat:
 	"""Primary panel: dark slate-navy glass, rounded, bordered, shadowed."""
 	var s := StyleBoxFlat.new()
-	s.bg_color = PANEL_BG
+	s.bg_color = Color(0, 0, 0, 0) if transparent else PANEL_BG
 	s.corner_radius_top_left = CORNER_RADIUS
 	s.corner_radius_top_right = CORNER_RADIUS
 	s.corner_radius_bottom_left = CORNER_RADIUS
@@ -92,19 +92,20 @@ static func create_panel_style() -> StyleBoxFlat:
 	return s
 
 
-static func create_bar_style() -> StyleBoxFlat:
+static func create_bar_style(transparent: bool = false) -> StyleBoxFlat:
 	"""Bottom HUD bar style (top bar / action bar strips)."""
-	var s := create_panel_style()
-	s.bg_color = BAR_BG
+	var s := create_panel_style(transparent)
+	if not transparent:
+		s.bg_color = BAR_BG
 	s.corner_radius_top_left = 0
 	s.corner_radius_top_right = 0
 	s.shadow_size = 2
 	return s
 
 
-static func create_hud_style() -> StyleBoxFlat:
+static func create_hud_style(transparent: bool = false) -> StyleBoxFlat:
 	"""Bottom HUD bar: full-width, no bottom corners, generous padding."""
-	var s := create_bar_style()
+	var s := create_bar_style(transparent)
 	s.corner_radius_bottom_left = 0
 	s.corner_radius_bottom_right = 0
 	s.content_margin_left = 12
@@ -248,8 +249,8 @@ static func style_popup_menu(popup: PopupMenu) -> void:
 static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	"""Insert a blur ColorRect as first child of panel.
 
-	Makes the panel's StyleBoxFlat background transparent so the blur
-	provides the frosted glass visual instead.
+	The panel must use create_panel_style(true) so its bg is transparent
+	and the blur shader provides the frosted glass visual.
 	"""
 	var shader: Shader = load(BLUR_SHADER_PATH)
 	if not shader:
@@ -260,18 +261,10 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	mat.set_shader_parameter("tint_color", tint)
 	var rect := ColorRect.new()
 	rect.material = mat
-	rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.color = Color(1, 1, 1, 1)  # Shader overrides this
+	rect.color = Color(1, 1, 1, 1)
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
-	# Make panel bg transparent so blur shows through
-	if panel.has_theme_stylebox_override("panel"):
-		var sb: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
-		if sb:
-			sb.bg_color = Color(0, 0, 0, 0)
 	return rect
 
 
