@@ -87,17 +87,17 @@ var _daily_history: Dictionary = {}
 @onready var sun: DirectionalLight3D = $DirectionalLight3D
 @onready var env: WorldEnvironment = $WorldEnvironment
 @onready var status_label: Label = $UILayer/StatusLabel
-@onready var date_label: Label = $UILayer/TopBar/DateLabel
-@onready var credits_label: Label = $UILayer/TopBar/CreditsLabel
-@onready var weather_label: Label = $UILayer/TopBar/WeatherLabel
-@onready var weather_icon: TextureRect = $UILayer/TopBar/WeatherIcon
-@onready var next_day_btn: Button = $UILayer/ActionBar/NextDayButton
-@onready var ff7_btn: Button = $UILayer/ActionBar/FastForward7
-@onready var ff_all_btn: Button = $UILayer/ActionBar/FastForwardAll
-@onready var irrigate_btn: Button = $UILayer/ActionBar/IrrigateButton
-@onready var fertilize_btn: Button = $UILayer/ActionBar/FertilizeButton
-@onready var plant_btn: Button = $UILayer/ActionBar/PlantButton
-@onready var soil_view_btn: Button = $UILayer/ActionBar/SoilViewButton
+@onready var date_label: Label = $UILayer/BottomBar/BottomVBox/TopBar/DateLabel
+@onready var credits_label: Label = $UILayer/BottomBar/BottomVBox/TopBar/CreditsLabel
+@onready var weather_label: Label = $UILayer/BottomBar/BottomVBox/TopBar/WeatherLabel
+@onready var weather_icon: TextureRect = $UILayer/BottomBar/BottomVBox/TopBar/WeatherIcon
+@onready var next_day_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/NextDayButton
+@onready var ff7_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FastForward7
+@onready var ff_all_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FastForwardAll
+@onready var irrigate_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/IrrigateButton
+@onready var fertilize_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FertilizeButton
+@onready var plant_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/PlantButton
+@onready var soil_view_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 
 
@@ -117,38 +117,40 @@ func _ready() -> void:
 	_apply_ui_theme()
 	_build_tile_grid()
 	status_label.text = "3D view \u2014 click tile to select"
-	# Debug auto-start: create game, step 7 days, select tile, open cutaway
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
 		_debug_auto_start()
 
 
 func _apply_ui_theme() -> void:
-	var top_bar: HBoxContainer = $UILayer/TopBar
-	UiTheme.wrap_in_panel(top_bar, UiTheme.create_bar_style())
+	var bottom_bar: PanelContainer = $UILayer/BottomBar
+	bottom_bar.add_theme_stylebox_override("panel", UiTheme.create_hud_style())
+	var info_bar: HBoxContainer = $UILayer/BottomBar/BottomVBox/TopBar
 	UiTheme.style_label(date_label, "header")
 	UiTheme.style_label(credits_label, "header")
 	UiTheme.style_label(weather_label, "body")
 	for icon_name: String in ["DateIcon", "CreditsIcon", "WeatherIcon"]:
-		top_bar.get_node(icon_name).modulate = UiTheme.ICON_TINT
-	UiTheme.replace_spacers(top_bar, ["Spacer1", "Spacer2"])
-	var action_bar: HBoxContainer = $UILayer/ActionBar
-	var a_style := UiTheme.create_bar_style()
-	a_style.shadow_size = 2
-	UiTheme.wrap_in_panel(action_bar, a_style)
+		info_bar.get_node(icon_name).modulate = UiTheme.ICON_TINT
+	UiTheme.replace_spacers(info_bar, ["Spacer1", "Spacer2"])
+	weather_icon.mouse_filter = Control.MOUSE_FILTER_STOP
+	weather_icon.gui_input.connect(_on_weather_clicked)
+	weather_label.mouse_filter = Control.MOUSE_FILTER_STOP
+	weather_label.gui_input.connect(_on_weather_clicked)
+	var action_bar: HBoxContainer = $UILayer/BottomBar/BottomVBox/ActionBar
 	for child: Node in action_bar.get_children():
 		if child is Button:
 			UiTheme.style_button(child)
 		elif child is VSeparator:
 			UiTheme.style_vseparator(child)
-	UiTheme.style_label(status_label, "body")
+	UiTheme.add_divider($UILayer/BottomBar/BottomVBox, 1)
+	UiTheme.style_label(status_label, "muted")
+	forecast_panel.visible = false
 
 
 func _build_tile_grid() -> void:
 	var shader: Shader = load("res://shaders/soil_tile.gdshader")
 	var box := PlaneMesh.new()
 	box.size = Vector2(TILE_SIZE, TILE_SIZE)
-	# Center grid at origin
 	var offset_x: float = (GRID_COLS - 1) * TILE_SIZE / 2.0
 	var offset_z: float = (GRID_ROWS - 1) * TILE_SIZE / 2.0
 	for row in range(GRID_ROWS):
@@ -267,7 +269,6 @@ func _select_tile(col: int, row: int) -> void:
 			data.get("theta_surface", 0.0),
 		]
 	)
-	# Show tile info panel with history
 	_show_tile_info(data)
 
 
@@ -326,7 +327,6 @@ func _update_crop_visuals(idx: int) -> void:
 	var stress: int = data.get("stress", 0)
 	var grain: float = data.get("grain_g_m2", 0.0)
 	var plants: Array = _crop_sprites[idx]
-	# Compute growth parameters
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
 	# Growth progress: continuous ramp driven by LAI, not stage jumps.
@@ -358,14 +358,11 @@ func _update_crop_visuals(idx: int) -> void:
 		stress_f = 0.5
 	elif stress == 2:
 		stress_f = 0.3
-	# plants[0] is the crop container for this tile
 	var container: Node3D = plants[0]
-	# Clear all previous plant geometry
 	for child in container.get_children():
 		child.queue_free()
 	if stage == 0 or crop_key.is_empty():
 		return
-	# Build plant grid based on crop-specific density
 	var grid: Vector2i = CROP_GRID.get(crop_key, Vector2i(4, 4))
 	var total_plants: int = grid.x * grid.y
 	var col: int = _tile_data[idx]["col"]
@@ -410,18 +407,15 @@ func _build_baked_plants(
 ) -> void:
 	## Bake all plants into a single mesh using SurfaceTool for performance.
 	## Used for high-density crops (wheat, rice) where individual nodes are too slow.
-	# Build one representative plant, then instance it via MultiMesh
 	var sv_base: int = col * 7 + row * 13
 	var sample_plant := _create_3d_plant(
 		crop_key, growth, senescence, stress_f, grain_frac, sv_base
 	)
-	# Collect all meshes from the sample plant
 	var meshes: Array[Dictionary] = []
 	_collect_meshes(sample_plant, Transform3D(), meshes)
 	sample_plant.queue_free()
 	if meshes.is_empty():
 		return
-	# Each mesh layer gets its own MultiMesh, with intra-plant transform baked in
 	var total: int = grid.x * grid.y
 	for entry: Dictionary in meshes:
 		var layer_mm := MultiMesh.new()
@@ -550,9 +544,21 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
-	# Refresh soil cutaway if open
 	if _soil_view and _soil_view.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
+
+
+func _on_weather_clicked(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		forecast_panel.visible = not forecast_panel.visible
+		if forecast_panel.visible:
+			var bottom_bar: PanelContainer = $UILayer/BottomBar
+			var vp_h: float = get_viewport().get_visible_rect().size.y
+			var bar_h: float = bottom_bar.size.y
+			forecast_panel.offset_left = 16.0
+			forecast_panel.offset_bottom = vp_h - bar_h - 8.0
+			forecast_panel.offset_top = forecast_panel.offset_bottom - 180.0
+			forecast_panel.offset_right = 256.0
 
 
 func _on_forecast_received(success: bool, data: Dictionary) -> void:
@@ -587,16 +593,13 @@ func _apply_day_result(data: Dictionary) -> void:
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
-	# 3D rain particles + lighting
 	rain.set_raining(rain_mm > 1.0, rain_mm)
 	_update_weather_lighting(w)
 
-	# Process daily snapshots for sparkline history (multi-day stepping)
 	var snapshots: Array = data.get("daily_snapshots", [])
 	_apply_daily_snapshots(snapshots)
 
 	var patches: Dictionary = data.get("patches", {})
-	# Skip history in _apply_patch_data if snapshots already provided it
 	_apply_patch_data(patches, not snapshots.is_empty())
 
 
@@ -682,7 +685,6 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["lai"] = lai
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
-	# Update tile info panel if open
 	if _tile_info_panel and _tile_info_panel.visible and _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		var soil_type: String = _tile_data[idx]["soil_type"]
@@ -847,7 +849,6 @@ func _show_soil_cutaway() -> void:
 		_soil_view.set_script(SoilView)
 		add_child(_soil_view)
 	_soil_view.show_cutaway(columns)
-	# Show 2D nutrient panel on UILayer
 	_show_nutrient_panel(columns)
 
 

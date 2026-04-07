@@ -98,6 +98,30 @@ static func create_bar_style() -> StyleBoxFlat:
 	return s
 
 
+static func create_hud_style() -> StyleBoxFlat:
+	"""Bottom HUD bar: full-width, no bottom corners, generous padding."""
+	var s := create_bar_style()
+	s.corner_radius_bottom_left = 0
+	s.corner_radius_bottom_right = 0
+	s.content_margin_left = 12
+	s.content_margin_right = 12
+	s.content_margin_top = 6
+	s.content_margin_bottom = 6
+	return s
+
+
+static func add_divider(parent: Node, at_index: int) -> void:
+	"""Insert a styled HSeparator into parent at the given child index."""
+	var div := HSeparator.new()
+	var s := StyleBoxFlat.new()
+	s.bg_color = DIVIDER_COLOR
+	s.content_margin_top = 2
+	s.content_margin_bottom = 2
+	div.add_theme_stylebox_override("separator", s)
+	parent.add_child(div)
+	parent.move_child(div, at_index)
+
+
 static func create_inner_card_style() -> StyleBoxFlat:
 	"""Inner card: subtle white overlay inside a panel."""
 	var s := StyleBoxFlat.new()
