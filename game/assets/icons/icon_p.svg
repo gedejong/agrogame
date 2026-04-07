@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Phosphate PO₄³⁻: tetrahedral — 1 center P + 4 outer O -->
+  <!-- Bonds -->
+  <line x1="8" y1="8" x2="8" y2="2" stroke="#9959C7" stroke-width="1"/>
+  <line x1="8" y1="8" x2="2.5" y2="8" stroke="#9959C7" stroke-width="1"/>
+  <line x1="8" y1="8" x2="13.5" y2="8" stroke="#9959C7" stroke-width="1"/>
+  <line x1="8" y1="8" x2="8" y2="14" stroke="#9959C7" stroke-width="1"/>
+  <!-- Center atom (P, larger) -->
+  <circle cx="8" cy="8" r="2.5" fill="#9959C7"/>
+  <!-- Outer atoms (O) -->
+  <circle cx="8" cy="1.8" r="1.8" fill="#9959C7"/>
+  <circle cx="2" cy="8" r="1.8" fill="#9959C7"/>
+  <circle cx="14" cy="8" r="1.8" fill="#9959C7"/>
+  <circle cx="8" cy="14.2" r="1.8" fill="#9959C7"/>
+</svg>

@@ -18,21 +18,9 @@ func _rebuild_display() -> void:
 	for child in get_children():
 		child.queue_free()
 
-	# Panel background for subtle depth
 	var bg := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.12, 0.12, 0.14, 0.75)
-	style.corner_radius_top_left = 4
-	style.corner_radius_top_right = 4
-	style.corner_radius_bottom_left = 4
-	style.corner_radius_bottom_right = 4
-	style.border_width_bottom = 1
-	style.border_color = Color(0.3, 0.3, 0.35, 0.4)
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 4
-	style.content_margin_bottom = 4
-	bg.add_theme_stylebox_override("panel", style)
+	bg.add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
+	UiTheme.add_blur_bg(bg)
 
 	var content := VBoxContainer.new()
 	bg.add_child(content)
@@ -40,8 +28,9 @@ func _rebuild_display() -> void:
 
 	var header := Label.new()
 	header.text = "5-Day Forecast"
+	header.uppercase = true
 	header.add_theme_font_size_override("font_size", 12)
-	header.add_theme_color_override("font_color", Color(0.85, 0.85, 0.9))
+	header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 	content.add_child(header)
 
 	for day: Dictionary in _days:
@@ -61,12 +50,13 @@ func _rebuild_display() -> void:
 			icon.texture = tex
 		icon.custom_minimum_size = Vector2(ICON_SIZE, ICON_SIZE)
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.modulate = UiTheme.ICON_TINT
 		row.add_child(icon)
 
 		# Text
 		var label := Label.new()
 		label.text = (
-			"%s %.0f–%.0f°C %.1fmm"
+			"%s %.0f\u2013%.0f\u00b0C %.1fmm"
 			% [
 				str(day.get("date", "")).substr(5),
 				day.get("tmin_c", 0.0),
@@ -75,7 +65,7 @@ func _rebuild_display() -> void:
 			]
 		)
 		label.add_theme_font_size_override("font_size", 10)
-		label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.85))
+		label.add_theme_color_override("font_color", UiTheme.BODY_COLOR)
 		row.add_child(label)
 
 		content.add_child(row)

@@ -26,7 +26,7 @@ background_mode = 2
 sky = SubResource("sky")
 ambient_light_source = 2
 ambient_light_color = Color(0.4, 0.42, 0.5, 1)
-ambient_light_energy = 0.4
+ambient_light_energy = 0.55
 tonemap_mode = 0
 fog_enabled = true
 fog_light_color = Color(0.3, 0.32, 0.4, 1)
@@ -50,7 +50,7 @@ far = 100.0
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(-0.707107, -0.612372, 0.353553, 0, 0.5, 0.866025, -0.707107, 0.612372, -0.353553, 0, 10, 0)
 light_color = Color(0.95, 0.9, 0.8, 1)
-light_energy = 1.15
+light_energy = 1.3
 shadow_bias = 0.5
 shadow_enabled = true
 shadow_normal_bias = 4.0
@@ -76,92 +76,103 @@ emitting = false
 [node name="UILayer" type="CanvasLayer" parent="."]
 layer = 10
 
-[node name="TopBar" type="HBoxContainer" parent="UILayer"]
-offset_left = 8.0
-offset_top = 6.0
-offset_right = 800.0
-offset_bottom = 30.0
+[node name="StatusLabel" type="Label" parent="UILayer"]
+anchors_preset = 0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 500.0
+offset_bottom = 36.0
+text = ""
+theme_override_font_sizes/font_size = 11
 
-[node name="DateIcon" type="TextureRect" parent="UILayer/TopBar"]
+[node name="BottomBar" type="PanelContainer" parent="UILayer"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -66.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="BottomVBox" type="VBoxContainer" parent="UILayer/BottomBar"]
+theme_override_constants/separation = 4
+
+[node name="TopBar" type="HBoxContainer" parent="UILayer/BottomBar/BottomVBox"]
+custom_minimum_size = Vector2(0, 28)
+theme_override_constants/separation = 6
+
+[node name="DateIcon" type="TextureRect" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 custom_minimum_size = Vector2(16, 16)
 texture = ExtResource("5")
 stretch_mode = 5
 
-[node name="DateLabel" type="Label" parent="UILayer/TopBar"]
+[node name="DateLabel" type="Label" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 text = "Day 0 | 2024-04-01"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 12
 
-[node name="Spacer1" type="Control" parent="UILayer/TopBar"]
-custom_minimum_size = Vector2(16, 0)
+[node name="Spacer1" type="Control" parent="UILayer/BottomBar/BottomVBox/TopBar"]
+custom_minimum_size = Vector2(12, 0)
 
-[node name="CreditsIcon" type="TextureRect" parent="UILayer/TopBar"]
+[node name="CreditsIcon" type="TextureRect" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 custom_minimum_size = Vector2(16, 16)
 texture = ExtResource("9")
 stretch_mode = 5
 
-[node name="CreditsLabel" type="Label" parent="UILayer/TopBar"]
+[node name="CreditsLabel" type="Label" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 text = "10000"
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 12
 
-[node name="Spacer2" type="Control" parent="UILayer/TopBar"]
-custom_minimum_size = Vector2(16, 0)
+[node name="Spacer2" type="Control" parent="UILayer/BottomBar/BottomVBox/TopBar"]
+custom_minimum_size = Vector2(12, 0)
 
-[node name="WeatherIcon" type="TextureRect" parent="UILayer/TopBar"]
+[node name="WeatherIcon" type="TextureRect" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 custom_minimum_size = Vector2(16, 16)
 texture = ExtResource("8")
 stretch_mode = 5
 
-[node name="WeatherLabel" type="Label" parent="UILayer/TopBar"]
+[node name="WeatherLabel" type="Label" parent="UILayer/BottomBar/BottomVBox/TopBar"]
 text = ""
-theme_override_font_sizes/font_size = 13
+theme_override_font_sizes/font_size = 12
 
-[node name="ActionBar" type="HBoxContainer" parent="UILayer"]
-offset_left = 8.0
-offset_top = 34.0
-offset_right = 700.0
-offset_bottom = 62.0
+[node name="ActionBar" type="HBoxContainer" parent="UILayer/BottomBar/BottomVBox"]
+custom_minimum_size = Vector2(0, 30)
+theme_override_constants/separation = 4
 
-[node name="NextDayButton" type="Button" parent="UILayer/ActionBar"]
+[node name="NextDayButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Next Day"
 icon = ExtResource("5")
 
-[node name="FastForward7" type="Button" parent="UILayer/ActionBar"]
+[node name="FastForward7" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "FF 7 Days"
 
-[node name="FastForwardAll" type="Button" parent="UILayer/ActionBar"]
+[node name="FastForwardAll" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Run Season"
 
-[node name="Sep1" type="VSeparator" parent="UILayer/ActionBar"]
+[node name="Sep1" type="VSeparator" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 
-[node name="IrrigateButton" type="Button" parent="UILayer/ActionBar"]
+[node name="IrrigateButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Irrigate (20mm)"
 icon = ExtResource("6")
 
-[node name="FertilizeButton" type="Button" parent="UILayer/ActionBar"]
+[node name="FertilizeButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Fertilize (50kg)"
 icon = ExtResource("7")
 
-[node name="Sep2" type="VSeparator" parent="UILayer/ActionBar"]
+[node name="Sep2" type="VSeparator" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 
-[node name="PlantButton" type="Button" parent="UILayer/ActionBar"]
+[node name="PlantButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Plant"
 icon = ExtResource("10")
 
-[node name="SoilViewButton" type="Button" parent="UILayer/ActionBar"]
+[node name="SoilViewButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "View Soil"
 icon = ExtResource("10")
 
 [node name="ForecastPanel" type="VBoxContainer" parent="UILayer"]
 script = ExtResource("4")
-offset_left = 8.0
-offset_top = 70.0
-offset_right = 220.0
-offset_bottom = 210.0
-
-[node name="StatusLabel" type="Label" parent="UILayer"]
-offset_left = 8.0
-offset_top = 218.0
-offset_right = 500.0
-offset_bottom = 240.0
-text = ""
-theme_override_font_sizes/font_size = 11
+visible = false
+anchors_preset = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 240.0
+offset_bottom = 180.0

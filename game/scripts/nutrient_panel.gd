@@ -1,6 +1,6 @@
 extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
-## Styled per art guide: muted earth-tone bg, vivid UI accents.
+## Styled per art guide: glassmorphism dark slate-navy panels.
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
@@ -68,41 +68,21 @@ const NUTRIENT_BARS := {
 		"unit": "gC/m²"
 	},
 }
-const BAR_STRESS := Color(0.85, 0.2, 0.15)
-const BAR_MARGINAL := Color(0.9, 0.72, 0.15)
-const BAR_OK := Color(0.25, 0.7, 0.3)
-
-## Art guide colors
-const BG_COLOR := Color(0.1, 0.09, 0.08, 0.93)
-const BORDER_COLOR := Color(0.3, 0.27, 0.22, 0.5)
-const HEADER_COLOR := Color(0.82, 0.76, 0.65)
-const SUBHEADER_COLOR := Color(0.6, 0.55, 0.48)
-const VALUE_COLOR := Color(0.78, 0.76, 0.72)
-const TRACK_BG := Color(0.15, 0.14, 0.13, 0.7)
-const OPT_ZONE := Color(0.18, 0.28, 0.15, 0.5)
+## Functional accent colors per art guide
+const BAR_STRESS := Color(0.937, 0.267, 0.267)  # #EF4444
+const BAR_MARGINAL := Color(0.984, 0.749, 0.141)  # #FBBF24
+const BAR_OK := Color(0.290, 0.871, 0.502)  # #4ADE80
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
-	# Panel background — dark earth tone, rounded
-	var style := StyleBoxFlat.new()
-	style.bg_color = BG_COLOR
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
+	var style := UiTheme.create_panel_style(true)
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 10
 	style.content_margin_bottom = 10
-	style.border_width_left = 1
-	style.border_width_right = 1
-	style.border_width_top = 1
-	style.border_width_bottom = 1
-	style.border_color = BORDER_COLOR
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 4
 	add_theme_stylebox_override("panel", style)
+	UiTheme.add_blur_bg(self)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
@@ -110,9 +90,10 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 
 	# Title
 	var title := Label.new()
-	title.text = "SOIL ANALYSIS"
+	title.text = "Soil Analysis"
+	title.uppercase = true
 	title.add_theme_font_size_override("font_size", 11)
-	title.add_theme_color_override("font_color", SUBHEADER_COLOR)
+	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
@@ -125,7 +106,7 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 		var header := Label.new()
 		header.text = "▸ %s" % depth
 		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override("font_color", HEADER_COLOR)
+		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 		vbox.add_child(header)
 		var vals: Dictionary = layer.get("values", {})
 		for key: String in NUTRIENT_BARS:
@@ -147,7 +128,7 @@ func _clear() -> void:
 func _add_separator(parent: VBoxContainer) -> void:
 	var sep := HSeparator.new()
 	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0.3, 0.27, 0.22, 0.25)
+	s.bg_color = UiTheme.SEPARATOR_COLOR
 	s.content_margin_top = 3
 	s.content_margin_bottom = 3
 	sep.add_theme_stylebox_override("separator", s)
@@ -184,7 +165,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 	# Track background
 	var track := ColorRect.new()
-	track.color = TRACK_BG
+	track.color = UiTheme.TRACK_BG
 	track.size = Vector2(track_w, track_h)
 	bar_bg.add_child(track)
 
@@ -198,7 +179,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
 	var opt_bg := ColorRect.new()
-	opt_bg.color = OPT_ZONE
+	opt_bg.color = UiTheme.OPT_ZONE
 	opt_bg.position = Vector2(opt_min_frac * track_w, 0)
 	opt_bg.size = Vector2((opt_max_frac - opt_min_frac) * track_w, track_h)
 	bar_bg.add_child(opt_bg)
@@ -217,7 +198,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	# Track outline
 	var outline := ReferenceRect.new()
 	outline.size = Vector2(track_w, track_h)
-	outline.border_color = Color(0.25, 0.23, 0.2, 0.4)
+	outline.border_color = UiTheme.BORDER_COLOR
 	outline.border_width = 1.0
 	outline.editor_only = false
 	bar_bg.add_child(outline)
@@ -237,7 +218,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	if not unit.is_empty():
 		val_lbl.text += " " + unit
 	val_lbl.add_theme_font_size_override("font_size", 9)
-	val_lbl.add_theme_color_override("font_color", VALUE_COLOR)
+	val_lbl.add_theme_color_override("font_color", UiTheme.VALUE_COLOR)
 	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
 	parent.add_child(row)

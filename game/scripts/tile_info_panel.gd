@@ -6,11 +6,11 @@ const Sparkline = preload("res://scripts/sparkline.gd")
 
 ## Graph configs: key matches _daily_history fields
 const GRAPHS := {
-	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.2, 0.72, 0.2)},
-	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.85, 0.7, 0.2)},
-	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.85, 0.3, 0.2)},
-	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.3, 0.75, 0.9)},
-	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.17, 0.63, 0.17)},
+	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.290, 0.871, 0.502)},
+	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.984, 0.749, 0.141)},
+	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.937, 0.267, 0.267)},
+	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.376, 0.647, 0.980)},
+	"n_available": {"label": "N available", "unit": "g/m²", "color": UiTheme.ACCENT_LIME},
 }
 
 var _sparklines: Dictionary = {}
@@ -18,25 +18,8 @@ var _sparklines: Dictionary = {}
 
 func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	_clear()
-	# Panel style
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.08, 0.07, 0.06, 0.93)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.content_margin_left = 10
-	style.content_margin_right = 10
-	style.content_margin_top = 8
-	style.content_margin_bottom = 8
-	style.border_width_left = 1
-	style.border_width_right = 1
-	style.border_width_top = 1
-	style.border_width_bottom = 1
-	style.border_color = Color(0.3, 0.27, 0.22, 0.5)
-	style.shadow_color = Color(0, 0, 0, 0.3)
-	style.shadow_size = 4
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
+	UiTheme.add_blur_bg(self)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
@@ -46,8 +29,9 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	var title := Label.new()
 	var title_text := crop_key.capitalize() if not crop_key.is_empty() else "Empty"
 	title.text = "%s — %s" % [title_text, soil_type]
+	title.uppercase = true
 	title.add_theme_font_size_override("font_size", 12)
-	title.add_theme_color_override("font_color", Color(0.82, 0.76, 0.65))
+	title.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
@@ -58,7 +42,7 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	else:
 		days_label.text = "%d days" % history.size()
 	days_label.add_theme_font_size_override("font_size", 10)
-	days_label.add_theme_color_override("font_color", Color(0.55, 0.52, 0.48))
+	days_label.add_theme_color_override("font_color", UiTheme.MUTED_COLOR)
 	days_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(days_label)
 

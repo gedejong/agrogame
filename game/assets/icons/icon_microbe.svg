@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Bacterium: rod shape (bacillus) with flagella -->
+  <!-- Cell body (rounded rectangle / capsule) -->
+  <rect x="3" y="5.5" width="10" height="5" rx="2.5" fill="#E68C1A"/>
+  <!-- Flagella (curved tails from right end) -->
+  <path d="M13,7 Q15,5 14,3" fill="none" stroke="#E68C1A" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M13,8 Q16,7 15,5" fill="none" stroke="#E68C1A" stroke-width="0.8" stroke-linecap="round"/>
+  <path d="M13,9 Q15,11 14,13" fill="none" stroke="#E68C1A" stroke-width="0.8" stroke-linecap="round"/>
+</svg>
