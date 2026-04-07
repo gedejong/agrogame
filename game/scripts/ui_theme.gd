@@ -262,7 +262,6 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	var rect := ColorRect.new()
 	rect.material = mat
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rect.color = Color(1, 1, 1, 1)
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
 	return rect
