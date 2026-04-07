@@ -44,14 +44,6 @@ const CROP_GRID := {
 	"grape": Vector2i(2, 2),
 }
 
-const SoilView = preload("res://scripts/soil_view.gd")
-const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
-const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
-const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
-const RiceRenderer3D = preload("res://scripts/rice_renderer_3d.gd")
-const GrapeRenderer3D = preload("res://scripts/grape_renderer_3d.gd")
-const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
-
 const _STAGE_MAP := {
 	"planted": 1,
 	"emerged": 1,
@@ -68,10 +60,7 @@ var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
-var _soil_view: Node3D = null
-var _nutrient_panel: PanelContainer = null
-var _tile_info_panel: PanelContainer = null
-var _hidden_tiles: Array[int] = []
+var _cutaway := SoilCutawayController.new()
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
@@ -229,7 +218,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey:
 		var ke := event as InputEventKey
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
-			_hide_soil_cutaway()
+			_cutaway.hide_cutaway(_tile_meshes, _crop_sprites, _update_crop_visuals)
 			_deselect()
 
 
@@ -270,7 +259,9 @@ func _select_tile(col: int, row: int) -> void:
 			data.get("theta_surface", 0.0),
 		]
 	)
-	_show_tile_info(data)
+	var soil_type: String = data.get("soil_type", "")
+	var history: Array = _daily_history.get(soil_type, [])
+	_cutaway.show_tile_info(soil_type, data.get("crop_key", ""), history, $UILayer)
 
 
 func _deselect() -> void:
@@ -278,7 +269,7 @@ func _deselect() -> void:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		_tile_materials[idx].set_shader_parameter("selected", 0.0)
 	_selected_tile = Vector2i(-1, -1)
-	_hide_tile_info()
+	_cutaway.hide_tile_info()
 
 
 func _update_tile_shader(idx: int) -> void:
@@ -320,169 +311,9 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 
 
 func _update_crop_visuals(idx: int) -> void:
-	var data: Dictionary = _tile_data[idx]
-	var crop_key: String = data.get("crop_key", "")
-	var stage: int = data.get("crop_stage", 0)
-	var lai: float = data.get("lai", 0.0)
-	var stress: int = data.get("stress", 0)
-	var grain: float = data.get("grain_g_m2", 0.0)
-	var plants: Array = _crop_sprites[idx]
-	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
-	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
-	# Growth progress: continuous ramp driven by LAI, not stage jumps.
-	# LAI is the best proxy for vegetative development.
-	# Stages set the range; LAI fills it in smoothly.
-	var growth: float = 0.0
-	match stage:
-		1:
-			growth = clampf(0.05 + lai_frac * 0.2, 0.05, 0.25)
-		2:
-			growth = clampf(0.25 + lai_frac * 0.55, 0.25, 0.8)
-		3:
-			growth = clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
-		4:
-			growth = clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
-	# Senescence: gradual onset from flowering onward.
-	# During vegetative (stages 1-2): no senescence regardless of LAI.
-	# At flowering (3): senescence ramps in smoothly based on LAI decline.
-	# At maturity (4): senescence increases further.
-	var senescence: float = 0.0
-	if stage >= 3:
-		# Expected LAI declines: 5.5 at flowering start → 3.0 at full maturity
-		var expected_lai: float = lerpf(5.5, 3.0, grain_frac)
-		senescence = clampf(1.0 - lai / maxf(expected_lai, 0.1), 0.0, 1.0)
-		# Smooth onset: grain_frac drives how much senescence is "allowed"
-		senescence *= clampf(grain_frac * 2.0, 0.0, 1.0)
-	var stress_f: float = 0.0
-	if stress == 1:
-		stress_f = 0.5
-	elif stress == 2:
-		stress_f = 0.3
-	var container: Node3D = plants[0]
-	for child in container.get_children():
-		child.queue_free()
-	if stage == 0 or crop_key.is_empty():
-		return
-	var grid: Vector2i = CROP_GRID.get(crop_key, Vector2i(4, 4))
-	var total_plants: int = grid.x * grid.y
-	var col: int = _tile_data[idx]["col"]
-	var row: int = _tile_data[idx]["row"]
-	var s: float = 1.0 / METERS_PER_TILE
-	if total_plants > 50:
-		# High density: single baked mesh per tile for performance
-		_build_baked_plants(
-			container, crop_key, grid, col, row, s, growth, senescence, stress_f, grain_frac
-		)
-	else:
-		# Low density: individual Node3D plants
-		for hi in range(grid.x):
-			var u: float = (float(hi) + 0.5) / float(grid.x)
-			for vi in range(grid.y):
-				var v: float = (float(vi) + 0.5) / float(grid.y)
-				var lx: float = (u - 0.5) * TILE_SIZE
-				var lz: float = (v - 0.5) * TILE_SIZE
-				var sv: int = col * 7 + row * 13 + hi * 3 + vi * 5
-				var jm: float = TILE_SIZE / float(grid.x) * 0.1
-				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
-				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-				var new_plant := _create_3d_plant(
-					crop_key, growth, senescence, stress_f, grain_frac, sv
-				)
-				new_plant.scale = Vector3(s, s, s)
-				new_plant.position = Vector3(lx + jx, 0, lz + jz)
-				container.add_child(new_plant)
-
-
-func _build_baked_plants(
-	container: Node3D,
-	crop_key: String,
-	grid: Vector2i,
-	col: int,
-	row: int,
-	s: float,
-	growth: float,
-	senescence: float,
-	stress_f: float,
-	grain_frac: float,
-) -> void:
-	## Bake all plants into a single mesh using SurfaceTool for performance.
-	## Used for high-density crops (wheat, rice) where individual nodes are too slow.
-	var sv_base: int = col * 7 + row * 13
-	var sample_plant := _create_3d_plant(
-		crop_key, growth, senescence, stress_f, grain_frac, sv_base
+	CropVisuals.update_crop(
+		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)
-	var meshes: Array[Dictionary] = []
-	_collect_meshes(sample_plant, Transform3D(), meshes)
-	sample_plant.queue_free()
-	if meshes.is_empty():
-		return
-	var total: int = grid.x * grid.y
-	for entry: Dictionary in meshes:
-		var layer_mm := MultiMesh.new()
-		layer_mm.transform_format = MultiMesh.TRANSFORM_3D
-		layer_mm.mesh = entry["mesh"]
-		layer_mm.instance_count = total
-		var local_t: Transform3D = entry["transform"]
-		var i := 0
-		for hi in range(grid.x):
-			var u: float = (float(hi) + 0.5) / float(grid.x)
-			for vi in range(grid.y):
-				var v: float = (float(vi) + 0.5) / float(grid.y)
-				var lx: float = (u - 0.5) * TILE_SIZE
-				var lz: float = (v - 0.5) * TILE_SIZE
-				var sv: int = sv_base + hi * 3 + vi * 5
-				var jm: float = TILE_SIZE / float(grid.x) * 0.1
-				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
-				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
-				var plant_t := Transform3D()
-				plant_t = plant_t.scaled(Vector3(s, s, s))
-				plant_t = plant_t.rotated(Vector3.UP, rot_y)
-				plant_t.origin = Vector3(lx + jx, 0, lz + jz)
-				# Bake intra-plant transform (leaf pivot, stem offset) into instance
-				layer_mm.set_instance_transform(i, plant_t * local_t)
-				i += 1
-		var layer_mmi := MultiMeshInstance3D.new()
-		layer_mmi.multimesh = layer_mm
-		if entry["material"]:
-			layer_mmi.material_override = entry["material"]
-		layer_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		container.add_child(layer_mmi)
-
-
-static func _collect_meshes(
-	node: Node, parent_transform: Transform3D, out: Array[Dictionary]
-) -> void:
-	var t: Transform3D = parent_transform * node.transform if node is Node3D else parent_transform
-	if node is MeshInstance3D:
-		var mi: MeshInstance3D = node as MeshInstance3D
-		if mi.mesh:
-			out.append({"mesh": mi.mesh, "material": mi.material_override, "transform": t})
-	for child in node.get_children():
-		_collect_meshes(child, t, out)
-
-
-static func _create_3d_plant(
-	crop_key: String,
-	growth: float,
-	senescence: float,
-	stress: float,
-	grain_frac: float,
-	seed_val: int,
-) -> Node3D:
-	match crop_key:
-		"maize":
-			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
-		"spring_wheat", "winter_wheat":
-			return WheatRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
-		"sorghum":
-			return SorghumRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
-		"rice":
-			return RiceRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
-		"grape":
-			return GrapeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
-		_:
-			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -544,7 +375,7 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
-	if _soil_view and _soil_view.is_active() and _selected_tile.x >= 0:
+	if _cutaway.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
 
 
@@ -685,11 +516,11 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["lai"] = lai
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
-	if _tile_info_panel and _tile_info_panel.visible and _selected_tile.x >= 0:
+	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		var soil_type: String = _tile_data[idx]["soil_type"]
 		var history: Array = _daily_history.get(soil_type, [])
-		_tile_info_panel.update_history(history)
+		_cutaway.update_tile_info(history)
 
 
 func _on_irrigate() -> void:
@@ -804,164 +635,24 @@ func _on_soil_view() -> void:
 
 
 func _show_soil_cutaway() -> void:
-	_restore_hidden_tiles()
-	var col := _selected_tile.x
-	var row := _selected_tile.y
 	var patches: Dictionary = _last_step_data.get("patches", {})
-	# Camera at +X,+Z looking toward -X,-Z.
-	# Front 3 tiles (between selected and camera) must be hidden:
-	var front_tiles: Array[Vector2i] = [
-		Vector2i(col + 1, row),
-		Vector2i(col, row + 1),
-		Vector2i(col + 1, row + 1),
-	]
-	# Pillars: selected (center, with info+roots) + left/right neighbors.
-	# Left/right = along visual row (same col+row sum, perpendicular to view).
-	var pillar_tiles: Array[Vector2i] = [
-		Vector2i(col, row),
-		Vector2i(col - 1, row + 1),
-		Vector2i(col + 1, row - 1),
-	]
-	# Hide front tiles + their crops
-	_hidden_tiles.clear()
-	for pos in front_tiles:
-		if _is_valid_grid(pos):
-			var idx: int = pos.y * GRID_COLS + pos.x
-			_hidden_tiles.append(idx)
-			_tile_meshes[idx].visible = false
-			for spr in _crop_sprites[idx]:
-				spr.visible = false
-	# Build pillar columns
-	var columns: Array[Dictionary] = []
-	for i in range(pillar_tiles.size()):
-		var tp := pillar_tiles[i]
-		if not _is_valid_grid(tp):
-			continue
-		var col_data := _get_soil_column(tp, patches, i == 0)
-		if not col_data.is_empty():
-			columns.append(col_data)
-	if columns.is_empty():
-		_restore_hidden_tiles()
+	var ok := (
+		_cutaway
+		. show_cutaway(
+			_selected_tile,
+			_tile_data,
+			_tile_meshes,
+			_crop_sprites,
+			patches,
+			GRID_COLS,
+			GRID_ROWS,
+			self,
+			$UILayer,
+			_update_crop_visuals,
+		)
+	)
+	if not ok:
 		status_label.text = "No soil data available"
-		return
-	if not _soil_view:
-		_soil_view = Node3D.new()
-		_soil_view.set_script(SoilView)
-		add_child(_soil_view)
-	_soil_view.show_cutaway(columns)
-	_show_nutrient_panel(columns)
-
-
-func _get_soil_column(tp: Vector2i, patches: Dictionary, is_center: bool) -> Dictionary:
-	var idx: int = tp.y * GRID_COLS + tp.x
-	var soil_type: String = _tile_data[idx]["soil_type"]
-	var patch_idx := SOIL_TYPES.find(soil_type)
-	if patch_idx < 0:
-		patch_idx = 0
-	var soil_state := {}
-	var root_depth_cm := 0.0
-	for field_key: String in patches:
-		var patch_list: Array = patches[field_key]
-		if patch_idx < patch_list.size():
-			var patch: Dictionary = patch_list[patch_idx]
-			soil_state = patch.get("soil_state", {})
-			root_depth_cm = patch.get("root_depth_cm", 0.0)
-	if soil_state.is_empty():
-		return {}
-	var crop_key: String = _tile_data[idx].get("crop_key", "")
-	return {
-		"pos": _tile_meshes[idx].position,
-		"soil_state": soil_state,
-		"profile": SoilView.get_profile_layers(soil_type),
-		"root_depth_cm": root_depth_cm if is_center else 0.0,
-		"crop_key": crop_key,
-		"show_info": is_center,
-	}
-
-
-func _is_valid_grid(pos: Vector2i) -> bool:
-	return pos.x >= 0 and pos.x < GRID_COLS and pos.y >= 0 and pos.y < GRID_ROWS
-
-
-func _restore_hidden_tiles() -> void:
-	for idx in _hidden_tiles:
-		_tile_meshes[idx].visible = true
-		# Restore crop container visibility (hidden in _hide_front_tiles)
-		var container: Node3D = _crop_sprites[idx][0]
-		container.visible = true
-		_update_crop_visuals(idx)
-	_hidden_tiles.clear()
-
-
-func _hide_soil_cutaway() -> void:
-	if _soil_view and _soil_view.is_active():
-		_soil_view.hide_view()
-	_hide_nutrient_panel()
-	_restore_hidden_tiles()
-
-
-func _show_tile_info(data: Dictionary) -> void:
-	_hide_tile_info()
-	var soil_type: String = data.get("soil_type", "")
-	var crop_key: String = data.get("crop_key", "")
-	var history: Array = _daily_history.get(soil_type, [])
-	var TileInfoPanel := preload("res://scripts/tile_info_panel.gd")
-	_tile_info_panel = PanelContainer.new()
-	_tile_info_panel.set_script(TileInfoPanel)
-	_tile_info_panel.position = Vector2(16, 40)
-	_tile_info_panel.size = Vector2(240, 0)
-	_tile_info_panel.show_history(history, soil_type, crop_key)
-	$UILayer.add_child(_tile_info_panel)
-
-
-func _hide_tile_info() -> void:
-	if _tile_info_panel:
-		_tile_info_panel.queue_free()
-		_tile_info_panel = null
-
-
-func _show_nutrient_panel(columns: Array[Dictionary]) -> void:
-	_hide_nutrient_panel()
-	var NutrientPanel := preload("res://scripts/nutrient_panel.gd")
-	_nutrient_panel = PanelContainer.new()
-	_nutrient_panel.set_script(NutrientPanel)
-	_nutrient_panel.position = Vector2(get_viewport().get_visible_rect().size.x - 280, 70)
-	_nutrient_panel.size = Vector2(260, 0)
-	var layers_data: Array[Dictionary] = []
-	for col_data: Dictionary in columns:
-		if not col_data.get("show_info", false):
-			continue
-		var soil_state: Dictionary = col_data.get("soil_state", {})
-		var profile: Array = col_data.get("profile", [])
-		var no3: Array = soil_state.get("n_no3", [])
-		var nh4: Array = soil_state.get("n_nh4", [])
-		var p: Array = soil_state.get("p_available", [])
-		var som: Array = soil_state.get("som_labile_c", [])
-		var theta: Array = soil_state.get("water_theta", [])
-		var ph: Array = soil_state.get("ph", [])
-		var mic: Array = soil_state.get("microbe_c", [])
-		for i in range(profile.size()):
-			var depth: int = profile[i].get("depth_cm", 30)
-			var vals := {
-				"NO₃": no3[i] if i < no3.size() else 0.0,
-				"NH₄": nh4[i] if i < nh4.size() else 0.0,
-				"P": p[i] if i < p.size() else 0.0,
-				"SOM": som[i] if i < som.size() else 0.0,
-				"Water": theta[i] if i < theta.size() else 0.0,
-				"pH": ph[i] if i < ph.size() else 6.5,
-				"Microbe": mic[i] if i < mic.size() else 0.0,
-			}
-			var lbl := "%d\u2013%dcm" % [0 if i == 0 else depth, depth]
-			layers_data.append({"depth_label": lbl, "values": vals})
-	_nutrient_panel.show_layers(layers_data)
-	_nutrient_panel.visible = true
-	$UILayer.add_child(_nutrient_panel)
-
-
-func _hide_nutrient_panel() -> void:
-	if _nutrient_panel:
-		_nutrient_panel.queue_free()
-		_nutrient_panel = null
 
 
 func _debug_auto_start() -> void:
