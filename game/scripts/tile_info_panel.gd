@@ -10,7 +10,7 @@ const GRAPHS := {
 	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.984, 0.749, 0.141)},
 	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.937, 0.267, 0.267)},
 	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.376, 0.647, 0.980)},
-	"n_available": {"label": "N available", "unit": "g/m²", "color": Color(0.502, 0.800, 0.333)},
+	"n_available": {"label": "N available", "unit": "g/m²", "color": UiTheme.ACCENT_LIME},
 }
 
 var _sparklines: Dictionary = {}

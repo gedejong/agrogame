@@ -44,6 +44,7 @@ const ACCENT_GREEN := Color(0.290, 0.871, 0.502)  # #4ADE80
 const ACCENT_RED := Color(0.937, 0.267, 0.267)  # #EF4444
 const ACCENT_GOLD := Color(0.984, 0.749, 0.141)  # #FBBF24
 const ACCENT_BLUE := Color(0.376, 0.647, 0.980)  # #60A5FA
+const ACCENT_LIME := Color(0.502, 0.800, 0.333)  # #80CC55 — N-available
 
 # --- Icon tint ---
 const ICON_TINT := Color.WHITE
@@ -261,6 +262,9 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	mat.set_shader_parameter("tint_color", tint)
 	var rect := ColorRect.new()
 	rect.material = mat
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
@@ -273,9 +277,9 @@ static func style_label(label: Label, type: String) -> void:
 		"header":
 			label.add_theme_color_override("font_color", TEXT_PRIMARY)
 			label.uppercase = true
-		"muted":
+		"body":
 			label.add_theme_color_override("font_color", TEXT_SECONDARY)
-		"value":
-			label.add_theme_color_override("font_color", TEXT_PRIMARY)
+		"muted":
+			label.add_theme_color_override("font_color", TEXT_MUTED)
 		_:
 			label.add_theme_color_override("font_color", TEXT_PRIMARY)
