@@ -1,59 +1,82 @@
 class_name UiTheme
 extends RefCounted
-## Shared UI theme constants and StyleBoxFlat factories.
-## Dark earth-tone aesthetic: SimCity 4 / Frostpunk control panels.
+## Shared UI theme: glassmorphism design system per art guide.
+## Dark slate-navy with transparency — Cities: Skylines II / Frostpunk.
 
-# --- Background & border ---
-const BG_COLOR := Color(0.08, 0.07, 0.06, 0.93)
-const BG_COLOR_LIGHTER := Color(0.12, 0.11, 0.10, 0.93)
-const BORDER_COLOR := Color(0.3, 0.27, 0.22, 0.5)
+# --- Panel backgrounds ---
+## Primary panel: #1E2532 at 80% opacity
+const PANEL_BG := Color(0.118, 0.145, 0.196, 0.80)
+## Inner card: white at 6%
+const INNER_CARD_BG := Color(1.0, 1.0, 1.0, 0.06)
+## Inline element: white at 4%
+const INLINE_BG := Color(1.0, 1.0, 1.0, 0.04)
+## Bottom HUD bar: #161C24 at 85%
+const BAR_BG := Color(0.086, 0.110, 0.141, 0.85)
+
+# --- Borders & shadows ---
+const BORDER_COLOR := Color(1.0, 1.0, 1.0, 0.12)
 const SHADOW_COLOR := Color(0, 0, 0, 0.3)
-const SHADOW_SIZE := 4
-const CORNER_RADIUS := 8
+const SHADOW_SIZE := 6
+const DIVIDER_COLOR := Color(1.0, 1.0, 1.0, 0.12)
 
-# --- Text colors ---
-const HEADER_COLOR := Color(0.82, 0.76, 0.65)
-const BODY_COLOR := Color(0.78, 0.76, 0.72)
-const MUTED_COLOR := Color(0.55, 0.52, 0.48)
-const VALUE_COLOR := Color(0.78, 0.76, 0.72)
+# --- Corner radii ---
+const CORNER_RADIUS := 10
+const INNER_RADIUS := 8
+const PILL_RADIUS := 4
 
-# --- Button colors ---
-const BTN_NORMAL_BG := Color(0.12, 0.11, 0.10, 0.9)
-const BTN_HOVER_BG := Color(0.16, 0.14, 0.12, 0.95)
-const BTN_PRESSED_BG := Color(0.07, 0.06, 0.05, 0.95)
-const BTN_DISABLED_BG := Color(0.10, 0.09, 0.08, 0.6)
-const BTN_BORDER := Color(0.3, 0.27, 0.22, 0.5)
-const BTN_HOVER_BORDER := Color(0.5, 0.44, 0.35, 0.7)
+# --- Typography ---
+const TEXT_PRIMARY := Color.WHITE
+const TEXT_SECONDARY := Color(0.627, 0.667, 0.710)  # #A0AAB5
+const TEXT_MUTED := Color(0.627, 0.667, 0.710, 0.7)
+const TEXT_DISABLED := Color(1.0, 1.0, 1.0, 0.3)
+
+# --- Button states ---
+const BTN_NORMAL_BG := Color(1.0, 1.0, 1.0, 0.08)
+const BTN_HOVER_BG := Color(1.0, 1.0, 1.0, 0.14)
+const BTN_PRESSED_BG := Color(1.0, 1.0, 1.0, 0.05)
+const BTN_DISABLED_BG := Color(1.0, 1.0, 1.0, 0.03)
+const BTN_BORDER := Color(1.0, 1.0, 1.0, 0.10)
+const BTN_HOVER_BORDER := Color(1.0, 1.0, 1.0, 0.25)
 const BTN_CORNER_RADIUS := 6
 
+# --- Functional accent colors ---
+const ACCENT_GREEN := Color(0.290, 0.871, 0.502)  # #4ADE80
+const ACCENT_RED := Color(0.937, 0.267, 0.267)  # #EF4444
+const ACCENT_GOLD := Color(0.984, 0.749, 0.141)  # #FBBF24
+const ACCENT_BLUE := Color(0.376, 0.647, 0.980)  # #60A5FA
+
 # --- Icon tint ---
-const ICON_TINT := Color(0.82, 0.76, 0.65)
+const ICON_TINT := Color.WHITE
+const ICON_MUTED := Color(0.627, 0.667, 0.710)
 
-# --- Separator ---
-const SEPARATOR_COLOR := Color(0.3, 0.27, 0.22, 0.4)
+# --- Graph / sparkline ---
+const GRAPH_BG := Color(1.0, 1.0, 1.0, 0.04)
+const STAGE_MARKER := Color(1.0, 1.0, 1.0, 0.15)
 
+# --- Progress bar ---
+const TRACK_BG := Color(1.0, 1.0, 1.0, 0.05)
+const OPT_ZONE := Color(1.0, 1.0, 1.0, 0.06)
 
-static func create_bar_style(top_round: bool = false) -> StyleBoxFlat:
-	"""Dark bar style (for top bar / action bar strips)."""
-	var s := create_panel_style()
-	if not top_round:
-		s.corner_radius_top_left = 0
-		s.corner_radius_top_right = 0
-	return s
+# --- Legacy aliases for panels that still reference old names ---
+const HEADER_COLOR := TEXT_PRIMARY
+const BODY_COLOR := TEXT_PRIMARY
+const MUTED_COLOR := TEXT_SECONDARY
+const VALUE_COLOR := TEXT_PRIMARY
+const SEPARATOR_COLOR := DIVIDER_COLOR
 
 
 static func create_panel_style() -> StyleBoxFlat:
-	"""Dark panel with rounded corners, border, and shadow."""
+	"""Primary panel: dark slate-navy glass, rounded, bordered, shadowed."""
 	var s := StyleBoxFlat.new()
-	s.bg_color = BG_COLOR
+	s.bg_color = PANEL_BG
 	s.corner_radius_top_left = CORNER_RADIUS
 	s.corner_radius_top_right = CORNER_RADIUS
 	s.corner_radius_bottom_left = CORNER_RADIUS
 	s.corner_radius_bottom_right = CORNER_RADIUS
-	s.content_margin_left = 10
-	s.content_margin_right = 10
-	s.content_margin_top = 8
-	s.content_margin_bottom = 8
+	s.content_margin_left = 16
+	s.content_margin_right = 16
+	s.content_margin_top = 16
+	s.content_margin_bottom = 16
 	s.border_width_left = 1
 	s.border_width_right = 1
 	s.border_width_top = 1
@@ -61,6 +84,32 @@ static func create_panel_style() -> StyleBoxFlat:
 	s.border_color = BORDER_COLOR
 	s.shadow_color = SHADOW_COLOR
 	s.shadow_size = SHADOW_SIZE
+	s.shadow_offset = Vector2(0, 2)
+	return s
+
+
+static func create_bar_style() -> StyleBoxFlat:
+	"""Bottom HUD bar style (top bar / action bar strips)."""
+	var s := create_panel_style()
+	s.bg_color = BAR_BG
+	s.corner_radius_top_left = 0
+	s.corner_radius_top_right = 0
+	s.shadow_size = 2
+	return s
+
+
+static func create_inner_card_style() -> StyleBoxFlat:
+	"""Inner card: subtle white overlay inside a panel."""
+	var s := StyleBoxFlat.new()
+	s.bg_color = INNER_CARD_BG
+	s.corner_radius_top_left = INNER_RADIUS
+	s.corner_radius_top_right = INNER_RADIUS
+	s.corner_radius_bottom_left = INNER_RADIUS
+	s.corner_radius_bottom_right = INNER_RADIUS
+	s.content_margin_left = 12
+	s.content_margin_right = 12
+	s.content_margin_top = 12
+	s.content_margin_bottom = 12
 	return s
 
 
@@ -73,8 +122,8 @@ static func create_button_style(state: String) -> StyleBoxFlat:
 	s.corner_radius_bottom_right = BTN_CORNER_RADIUS
 	s.content_margin_left = 8
 	s.content_margin_right = 8
-	s.content_margin_top = 4
-	s.content_margin_bottom = 4
+	s.content_margin_top = 6
+	s.content_margin_bottom = 6
 	s.border_width_left = 1
 	s.border_width_right = 1
 	s.border_width_top = 1
@@ -88,7 +137,7 @@ static func create_button_style(state: String) -> StyleBoxFlat:
 			s.border_color = BTN_BORDER
 		"disabled":
 			s.bg_color = BTN_DISABLED_BG
-			s.border_color = Color(0.2, 0.18, 0.15, 0.3)
+			s.border_color = Color(0, 0, 0, 0)
 		_:
 			s.bg_color = BTN_NORMAL_BG
 			s.border_color = BTN_BORDER
@@ -96,17 +145,17 @@ static func create_button_style(state: String) -> StyleBoxFlat:
 
 
 static func style_button(btn: Button) -> void:
-	"""Apply full dark theme to a Button (all 4 states + text colors)."""
+	"""Apply full glassmorphism theme to a Button (all 4 states + text)."""
 	btn.add_theme_stylebox_override("normal", create_button_style("normal"))
 	btn.add_theme_stylebox_override("hover", create_button_style("hover"))
 	btn.add_theme_stylebox_override("pressed", create_button_style("pressed"))
 	btn.add_theme_stylebox_override("disabled", create_button_style("disabled"))
-	btn.add_theme_color_override("font_color", BODY_COLOR)
-	btn.add_theme_color_override("font_hover_color", HEADER_COLOR)
-	btn.add_theme_color_override("font_pressed_color", MUTED_COLOR)
-	btn.add_theme_color_override("font_disabled_color", Color(0.4, 0.37, 0.33, 0.5))
-	btn.add_theme_color_override("icon_normal_color", ICON_TINT)
-	btn.add_theme_color_override("icon_hover_color", HEADER_COLOR)
+	btn.add_theme_color_override("font_color", TEXT_SECONDARY)
+	btn.add_theme_color_override("font_hover_color", TEXT_PRIMARY)
+	btn.add_theme_color_override("font_pressed_color", TEXT_PRIMARY)
+	btn.add_theme_color_override("font_disabled_color", TEXT_DISABLED)
+	btn.add_theme_color_override("icon_normal_color", TEXT_SECONDARY)
+	btn.add_theme_color_override("icon_hover_color", TEXT_PRIMARY)
 
 
 static func wrap_in_panel(node: Control, style: StyleBoxFlat) -> PanelContainer:
@@ -128,31 +177,12 @@ static func wrap_in_panel(node: Control, style: StyleBoxFlat) -> PanelContainer:
 
 
 static func style_vseparator(sep: VSeparator) -> void:
-	"""Apply muted earth-tone style to a VSeparator."""
+	"""Apply muted divider style to a VSeparator."""
 	var s := StyleBoxFlat.new()
-	s.bg_color = SEPARATOR_COLOR
+	s.bg_color = DIVIDER_COLOR
 	s.content_margin_left = 4
 	s.content_margin_right = 4
 	sep.add_theme_stylebox_override("separator", s)
-
-
-static func style_popup_menu(popup: PopupMenu) -> void:
-	"""Apply dark theme to a PopupMenu."""
-	var panel_style := create_panel_style()
-	panel_style.content_margin_left = 4
-	panel_style.content_margin_right = 4
-	panel_style.content_margin_top = 4
-	panel_style.content_margin_bottom = 4
-	popup.add_theme_stylebox_override("panel", panel_style)
-	var hover_style := StyleBoxFlat.new()
-	hover_style.bg_color = BTN_HOVER_BG
-	hover_style.corner_radius_top_left = 4
-	hover_style.corner_radius_top_right = 4
-	hover_style.corner_radius_bottom_left = 4
-	hover_style.corner_radius_bottom_right = 4
-	popup.add_theme_stylebox_override("hover", hover_style)
-	popup.add_theme_color_override("font_color", BODY_COLOR)
-	popup.add_theme_color_override("font_hover_color", HEADER_COLOR)
 
 
 static func replace_spacers(parent: Node, names: Array) -> void:
@@ -168,14 +198,33 @@ static func replace_spacers(parent: Node, names: Array) -> void:
 		parent.move_child(sep, idx)
 
 
+static func style_popup_menu(popup: PopupMenu) -> void:
+	"""Apply dark glassmorphism theme to a PopupMenu."""
+	var panel_style := create_panel_style()
+	panel_style.content_margin_left = 4
+	panel_style.content_margin_right = 4
+	panel_style.content_margin_top = 4
+	panel_style.content_margin_bottom = 4
+	popup.add_theme_stylebox_override("panel", panel_style)
+	var hover_style := StyleBoxFlat.new()
+	hover_style.bg_color = BTN_HOVER_BG
+	hover_style.corner_radius_top_left = 4
+	hover_style.corner_radius_top_right = 4
+	hover_style.corner_radius_bottom_left = 4
+	hover_style.corner_radius_bottom_right = 4
+	popup.add_theme_stylebox_override("hover", hover_style)
+	popup.add_theme_color_override("font_color", TEXT_PRIMARY)
+	popup.add_theme_color_override("font_hover_color", TEXT_PRIMARY)
+
+
 static func style_label(label: Label, type: String) -> void:
 	"""Set label font color by type: header, body, muted, value."""
 	match type:
 		"header":
-			label.add_theme_color_override("font_color", HEADER_COLOR)
+			label.add_theme_color_override("font_color", TEXT_PRIMARY)
 		"muted":
-			label.add_theme_color_override("font_color", MUTED_COLOR)
+			label.add_theme_color_override("font_color", TEXT_SECONDARY)
 		"value":
-			label.add_theme_color_override("font_color", VALUE_COLOR)
+			label.add_theme_color_override("font_color", TEXT_PRIMARY)
 		_:
-			label.add_theme_color_override("font_color", BODY_COLOR)
+			label.add_theme_color_override("font_color", TEXT_PRIMARY)

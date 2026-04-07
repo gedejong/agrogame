@@ -8,7 +8,7 @@ var _fill_color := Color(1, 1, 1, 0.1)
 var _label := ""
 var _unit := ""
 var _stage_days: PackedInt32Array = PackedInt32Array()
-var _stage_color := Color(0.5, 0.5, 0.55, 0.4)
+var _stage_color := Color(1.0, 1.0, 1.0, 0.15)
 var _y_min := 0.0
 var _y_max := 1.0
 
@@ -67,7 +67,7 @@ func _draw() -> void:
 	var graph_y := label_h
 	var graph_h: float = h - label_h - 2
 	# Background
-	draw_rect(Rect2(0, graph_y, w, graph_h), Color(0.1, 0.1, 0.12, 0.5))
+	draw_rect(Rect2(0, graph_y, w, graph_h), Color(1.0, 1.0, 1.0, 0.04))
 	# Label + current value
 	var val_text := ""
 	if not _data.is_empty():

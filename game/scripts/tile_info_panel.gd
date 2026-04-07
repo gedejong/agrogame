@@ -26,8 +26,8 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 
 	# Title
 	var title := Label.new()
-	var title_text := crop_key.capitalize() if not crop_key.is_empty() else "Empty"
-	title.text = "%s — %s" % [title_text, soil_type]
+	var title_text := crop_key.to_upper() if not crop_key.is_empty() else "EMPTY"
+	title.text = "%s — %s" % [title_text, soil_type.to_upper()]
 	title.add_theme_font_size_override("font_size", 12)
 	title.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

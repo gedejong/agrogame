@@ -1,6 +1,6 @@
 extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
-## Styled per art guide: muted earth-tone bg, vivid UI accents.
+## Styled per art guide: glassmorphism dark slate-navy panels.
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 const NUTRIENT_BARS := {
@@ -68,14 +68,10 @@ const NUTRIENT_BARS := {
 		"unit": "gC/m²"
 	},
 }
-const BAR_STRESS := Color(0.85, 0.2, 0.15)
-const BAR_MARGINAL := Color(0.9, 0.72, 0.15)
-const BAR_OK := Color(0.25, 0.7, 0.3)
-
-## Art guide colors (delegated to UiTheme for shared palette)
-const SUBHEADER_COLOR := Color(0.6, 0.55, 0.48)
-const TRACK_BG := Color(0.15, 0.14, 0.13, 0.7)
-const OPT_ZONE := Color(0.18, 0.28, 0.15, 0.5)
+## Functional accent colors per art guide
+const BAR_STRESS := Color(0.937, 0.267, 0.267)  # #EF4444
+const BAR_MARGINAL := Color(0.984, 0.749, 0.141)  # #FBBF24
+const BAR_OK := Color(0.290, 0.871, 0.502)  # #4ADE80
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
@@ -96,7 +92,7 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	var title := Label.new()
 	title.text = "SOIL ANALYSIS"
 	title.add_theme_font_size_override("font_size", 11)
-	title.add_theme_color_override("font_color", SUBHEADER_COLOR)
+	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
@@ -168,7 +164,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 
 	# Track background
 	var track := ColorRect.new()
-	track.color = TRACK_BG
+	track.color = UiTheme.TRACK_BG
 	track.size = Vector2(track_w, track_h)
 	bar_bg.add_child(track)
 
@@ -182,7 +178,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		opt_min_frac = (opt_min - 4.0) / (9.0 - 4.0)
 		opt_max_frac = (opt_max - 4.0) / (9.0 - 4.0)
 	var opt_bg := ColorRect.new()
-	opt_bg.color = OPT_ZONE
+	opt_bg.color = UiTheme.OPT_ZONE
 	opt_bg.position = Vector2(opt_min_frac * track_w, 0)
 	opt_bg.size = Vector2((opt_max_frac - opt_min_frac) * track_w, track_h)
 	bar_bg.add_child(opt_bg)
@@ -201,7 +197,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	# Track outline
 	var outline := ReferenceRect.new()
 	outline.size = Vector2(track_w, track_h)
-	outline.border_color = Color(0.25, 0.23, 0.2, 0.4)
+	outline.border_color = UiTheme.BORDER_COLOR
 	outline.border_width = 1.0
 	outline.editor_only = false
 	bar_bg.add_child(outline)

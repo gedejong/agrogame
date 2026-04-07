@@ -4,21 +4,27 @@ extends GutTest
 const ThemeRef = preload("res://scripts/ui_theme.gd")
 
 
-func test_constants_exist() -> void:
-	assert_ne(ThemeRef.BG_COLOR, Color(), "BG_COLOR should be defined")
+func test_panel_constants_exist() -> void:
+	assert_ne(ThemeRef.PANEL_BG, Color(), "PANEL_BG should be defined")
 	assert_ne(ThemeRef.BORDER_COLOR, Color(), "BORDER_COLOR should be defined")
-	assert_ne(ThemeRef.HEADER_COLOR, Color(), "HEADER_COLOR should be defined")
-	assert_ne(ThemeRef.BODY_COLOR, Color(), "BODY_COLOR should be defined")
-	assert_ne(ThemeRef.MUTED_COLOR, Color(), "MUTED_COLOR should be defined")
+	assert_ne(ThemeRef.TEXT_PRIMARY, Color(), "TEXT_PRIMARY should be defined")
+	assert_ne(ThemeRef.TEXT_SECONDARY, Color(), "TEXT_SECONDARY should be defined")
 	assert_ne(ThemeRef.ICON_TINT, Color(), "ICON_TINT should be defined")
 	assert_gt(ThemeRef.CORNER_RADIUS, 0, "CORNER_RADIUS should be positive")
 	assert_gt(ThemeRef.SHADOW_SIZE, 0, "SHADOW_SIZE should be positive")
 
 
+func test_accent_colors_exist() -> void:
+	assert_ne(ThemeRef.ACCENT_GREEN, Color(), "ACCENT_GREEN should be defined")
+	assert_ne(ThemeRef.ACCENT_RED, Color(), "ACCENT_RED should be defined")
+	assert_ne(ThemeRef.ACCENT_GOLD, Color(), "ACCENT_GOLD should be defined")
+	assert_ne(ThemeRef.ACCENT_BLUE, Color(), "ACCENT_BLUE should be defined")
+
+
 func test_create_panel_style_returns_stylebox() -> void:
 	var style: StyleBoxFlat = ThemeRef.create_panel_style()
 	assert_not_null(style, "create_panel_style should return a StyleBoxFlat")
-	assert_eq(style.bg_color, ThemeRef.BG_COLOR, "Panel bg should match BG_COLOR")
+	assert_eq(style.bg_color, ThemeRef.PANEL_BG, "Panel bg should match PANEL_BG")
 	assert_eq(
 		style.corner_radius_top_left,
 		ThemeRef.CORNER_RADIUS,
@@ -26,6 +32,27 @@ func test_create_panel_style_returns_stylebox() -> void:
 	)
 	assert_eq(style.shadow_size, ThemeRef.SHADOW_SIZE, "Shadow size should match")
 	assert_eq(style.border_width_left, 1, "Border should be 1px")
+
+
+func test_create_bar_style() -> void:
+	var style: StyleBoxFlat = ThemeRef.create_bar_style()
+	assert_eq(style.bg_color, ThemeRef.BAR_BG, "Bar bg should be darker")
+	assert_eq(style.corner_radius_top_left, 0, "Top corners should be flat")
+	assert_eq(
+		style.corner_radius_bottom_left,
+		ThemeRef.CORNER_RADIUS,
+		"Bottom corners should be rounded",
+	)
+
+
+func test_create_inner_card_style() -> void:
+	var style: StyleBoxFlat = ThemeRef.create_inner_card_style()
+	assert_eq(style.bg_color, ThemeRef.INNER_CARD_BG, "Inner card bg should match")
+	assert_eq(
+		style.corner_radius_top_left,
+		ThemeRef.INNER_RADIUS,
+		"Inner radius should match",
+	)
 
 
 func test_create_button_style_normal() -> void:
@@ -76,17 +103,17 @@ func test_style_label_header() -> void:
 	ThemeRef.style_label(lbl, "header")
 	assert_eq(
 		lbl.get_theme_color("font_color"),
-		ThemeRef.HEADER_COLOR,
-		"Header label color should match",
+		ThemeRef.TEXT_PRIMARY,
+		"Header label should be white",
 	)
 
 
-func test_style_label_body() -> void:
+func test_style_label_muted() -> void:
 	var lbl := Label.new()
 	add_child_autofree(lbl)
-	ThemeRef.style_label(lbl, "body")
+	ThemeRef.style_label(lbl, "muted")
 	assert_eq(
 		lbl.get_theme_color("font_color"),
-		ThemeRef.BODY_COLOR,
-		"Body label color should match",
+		ThemeRef.TEXT_SECONDARY,
+		"Muted label should be secondary grey",
 	)
