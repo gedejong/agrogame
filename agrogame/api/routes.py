@@ -721,11 +721,14 @@ def save_game(game_id: str) -> dict:
         game_id=game_id,
         field_manager_data=s.field_manager.to_dict(),
         ledger_data=s.ledger.to_dict(),
+        weather_data=[w.to_dict() for w in s.weather],
         current_date=s.current_date.isoformat(),
         base_seed=s.base_seed,
         run_count=s.run_count,
         day_index=s.day_index,
         season_days=s.season_days,
+        season_active=s.season_active,
+        season_settled=s.season_settled,
     )
     path = _SAVE_DIR / f"{game_id}.agrosave.json"
     save_to_file(state, path)

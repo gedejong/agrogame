@@ -140,8 +140,6 @@ def test_get_nonexistent_game(client) -> None:
 # ---------------------------------------------------------------------------
 def test_save_and_load_roundtrip(client, tmp_path, monkeypatch) -> None:
     """Save a game to disk, load it back, verify state preserved."""
-    monkeypatch.setenv("AGROGAME_SAVE_DIR", str(tmp_path))
-    # Reload the save dir in routes
     import agrogame.api.routes as _routes
 
     monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)

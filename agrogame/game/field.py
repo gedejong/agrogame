@@ -198,6 +198,7 @@ class FieldManager:
         for fid, fdata in data.get("fields", {}).items():
             configs = []
             snapshots = []
+            plant_states = []
             for pdata in fdata.get("patches", []):
                 cfg = pdata["config"]
                 configs.append(
@@ -209,8 +210,6 @@ class FieldManager:
                     )
                 )
                 snapshots.append(SoilSnapshot.from_dict(pdata["soil_snapshot"]))
-            plant_states = []
-            for pdata in fdata.get("patches", []):
                 plant_states.append(
                     {
                         "canopy": pdata.get("canopy_state"),
