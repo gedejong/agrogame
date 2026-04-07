@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 from agrogame.plant.presets import load_crop_presets
+from agrogame.plant.roots.types import RootState
+from agrogame.soil.canopy.types import CanopyState
+from agrogame.soil.phenology.types import PhenologyState
 from agrogame.sim.orchestrator import FullSimulationOrchestrator, SoilSnapshot
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
@@ -177,6 +180,9 @@ class FieldManager:
                                 "area_fraction": p.config.area_fraction,
                             },
                             "soil_snapshot": p.orch.snapshot_soil().to_dict(),
+                            "canopy_state": p.orch.canopy.state.to_dict(),
+                            "phenology_state": p.orch.phenology.state.to_dict(),
+                            "root_state": p.orch.root_state.to_dict(),
                         }
                         for p in f.patches
                     ]
@@ -192,6 +198,7 @@ class FieldManager:
         for fid, fdata in data.get("fields", {}).items():
             configs = []
             snapshots = []
+            plant_states = []
             for pdata in fdata.get("patches", []):
                 cfg = pdata["config"]
                 configs.append(
@@ -203,7 +210,28 @@ class FieldManager:
                     )
                 )
                 snapshots.append(SoilSnapshot.from_dict(pdata["soil_snapshot"]))
+                plant_states.append(
+                    {
+                        "canopy": pdata.get("canopy_state"),
+                        "phenology": pdata.get("phenology_state"),
+                        "root": pdata.get("root_state"),
+                    }
+                )
             field_obj = mgr.add_field(fid, configs)
             for i, snap in enumerate(snapshots):
                 field_obj.patches[i].orch.restore_soil(snap)
+                ps = plant_states[i]
+                if ps["canopy"]:
+                    cs = CanopyState.from_dict(ps["canopy"])
+                    field_obj.patches[i].orch.canopy.state = cs
+                if ps["phenology"]:
+                    phs = PhenologyState.from_dict(ps["phenology"])
+                    field_obj.patches[i].orch.phenology.state = phs
+                    # Sync canopy module's stage tracking from restored phenology
+                    canopy = field_obj.patches[i].orch.canopy
+                    canopy._current_stage = phs.stage
+                    canopy._current_gdd = phs.accumulated_gdd
+                if ps["root"]:
+                    rs = RootState.from_dict(ps["root"])
+                    field_obj.patches[i].orch.root_state = rs
         return mgr

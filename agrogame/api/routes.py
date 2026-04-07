@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
 
@@ -705,30 +706,48 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     )
 
 
-# In-memory save slots — disk persistence deferred to AGRO-36
-_save_slots: dict[str, dict] = {}
+# Save directory — configurable via environment or default
+_SAVE_DIR = Path(os.environ.get("AGROGAME_SAVE_DIR", "saves"))
 
 
 @router.post("/games/{game_id}/save")
 def save_game(game_id: str) -> dict:
-    """Save game state to an in-memory slot."""
+    """Save game state to disk as JSON with checksum."""
     s = _get_session(game_id)
-    _save_slots[game_id] = {
-        "field_manager": s.field_manager.to_dict(),
-        "ledger": s.ledger.to_dict(),
-        "game_id": game_id,
-    }
-    return {"status": "saved", "game_id": game_id}
+
+    from agrogame.game.save import GameState, save_to_file
+
+    state = GameState(
+        game_id=game_id,
+        field_manager_data=s.field_manager.to_dict(),
+        ledger_data=s.ledger.to_dict(),
+        weather_data=[w.to_dict() for w in s.weather],
+        current_date=s.current_date.isoformat(),
+        base_seed=s.base_seed,
+        run_count=s.run_count,
+        day_index=s.day_index,
+        season_days=s.season_days,
+        season_active=s.season_active,
+        season_settled=s.season_settled,
+    )
+    path = _SAVE_DIR / f"{game_id}.agrosave.json"
+    save_to_file(state, path)
+    return {"status": "saved", "game_id": game_id, "path": str(path)}
 
 
 @router.post("/games/{game_id}/load")
 def load_game(game_id: str) -> dict:
-    """Load game state from an in-memory save slot."""
-    if game_id not in _save_slots:
+    """Load game state from a save file on disk."""
+    from agrogame.game.save import load_from_file
+
+    path = _SAVE_DIR / f"{game_id}.agrosave.json"
+    if not path.exists():
         raise HTTPException(404, f"No save found for {game_id}")
-    save = _save_slots[game_id]
-    fm = FieldManager.from_dict(save["field_manager"])
-    ledger = EconomicLedger.from_dict(save["ledger"])
-    session = GameSession(game_id=game_id, field_manager=fm, ledger=ledger)
+    try:
+        state = load_from_file(path)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    kwargs = state.to_session_kwargs()
+    session = GameSession(**kwargs)
     games[game_id] = session
     return {"status": "loaded", "game_id": game_id}

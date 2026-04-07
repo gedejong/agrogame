@@ -138,8 +138,12 @@ def test_get_nonexistent_game(client) -> None:
 # ---------------------------------------------------------------------------
 # AC: save and load round-trip via API
 # ---------------------------------------------------------------------------
-def test_save_and_load_roundtrip(client) -> None:
-    """Save a game, load it back, verify state preserved."""
+def test_save_and_load_roundtrip(client, tmp_path, monkeypatch) -> None:
+    """Save a game to disk, load it back, verify state preserved."""
+    import agrogame.api.routes as _routes
+
+    monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)
+
     game_id = _create_game(client)
 
     # Run a short season to change state
@@ -151,7 +155,13 @@ def test_save_and_load_roundtrip(client) -> None:
     # Save
     resp = client.post(f"/api/v1/games/{game_id}/save")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "saved"
+    data = resp.json()
+    assert data["status"] == "saved"
+    assert "path" in data
+
+    # Verify file exists on disk
+    save_path = tmp_path / f"{game_id}.agrosave.json"
+    assert save_path.exists()
 
     # Load
     resp = client.post(f"/api/v1/games/{game_id}/load")
@@ -163,7 +173,10 @@ def test_save_and_load_roundtrip(client) -> None:
     assert status_after["balance_credits"] == status_before["balance_credits"]
 
 
-def test_load_nonexistent_save_returns_404(client) -> None:
+def test_load_nonexistent_save_returns_404(client, tmp_path, monkeypatch) -> None:
+    import agrogame.api.routes as _routes
+
+    monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)
     resp = client.post("/api/v1/games/no-save/load")
     assert resp.status_code == 404
 
