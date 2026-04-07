@@ -246,10 +246,10 @@ static func style_popup_menu(popup: PopupMenu) -> void:
 
 
 static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
-	"""Insert a blur ColorRect as first child (Forward+/Mobile only).
+	"""Insert a blur ColorRect as first child of panel.
 
-	On gl_compatibility the shader won't sample the screen, so we keep the
-	panel's semi-transparent StyleBoxFlat as a graceful fallback.
+	Makes the panel's StyleBoxFlat background transparent so the blur
+	provides the frosted glass visual instead.
 	"""
 	var shader: Shader = load(BLUR_SHADER_PATH)
 	if not shader:
@@ -264,6 +264,10 @@ static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
 	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	panel.add_child(rect)
 	panel.move_child(rect, 0)
+	# Make panel bg transparent so blur shows through
+	var existing: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if existing:
+		existing.bg_color = Color(0, 0, 0, 0)
 	return rect
 
 
