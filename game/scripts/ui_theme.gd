@@ -57,6 +57,10 @@ const STAGE_MARKER := Color(1.0, 1.0, 1.0, 0.15)
 const TRACK_BG := Color(1.0, 1.0, 1.0, 0.05)
 const OPT_ZONE := Color(1.0, 1.0, 1.0, 0.06)
 
+# --- Blur shader ---
+const BLUR_SHADER_PATH := "res://shaders/ui_blur.gdshader"
+const BLUR_RADIUS := 6.0
+
 # --- Legacy aliases for panels that still reference old names ---
 const HEADER_COLOR := TEXT_PRIMARY
 const BODY_COLOR := TEXT_PRIMARY
@@ -239,6 +243,28 @@ static func style_popup_menu(popup: PopupMenu) -> void:
 	popup.add_theme_stylebox_override("hover", hover_style)
 	popup.add_theme_color_override("font_color", TEXT_PRIMARY)
 	popup.add_theme_color_override("font_hover_color", TEXT_PRIMARY)
+
+
+static func add_blur_bg(panel: Control, tint: Color = PANEL_BG) -> ColorRect:
+	"""Insert a blur ColorRect as first child; make panel bg transparent."""
+	var shader: Shader = load(BLUR_SHADER_PATH)
+	if not shader:
+		return null
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	mat.set_shader_parameter("blur_radius", BLUR_RADIUS)
+	mat.set_shader_parameter("tint_color", tint)
+	var rect := ColorRect.new()
+	rect.material = mat
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(rect)
+	panel.move_child(rect, 0)
+	# Make panel StyleBoxFlat transparent so blur shows through
+	var existing: StyleBoxFlat = panel.get_theme_stylebox("panel") as StyleBoxFlat
+	if existing:
+		existing.bg_color = Color(0, 0, 0, 0)
+	return rect
 
 
 static func style_label(label: Label, type: String) -> void:

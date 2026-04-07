@@ -125,6 +125,7 @@ func _ready() -> void:
 func _apply_ui_theme() -> void:
 	var bottom_bar: PanelContainer = $UILayer/BottomBar
 	bottom_bar.add_theme_stylebox_override("panel", UiTheme.create_hud_style())
+	UiTheme.add_blur_bg(bottom_bar, UiTheme.BAR_BG)
 	var info_bar: HBoxContainer = $UILayer/BottomBar/BottomVBox/TopBar
 	UiTheme.style_label(date_label, "header")
 	UiTheme.style_label(credits_label, "header")
@@ -145,7 +146,6 @@ func _apply_ui_theme() -> void:
 	UiTheme.add_divider($UILayer/BottomBar/BottomVBox, 1)
 	UiTheme.style_label(status_label, "muted")
 	forecast_panel.visible = false
-
 
 func _build_tile_grid() -> void:
 	var shader: Shader = load("res://shaders/soil_tile.gdshader")

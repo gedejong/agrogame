@@ -76,13 +76,13 @@ const BAR_OK := Color(0.290, 0.871, 0.502)  # #4ADE80
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
-	# Panel background — shared dark earth-tone theme
 	var style := UiTheme.create_panel_style()
 	style.content_margin_left = 12
 	style.content_margin_right = 12
 	style.content_margin_top = 10
 	style.content_margin_bottom = 10
 	add_theme_stylebox_override("panel", style)
+	UiTheme.add_blur_bg(self)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
