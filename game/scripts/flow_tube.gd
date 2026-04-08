@@ -58,6 +58,7 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	cyl.cap_bottom = false
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
 	mat.metallic = 0.2
 	mat.metallic_specular = 0.7
@@ -125,6 +126,7 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 			st.add_index(base_a + s_next)
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
 	mat.metallic = 0.2
 	mat.metallic_specular = 0.7
