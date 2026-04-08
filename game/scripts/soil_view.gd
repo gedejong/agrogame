@@ -181,6 +181,10 @@ func _update_flow_overlay(columns: Array[Dictionary]) -> void:
 		return
 	var center: Dictionary = columns[0]
 	var events: Array = center.get("events", [])
+	if events.is_empty():
+		print("[FlowOverlay] No events in center column")
+	else:
+		print("[FlowOverlay] %d events, types: %s" % [events.size(), str(events.slice(0, 3))])
 	var profile: Array = center.get("profile", [])
 	var pos: Vector3 = center.get("pos", Vector3.ZERO)
 	_flow_overlay.update_from_events(events, profile, pos)
