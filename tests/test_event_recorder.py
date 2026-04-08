@@ -31,3 +31,16 @@ def test_baseevent_subscription_and_recording() -> None:
     assert ev.day_index == 3
     assert ev.event_type == "DummyEvent"
     assert ev.data["value"] == 42
+
+
+def test_clear_empties_recorded_events() -> None:
+    bus = EventBus()
+    rec = EventRecorder(bus)
+    rec.set_day(1)
+    bus.emit(DummyEvent(value=1))
+    bus.emit(DummyEvent(value=2))
+    assert len(rec.events) == 2
+    rec.clear()
+    assert len(rec.events) == 0
+    bus.emit(DummyEvent(value=3))
+    assert len(rec.events) == 1

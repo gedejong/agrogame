@@ -466,6 +466,55 @@ def test_step_daily_snapshots(client) -> None:
     assert all(s["field_id"] == "f1" for s in snaps)
 
 
+def test_step_events_contain_water_infiltrated(client) -> None:
+    """Rainy day step should emit WaterInfiltrated event."""
+    game_id = _create_game(client)
+    # Step 10 days to get past dry days; seed 42 has rain
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=10&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    # Check daily_snapshots for WaterInfiltrated events
+    all_events = []
+    for snap in data["daily_snapshots"]:
+        all_events.extend(snap.get("events", []))
+    water_events = [e for e in all_events if e["event_type"] == "WaterInfiltrated"]
+    assert len(water_events) > 0, "Should have WaterInfiltrated events over 10 days"
+    # Verify event structure
+    evt = water_events[0]
+    assert "layer_indices" in evt["data"]
+    assert "amounts_mm" in evt["data"]
+
+
+def test_step_events_contain_transpiration(client) -> None:
+    """Active crop step should emit TranspirationByLayer event."""
+    game_id = _create_game(client)
+    # Step enough days for crop to grow and transpire
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=30&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    all_events = []
+    for snap in data["daily_snapshots"]:
+        all_events.extend(snap.get("events", []))
+    transp = [e for e in all_events if e["event_type"] == "TranspirationByLayer"]
+    assert len(transp) > 0, "Should have TranspirationByLayer with active crop"
+    evt = transp[0]
+    assert "total_mm" in evt["data"]
+    assert "amounts_mm" in evt["data"]
+
+
+def test_step_events_in_patch_response(client) -> None:
+    """PatchDayResponse should include events from the final day."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    patch = data["patches"]["f1"][0]
+    assert "events" in patch
+    assert isinstance(patch["events"], list)
+    # Should have at least some events (DayTick triggers water/nutrient cycles)
+    assert len(patch["events"]) > 0
+
+
 def test_water_stress_is_transpiration_based(client) -> None:
     """water_stress reflects transpiration supply/demand, not θ/FC proxy."""
     game_id = _create_game(client)

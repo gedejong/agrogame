@@ -32,6 +32,10 @@ class EventRecorder:
         module_name = type(event).__module__
         self._events.append(RecordedEvent(self._current_day, etype, module_name, data))
 
+    def clear(self) -> None:
+        """Reset recorded events (call between simulation steps)."""
+        self._events.clear()
+
     @property
     def events(self) -> Sequence[RecordedEvent]:
         return tuple(self._events)

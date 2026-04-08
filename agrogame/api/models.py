@@ -134,6 +134,11 @@ class PatchDayResponse(BaseModel):
     soil_state: SoilStateResponse | None = Field(
         default=None, description="Full per-layer soil state for 3D view"
     )
+    events: list[dict] = Field(
+        default_factory=list,
+        description="Simulation events emitted during this day step"
+        " (see docs/api-events.md for schema)",
+    )
 
 
 class DailySnapshot(BaseModel):
@@ -150,6 +155,10 @@ class DailySnapshot(BaseModel):
     soil_theta_surface: float = 0.0
     n_available_total: float = 0.0
     rain_mm: float = 0.0
+    events: list[dict] = Field(
+        default_factory=list,
+        description="Simulation events emitted during this day",
+    )
 
 
 class DayResultResponse(BaseModel):

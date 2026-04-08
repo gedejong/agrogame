@@ -74,6 +74,20 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
     )
 
 
+def _serialize_events(patch: "Patch") -> list[dict]:
+    """Serialize recorded events for a patch into JSON-safe dicts."""
+    import json
+
+    out: list[dict] = []
+    for e in patch.recorder.events:
+        try:
+            safe = json.loads(json.dumps(e.data, default=str))
+        except (TypeError, ValueError):
+            safe = {"_raw": str(e.data)}
+        out.append({"event_type": e.event_type, "module": e.module_name, "data": safe})
+    return out
+
+
 def _get_session(game_id: str) -> GameSession:
     if game_id not in games:
         raise HTTPException(status_code=404, detail=f"Game {game_id} not found")
@@ -389,6 +403,7 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
                     som_total_c_g_m2=round(som_total, 1),
                     water_stress=round(w_stress, 2),
                     soil_state=_build_soil_state(p),
+                    events=_serialize_events(p),
                 )
             )
     # Check if crop reached maturity
@@ -444,6 +459,9 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
             break
         rec = s.weather[idx]
         last_rec = rec
+        for fld in s.field_manager.fields.values():
+            for p in fld.patches:
+                p.recorder.clear()
         drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
         s.field_manager.step_day(
             drivers=drivers,
@@ -452,7 +470,6 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
             par_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
-        # Lightweight snapshot per patch per day
         day_num = s.day_index + i + 1
         day_date = str(rec.day) if rec.day else ""
         for fid, fld in s.field_manager.fields.items():
@@ -460,6 +477,7 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                 snap = p.orch.snapshot_soil()
                 n_total = sum(snap.n_no3) + sum(snap.n_nh4)
                 theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+                patch_events = _serialize_events(p)
                 snapshots.append(
                     DailySnapshot(
                         day_number=day_num,
@@ -473,6 +491,7 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                         soil_theta_surface=round(theta_top, 4),
                         n_available_total=round(n_total, 1),
                         rain_mm=round(rec.precip_mm or 0.0, 1),
+                        events=patch_events,
                     )
                 )
 
