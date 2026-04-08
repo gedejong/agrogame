@@ -102,7 +102,7 @@ const EVENT_CONFIG := {
 		"substance": "phosphorus",
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
-		"label": "P Fixation",
+		"label": "Avail-P \u2192 Fixed-P",
 	},
 	"SOMDecomposed":
 	{
@@ -205,7 +205,7 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
-			"label_text": "P Fixation",
+			"label_text": "Avail-P \u2192 Fixed-P",
 		},
 		{
 			"start": Vector3(fx_atmo, surface_y + 0.01, fz + 0.15),
