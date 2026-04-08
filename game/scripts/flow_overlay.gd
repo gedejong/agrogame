@@ -19,7 +19,7 @@ const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in org
 const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
 const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
 
-## Event type → tube config mapping
+## Event type -> tube config. z_slot spaces tubes along the face (-0.4 to +0.4).
 const EVENT_CONFIG := {
 	"WaterInfiltrated":
 	{
@@ -28,6 +28,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amounts_mm_sum",
 		"label": "Infiltration",
+		"z_slot": -0.3
 	},
 	"WaterDrained":
 	{
@@ -36,6 +37,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_mm",
 		"label": "Percolation",
+		"z_slot": -0.15
 	},
 	"EvaporationTaken":
 	{
@@ -44,6 +46,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_mm",
 		"label": "Evaporation",
+		"z_slot": -0.35
 	},
 	"TranspirationByLayer":
 	{
@@ -52,6 +55,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "total_mm",
 		"label": "Transpiration",
+		"z_slot": -0.2
 	},
 	"RunoffGenerated":
 	{
@@ -60,6 +64,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_mm",
 		"label": "Runoff",
+		"z_slot": -0.4
 	},
 	"NitrificationOccurred":
 	{
@@ -68,6 +73,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
+		"z_slot": 0.05
 	},
 	"MineralizationOccurred":
 	{
@@ -76,6 +82,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
+		"z_slot": 0.15
 	},
 	"DenitrificationOccurred":
 	{
@@ -84,6 +91,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
+		"z_slot": 0.05
 	},
 	"VolatilizationOccurred":
 	{
@@ -92,6 +100,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
+		"z_slot": 0.15
 	},
 	"NutrientLeached":
 	{
@@ -100,6 +109,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
 		"label": "NO3 leaching",
+		"z_slot": 0.0
 	},
 	"PhosphorusFixationOccurred":
 	{
@@ -108,6 +118,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
+		"z_slot": 0.25
 	},
 	"SOMDecomposed":
 	{
@@ -116,6 +127,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
+		"z_slot": 0.35
 	},
 	"CO2Respired":
 	{
@@ -124,6 +136,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
 		"label": "CO2 Respiration",
+		"z_slot": 0.3
 	},
 }
 
@@ -443,18 +456,19 @@ func _build_tube_config(
 		if not layer_indices.is_empty()
 		else int(data.get("layer", data.get("from_layer", 0)))
 	)
+	var z_off: float = ecfg.get("z_slot", 0.0)
+	var tube_z: float = face_z + z_off
 	var start := Vector3.ZERO
 	var end := Vector3.ZERO
 	var speed: float = norm_mag * 2.0
 
 	match direction:
 		"down":
-			# Infiltration/percolation: curved out, down, curved back in
 			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
 			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
-			var path := _make_vertical_path(fx_soil, y_top, y_bot, face_z, 0.04)
+			var path := _make_vertical_path(fx_soil, y_top, y_bot, tube_z, 0.04)
 			speed = absf(speed)
 			return {
 				"path": path,
@@ -464,14 +478,12 @@ func _build_tube_config(
 				"label_text": label,
 			}
 		"up":
-			# Atmospheric: on tile surface, upward
-			start = Vector3(fx_atmo, 0.01, face_z)
-			end = Vector3(fx_atmo, 0.2, face_z)
+			start = Vector3(fx_atmo, 0.01, tube_z)
+			end = Vector3(fx_atmo, 0.2, tube_z)
 			speed = absf(speed)
 		"lateral":
-			# Within-layer: curved path — out of face, straight, back in
 			var y_mid := _layer_midpoint_y(layer_idx)
-			var path := _make_lateral_path(fx_soil, y_mid, face_z + 0.05, face_z + 0.3, 0.04)
+			var path := _make_lateral_path(fx_soil, y_mid, tube_z, tube_z + 0.2, 0.04)
 			speed = absf(speed)
 			return {
 				"path": path,
