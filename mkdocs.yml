@@ -19,6 +19,7 @@ nav:
       - Diagnostics & Plots: plots.md
       - Dashboard: dashboard.md
       - Events & Debugging: events.md
+      - API Events Reference: api-events.md
       - Architecture (compressed): architecture.md
       - Quality Bar: quality-bar.md
   - Architecture:

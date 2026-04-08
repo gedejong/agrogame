@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from agrogame.events.recorder import EventRecorder
 from agrogame.plant.presets import load_crop_presets
 from agrogame.plant.roots.types import RootState
 from agrogame.soil.canopy.types import CanopyState
@@ -59,6 +60,7 @@ class Patch:
         self.orch = FullSimulationOrchestrator(
             profile, crop=crop, latitude_deg=climate.latitude_deg
         )
+        self.recorder = EventRecorder(self.orch.event_bus)
 
     def step_day(self, drivers: DailyDrivers, **kwargs: Any) -> None:
         self.orch.step_day(drivers=drivers, **kwargs)
