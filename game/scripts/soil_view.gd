@@ -183,7 +183,9 @@ func _update_flow_overlay(columns: Array[Dictionary]) -> void:
 	var events: Array = center.get("events", [])
 	var profile: Array = center.get("profile", [])
 	var pos: Vector3 = center.get("pos", Vector3.ZERO)
+	print("[FLOW] events=%d profile=%d pos=%s" % [events.size(), profile.size(), str(pos)])
 	_flow_overlay.update_from_events(events, profile, pos)
+	print("[FLOW] tubes=%d" % _flow_overlay._tubes.size())
 
 
 func _build_column(

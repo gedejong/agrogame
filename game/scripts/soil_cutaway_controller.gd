@@ -156,6 +156,7 @@ func _get_soil_column(
 			soil_state = patch.get("soil_state", {})
 			root_depth_cm = patch.get("root_depth_cm", 0.0)
 			events = patch.get("events", [])
+			print("[COL] field=%s pi=%d events=%d" % [field_key, pi, events.size()])
 	if soil_state.is_empty():
 		return {}
 	var crop_key: String = tile_data[idx].get("crop_key", "")

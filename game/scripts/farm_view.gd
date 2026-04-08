@@ -333,6 +333,7 @@ func _ensure_game(callback: Callable) -> void:
 				return
 			_game_id = data.get("game_id", "")
 			GameState.game_id = _game_id
+			print("[GAME] created new game: %s" % _game_id)
 			callback.call()
 	)
 
