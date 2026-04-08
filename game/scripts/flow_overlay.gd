@@ -152,53 +152,58 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	var fx: float = pillar_pos.x + 0.52
 	var fz: float = pillar_pos.z
 	# Spread tubes along the Z axis on the face
+	# Vertical tubes in a column at the face, spread along Z
+	# Lateral tubes run along Z at the face, at layer midpoints
+	var l1y: float = (_layer_positions[0] + _layer_positions[1]) * 0.5
+	var l2y: float = (_layer_positions[1] + _layer_positions[2]) * 0.5
+	var l3y: float = (_layer_positions[2] + _layer_positions[3]) * 0.5
 	var test_configs: Array[Dictionary] = [
 		{
-			"start": Vector3(fx, 0.08, fz - 0.2),
-			"end": Vector3(fx, -0.05, fz - 0.2),
+			"start": Vector3(fx, 0.06, fz - 0.3),
+			"end": Vector3(fx, l1y, fz - 0.3),
 			"color": COLOR_WATER,
 			"magnitude": 0.8,
 			"speed": 1.5,
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(fx, -0.05, fz - 0.1),
-			"end": Vector3(fx, -0.2, fz - 0.1),
+			"start": Vector3(fx, l1y, fz - 0.15),
+			"end": Vector3(fx, l2y, fz - 0.15),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
 			"speed": 1.0,
 			"label_text": "Infiltration",
 		},
 		{
-			"start": Vector3(fx, -0.3, fz),
-			"end": Vector3(fx, -0.08, fz),
+			"start": Vector3(fx, l2y, fz),
+			"end": Vector3(fx, 0.04, fz),
 			"color": COLOR_WATER,
 			"magnitude": 0.3,
-			"speed": -1.0,
+			"speed": 1.0,
 			"label_text": "Transpiration",
 		},
 		{
-			"start": Vector3(fx, -0.12, fz + 0.1),
-			"end": Vector3(fx + 0.2, -0.12, fz + 0.1),
+			"start": Vector3(fx, l1y, fz + 0.1),
+			"end": Vector3(fx, l1y, fz + 0.35),
 			"color": COLOR_NITROGEN,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "Nitrification",
 		},
 		{
-			"start": Vector3(fx, -0.25, fz + 0.2),
-			"end": Vector3(fx + 0.15, -0.25, fz + 0.2),
+			"start": Vector3(fx, l2y, fz + 0.1),
+			"end": Vector3(fx, l2y, fz + 0.35),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
 			"label_text": "P Fixation",
 		},
 		{
-			"start": Vector3(fx, -0.4, fz + 0.3),
-			"end": Vector3(fx, -0.05, fz + 0.3),
+			"start": Vector3(fx, l3y, fz + 0.15),
+			"end": Vector3(fx, 0.04, fz + 0.15),
 			"color": COLOR_CARBON,
 			"magnitude": 0.3,
-			"speed": -0.6,
+			"speed": 1.0,
 			"label_text": "CO2",
 		},
 	]
@@ -304,8 +309,8 @@ func _build_tube_config(
 			speed = -absf(speed)
 		"lateral":
 			var y_mid := _layer_midpoint_y(layer_idx)
-			start = Vector3(face_x, y_mid, face_z - 0.08)
-			end = Vector3(face_x + 0.2, y_mid, face_z - 0.08)
+			start = Vector3(face_x, y_mid, face_z + 0.05)
+			end = Vector3(face_x, y_mid, face_z + 0.3)
 			speed = absf(speed)
 
 	return {

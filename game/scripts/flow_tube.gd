@@ -83,15 +83,18 @@ func _build_particles(
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
 	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.5
-	mat.emission_box_extents = Vector3(radius, length * 0.5, radius)
-	# Gravity drives particle direction along tube axis
-	# Speed sign determines direction: positive = start→end
-	var grav_dir := dir.normalized() * speed * 0.3
-	mat.gravity = grav_dir
-	mat.initial_velocity_min = 0.0
-	mat.initial_velocity_max = 0.0
-	mat.scale_min = 0.3
-	mat.scale_max = 0.6
+	mat.emission_box_extents = Vector3(radius, length * 0.45, radius)
+	# No gravity — particles flow along tube via initial velocity
+	mat.gravity = Vector3.ZERO
+	# Particles spawn along tube length (Y-aligned) and move in Y direction
+	# The tube's basis rotates Y to match start→end, so Y velocity = flow direction
+	var flow_speed: float = length * speed * 0.5
+	mat.initial_velocity_min = flow_speed * 0.8
+	mat.initial_velocity_max = flow_speed * 1.2
+	mat.direction = Vector3(0, 1, 0)
+	mat.spread = 5.0
+	mat.scale_min = 0.4
+	mat.scale_max = 0.7
 	mat.color = Color(color.r, color.g, color.b, 0.9)
 	_particles.process_material = mat
 
