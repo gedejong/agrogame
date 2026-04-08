@@ -50,6 +50,7 @@ const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
+var _water_tweens: Array[Tween] = []
 var _last_center_pos := Vector3.INF
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
@@ -84,6 +85,10 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	if not columns.is_empty():
 		center_pos = columns[0].get("pos", Vector3.ZERO)
 	var is_refresh: bool = _active and center_pos.is_equal_approx(_last_center_pos)
+	if is_refresh:
+		_refresh_water(columns)
+		_refresh_roots_and_labels(columns)
+		return
 	_clear()
 	_last_center_pos = center_pos
 	position = Vector3.ZERO
@@ -96,12 +101,61 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		_build_column(col_data, pos, soil_state, profile, rdcm, show_info)
 	visible = true
 	_active = true
-	if not is_refresh:
-		scale = Vector3(1, 0, 1)
-		var tween := create_tween()
-		tween.set_ease(Tween.EASE_OUT)
-		tween.set_trans(Tween.TRANS_BACK)
-		tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
+	scale = Vector3(1, 0, 1)
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_BACK)
+	tween.tween_property(self, "scale", Vector3(1, 1, 1), 0.4)
+
+
+func _refresh_water(columns: Array[Dictionary]) -> void:
+	# Kill any in-progress water tweens to prevent accumulation
+	for tw: Tween in _water_tweens:
+		if tw.is_valid():
+			tw.kill()
+	_water_tweens.clear()
+	var mat_idx := 0
+	for col_data: Dictionary in columns:
+		var soil_state: Dictionary = col_data.get("soil_state", {})
+		var profile: Array = col_data.get("profile", [])
+		var thetas: Array = soil_state.get("water_theta", [])
+		for i in range(profile.size()):
+			if mat_idx >= _layer_materials.size():
+				break
+			var sat: float = profile[i].get("saturation", 0.4)
+			var theta: float = thetas[i] if i < thetas.size() else 0.0
+			var new_fill: float = clampf(theta / maxf(sat, 0.01), 0.0, 1.0)
+			var mat: ShaderMaterial = _layer_materials[mat_idx]
+			var old_fill: float = mat.get_shader_parameter("water_fill")
+			if not is_equal_approx(old_fill, new_fill):
+				var tw := create_tween()
+				tw.tween_method(
+					func(v: float) -> void: mat.set_shader_parameter("water_fill", v),
+					old_fill,
+					new_fill,
+					0.4,
+				)
+				_water_tweens.append(tw)
+			mat_idx += 1
+
+
+func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
+	# Rebuild roots without touching layer meshes.
+	# Column containers are direct children; roots are tagged as dynamic.
+	var col_idx := 0
+	for child: Node in get_children():
+		if not child is Node3D or col_idx >= columns.size():
+			continue
+		var col_data: Dictionary = columns[col_idx]
+		for sub: Node in child.get_children():
+			if sub.has_meta("soil_view_dynamic"):
+				sub.queue_free()
+		var profile: Array = col_data.get("profile", [])
+		var rdcm: float = col_data.get("root_depth_cm", 0.0)
+		var crop_key: String = col_data.get("crop_key", "")
+		if rdcm > 0.0:
+			_build_roots(child, profile, rdcm, crop_key)
+		col_idx += 1
 
 
 func _build_column(
@@ -149,6 +203,7 @@ func is_active() -> bool:
 
 func _clear() -> void:
 	_layer_materials.clear()
+	_water_tweens.clear()
 	for child in get_children():
 		child.queue_free()
 
@@ -204,15 +259,15 @@ func _build_roots(
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
-	# +X face (right side from above)
-	_add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
-	# +Z face (front side from above)
-	_add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.002), 1)
+	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
+	q1.set_meta("soil_view_dynamic", true)
+	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.002), 1)
+	q2.set_meta("soil_view_dynamic", true)
 
 
 static func _add_face_quad(
 	container: Node3D, tex: Texture2D, total_h: float, offset: Vector3, face: int
-) -> void:
+) -> MeshInstance3D:
 	var quad := QuadMesh.new()
 	quad.size = Vector2(CUTAWAY_WIDTH, total_h)
 	var mat := StandardMaterial3D.new()
@@ -226,6 +281,7 @@ static func _add_face_quad(
 	if face == 0:
 		inst.rotation.y = PI * 0.5
 	container.add_child(inst)
+	return inst
 
 
 static func _root_hash(seed_val: int, idx: int) -> float:
