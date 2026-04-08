@@ -126,23 +126,54 @@ var _tubes: Array[Node3D] = []
 var _layer_positions: Array[float] = []
 var _pillar_pos := Vector3.ZERO
 
+var _prev_configs: Array[Dictionary] = []
+
 
 func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector3) -> void:
-	## Rebuild tube network from simulation events.
-	clear_tubes()
+	## Update tube network with smooth transitions.
 	_compute_layer_positions(profile_layers)
 	_pillar_pos = pillar_pos
-	var tube_configs := _events_to_configs(events)
-	# Cull to MAX_TUBES by magnitude
-	tube_configs.sort_custom(
+	var new_configs := _events_to_configs(events)
+	new_configs.sort_custom(
 		func(a: Dictionary, b: Dictionary) -> bool:
 			return a.get("magnitude", 0.0) > b.get("magnitude", 0.0)
 	)
-	var count := mini(tube_configs.size(), MAX_TUBES)
-	for i in range(count):
-		var tube := FlowTube.create(tube_configs[i])
-		_tubes.append(tube)
-		add_child(tube)
+	var count := mini(new_configs.size(), MAX_TUBES)
+	new_configs = new_configs.slice(0, count)
+	# Build lookup of old tubes by label
+	var old_by_label: Dictionary = {}
+	for i in range(_tubes.size()):
+		if i < _prev_configs.size():
+			var lbl: String = _prev_configs[i].get("label_text", "")
+			if not lbl.is_empty():
+				old_by_label[lbl] = i
+	# Match new configs to old tubes by label
+	var matched_old: Array[int] = []
+	var new_tubes: Array[Node3D] = []
+	for cfg in new_configs:
+		var lbl: String = cfg.get("label_text", "")
+		if old_by_label.has(lbl):
+			var old_idx: int = old_by_label[lbl]
+			matched_old.append(old_idx)
+			var old_tube: FlowTube = _tubes[old_idx] as FlowTube
+			old_tube.tween_magnitude(cfg.get("magnitude", 0.5))
+			new_tubes.append(old_tube)
+		else:
+			var tube := FlowTube.create(cfg)
+			tube.fade_in()
+			_apply_gas_dissipation(tube, cfg)
+			add_child(tube)
+			new_tubes.append(tube)
+	# Fade out unmatched old tubes
+	for i in range(_tubes.size()):
+		if i not in matched_old:
+			var old_tube: FlowTube = _tubes[i] as FlowTube
+			old_tube.fade_out()
+	_tubes.clear()
+	_tubes = new_tubes
+	_prev_configs = new_configs
+	# Detect pulse events
+	_check_pulse_events(events)
 
 
 func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
@@ -219,10 +250,34 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 		add_child(tube)
 
 
+func _apply_gas_dissipation(tube: FlowTube, cfg: Dictionary) -> void:
+	var lbl: String = cfg.get("label_text", "")
+	if lbl.contains("CO2") or lbl.contains("NH3") or lbl.contains("Denitrification"):
+		tube.enable_gas_dissipation()
+
+
+func _check_pulse_events(events: Array) -> void:
+	for evt: Dictionary in events:
+		var etype: String = evt.get("event_type", "")
+		# Heavy rain: pulse on infiltration tubes
+		if etype == "WaterInfiltrated":
+			var amounts: Array = evt.get("data", {}).get("amounts_mm", [])
+			var total := 0.0
+			for a in amounts:
+				total += float(a)
+			if total > 5.0:
+				for tube in _tubes:
+					if tube is FlowTube:
+						var t: FlowTube = tube as FlowTube
+						if t._label and t._label.text.contains("Infiltration"):
+							t.pulse(2.5, 0.6)
+
+
 func clear_tubes() -> void:
 	for tube in _tubes:
 		tube.queue_free()
 	_tubes.clear()
+	_prev_configs.clear()
 
 
 func _compute_layer_positions(profile_layers: Array) -> void:
@@ -310,6 +365,22 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		var tube_cfg := _build_tube_config(ecfg, data, mag, face_x_atmo, face_x_soil, face_z)
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
+		# Rain connector: sky → surface when infiltration is significant
+		if etype == "WaterInfiltrated" and mag > 1.0:
+			var rain_mag: float = clampf(mag / 10.0, 0.1, 1.0)
+			(
+				configs
+				. append(
+					{
+						"start": Vector3(face_x_atmo, 0.25, face_z - 0.2),
+						"end": Vector3(face_x_atmo, 0.01, face_z - 0.2),
+						"color": COLOR_WATER,
+						"magnitude": rain_mag,
+						"speed": 2.0,
+						"label_text": "Rain",
+					}
+				)
+			)
 	return configs
 
 

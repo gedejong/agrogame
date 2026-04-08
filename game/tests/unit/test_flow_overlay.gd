@@ -100,3 +100,39 @@ func test_show_test_tubes() -> void:
 	add_child_autofree(overlay)
 	overlay.show_test_tubes()
 	assert_gt(overlay._tubes.size(), 0, "Debug test should create sample tubes")
+
+
+func test_update_reuses_matching_tubes() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var events: Array = [
+		{
+			"event_type": "EvaporationTaken",
+			"module": "agrogame.soil.water.events",
+			"data": {"amount_mm": 2.0},
+		}
+	]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	var first_count: int = overlay._tubes.size()
+	assert_gt(first_count, 0)
+	# Second update with same event type: should reuse tube (not double)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	assert_eq(overlay._tubes.size(), first_count, "Should reuse matching tubes")
+
+
+func test_rain_connector_added_for_heavy_rain() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var events: Array = [
+		{
+			"event_type": "WaterInfiltrated",
+			"module": "agrogame.soil.water.events",
+			"data": {"layer_indices": [0], "amounts_mm": [8.0]},
+		}
+	]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	var labels: Array = []
+	for tube in overlay._tubes:
+		if tube is FlowTube and tube._label:
+			labels.append(tube._label.text)
+	assert_has(labels, "Rain", "Heavy rain should add Rain connector tube")

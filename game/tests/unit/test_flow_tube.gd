@@ -112,6 +112,61 @@ func test_no_label_when_empty() -> void:
 		assert_false(child is Label3D, "No Label3D without label_text")
 
 
+func test_fade_in_sets_transparent() -> void:
+	var tube: FlowTube = (
+		FlowTubeRef
+		. create(
+			{
+				"start": Vector3(0, 0, 0),
+				"end": Vector3(0, -0.2, 0),
+				"color": Color.BLUE,
+				"magnitude": 0.5,
+				"speed": 1.0,
+			}
+		)
+	)
+	add_child_autofree(tube)
+	tube.fade_in(0.1)
+	# Modulate alpha should start at 0
+	assert_lt(tube.modulate.a, 0.01, "Should start transparent for fade in")
+
+
+func test_pulse_no_crash() -> void:
+	var tube: FlowTube = (
+		FlowTubeRef
+		. create(
+			{
+				"start": Vector3(0, 0, 0),
+				"end": Vector3(0, -0.2, 0),
+				"color": Color.GREEN,
+				"magnitude": 0.5,
+				"speed": 1.0,
+			}
+		)
+	)
+	add_child_autofree(tube)
+	tube.pulse(2.0, 0.3)
+	assert_not_null(tube)
+
+
+func test_gas_dissipation_no_crash() -> void:
+	var tube: FlowTube = (
+		FlowTubeRef
+		. create(
+			{
+				"start": Vector3(0, 0, 0),
+				"end": Vector3(0, 0.2, 0),
+				"color": Color.YELLOW,
+				"magnitude": 0.5,
+				"speed": 1.0,
+			}
+		)
+	)
+	add_child_autofree(tube)
+	tube.enable_gas_dissipation()
+	assert_not_null(tube)
+
+
 func _get_tube_radius(tube: Node3D) -> float:
 	for child: Node in tube.get_children():
 		if child is MeshInstance3D:

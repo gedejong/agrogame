@@ -283,6 +283,82 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	add_child(_label)
 
 
+func fade_in(duration: float = 0.4) -> void:
+	modulate = Color(1, 1, 1, 0)
+	var tw := create_tween()
+	tw.tween_property(self, "modulate", Color(1, 1, 1, 1), duration)
+
+
+func fade_out(duration: float = 0.4) -> void:
+	var tw := create_tween()
+	tw.tween_property(self, "modulate", Color(1, 1, 1, 0), duration)
+	tw.tween_callback(queue_free)
+
+
+func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
+	new_mag = clampf(new_mag, 0.01, 1.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
+		var cyl: CylinderMesh = _tube_mesh.mesh
+		var target_r := lerpf(MIN_RADIUS, MAX_RADIUS, new_mag)
+		tw.tween_method(
+			func(r: float) -> void:
+				cyl.top_radius = r
+				cyl.bottom_radius = r,
+			cyl.top_radius,
+			target_r,
+			duration,
+		)
+	if _particles:
+		var target_count := clampi(int(new_mag * 20.0), 2, 20)
+		(
+			tw
+			. tween_callback(func() -> void: _particles.amount = target_count)
+			. set_delay(duration * 0.5)
+		)
+
+
+func pulse(intensity: float = 2.0, duration: float = 0.5) -> void:
+	if _material:
+		var orig_energy: float = _material.emission_energy_multiplier
+		_material.emission_energy_multiplier = orig_energy * intensity
+		var tw := create_tween()
+		tw.tween_property(_material, "emission_energy_multiplier", orig_energy, duration)
+	# Boost path particle brightness briefly
+	if has_meta("path_node"):
+		var pn: Path3D = get_meta("path_node")
+		for child in pn.get_children():
+			if child is PathFollow3D and child.get_child_count() > 0:
+				var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
+				if mi and mi.mesh and mi.mesh.material:
+					var mat: StandardMaterial3D = mi.mesh.material
+					var orig_e: float = mat.emission_energy_multiplier
+					mat.emission_energy_multiplier = orig_e * intensity
+					var tw2 := create_tween()
+					tw2.tween_property(mat, "emission_energy_multiplier", orig_e, duration)
+
+
+func enable_gas_dissipation() -> void:
+	## Make particles fade out and drift upward at the tube's end.
+	## Used for CO2, NH3, N2O — gases escaping into atmosphere.
+	if _particles and _particles.process_material is ParticleProcessMaterial:
+		var pm: ParticleProcessMaterial = _particles.process_material
+		# Slight upward gravity so particles drift up after leaving tube
+		pm.gravity = Vector3(0, 0.15, 0)
+		# Color ramp: full opacity → transparent at end of lifetime
+		var grad := Gradient.new()
+		grad.set_color(0, pm.color)
+		grad.add_point(0.6, pm.color)
+		grad.add_point(1.0, Color(pm.color.r, pm.color.g, pm.color.b, 0.0))
+		var grad_tex := GradientTexture1D.new()
+		grad_tex.gradient = grad
+		pm.color_ramp = grad_tex
+	# Also apply to path-following particles
+	if has_meta("path_node"):
+		set_meta("gas_dissipation", true)
+
+
 func set_speed(speed: float) -> void:
 	if _particles and _particles.process_material:
 		var mat: ParticleProcessMaterial = _particles.process_material
@@ -307,16 +383,22 @@ func _process(delta: float) -> void:
 		return
 	var pn: Path3D = get_meta("path_node")
 	var t: float = fmod(Time.get_ticks_msec() * 0.001, 100.0)
+	var is_gas: bool = has_meta("gas_dissipation")
 	for child in pn.get_children():
 		if child is PathFollow3D:
 			var spd: float = child.get_meta("flow_speed")
 			child.progress_ratio = fmod(child.progress_ratio + spd * delta, 1.0)
-			# Wobble: animate radial offset around the path center
 			var phase: float = child.get_meta("wobble_phase")
 			var wobble_r: float = child.get_meta("wobble_radius")
-			var mi: Node3D = child.get_child(0)
+			var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
 			mi.position.x = sin(t * 3.0 + phase) * wobble_r
 			mi.position.z = cos(t * 2.3 + phase * 1.7) * wobble_r
+			# Gas dissipation: fade out + upward drift near end of path
+			if is_gas:
+				var prog: float = child.progress_ratio
+				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
+				mi.transparency = 1.0 - fade
+				mi.position.y = (1.0 - fade) * 0.03
 
 
 static func _basis_along(dir: Vector3) -> Basis:
