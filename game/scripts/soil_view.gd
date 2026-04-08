@@ -52,6 +52,7 @@ var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
 var _water_tweens: Array[Tween] = []
 var _last_center_pos := Vector3.INF
+var _flow_overlay: FlowOverlay = null
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
 
@@ -88,6 +89,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	if is_refresh:
 		_refresh_water(columns)
 		_refresh_roots_and_labels(columns)
+		_update_flow_overlay(columns)
 		return
 	_clear()
 	_last_center_pos = center_pos
@@ -99,6 +101,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		var rdcm: float = col_data.get("root_depth_cm", 0.0)
 		var show_info: bool = col_data.get("show_info", false)
 		_build_column(col_data, pos, soil_state, profile, rdcm, show_info)
+	_update_flow_overlay(columns)
 	visible = true
 	_active = true
 	scale = Vector3(1, 0, 1)
@@ -158,6 +161,26 @@ func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
 		col_idx += 1
 
 
+func _update_flow_overlay(columns: Array[Dictionary]) -> void:
+	if not _flow_overlay:
+		_flow_overlay = FlowOverlay.new()
+		add_child(_flow_overlay)
+	# Debug test mode: show sample tubes instead of real data
+	var debug_flow: bool = ProjectSettings.get_setting("agrogame/debug/flow_tubes_test", false)
+	if debug_flow:
+		_flow_overlay.show_test_tubes()
+		return
+	# Use center column's events and profile
+	if columns.is_empty():
+		_flow_overlay.clear_tubes()
+		return
+	var center: Dictionary = columns[0]
+	var events: Array = center.get("events", [])
+	var profile: Array = center.get("profile", [])
+	var pos: Vector3 = center.get("pos", Vector3.ZERO)
+	_flow_overlay.update_from_events(events, profile, pos)
+
+
 func _build_column(
 	col_data: Dictionary,
 	pos: Vector3,
@@ -204,8 +227,11 @@ func is_active() -> bool:
 func _clear() -> void:
 	_layer_materials.clear()
 	_water_tweens.clear()
+	if _flow_overlay:
+		_flow_overlay.clear_tubes()
 	for child in get_children():
 		child.queue_free()
+	_flow_overlay = null
 
 
 func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:

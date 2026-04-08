@@ -147,12 +147,14 @@ func _get_soil_column(
 		patch_idx = 0
 	var soil_state := {}
 	var root_depth_cm := 0.0
+	var events: Array = []
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		if patch_idx < patch_list.size():
 			var patch: Dictionary = patch_list[patch_idx]
 			soil_state = patch.get("soil_state", {})
 			root_depth_cm = patch.get("root_depth_cm", 0.0)
+			events = patch.get("events", [])
 	if soil_state.is_empty():
 		return {}
 	var crop_key: String = tile_data[idx].get("crop_key", "")
@@ -163,6 +165,7 @@ func _get_soil_column(
 		"root_depth_cm": root_depth_cm if is_center else 0.0,
 		"crop_key": crop_key,
 		"show_info": is_center,
+		"events": events if is_center else [],
 	}
 
 

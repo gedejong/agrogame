@@ -45,6 +45,7 @@ const ACCENT_RED := Color(0.937, 0.267, 0.267)  # #EF4444
 const ACCENT_GOLD := Color(0.984, 0.749, 0.141)  # #FBBF24
 const ACCENT_BLUE := Color(0.376, 0.647, 0.980)  # #60A5FA
 const ACCENT_LIME := Color(0.502, 0.800, 0.333)  # #80CC55 — N-available
+const ACCENT_PURPLE := Color(0.655, 0.545, 0.980)  # #A78BFA — phosphorus
 
 # --- Icon tint ---
 const ICON_TINT := Color.WHITE
