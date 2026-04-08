@@ -52,28 +52,30 @@ var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
 var _water_tweens: Array[Tween] = []
 var _last_center_pos := Vector3.INF
+var _flow_overlay: FlowOverlay = null
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
 
 
 static func get_profile_layers(soil_type: String) -> Array:
+	# Soil horizons: A (topsoil) → B (subsoil) → C (parent material)
 	match soil_type:
 		"sandy":
 			return [
 				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
 				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
-				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.40},
 			]
 		"clay":
 			return [
-				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 30, "texture": "loam", "saturation": 0.48},
 				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
 				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
 			]
 		_:
 			return [
 				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
-				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.44},
 				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
 			]
 
@@ -88,6 +90,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	if is_refresh:
 		_refresh_water(columns)
 		_refresh_roots_and_labels(columns)
+		_update_flow_overlay(columns)
 		return
 	_clear()
 	_last_center_pos = center_pos
@@ -99,6 +102,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 		var rdcm: float = col_data.get("root_depth_cm", 0.0)
 		var show_info: bool = col_data.get("show_info", false)
 		_build_column(col_data, pos, soil_state, profile, rdcm, show_info)
+	_update_flow_overlay(columns)
 	visible = true
 	_active = true
 	scale = Vector3(1, 0, 1)
@@ -144,6 +148,8 @@ func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
 	# Column containers are direct children; roots are tagged as dynamic.
 	var col_idx := 0
 	for child: Node in get_children():
+		if child == _flow_overlay:
+			continue
 		if not child is Node3D or col_idx >= columns.size():
 			continue
 		var col_data: Dictionary = columns[col_idx]
@@ -156,6 +162,28 @@ func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
 		if rdcm > 0.0:
 			_build_roots(child, profile, rdcm, crop_key)
 		col_idx += 1
+
+
+func _update_flow_overlay(columns: Array[Dictionary]) -> void:
+	if not _flow_overlay:
+		_flow_overlay = FlowOverlay.new()
+		add_child(_flow_overlay)
+	# Debug test mode: show sample tubes instead of real data
+	var debug_flow: bool = ProjectSettings.get_setting("agrogame/debug/flow_tubes_test", false)
+	if debug_flow:
+		var test_pos := Vector3.ZERO
+		if not columns.is_empty():
+			test_pos = columns[0].get("pos", Vector3.ZERO)
+		_flow_overlay.show_test_tubes(test_pos)
+		return
+	if columns.is_empty():
+		_flow_overlay.clear_tubes()
+		return
+	var center: Dictionary = columns[0]
+	var events: Array = center.get("events", [])
+	var profile: Array = center.get("profile", [])
+	var pos: Vector3 = center.get("pos", Vector3.ZERO)
+	_flow_overlay.update_from_events(events, profile, pos)
 
 
 func _build_column(
@@ -206,6 +234,7 @@ func _clear() -> void:
 	_water_tweens.clear()
 	for child in get_children():
 		child.queue_free()
+	_flow_overlay = null
 
 
 func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
@@ -230,7 +259,7 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mat.set_shader_parameter("tint_color", color)
 		mat.set_shader_parameter("water_fill", fill_frac)
 		mat.set_shader_parameter("box_height", h)
-		mat.set_shader_parameter("emission_strength", 0.35)
+		mat.set_shader_parameter("emission_strength", 0.1)
 		if albedo_tex:
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:

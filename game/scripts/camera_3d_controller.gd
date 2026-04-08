@@ -10,8 +10,10 @@ const ZOOM_SMOOTH := 8.0
 const PAN_SPEED := 0.05
 const KEY_PAN_SPEED := 5.0
 const KEY_ZOOM_SPEED := 0.3
+const ORBIT_SPEED := 0.003
 
 var _dragging := false
+var _orbiting := false
 var _target_size: float = 10.0
 
 
@@ -49,17 +51,29 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		_handle_mouse_button(event as InputEventMouseButton)
-	elif event is InputEventMouseMotion and _dragging:
-		_handle_drag(event as InputEventMouseMotion)
+	elif event is InputEventMouseMotion:
+		if _orbiting:
+			_handle_orbit(event as InputEventMouseMotion)
+		elif _dragging:
+			_handle_drag(event as InputEventMouseMotion)
 	elif event is InputEventPanGesture:
-		_handle_pan_gesture(event as InputEventPanGesture)
+		if _is_orbit_enabled() and Input.is_key_pressed(KEY_CTRL):
+			_handle_orbit_gesture(event as InputEventPanGesture)
+		else:
+			_handle_pan_gesture(event as InputEventPanGesture)
 	elif event is InputEventMagnifyGesture:
 		_handle_magnify_gesture(event as InputEventMagnifyGesture)
+
+
+func _is_orbit_enabled() -> bool:
+	return ProjectSettings.get_setting("agrogame/debug/orbit_camera", false)
 
 
 func _handle_mouse_button(event: InputEventMouseButton) -> void:
 	if event.button_index == MOUSE_BUTTON_MIDDLE:
 		_dragging = event.pressed
+	elif event.button_index == MOUSE_BUTTON_RIGHT and _is_orbit_enabled():
+		_orbiting = event.pressed
 	elif event.button_index == MOUSE_BUTTON_WHEEL_UP:
 		_zoom_in()
 	elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -89,6 +103,29 @@ func _handle_magnify_gesture(event: InputEventMagnifyGesture) -> void:
 		_zoom_in()
 	elif event.factor < 1.0:
 		_zoom_out()
+
+
+func _handle_orbit(event: InputEventMouseMotion) -> void:
+	var rig: Node3D = get_parent()
+	if not rig:
+		return
+	rig.rotate_y(-event.relative.x * ORBIT_SPEED)
+	# Clamp vertical rotation to avoid flipping
+	var pitch: float = -event.relative.y * ORBIT_SPEED
+	var euler := rig.rotation
+	euler.x = clampf(euler.x + pitch, -PI * 0.4, PI * 0.1)
+	rig.rotation = euler
+
+
+func _handle_orbit_gesture(event: InputEventPanGesture) -> void:
+	var rig: Node3D = get_parent()
+	if not rig:
+		return
+	rig.rotate_y(-event.delta.x * ORBIT_SPEED * 10.0)
+	var pitch: float = -event.delta.y * ORBIT_SPEED * 10.0
+	var euler := rig.rotation
+	euler.x = clampf(euler.x + pitch, -PI * 0.4, PI * 0.1)
+	rig.rotation = euler
 
 
 func _screen_to_world(screen_delta: Vector2) -> Vector3:
