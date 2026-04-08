@@ -245,25 +245,26 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 static func _make_lateral_path(
 	face_x: float, y: float, z_start: float, z_end: float, bend_r: float
 ) -> Array:
-	## Build a path: curve out of face → straight → curve back into face.
-	## bend_r = radius of the 90-degree bends.
+	## Build a path: curve out of face -> straight -> curve back into face.
+	## Entry: face outward (+X) then turn along +Z.
+	## Exit: turn from +Z back into face (-X).
 	var pts: Array = []
-	var steps := 4
-	# Entry curve: from inside face going outward then turning along Z
+	var steps := 5
+	# Entry curve: (face_x, z_start) -> (face_x + bend_r, z_start + bend_r)
 	for i in range(steps + 1):
 		var t: float = float(i) / float(steps)
 		var angle: float = PI * 0.5 * t
 		var cx: float = face_x + sin(angle) * bend_r
-		var cz: float = z_start - bend_r + cos(angle) * bend_r
+		var cz: float = z_start + (1.0 - cos(angle)) * bend_r
 		pts.append(Vector3(cx, y, cz))
-	# Straight section
+	# Straight section at outer X
 	pts.append(Vector3(face_x + bend_r, y, z_end - bend_r))
-	# Exit curve: turning from along Z back into face
+	# Exit curve: (face_x + bend_r, z_end - bend_r) -> (face_x, z_end)
 	for i in range(steps + 1):
 		var t: float = float(i) / float(steps)
 		var angle: float = PI * 0.5 * t
-		var cx: float = face_x + bend_r - sin(angle) * bend_r
-		var cz: float = z_end - bend_r + cos(angle) * bend_r
+		var cx: float = face_x + cos(angle) * bend_r
+		var cz: float = z_end - bend_r + sin(angle) * bend_r
 		pts.append(Vector3(cx, y, cz))
 	return pts
 
