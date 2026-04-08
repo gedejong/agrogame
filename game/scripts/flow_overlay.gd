@@ -5,6 +5,11 @@ extends Node3D
 ## Sits as a child of the cutaway container; updated on each step.
 
 const MAX_TUBES := 20
+const HEAVY_RAIN_MM := 5.0
+const RAIN_CONNECTOR_MM := 1.0
+const PULSE_INTENSITY := 2.5
+const PULSE_DURATION := 0.6
+const RAIN_SKY_Y := 0.25
 
 ## Substance colors — NH4 and NO3 distinct for visible transformations
 const COLOR_WATER := Color(0.376, 0.647, 0.980, 0.8)
@@ -140,20 +145,20 @@ func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector
 	)
 	var count := mini(new_configs.size(), MAX_TUBES)
 	new_configs = new_configs.slice(0, count)
-	# Build lookup of old tubes by label
-	var old_by_label: Dictionary = {}
+	# Build lookup of old tubes by compound key (label + index)
+	var old_by_key: Dictionary = {}
 	for i in range(_tubes.size()):
 		if i < _prev_configs.size():
-			var lbl: String = _prev_configs[i].get("label_text", "")
-			if not lbl.is_empty():
-				old_by_label[lbl] = i
-	# Match new configs to old tubes by label
+			var key: String = _tube_key(_prev_configs[i], i)
+			old_by_key[key] = i
+	# Match new configs to old tubes
 	var matched_old: Array[int] = []
 	var new_tubes: Array[Node3D] = []
-	for cfg in new_configs:
-		var lbl: String = cfg.get("label_text", "")
-		if old_by_label.has(lbl):
-			var old_idx: int = old_by_label[lbl]
+	for ci in range(new_configs.size()):
+		var cfg: Dictionary = new_configs[ci]
+		var key: String = _tube_key(cfg, ci)
+		if old_by_key.has(key):
+			var old_idx: int = old_by_key[key]
 			matched_old.append(old_idx)
 			var old_tube: FlowTube = _tubes[old_idx] as FlowTube
 			old_tube.tween_magnitude(cfg.get("magnitude", 0.5))
@@ -250,6 +255,10 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 		add_child(tube)
 
 
+static func _tube_key(cfg: Dictionary, idx: int) -> String:
+	return cfg.get("label_text", "") + "_" + str(idx)
+
+
 func _apply_gas_dissipation(tube: FlowTube, cfg: Dictionary) -> void:
 	var lbl: String = cfg.get("label_text", "")
 	if lbl.contains("CO2") or lbl.contains("NH3") or lbl.contains("Denitrification"):
@@ -265,12 +274,12 @@ func _check_pulse_events(events: Array) -> void:
 			var total := 0.0
 			for a in amounts:
 				total += float(a)
-			if total > 5.0:
+			if total > HEAVY_RAIN_MM:
 				for tube in _tubes:
 					if tube is FlowTube:
 						var t: FlowTube = tube as FlowTube
 						if t._label and t._label.text.contains("Infiltration"):
-							t.pulse(2.5, 0.6)
+							t.pulse(PULSE_INTENSITY, PULSE_DURATION)
 
 
 func clear_tubes() -> void:
@@ -366,13 +375,13 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
 		# Rain connector: sky → surface when infiltration is significant
-		if etype == "WaterInfiltrated" and mag > 1.0:
+		if etype == "WaterInfiltrated" and mag > RAIN_CONNECTOR_MM:
 			var rain_mag: float = clampf(mag / 10.0, 0.1, 1.0)
 			(
 				configs
 				. append(
 					{
-						"start": Vector3(face_x_atmo, 0.25, face_z - 0.2),
+						"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.2),
 						"end": Vector3(face_x_atmo, 0.01, face_z - 0.2),
 						"color": COLOR_WATER,
 						"magnitude": rain_mag,

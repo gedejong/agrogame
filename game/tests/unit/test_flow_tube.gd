@@ -145,11 +145,35 @@ func test_pulse_no_crash() -> void:
 		)
 	)
 	add_child_autofree(tube)
+	var orig_energy: float = tube._material.emission_energy_multiplier
 	tube.pulse(2.0, 0.3)
-	assert_not_null(tube)
+	assert_gt(
+		tube._material.emission_energy_multiplier,
+		orig_energy,
+		"Emission should be boosted after pulse",
+	)
 
 
-func test_gas_dissipation_no_crash() -> void:
+func test_fade_out_schedules_free() -> void:
+	var tube: FlowTube = (
+		FlowTubeRef
+		. create(
+			{
+				"start": Vector3(0, 0, 0),
+				"end": Vector3(0, -0.2, 0),
+				"color": Color.RED,
+				"magnitude": 0.5,
+				"speed": 1.0,
+			}
+		)
+	)
+	add_child(tube)
+	tube.fade_out(0.1)
+	# Material exists and tween is running (tube not yet freed)
+	assert_not_null(tube._material, "Material should exist during fade")
+
+
+func test_gas_dissipation_sets_gravity() -> void:
 	var tube: FlowTube = (
 		FlowTubeRef
 		. create(
@@ -164,7 +188,9 @@ func test_gas_dissipation_no_crash() -> void:
 	)
 	add_child_autofree(tube)
 	tube.enable_gas_dissipation()
-	assert_not_null(tube)
+	if tube._particles and tube._particles.process_material:
+		var pm: ParticleProcessMaterial = tube._particles.process_material
+		assert_gt(pm.gravity.y, 0.0, "Gas particles should drift upward")
 
 
 func _get_tube_radius(tube: Node3D) -> float:
