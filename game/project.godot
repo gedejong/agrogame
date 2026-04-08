@@ -8,6 +8,11 @@
 
 config_version=5
 
+[agrogame]
+
+debug/auto_cutaway=true
+debug/flow_tubes_test=false
+
 [animation]
 
 compatibility/default_parent_skeleton_in_mesh_instance_3d=true
@@ -28,21 +33,13 @@ GameState="*res://scripts/game_state.gd"
 
 window/size/viewport_width=1280
 window/size/viewport_height=720
-window/size/mode=0
-window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gut/plugin.cfg")
 
-[agrogame]
-
-debug/auto_cutaway=true
-
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
-lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=0
