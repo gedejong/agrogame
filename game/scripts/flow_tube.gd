@@ -135,58 +135,43 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 
 
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
-	## Spawn particles at each path segment midpoint along the curve.
+	## Animated spheres that follow the curve path exactly.
 	if path.size() < 2:
 		return
-	var total_len := 0.0
-	for i in range(path.size() - 1):
-		total_len += (Vector3(path[i + 1]) - Vector3(path[i])).length()
-	var count: int = clampi(int(magnitude * 15.0), 2, 15)
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.3
-	# One GPUParticles3D per segment for correct direction
-	for i in range(path.size() - 1):
-		var seg_start: Vector3 = path[i]
-		var seg_end: Vector3 = path[i + 1]
-		var seg_dir := seg_end - seg_start
-		var seg_len := seg_dir.length()
-		if seg_len < 0.001:
-			continue
-		var seg_frac: float = seg_len / maxf(total_len, 0.001)
-		var seg_count: int = maxi(int(float(count) * seg_frac), 1)
-		var p := GPUParticles3D.new()
-		p.amount = seg_count
-		p.lifetime = maxf(seg_len / maxf(absf(speed) * 0.2, 0.01), 0.3)
-		p.emitting = true
-		var pm := ParticleProcessMaterial.new()
-		pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-		pm.emission_box_extents = Vector3(radius, seg_len * 0.4, radius)
-		pm.gravity = Vector3.ZERO
-		var flow_v: float = seg_len * speed * 0.5
-		pm.initial_velocity_min = flow_v * 0.9
-		pm.initial_velocity_max = flow_v * 1.1
-		pm.direction = Vector3(0, 1, 0)
-		pm.spread = 2.0
-		pm.scale_min = 0.3
-		pm.scale_max = 0.5
-		pm.color = Color(color.r, color.g, color.b, 0.9)
-		p.process_material = pm
-		var draw_pass := SphereMesh.new()
-		draw_pass.radius = radius * 1.5
-		draw_pass.height = radius * 3.0
-		draw_pass.radial_segments = 4
-		draw_pass.rings = 2
-		var p_mat := StandardMaterial3D.new()
-		p_mat.albedo_color = color
-		p_mat.emission_enabled = true
-		p_mat.emission = color
-		p_mat.emission_energy_multiplier = 0.3
-		draw_pass.material = p_mat
-		p.draw_pass_1 = draw_pass
-		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var mid := (seg_start + seg_end) * 0.5
-		p.position = mid
-		p.transform.basis = _basis_along(seg_dir)
-		add_child(p)
+	# Build a Path3D with Curve3D from the path points
+	var path_node := Path3D.new()
+	var curve := Curve3D.new()
+	for pt in path:
+		curve.add_point(Vector3(pt))
+	path_node.curve = curve
+	add_child(path_node)
+	# Spawn animated sphere followers
+	var count: int = clampi(int(magnitude * 8.0), 2, 10)
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.4
+	var sphere := SphereMesh.new()
+	sphere.radius = radius
+	sphere.height = radius * 2.0
+	sphere.radial_segments = 4
+	sphere.rings = 2
+	var smat := StandardMaterial3D.new()
+	smat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
+	smat.emission_enabled = true
+	smat.emission = color
+	smat.emission_energy_multiplier = 1.2
+	sphere.material = smat
+	for i in range(count):
+		var follow := PathFollow3D.new()
+		follow.loop = true
+		follow.progress_ratio = float(i) / float(count)
+		follow.set_meta("flow_speed", absf(speed) * 0.15)
+		var mi := MeshInstance3D.new()
+		mi.mesh = sphere
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		follow.add_child(mi)
+		path_node.add_child(follow)
+	# Store for _process animation
+	set_meta("path_node", path_node)
+	set_process(true)
 
 
 func _build_particles(
@@ -227,10 +212,10 @@ func _build_particles(
 	draw_pass.radial_segments = 4
 	draw_pass.rings = 2
 	var p_mat := StandardMaterial3D.new()
-	p_mat.albedo_color = color
+	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
 	p_mat.emission = color
-	p_mat.emission_energy_multiplier = 0.3
+	p_mat.emission_energy_multiplier = 1.2
 	draw_pass.material = p_mat
 	_particles.draw_pass_1 = draw_pass
 	_particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -273,6 +258,17 @@ func set_magnitude(magnitude: float) -> void:
 		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
 		_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
+
+
+func _process(delta: float) -> void:
+	if not has_meta("path_node"):
+		set_process(false)
+		return
+	var pn: Path3D = get_meta("path_node")
+	for child in pn.get_children():
+		if child is PathFollow3D:
+			var spd: float = child.get_meta("flow_speed")
+			child.progress_ratio = fmod(child.progress_ratio + spd * delta, 1.0)
 
 
 static func _basis_along(dir: Vector3) -> Basis:
