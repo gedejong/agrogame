@@ -12,21 +12,28 @@
 [ext_resource type="Texture2D" path="res://assets/icons/icon_credits.svg" id="9"]
 [ext_resource type="Texture2D" path="res://assets/icons/icon_plant.svg" id="10"]
 
-[sub_resource type="ProceduralSkyMaterial" id="sky_mat"]
-sky_top_color = Color(0.15, 0.2, 0.35, 1)
-sky_horizon_color = Color(0.3, 0.35, 0.45, 1)
-ground_bottom_color = Color(0.12, 0.1, 0.08, 1)
-ground_horizon_color = Color(0.25, 0.22, 0.2, 1)
+[sub_resource type="PhysicalSkyMaterial" id="sky_mat"]
+rayleigh_coefficient = 2.0
+rayleigh_color = Color(0.3, 0.4, 0.65, 1)
+mie_coefficient = 0.003
+mie_eccentricity = 0.75
+mie_color = Color(0.7, 0.7, 0.7, 1)
+turbidity = 8.0
+sun_disk_scale = 14.0
+ground_color = Color(0.2, 0.18, 0.15, 1)
+energy_multiplier = 1.0
 
 [sub_resource type="Sky" id="sky"]
 sky_material = SubResource("sky_mat")
+radiance_size = 3
 
 [sub_resource type="Environment" id="env"]
 background_mode = 2
 sky = SubResource("sky")
-ambient_light_source = 2
+ambient_light_source = 3
+reflected_light_source = 2
 ambient_light_color = Color(0.4, 0.42, 0.5, 1)
-ambient_light_energy = 0.35
+ambient_light_energy = 0.3
 tonemap_mode = 2
 tonemap_exposure = 0.95
 tonemap_white = 1.2
