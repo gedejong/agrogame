@@ -56,12 +56,12 @@ far = 100.0
 transform = Transform3D(-0.707107, -0.612372, 0.353553, 0, 0.5, 0.866025, -0.707107, 0.612372, -0.353553, 0, 10, 0)
 light_color = Color(0.95, 0.9, 0.8, 1)
 light_energy = 1.5
-shadow_bias = 0.5
+shadow_bias = 0.05
 shadow_enabled = true
-shadow_normal_bias = 4.0
-directional_shadow_mode = 1
-directional_shadow_max_distance = 20.0
-directional_shadow_pancake_size = 0.0
+shadow_normal_bias = 1.0
+directional_shadow_mode = 2
+directional_shadow_max_distance = 30.0
+directional_shadow_pancake_size = 10.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("env")
