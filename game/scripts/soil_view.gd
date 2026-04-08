@@ -168,9 +168,11 @@ func _update_flow_overlay(columns: Array[Dictionary]) -> void:
 	# Debug test mode: show sample tubes instead of real data
 	var debug_flow: bool = ProjectSettings.get_setting("agrogame/debug/flow_tubes_test", false)
 	if debug_flow:
-		_flow_overlay.show_test_tubes()
+		var test_pos := (
+			columns[0].get("pos", Vector3.ZERO) if not columns.is_empty() else Vector3.ZERO
+		)
+		_flow_overlay.show_test_tubes(test_pos)
 		return
-	# Use center column's events and profile
 	if columns.is_empty():
 		_flow_overlay.clear_tubes()
 		return

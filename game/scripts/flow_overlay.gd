@@ -122,14 +122,14 @@ const EVENT_CONFIG := {
 
 var _tubes: Array[Node3D] = []
 var _layer_positions: Array[float] = []
-var _pillar_x: float = 0.0
+var _pillar_pos := Vector3.ZERO
 
 
 func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector3) -> void:
 	## Rebuild tube network from simulation events.
 	clear_tubes()
 	_compute_layer_positions(profile_layers)
-	_pillar_x = pillar_pos.x
+	_pillar_pos = pillar_pos
 	var tube_configs := _events_to_configs(events)
 	# Cull to MAX_TUBES by magnitude
 	tube_configs.sort_custom(
@@ -143,58 +143,59 @@ func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector
 		add_child(tube)
 
 
-func show_test_tubes() -> void:
+func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	## Debug: spawn sample tubes of each type for visual testing.
 	clear_tubes()
 	_layer_positions = [0.0, -0.125, -0.3, -0.5]
-	_pillar_x = 0.0
-	# +X face of the cutaway box (CUTAWAY_WIDTH/2 + offset)
-	var fx: float = 0.52
+	_pillar_pos = pillar_pos
+	# +X face of the cutaway box (CUTAWAY_WIDTH/2 + offset from pillar)
+	var fx: float = pillar_pos.x + 0.52
+	var fz: float = pillar_pos.z
 	# Spread tubes along the Z axis on the face
 	var test_configs: Array[Dictionary] = [
 		{
-			"start": Vector3(fx, 0.08, -0.2),
-			"end": Vector3(fx, -0.05, -0.2),
+			"start": Vector3(fx, 0.08, fz - 0.2),
+			"end": Vector3(fx, -0.05, fz - 0.2),
 			"color": COLOR_WATER,
 			"magnitude": 0.8,
 			"speed": 1.5,
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(fx, -0.05, -0.1),
-			"end": Vector3(fx, -0.2, -0.1),
+			"start": Vector3(fx, -0.05, fz - 0.1),
+			"end": Vector3(fx, -0.2, fz - 0.1),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
 			"speed": 1.0,
 			"label_text": "Infiltration",
 		},
 		{
-			"start": Vector3(fx, -0.3, 0.0),
-			"end": Vector3(fx, -0.08, 0.0),
+			"start": Vector3(fx, -0.3, fz),
+			"end": Vector3(fx, -0.08, fz),
 			"color": COLOR_WATER,
 			"magnitude": 0.3,
 			"speed": -1.0,
 			"label_text": "Transpiration",
 		},
 		{
-			"start": Vector3(fx, -0.12, 0.1),
-			"end": Vector3(fx + 0.2, -0.12, 0.1),
+			"start": Vector3(fx, -0.12, fz + 0.1),
+			"end": Vector3(fx + 0.2, -0.12, fz + 0.1),
 			"color": COLOR_NITROGEN,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "Nitrification",
 		},
 		{
-			"start": Vector3(fx, -0.25, 0.2),
-			"end": Vector3(fx + 0.15, -0.25, 0.2),
+			"start": Vector3(fx, -0.25, fz + 0.2),
+			"end": Vector3(fx + 0.15, -0.25, fz + 0.2),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
 			"label_text": "P Fixation",
 		},
 		{
-			"start": Vector3(fx, -0.4, 0.3),
-			"end": Vector3(fx, -0.05, 0.3),
+			"start": Vector3(fx, -0.4, fz + 0.3),
+			"end": Vector3(fx, -0.05, fz + 0.3),
 			"color": COLOR_CARBON,
 			"magnitude": 0.3,
 			"speed": -0.6,
@@ -232,8 +233,8 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var configs: Array[Dictionary] = []
 	# +X face of cutaway box (CUTAWAY_WIDTH/2 + small offset)
-	var face_x: float = _pillar_x + 0.52
-	var face_z: float = 0.0
+	var face_x: float = _pillar_pos.x + 0.52
+	var face_z: float = _pillar_pos.z
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
 		if not EVENT_CONFIG.has(etype):

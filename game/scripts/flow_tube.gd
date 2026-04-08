@@ -57,7 +57,7 @@ func _build_tube(
 	_tube_mesh = MeshInstance3D.new()
 	_tube_mesh.mesh = cyl
 	_tube_mesh.material_override = _material
-	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 
 	# Position at midpoint, rotate to align with direction
 	var mid := (start + end) * 0.5
