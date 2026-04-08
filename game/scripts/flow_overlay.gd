@@ -192,14 +192,14 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"label_text": "Transpiration",
 		},
 		{
-			"path": _make_lateral_path(fx_soil, l1y, fz + 0.1, fz + 0.35, 0.06),
+			"path": _make_lateral_path(fx_soil, l1y, fz + 0.1, fz + 0.35, 0.03),
 			"color": COLOR_NH4,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "NH4 \u2192 NO3",
 		},
 		{
-			"path": _make_lateral_path(fx_soil, l2y, fz + 0.1, fz + 0.35, 0.06),
+			"path": _make_lateral_path(fx_soil, l2y, fz + 0.1, fz + 0.35, 0.03),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
@@ -345,7 +345,7 @@ func _build_tube_config(
 		"lateral":
 			# Within-layer: curved path — out of face, straight, back in
 			var y_mid := _layer_midpoint_y(layer_idx)
-			var path := _make_lateral_path(fx_soil, y_mid, face_z + 0.05, face_z + 0.3, 0.06)
+			var path := _make_lateral_path(fx_soil, y_mid, face_z + 0.05, face_z + 0.3, 0.03)
 			speed = absf(speed)
 			return {
 				"path": path,
