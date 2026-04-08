@@ -40,55 +40,32 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	var mid := (start + end) * 0.5
 	var basis := _basis_along(dir)
 
-	# Outer glass shell — transparent, reflective, specular
-	var glass_cyl := CylinderMesh.new()
-	glass_cyl.height = length
-	glass_cyl.top_radius = radius
-	glass_cyl.bottom_radius = radius
-	glass_cyl.radial_segments = RADIAL_SEGMENTS
-	glass_cyl.cap_top = false
-	glass_cyl.cap_bottom = false
-	var glass_mat := StandardMaterial3D.new()
-	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	glass_mat.albedo_color = Color(0.92, 0.95, 1.0, 0.15)
-	glass_mat.metallic = 0.1
-	glass_mat.roughness = 0.02
-	glass_mat.metallic_specular = 0.8
-	glass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	glass_mat.refraction_enabled = false
+	# Single mesh: colored tube with slight transparency and specular
+	var cyl := CylinderMesh.new()
+	cyl.height = length
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.radial_segments = RADIAL_SEGMENTS
+	cyl.cap_top = false
+	cyl.cap_bottom = false
+	var mat := StandardMaterial3D.new()
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.55)
+	mat.metallic = 0.15
+	mat.metallic_specular = 0.6
+	mat.roughness = 0.15
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 0.1
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_material = mat
 	_tube_mesh = MeshInstance3D.new()
-	_tube_mesh.mesh = glass_cyl
-	_tube_mesh.material_override = glass_mat
+	_tube_mesh.mesh = cyl
+	_tube_mesh.material_override = mat
 	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_tube_mesh.position = mid
 	_tube_mesh.transform.basis = basis
 	add_child(_tube_mesh)
-
-	# Inner liquid fill — colored, slightly smaller, semi-opaque
-	var liquid_r: float = radius * 0.75
-	var liquid_cyl := CylinderMesh.new()
-	liquid_cyl.height = length * 0.98
-	liquid_cyl.top_radius = liquid_r
-	liquid_cyl.bottom_radius = liquid_r
-	liquid_cyl.radial_segments = RADIAL_SEGMENTS
-	liquid_cyl.cap_top = false
-	liquid_cyl.cap_bottom = false
-	var liquid_mat := StandardMaterial3D.new()
-	liquid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	liquid_mat.albedo_color = Color(color.r, color.g, color.b, 0.7)
-	liquid_mat.roughness = 0.4
-	liquid_mat.emission_enabled = true
-	liquid_mat.emission = color
-	liquid_mat.emission_energy_multiplier = 0.15
-	liquid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_material = liquid_mat
-	var liquid_mesh := MeshInstance3D.new()
-	liquid_mesh.mesh = liquid_cyl
-	liquid_mesh.material_override = liquid_mat
-	liquid_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	liquid_mesh.position = mid
-	liquid_mesh.transform.basis = basis
-	add_child(liquid_mesh)
 
 
 func _build_particles(
