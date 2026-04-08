@@ -7,7 +7,7 @@ extends Node3D
 const GLASS_SHADER := preload("res://shaders/flow_tube_glass.gdshader")
 const MIN_RADIUS := 0.008
 const MAX_RADIUS := 0.035
-const RADIAL_SEGMENTS := 6
+const RADIAL_SEGMENTS := 12
 
 var _tube_mesh: MeshInstance3D = null
 var _particles: GPUParticles3D = null
@@ -111,6 +111,7 @@ func _build_particles(
 	p_mat.emission_energy_multiplier = 0.3
 	draw_pass.material = p_mat
 	_particles.draw_pass_1 = draw_pass
+	_particles.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 	var mid := (start + end) * 0.5
 	_particles.position = mid
@@ -121,13 +122,22 @@ func _build_particles(
 func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> void:
 	_label = Label3D.new()
 	_label.text = text
-	_label.font_size = 32
+	_label.font_size = 28
 	_label.pixel_size = 0.001
 	_label.modulate = Color(color.r, color.g, color.b, 0.9)
-	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_label.no_depth_test = true
+	_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	# Position label offset from tube, oriented along tube direction
 	var mid := (start + end) * 0.5
-	_label.position = mid + Vector3(0.05, 0, 0.05)
+	var tube_dir := (end - start).normalized()
+	# Offset label outward from the cutaway face (+X direction)
+	_label.position = mid + Vector3(0.04, 0, 0)
+	# Align label along tube: look_at the end from the start
+	var label_up := Vector3.UP
+	if absf(tube_dir.dot(Vector3.UP)) > 0.9:
+		label_up = Vector3.FORWARD
+	_label.look_at(mid + tube_dir, label_up)
+	_label.rotation.y += PI * 0.5
 	add_child(_label)
 
 
