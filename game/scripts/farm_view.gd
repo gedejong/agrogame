@@ -93,8 +93,8 @@ var _daily_history: Dictionary = {}
 func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
-	if GameState.game_id != "":
-		_game_id = GameState.game_id
+	# Force fresh game creation (stale IDs from old server cause empty events)
+	GameState.game_id = ""
 	next_day_btn.pressed.connect(_on_next_day)
 	ff7_btn.pressed.connect(_on_ff7)
 	ff_all_btn.pressed.connect(_on_ff_all)
