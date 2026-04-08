@@ -148,50 +148,53 @@ func show_test_tubes() -> void:
 	clear_tubes()
 	_layer_positions = [0.0, -0.125, -0.3, -0.5]
 	_pillar_x = 0.0
+	# +X face of the cutaway box (CUTAWAY_WIDTH/2 + offset)
+	var fx: float = 0.52
+	# Spread tubes along the Z axis on the face
 	var test_configs: Array[Dictionary] = [
 		{
-			"start": Vector3(0.55, 0.1, 0),
-			"end": Vector3(0.55, -0.05, 0),
+			"start": Vector3(fx, 0.08, -0.2),
+			"end": Vector3(fx, -0.05, -0.2),
 			"color": COLOR_WATER,
 			"magnitude": 0.8,
 			"speed": 1.5,
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(0.6, -0.06, 0),
-			"end": Vector3(0.6, -0.2, 0),
+			"start": Vector3(fx, -0.05, -0.1),
+			"end": Vector3(fx, -0.2, -0.1),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
 			"speed": 1.0,
 			"label_text": "Infiltration",
 		},
 		{
-			"start": Vector3(0.55, -0.3, 0),
-			"end": Vector3(0.55, -0.1, 0),
+			"start": Vector3(fx, -0.3, 0.0),
+			"end": Vector3(fx, -0.08, 0.0),
 			"color": COLOR_WATER,
 			"magnitude": 0.3,
 			"speed": -1.0,
 			"label_text": "Transpiration",
 		},
 		{
-			"start": Vector3(0.4, -0.12, 0.2),
-			"end": Vector3(0.65, -0.12, 0.2),
+			"start": Vector3(fx, -0.12, 0.1),
+			"end": Vector3(fx + 0.2, -0.12, 0.1),
 			"color": COLOR_NITROGEN,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "Nitrification",
 		},
 		{
-			"start": Vector3(0.4, -0.25, 0.2),
-			"end": Vector3(0.65, -0.25, 0.2),
+			"start": Vector3(fx, -0.25, 0.2),
+			"end": Vector3(fx + 0.15, -0.25, 0.2),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
 			"label_text": "P Fixation",
 		},
 		{
-			"start": Vector3(0.5, -0.35, 0.1),
-			"end": Vector3(0.5, -0.05, 0.1),
+			"start": Vector3(fx, -0.4, 0.3),
+			"end": Vector3(fx, -0.05, 0.3),
 			"color": COLOR_CARBON,
 			"magnitude": 0.3,
 			"speed": -0.6,
@@ -228,7 +231,8 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 
 func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var configs: Array[Dictionary] = []
-	var face_x: float = 0.55
+	# +X face of cutaway box (CUTAWAY_WIDTH/2 + small offset)
+	var face_x: float = _pillar_x + 0.52
 	var face_z: float = 0.0
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
@@ -299,8 +303,8 @@ func _build_tube_config(
 			speed = -absf(speed)
 		"lateral":
 			var y_mid := _layer_midpoint_y(layer_idx)
-			start = Vector3(face_x - 0.15, y_mid, face_z + 0.1)
-			end = Vector3(face_x + 0.1, y_mid, face_z + 0.1)
+			start = Vector3(face_x, y_mid, face_z - 0.08)
+			end = Vector3(face_x + 0.2, y_mid, face_z - 0.08)
 			speed = absf(speed)
 
 	return {
