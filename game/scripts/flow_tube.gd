@@ -90,12 +90,10 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var segs := RADIAL_SEGMENTS
-	# Consistent reference up vector for stable cross-sections
-	var ref_up := Vector3.UP
-	# Generate rings of vertices at each path point
+	# Propagate previous x_axis to avoid cross-section twists at direction changes
+	var prev_x := Vector3.ZERO
 	for pi in range(path.size()):
 		var p: Vector3 = path[pi]
-		# Smooth direction: average of forward and backward differences
 		var fwd := Vector3.FORWARD
 		if pi < path.size() - 1 and pi > 0:
 			var f1 := (Vector3(path[pi + 1]) - p).normalized()
@@ -107,11 +105,17 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 			fwd = (p - Vector3(path[pi - 1])).normalized()
 		if fwd.is_zero_approx():
 			fwd = Vector3.FORWARD
-		# Stable basis using consistent up reference
-		var x_ax := ref_up.cross(fwd).normalized()
-		if x_ax.is_zero_approx():
-			x_ax = Vector3.RIGHT
+		# Rotation-minimizing frame: project previous x_axis onto plane perpendicular to fwd
+		var x_ax := Vector3.ZERO
+		if prev_x.is_zero_approx():
+			var ref := Vector3.FORWARD if absf(fwd.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT
+			x_ax = fwd.cross(ref).normalized()
+		else:
+			x_ax = (prev_x - fwd * prev_x.dot(fwd)).normalized()
+			if x_ax.is_zero_approx():
+				x_ax = prev_x
 		var z_ax := fwd.cross(x_ax).normalized()
+		prev_x = x_ax
 		var v: float = float(pi) / float(maxi(path.size() - 1, 1))
 		for si in range(segs):
 			var angle: float = float(si) / float(segs) * TAU
