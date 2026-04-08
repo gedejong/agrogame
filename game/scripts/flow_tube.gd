@@ -4,7 +4,6 @@ extends Node3D
 ## fill with animated particles flowing along the tube path.
 ## Parameterizable: color, thickness, speed, direction, optional label.
 
-const GLASS_SHADER := preload("res://shaders/flow_tube_glass.gdshader")
 const MIN_RADIUS := 0.008
 const MAX_RADIUS := 0.035
 const RADIAL_SEGMENTS := 12
@@ -12,7 +11,7 @@ const RADIAL_SEGMENTS := 12
 var _tube_mesh: MeshInstance3D = null
 var _particles: GPUParticles3D = null
 var _label: Label3D = null
-var _material: ShaderMaterial = null
+var _material: StandardMaterial3D = null
 
 
 static func create(config: Dictionary) -> FlowTube:
@@ -38,31 +37,58 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	if length < 0.001:
 		return
 	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
-
-	var cyl := CylinderMesh.new()
-	cyl.height = length
-	cyl.top_radius = radius
-	cyl.bottom_radius = radius
-	cyl.radial_segments = RADIAL_SEGMENTS
-	cyl.cap_top = false
-	cyl.cap_bottom = false
-
-	_material = ShaderMaterial.new()
-	_material.shader = GLASS_SHADER
-	_material.set_shader_parameter("liquid_color", color)
-	_material.set_shader_parameter("fill_level", clampf(magnitude, 0.3, 0.9))
-	_material.render_priority = 0
-
-	_tube_mesh = MeshInstance3D.new()
-	_tube_mesh.mesh = cyl
-	_tube_mesh.material_override = _material
-	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-
-	# Position at midpoint, rotate to align with direction
 	var mid := (start + end) * 0.5
+	var basis := _basis_along(dir)
+
+	# Outer glass shell — transparent, reflective, specular
+	var glass_cyl := CylinderMesh.new()
+	glass_cyl.height = length
+	glass_cyl.top_radius = radius
+	glass_cyl.bottom_radius = radius
+	glass_cyl.radial_segments = RADIAL_SEGMENTS
+	glass_cyl.cap_top = false
+	glass_cyl.cap_bottom = false
+	var glass_mat := StandardMaterial3D.new()
+	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glass_mat.albedo_color = Color(0.92, 0.95, 1.0, 0.15)
+	glass_mat.metallic = 0.1
+	glass_mat.roughness = 0.02
+	glass_mat.metallic_specular = 0.8
+	glass_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	glass_mat.refraction_enabled = false
+	_tube_mesh = MeshInstance3D.new()
+	_tube_mesh.mesh = glass_cyl
+	_tube_mesh.material_override = glass_mat
+	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	_tube_mesh.position = mid
-	_tube_mesh.transform.basis = _basis_along(dir)
+	_tube_mesh.transform.basis = basis
 	add_child(_tube_mesh)
+
+	# Inner liquid fill — colored, slightly smaller, semi-opaque
+	var liquid_r: float = radius * 0.75
+	var liquid_cyl := CylinderMesh.new()
+	liquid_cyl.height = length * 0.98
+	liquid_cyl.top_radius = liquid_r
+	liquid_cyl.bottom_radius = liquid_r
+	liquid_cyl.radial_segments = RADIAL_SEGMENTS
+	liquid_cyl.cap_top = false
+	liquid_cyl.cap_bottom = false
+	var liquid_mat := StandardMaterial3D.new()
+	liquid_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	liquid_mat.albedo_color = Color(color.r, color.g, color.b, 0.7)
+	liquid_mat.roughness = 0.4
+	liquid_mat.emission_enabled = true
+	liquid_mat.emission = color
+	liquid_mat.emission_energy_multiplier = 0.15
+	liquid_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_material = liquid_mat
+	var liquid_mesh := MeshInstance3D.new()
+	liquid_mesh.mesh = liquid_cyl
+	liquid_mesh.material_override = liquid_mat
+	liquid_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	liquid_mesh.position = mid
+	liquid_mesh.transform.basis = basis
+	add_child(liquid_mesh)
 
 
 func _build_particles(
@@ -143,13 +169,10 @@ func set_speed(speed: float) -> void:
 
 func set_magnitude(magnitude: float) -> void:
 	magnitude = clampf(magnitude, 0.01, 1.0)
-	if _material:
-		_material.set_shader_parameter("fill_level", clampf(magnitude, 0.3, 0.9))
 	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
-		var cyl: CylinderMesh = _tube_mesh.mesh
 		var r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
-		cyl.top_radius = r
-		cyl.bottom_radius = r
+		(_tube_mesh.mesh as CylinderMesh).top_radius = r
+		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
 		_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
 
