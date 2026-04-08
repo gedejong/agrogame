@@ -167,10 +167,12 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 	p_mat.emission_enabled = true
 	p_mat.emission = color
 	p_mat.emission_energy_multiplier = 1.5
+	# Use truly random values via a seeded sequence (not golden ratio)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
 	for i in range(count):
-		var hash_v: float = fmod(float(i * 7 + 3) * 0.618, 1.0)
-		var size_mult: float = 0.5 + hash_v * 0.6
-		var speed_mult: float = 0.7 + fmod(float(i * 13 + 5) * 0.618, 1.0) * 0.6
+		var size_mult: float = 0.4 + rng.randf() * 0.7
+		var speed_mult: float = 0.6 + rng.randf() * 0.8
 		var sphere := SphereMesh.new()
 		sphere.radius = base_r * size_mult
 		sphere.height = base_r * size_mult * 2.0
@@ -179,15 +181,14 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = p_mat
 		var follow := PathFollow3D.new()
 		follow.loop = true
-		# Random start position along path (not all at 0)
-		follow.progress_ratio = fmod(float(i) / float(count) + hash_v * 0.3, 1.0)
+		follow.progress_ratio = rng.randf()
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
+		# Store random wobble parameters for radial animation
+		follow.set_meta("wobble_phase", rng.randf() * TAU)
+		follow.set_meta("wobble_radius", rng.randf() * base_r * 1.5)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		var off_x: float = (hash_v - 0.5) * base_r * 1.2
-		var off_z: float = (fmod(float(i * 11) * 0.618, 1.0) - 0.5) * base_r * 1.2
-		mi.position = Vector3(off_x, 0, off_z)
 		follow.add_child(mi)
 		path_node.add_child(follow)
 	# Store for _process animation
@@ -286,10 +287,17 @@ func _process(delta: float) -> void:
 		set_process(false)
 		return
 	var pn: Path3D = get_meta("path_node")
+	var t: float = fmod(Time.get_ticks_msec() * 0.001, 100.0)
 	for child in pn.get_children():
 		if child is PathFollow3D:
 			var spd: float = child.get_meta("flow_speed")
 			child.progress_ratio = fmod(child.progress_ratio + spd * delta, 1.0)
+			# Wobble: animate radial offset around the path center
+			var phase: float = child.get_meta("wobble_phase")
+			var wobble_r: float = child.get_meta("wobble_radius")
+			var mi: Node3D = child.get_child(0)
+			mi.position.x = sin(t * 3.0 + phase) * wobble_r
+			mi.position.z = cos(t * 2.3 + phase * 1.7) * wobble_r
 
 
 static func _basis_along(dir: Vector3) -> Basis:
