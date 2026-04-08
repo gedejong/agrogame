@@ -32,9 +32,7 @@ static func create(config: Dictionary) -> FlowTube:
 	return tube
 
 
-func _build_tube(
-	start: Vector3, end: Vector3, color: Color, magnitude: float
-) -> void:
+func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -> void:
 	var dir := end - start
 	var length := dir.length()
 	if length < 0.001:
@@ -46,6 +44,8 @@ func _build_tube(
 	cyl.top_radius = radius
 	cyl.bottom_radius = radius
 	cyl.radial_segments = RADIAL_SEGMENTS
+	cyl.cap_top = false
+	cyl.cap_bottom = false
 
 	_material = ShaderMaterial.new()
 	_material.shader = GLASS_SHADER

@@ -148,8 +148,9 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	clear_tubes()
 	_layer_positions = [0.0, -0.125, -0.3, -0.5]
 	_pillar_pos = pillar_pos
-	# On the +X edge of the tile (CUTAWAY_WIDTH/2, flush with surface)
-	var fx: float = pillar_pos.x + 0.48
+	# Atmospheric tubes on tile surface, soil tubes on cutaway face
+	var fx_atmo: float = pillar_pos.x + 0.48
+	var fx_soil: float = pillar_pos.x + 0.52
 	var fz: float = pillar_pos.z
 	# Spread tubes along the Z axis on the face
 	# Vertical tubes in a column at the face, spread along Z
@@ -162,50 +163,51 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	# Nitrification/P fixation are within-layer horizontal tubes.
 	var surface_y: float = 0.0
 	var above: float = 0.12
+	# fx_atmo = on tile surface (atmospheric), fx_soil = on cutaway face (soil)
 	var test_configs: Array[Dictionary] = [
 		{
-			"start": Vector3(fx, surface_y + above * 2.0, fz - 0.3),
-			"end": Vector3(fx, surface_y + 0.01, fz - 0.3),
+			"start": Vector3(fx_atmo, surface_y + above * 2.0, fz - 0.3),
+			"end": Vector3(fx_atmo, surface_y + 0.01, fz - 0.3),
 			"color": COLOR_WATER,
 			"magnitude": 0.8,
 			"speed": 1.5,
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(fx, surface_y, fz - 0.15),
-			"end": Vector3(fx, l2y, fz - 0.15),
+			"start": Vector3(fx_soil, surface_y, fz - 0.15),
+			"end": Vector3(fx_soil, l2y, fz - 0.15),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
 			"speed": 1.0,
 			"label_text": "Infiltration",
 		},
 		{
-			"start": Vector3(fx, surface_y + 0.01, fz),
-			"end": Vector3(fx, surface_y + above * 2.0, fz),
+			"start": Vector3(fx_atmo, surface_y + 0.01, fz),
+			"end": Vector3(fx_atmo, surface_y + above * 2.0, fz),
 			"color": COLOR_WATER,
 			"magnitude": 0.3,
 			"speed": 1.0,
 			"label_text": "Transpiration",
 		},
 		{
-			"start": Vector3(fx, l1y, fz + 0.1),
-			"end": Vector3(fx, l1y, fz + 0.35),
+			"start": Vector3(fx_soil, l1y, fz + 0.1),
+			"end": Vector3(fx_soil, l1y, fz + 0.35),
 			"color": COLOR_NITROGEN,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "Nitrification",
 		},
 		{
-			"start": Vector3(fx, l2y, fz + 0.1),
-			"end": Vector3(fx, l2y, fz + 0.35),
+			"start": Vector3(fx_soil, l2y, fz + 0.1),
+			"end": Vector3(fx_soil, l2y, fz + 0.35),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
 			"label_text": "P Fixation",
 		},
 		{
-			"start": Vector3(fx, surface_y + 0.01, fz + 0.15),
-			"end": Vector3(fx, surface_y + above * 2.0, fz + 0.15),
+			"start": Vector3(fx_atmo, surface_y + 0.01, fz + 0.15),
+			"end": Vector3(fx_atmo, surface_y + above * 2.0, fz + 0.15),
 			"color": COLOR_CARBON,
 			"magnitude": 0.3,
 			"speed": 1.0,
@@ -242,8 +244,8 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 
 func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var configs: Array[Dictionary] = []
-	# On +X edge of tile (flush with surface)
-	var face_x: float = _pillar_pos.x + 0.48
+	var face_x_atmo: float = _pillar_pos.x + 0.48
+	var face_x_soil: float = _pillar_pos.x + 0.52
 	var face_z: float = _pillar_pos.z
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
@@ -254,7 +256,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		var mag := _extract_magnitude(data, ecfg)
 		if mag < 0.001:
 			continue
-		var tube_cfg := _build_tube_config(ecfg, data, mag, face_x, face_z)
+		var tube_cfg := _build_tube_config(ecfg, data, mag, face_x_atmo, face_x_soil, face_z)
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
 	return configs
@@ -277,13 +279,13 @@ func _build_tube_config(
 	ecfg: Dictionary,
 	data: Dictionary,
 	mag: float,
-	face_x: float,
+	fx_atmo: float,
+	fx_soil: float,
 	face_z: float,
 ) -> Dictionary:
 	var direction: String = ecfg.get("direction", "down")
 	var color: Color = ecfg.get("color", COLOR_WATER)
 	var label: String = ecfg.get("label", "")
-	# Normalize magnitude: water in mm (0-20), nutrients in kg/ha (0-5)
 	var norm_mag: float = 0.5
 	match ecfg.get("substance", "water"):
 		"water":
@@ -300,24 +302,24 @@ func _build_tube_config(
 
 	match direction:
 		"down":
-			# Infiltration/percolation: surface → into soil layer
+			# Infiltration/percolation: on cutaway face, into soil
 			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
 			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
-			start = Vector3(face_x, y_top, face_z)
-			end = Vector3(face_x, y_bot, face_z)
+			start = Vector3(fx_soil, y_top, face_z)
+			end = Vector3(fx_soil, y_bot, face_z)
 			speed = absf(speed)
 		"up":
-			# Evaporation/transpiration/CO2: surface upward (above ground)
-			start = Vector3(face_x, 0.01, face_z)
-			end = Vector3(face_x, 0.2, face_z)
+			# Atmospheric: on tile surface, upward
+			start = Vector3(fx_atmo, 0.01, face_z)
+			end = Vector3(fx_atmo, 0.2, face_z)
 			speed = absf(speed)
 		"lateral":
-			# Within-layer processes: horizontal along Z at layer midpoint
+			# Within-layer: on cutaway face, horizontal along Z
 			var y_mid := _layer_midpoint_y(layer_idx)
-			start = Vector3(face_x, y_mid, face_z + 0.05)
-			end = Vector3(face_x, y_mid, face_z + 0.3)
+			start = Vector3(fx_soil, y_mid, face_z + 0.05)
+			end = Vector3(fx_soil, y_mid, face_z + 0.3)
 			speed = absf(speed)
 
 	return {
