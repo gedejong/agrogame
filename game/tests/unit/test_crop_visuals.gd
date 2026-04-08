@@ -51,3 +51,37 @@ func test_collect_meshes() -> void:
 	VisualsRef.collect_meshes(root, Transform3D(), out)
 	assert_eq(out.size(), 1)
 	assert_not_null(out[0]["mesh"])
+
+
+func test_wheat_multimesh_has_all_layers() -> void:
+	# Wheat at grain-fill should have stem, leaves, peduncle, and grain head
+	var plant: Node3D = VisualsRef.create_3d_plant("spring_wheat", 0.9, 0.0, 0.0, 0.8, 42)
+	add_child_autofree(plant)
+	var meshes: Array[Dictionary] = []
+	VisualsRef.collect_meshes(plant, Transform3D(), meshes)
+	# At maturity with grain: sheath + peduncle + leaves + head = 4+ meshes
+	assert_gt(meshes.size(), 3, "Wheat should have stem, leaves, peduncle, grain")
+
+
+func test_rice_multimesh_has_all_layers() -> void:
+	var plant: Node3D = VisualsRef.create_3d_plant("rice", 0.9, 0.0, 0.0, 0.8, 42)
+	add_child_autofree(plant)
+	var meshes: Array[Dictionary] = []
+	VisualsRef.collect_meshes(plant, Transform3D(), meshes)
+	assert_gt(meshes.size(), 3, "Rice should have stem, leaves, panicle")
+
+
+func test_baked_plants_creates_multimesh_per_layer() -> void:
+	# Verify _build_baked_plants creates one MultiMeshInstance3D per mesh layer
+	var container := Node3D.new()
+	add_child_autofree(container)
+	var grid := Vector2i(2, 2)
+	VisualsRef._build_baked_plants(
+		container, "spring_wheat", grid, 0, 0, 0.5, 0.9, 0.0, 0.0, 0.8, 1.0
+	)
+	var mmi_count := 0
+	for child: Node in container.get_children():
+		if child is MultiMeshInstance3D:
+			mmi_count += 1
+	# Should have multiple MultiMeshInstance3D (one per mesh layer)
+	assert_gt(mmi_count, 3, "Should have 4+ MultiMesh layers for wheat at grain-fill")
