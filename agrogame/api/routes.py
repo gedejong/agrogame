@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from pathlib import Path
@@ -76,8 +77,6 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
 
 def _serialize_events(patch: "Patch") -> list[dict]:
     """Serialize recorded events for a patch into JSON-safe dicts."""
-    import json
-
     out: list[dict] = []
     for e in patch.recorder.events:
         try:
@@ -462,6 +461,7 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
         for fld in s.field_manager.fields.values():
             for p in fld.patches:
                 p.recorder.clear()
+                p.recorder.set_day(s.day_index + i)
         drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
         s.field_manager.step_day(
             drivers=drivers,

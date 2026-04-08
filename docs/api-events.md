@@ -105,6 +105,14 @@ for snap: Dictionary in data["daily_snapshots"]:
     var day_events: Array = snap.get("events", [])
 ```
 
+## Multi-day Event Duplication
+
+When stepping multiple days (`days > 1`), the **last day's events** appear in
+both `patches[field_id][].events` and the final entry of `daily_snapshots[].events`.
+This is by design — `patches` always reflects the most recent day, while
+`daily_snapshots` gives per-day history. Frontend consumers should use one
+source, not both, to avoid double-counting the final day.
+
 ## Filtering Tips
 
 - **Water flow visualization**: filter for `WaterInfiltrated`, `WaterDrained`, `TranspirationByLayer`, `EvaporationTaken`
