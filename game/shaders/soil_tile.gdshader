@@ -73,11 +73,17 @@ void fragment() {
 		vec3(tex_norm.xy + (proc_norm.xy - 0.5) * 0.7, tex_norm.z)
 	);
 
+	// Selection: thin gold border along tile edges
+	float border_w = 0.04;
+	float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
+	float border = 1.0 - smoothstep(border_w - 0.01, border_w, edge);
+	vec3 sel_color = vec3(1.0, 0.85, 0.3);
+
 	ALBEDO = color;
 	NORMAL_MAP = norm;
 	NORMAL_MAP_DEPTH = 1.8;
 	ROUGHNESS = mix(0.85, 0.3, moisture_frac) + (1.0 - grain_fine) * 0.1;
 	METALLIC = 0.0;
 	SPECULAR = mix(0.2, 0.5, moisture_frac);
-	EMISSION = vec3(0.3, 0.5, 0.9) * selected * 0.4;
+	EMISSION = sel_color * border * selected * 0.6;
 }
