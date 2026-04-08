@@ -73,10 +73,9 @@ void fragment() {
 		vec3(tex_norm.xy + (proc_norm.xy - 0.5) * 0.7, tex_norm.z)
 	);
 
-	// Selection: thin gold border along tile edges
-	float border_w = 0.04;
+	// Selection: narrow gold edge with soft inward gradient
 	float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
-	float border = 1.0 - smoothstep(border_w - 0.01, border_w, edge);
+	float border = 1.0 - smoothstep(0.0, 0.08, edge);
 	vec3 sel_color = vec3(1.0, 0.85, 0.3);
 
 	ALBEDO = color;
