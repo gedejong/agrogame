@@ -50,8 +50,8 @@ const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false
 var _layer_materials: Array[ShaderMaterial] = []
+var _water_tweens: Array[Tween] = []
 var _last_center_pos := Vector3.INF
-var _last_columns: Array[Dictionary] = []
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
 
@@ -88,11 +88,9 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	if is_refresh:
 		_refresh_water(columns)
 		_refresh_roots_and_labels(columns)
-		_last_columns = columns
 		return
 	_clear()
 	_last_center_pos = center_pos
-	_last_columns = columns
 	position = Vector3.ZERO
 	for col_data: Dictionary in columns:
 		var pos: Vector3 = col_data.get("pos", Vector3.ZERO)
@@ -111,7 +109,11 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 
 
 func _refresh_water(columns: Array[Dictionary]) -> void:
-	## Tween water_fill on existing layer materials from old to new values.
+	# Kill any in-progress water tweens to prevent accumulation
+	for tw: Tween in _water_tweens:
+		if tw.is_valid():
+			tw.kill()
+	_water_tweens.clear()
 	var mat_idx := 0
 	for col_data: Dictionary in columns:
 		var soil_state: Dictionary = col_data.get("soil_state", {})
@@ -133,30 +135,26 @@ func _refresh_water(columns: Array[Dictionary]) -> void:
 					new_fill,
 					0.4,
 				)
+				_water_tweens.append(tw)
 			mat_idx += 1
 
 
 func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
-	## Rebuild roots and labels without touching layer meshes.
-	## Column containers are direct children; roots/labels are tagged.
+	# Rebuild roots without touching layer meshes.
+	# Column containers are direct children; roots are tagged as dynamic.
 	var col_idx := 0
 	for child: Node in get_children():
 		if not child is Node3D or col_idx >= columns.size():
 			continue
 		var col_data: Dictionary = columns[col_idx]
-		# Remove existing roots and labels (tagged nodes)
 		for sub: Node in child.get_children():
 			if sub.has_meta("soil_view_dynamic"):
 				sub.queue_free()
 		var profile: Array = col_data.get("profile", [])
 		var rdcm: float = col_data.get("root_depth_cm", 0.0)
-		var show_info: bool = col_data.get("show_info", false)
 		var crop_key: String = col_data.get("crop_key", "")
-		var soil_state: Dictionary = col_data.get("soil_state", {})
 		if rdcm > 0.0:
 			_build_roots(child, profile, rdcm, crop_key)
-		if show_info:
-			_build_info_labels(child, profile, soil_state)
 		col_idx += 1
 
 
@@ -205,7 +203,7 @@ func is_active() -> bool:
 
 func _clear() -> void:
 	_layer_materials.clear()
-	_last_columns.clear()
+	_water_tweens.clear()
 	for child in get_children():
 		child.queue_free()
 
