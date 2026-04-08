@@ -6,9 +6,11 @@ extends Node3D
 
 const MAX_TUBES := 20
 
-## Substance colors per art guide
+## Substance colors — NH4 and NO3 distinct for visible transformations
 const COLOR_WATER := Color(0.376, 0.647, 0.980, 0.8)
-const COLOR_NITROGEN := Color(0.290, 0.871, 0.502, 0.8)
+const COLOR_NO3 := Color(0.290, 0.871, 0.502, 0.8)  # bright green — mobile nitrate
+const COLOR_NH4 := Color(0.2, 0.75, 0.75, 0.8)  # teal/cyan — ammonium (held by clay)
+const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in organic matter
 const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
 const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
 
@@ -56,23 +58,23 @@ const EVENT_CONFIG := {
 	},
 	"NitrificationOccurred":
 	{
-		"color": COLOR_NITROGEN,
+		"color": COLOR_NH4,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "Nitrification",
+		"label": "NH4 \u2192 NO3",
 	},
 	"MineralizationOccurred":
 	{
-		"color": COLOR_NITROGEN,
+		"color": COLOR_ORGANIC_N,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "Mineralization",
+		"label": "Org-N \u2192 NH4",
 	},
 	"DenitrificationOccurred":
 	{
-		"color": COLOR_NITROGEN,
+		"color": COLOR_NO3,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
@@ -80,19 +82,19 @@ const EVENT_CONFIG := {
 	},
 	"VolatilizationOccurred":
 	{
-		"color": COLOR_NITROGEN,
+		"color": COLOR_NH4,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
-		"label": "Volatilization",
+		"label": "NH3 loss",
 	},
 	"NutrientLeached":
 	{
-		"color": COLOR_NITROGEN,
+		"color": COLOR_NO3,
 		"substance": "nitrogen",
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
-		"label": "Leaching",
+		"label": "NO3 leaching",
 	},
 	"PhosphorusFixationOccurred":
 	{
@@ -192,10 +194,10 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 		{
 			"start": Vector3(fx_soil, l1y, fz + 0.1),
 			"end": Vector3(fx_soil, l1y, fz + 0.35),
-			"color": COLOR_NITROGEN,
+			"color": COLOR_NH4,
 			"magnitude": 0.6,
 			"speed": 0.8,
-			"label_text": "Nitrification",
+			"label_text": "NH4 \u2192 NO3",
 		},
 		{
 			"start": Vector3(fx_soil, l2y, fz + 0.1),
