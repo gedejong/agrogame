@@ -143,27 +143,33 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 
 
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
-	## Animated spheres that follow the curve path exactly.
 	if path.size() < 2:
 		return
-	# Build a Path3D with Curve3D from the path points
 	var path_node := Path3D.new()
 	var curve := Curve3D.new()
-	for pt in path:
-		curve.add_point(Vector3(pt))
+	# Add points with smooth tangent handles to prevent jitter at joints
+	for pi in range(path.size()):
+		var pt: Vector3 = path[pi]
+		var tangent := Vector3.ZERO
+		if pi < path.size() - 1 and pi > 0:
+			tangent = (Vector3(path[pi + 1]) - Vector3(path[pi - 1])) * 0.25
+		elif pi < path.size() - 1:
+			tangent = (Vector3(path[pi + 1]) - pt) * 0.25
+		elif pi > 0:
+			tangent = (pt - Vector3(path[pi - 1])) * 0.25
+		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
 	var count: int = clampi(int(magnitude * 15.0), 4, 20)
-	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.35
+	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.2
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
 	p_mat.emission = color
 	p_mat.emission_energy_multiplier = 1.5
 	for i in range(count):
-		# Randomize size, speed, and offset from center
 		var hash_v: float = fmod(float(i * 7 + 3) * 0.618, 1.0)
-		var size_mult: float = 0.6 + hash_v * 0.8
+		var size_mult: float = 0.5 + hash_v * 0.6
 		var speed_mult: float = 0.7 + fmod(float(i * 13 + 5) * 0.618, 1.0) * 0.6
 		var sphere := SphereMesh.new()
 		sphere.radius = base_r * size_mult
@@ -173,14 +179,14 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = p_mat
 		var follow := PathFollow3D.new()
 		follow.loop = true
-		follow.progress_ratio = float(i) / float(count)
-		follow.set_meta("flow_speed", absf(speed) * 0.4 * speed_mult)
+		# Random start position along path (not all at 0)
+		follow.progress_ratio = fmod(float(i) / float(count) + hash_v * 0.3, 1.0)
+		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		# Slight random offset from tube center
-		var off_x: float = (hash_v - 0.5) * base_r * 1.5
-		var off_z: float = (fmod(float(i * 11) * 0.618, 1.0) - 0.5) * base_r * 1.5
+		var off_x: float = (hash_v - 0.5) * base_r * 1.2
+		var off_z: float = (fmod(float(i * 11) * 0.618, 1.0) - 0.5) * base_r * 1.2
 		mi.position = Vector3(off_x, 0, off_z)
 		follow.add_child(mi)
 		path_node.add_child(follow)
