@@ -56,9 +56,9 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	cyl.radial_segments = RADIAL_SEGMENTS
 	cyl.cap_top = false
 	cyl.cap_bottom = false
+	# Visual mesh: transparent glass, no depth write, no shadow cast
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
 	mat.metallic = 0.2
 	mat.metallic_specular = 0.7
@@ -71,10 +71,17 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	_tube_mesh = MeshInstance3D.new()
 	_tube_mesh.mesh = cyl
 	_tube_mesh.material_override = mat
-	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_tube_mesh.position = mid
 	_tube_mesh.transform.basis = basis
 	add_child(_tube_mesh)
+	# Shadow-only mesh: invisible opaque duplicate for shadow casting
+	var shadow_mesh := MeshInstance3D.new()
+	shadow_mesh.mesh = cyl
+	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	shadow_mesh.position = mid
+	shadow_mesh.transform.basis = basis
+	add_child(shadow_mesh)
 
 
 func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
@@ -126,7 +133,6 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 			st.add_index(base_a + s_next)
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_ALWAYS
 	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
 	mat.metallic = 0.2
 	mat.metallic_specular = 0.7
@@ -136,12 +142,19 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	mat.emission_energy_multiplier = 0.08
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material = mat
+	var committed_mesh: ArrayMesh = st.commit()
+	# Visual mesh: transparent, no shadow
 	var mesh_inst := MeshInstance3D.new()
-	mesh_inst.mesh = st.commit()
+	mesh_inst.mesh = committed_mesh
 	mesh_inst.material_override = mat
-	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	mesh_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mesh_inst)
 	_tube_mesh = mesh_inst
+	# Shadow-only duplicate
+	var shadow_inst := MeshInstance3D.new()
+	shadow_inst.mesh = committed_mesh
+	shadow_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	add_child(shadow_inst)
 
 
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
