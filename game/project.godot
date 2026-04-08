@@ -11,7 +11,8 @@ config_version=5
 [agrogame]
 
 debug/auto_cutaway=true
-debug/flow_tubes_test=false
+debug/flow_tubes_test=true
+debug/orbit_camera=true
 
 [animation]
 
