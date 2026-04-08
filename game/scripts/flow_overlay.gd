@@ -157,17 +157,22 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	var l1y: float = (_layer_positions[0] + _layer_positions[1]) * 0.5
 	var l2y: float = (_layer_positions[1] + _layer_positions[2]) * 0.5
 	var l3y: float = (_layer_positions[2] + _layer_positions[3]) * 0.5
+	# Surface y=0. Rain/transpiration/CO2 are above-ground tubes.
+	# Infiltration goes from surface down into soil layers.
+	# Nitrification/P fixation are within-layer horizontal tubes.
+	var surface_y: float = 0.0
+	var above: float = 0.12
 	var test_configs: Array[Dictionary] = [
 		{
-			"start": Vector3(fx, 0.06, fz - 0.3),
-			"end": Vector3(fx, l1y, fz - 0.3),
+			"start": Vector3(fx, surface_y + above * 2.0, fz - 0.3),
+			"end": Vector3(fx, surface_y + 0.01, fz - 0.3),
 			"color": COLOR_WATER,
 			"magnitude": 0.8,
 			"speed": 1.5,
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(fx, l1y, fz - 0.15),
+			"start": Vector3(fx, surface_y, fz - 0.15),
 			"end": Vector3(fx, l2y, fz - 0.15),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
@@ -175,8 +180,8 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"label_text": "Infiltration",
 		},
 		{
-			"start": Vector3(fx, l2y, fz),
-			"end": Vector3(fx, 0.04, fz),
+			"start": Vector3(fx, surface_y + 0.01, fz),
+			"end": Vector3(fx, surface_y + above * 2.0, fz),
 			"color": COLOR_WATER,
 			"magnitude": 0.3,
 			"speed": 1.0,
@@ -199,8 +204,8 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"label_text": "P Fixation",
 		},
 		{
-			"start": Vector3(fx, l3y, fz + 0.15),
-			"end": Vector3(fx, 0.04, fz + 0.15),
+			"start": Vector3(fx, surface_y + 0.01, fz + 0.15),
+			"end": Vector3(fx, surface_y + above * 2.0, fz + 0.15),
 			"color": COLOR_CARBON,
 			"magnitude": 0.3,
 			"speed": 1.0,
@@ -295,7 +300,8 @@ func _build_tube_config(
 
 	match direction:
 		"down":
-			var y_top := _layer_midpoint_y(layer_idx)
+			# Infiltration/percolation: surface → into soil layer
+			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
 			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
@@ -303,11 +309,12 @@ func _build_tube_config(
 			end = Vector3(face_x, y_bot, face_z)
 			speed = absf(speed)
 		"up":
-			var y_mid := _layer_midpoint_y(layer_idx)
-			start = Vector3(face_x, y_mid, face_z)
-			end = Vector3(face_x, y_mid + 0.1, face_z)
-			speed = -absf(speed)
+			# Evaporation/transpiration/CO2: surface upward (above ground)
+			start = Vector3(face_x, 0.01, face_z)
+			end = Vector3(face_x, 0.2, face_z)
+			speed = absf(speed)
 		"lateral":
+			# Within-layer processes: horizontal along Z at layer midpoint
 			var y_mid := _layer_midpoint_y(layer_idx)
 			start = Vector3(face_x, y_mid, face_z + 0.05)
 			end = Vector3(face_x, y_mid, face_z + 0.3)

@@ -82,19 +82,18 @@ func _build_particles(
 
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.5
-	mat.emission_box_extents = Vector3(radius, length * 0.45, radius)
-	# No gravity — particles flow along tube via initial velocity
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.3
+	# Tight emission: particles spawn within tube radius, along tube length
+	mat.emission_box_extents = Vector3(radius, length * 0.4, radius)
 	mat.gravity = Vector3.ZERO
-	# Particles spawn along tube length (Y-aligned) and move in Y direction
-	# The tube's basis rotates Y to match start→end, so Y velocity = flow direction
+	# Flow along tube axis (Y in local space, rotated by tube basis)
 	var flow_speed: float = length * speed * 0.5
-	mat.initial_velocity_min = flow_speed * 0.8
-	mat.initial_velocity_max = flow_speed * 1.2
+	mat.initial_velocity_min = flow_speed * 0.9
+	mat.initial_velocity_max = flow_speed * 1.1
 	mat.direction = Vector3(0, 1, 0)
-	mat.spread = 5.0
-	mat.scale_min = 0.4
-	mat.scale_max = 0.7
+	mat.spread = 1.0
+	mat.scale_min = 0.3
+	mat.scale_max = 0.5
 	mat.color = Color(color.r, color.g, color.b, 0.9)
 	_particles.process_material = mat
 
@@ -127,11 +126,10 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	_label.modulate = Color(color.r, color.g, color.b, 0.9)
 	_label.no_depth_test = true
 	_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-	# Position label offset from tube, oriented along tube direction
 	var mid := (start + end) * 0.5
 	var tube_dir := (end - start).normalized()
-	# Offset label outward from the cutaway face (+X direction)
-	_label.position = mid + Vector3(0.04, 0, 0)
+	# Offset label outward from tube, away from cutaway face
+	_label.position = mid + Vector3(0.06, 0, 0.04)
 	# Align label along tube: look_at the end from the start
 	var label_up := Vector3.UP
 	if absf(tube_dir.dot(Vector3.UP)) > 0.9:
