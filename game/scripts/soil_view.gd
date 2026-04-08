@@ -183,12 +183,6 @@ func _update_flow_overlay(columns: Array[Dictionary]) -> void:
 	var events: Array = center.get("events", [])
 	var profile: Array = center.get("profile", [])
 	var pos: Vector3 = center.get("pos", Vector3.ZERO)
-	print("[FlowOverlay] events=%d, profile=%d, pos=%s" % [events.size(), profile.size(), str(pos)])
-	if events.size() > 0:
-		var types: Array = []
-		for e: Dictionary in events.slice(0, 5):
-			types.append(e.get("event_type", "?"))
-		print("[FlowOverlay] first types: %s" % str(types))
 	_flow_overlay.update_from_events(events, profile, pos)
 
 
