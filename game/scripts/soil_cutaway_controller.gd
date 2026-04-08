@@ -150,14 +150,13 @@ func _get_soil_column(
 	var events: Array = []
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
-		# Aggregate events from all patches for flow visualization
-		for pi in range(patch_list.size()):
-			var p_events: Array = patch_list[pi].get("events", [])
-			events.append_array(p_events)
-		if patch_idx < patch_list.size():
-			var patch: Dictionary = patch_list[patch_idx]
+		# Use matching patch, fall back to patch 0 if not enough patches
+		var pi: int = patch_idx if patch_idx < patch_list.size() else 0
+		if pi < patch_list.size():
+			var patch: Dictionary = patch_list[pi]
 			soil_state = patch.get("soil_state", {})
 			root_depth_cm = patch.get("root_depth_cm", 0.0)
+			events = patch.get("events", [])
 	if soil_state.is_empty():
 		return {}
 	var crop_key: String = tile_data[idx].get("crop_key", "")
