@@ -361,34 +361,45 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var face_x_atmo: float = _pillar_pos.x + 0.48
 	var face_x_soil: float = _pillar_pos.x + 0.52
 	var face_z: float = _pillar_pos.z
+	# Aggregate magnitudes by event type — one tube per type, not per event
+	var agg: Dictionary = {}
+	var agg_data: Dictionary = {}
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
 		if not EVENT_CONFIG.has(etype):
 			continue
-		var ecfg: Dictionary = EVENT_CONFIG[etype]
 		var data: Dictionary = evt.get("data", {})
-		var mag := _extract_magnitude(data, ecfg)
+		var mag := _extract_magnitude(data, EVENT_CONFIG[etype])
 		if mag < 0.001:
 			continue
-		var tube_cfg := _build_tube_config(ecfg, data, mag, face_x_atmo, face_x_soil, face_z)
+		agg[etype] = agg.get(etype, 0.0) + mag
+		if not agg_data.has(etype):
+			agg_data[etype] = data
+	for etype: String in agg:
+		var ecfg: Dictionary = EVENT_CONFIG[etype]
+		var total_mag: float = agg[etype]
+		var tube_cfg := _build_tube_config(
+			ecfg, agg_data[etype], total_mag, face_x_atmo, face_x_soil, face_z
+		)
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
-		# Rain connector: sky → surface when infiltration is significant
-		if etype == "WaterInfiltrated" and mag > RAIN_CONNECTOR_MM:
-			var rain_mag: float = clampf(mag / 10.0, 0.1, 1.0)
-			(
-				configs
-				. append(
-					{
-						"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.2),
-						"end": Vector3(face_x_atmo, 0.01, face_z - 0.2),
-						"color": COLOR_WATER,
-						"magnitude": rain_mag,
-						"speed": 2.0,
-						"label_text": "Rain",
-					}
-				)
+	# Rain connector: sky -> surface when infiltration is significant
+	var rain_total: float = agg.get("WaterInfiltrated", 0.0)
+	if rain_total > RAIN_CONNECTOR_MM:
+		var rain_mag: float = clampf(rain_total / 10.0, 0.1, 1.0)
+		(
+			configs
+			. append(
+				{
+					"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.2),
+					"end": Vector3(face_x_atmo, 0.01, face_z - 0.2),
+					"color": COLOR_WATER,
+					"magnitude": rain_mag,
+					"speed": 2.0,
+					"label_text": "Rain",
+				}
 			)
+		)
 	return configs
 
 
