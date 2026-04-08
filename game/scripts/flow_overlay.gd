@@ -148,8 +148,8 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	clear_tubes()
 	_layer_positions = [0.0, -0.125, -0.3, -0.5]
 	_pillar_pos = pillar_pos
-	# +X face of the cutaway box (CUTAWAY_WIDTH/2 + offset from pillar)
-	var fx: float = pillar_pos.x + 0.52
+	# On the +X edge of the tile (CUTAWAY_WIDTH/2, flush with surface)
+	var fx: float = pillar_pos.x + 0.48
 	var fz: float = pillar_pos.z
 	# Spread tubes along the Z axis on the face
 	# Vertical tubes in a column at the face, spread along Z
@@ -242,8 +242,8 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 
 func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var configs: Array[Dictionary] = []
-	# +X face of cutaway box (CUTAWAY_WIDTH/2 + small offset)
-	var face_x: float = _pillar_pos.x + 0.52
+	# On +X edge of tile (flush with surface)
+	var face_x: float = _pillar_pos.x + 0.48
 	var face_z: float = _pillar_pos.z
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")

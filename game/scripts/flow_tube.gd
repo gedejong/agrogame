@@ -25,7 +25,7 @@ static func create(config: Dictionary) -> FlowTube:
 	var speed: float = config.get("speed", 1.0)
 	var label_text: String = config.get("label_text", "")
 
-	tube._build_tube(start, end, color, magnitude, speed)
+	tube._build_tube(start, end, color, magnitude)
 	if not label_text.is_empty():
 		tube._build_label(start, end, label_text, color)
 	tube._build_particles(start, end, color, magnitude, speed)
@@ -33,7 +33,7 @@ static func create(config: Dictionary) -> FlowTube:
 
 
 func _build_tube(
-	start: Vector3, end: Vector3, color: Color, magnitude: float, speed: float
+	start: Vector3, end: Vector3, color: Color, magnitude: float
 ) -> void:
 	var dir := end - start
 	var length := dir.length()
@@ -50,9 +50,8 @@ func _build_tube(
 	_material = ShaderMaterial.new()
 	_material.shader = GLASS_SHADER
 	_material.set_shader_parameter("liquid_color", color)
-	_material.set_shader_parameter("flow_speed", speed)
 	_material.set_shader_parameter("fill_level", clampf(magnitude, 0.3, 0.9))
-	_material.render_priority = 1
+	_material.render_priority = 0
 
 	_tube_mesh = MeshInstance3D.new()
 	_tube_mesh.mesh = cyl
@@ -123,29 +122,23 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	_label.text = text
 	_label.font_size = 28
 	_label.pixel_size = 0.001
-	_label.modulate = Color(color.r, color.g, color.b, 0.9)
+	_label.outline_size = 6
+	_label.outline_modulate = Color(0, 0, 0, 0.6)
+	_label.modulate = Color(color.r, color.g, color.b, 1.0)
 	_label.no_depth_test = true
-	_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	_label.render_priority = 10
+	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	var mid := (start + end) * 0.5
-	var tube_dir := (end - start).normalized()
-	# Offset label outward from tube, away from cutaway face
-	_label.position = mid + Vector3(0.06, 0, 0.04)
-	# Align label along tube: look_at the end from the start
-	var label_up := Vector3.UP
-	if absf(tube_dir.dot(Vector3.UP)) > 0.9:
-		label_up = Vector3.FORWARD
-	_label.look_at(mid + tube_dir, label_up)
-	_label.rotation.y += PI * 0.5
+	_label.position = mid + Vector3(0.05, 0.02, 0)
 	add_child(_label)
 
 
 func set_speed(speed: float) -> void:
-	if _material:
-		_material.set_shader_parameter("flow_speed", speed)
 	if _particles and _particles.process_material:
 		var mat: ParticleProcessMaterial = _particles.process_material
-		var old_grav := mat.gravity
-		mat.gravity = old_grav.normalized() * speed * 0.3
+		var flow_v: float = _particles.visibility_aabb.size.y * speed * 0.5
+		mat.initial_velocity_min = flow_v * 0.9
+		mat.initial_velocity_max = flow_v * 1.1
 
 
 func set_magnitude(magnitude: float) -> void:
