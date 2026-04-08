@@ -57,14 +57,14 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	cyl.cap_top = false
 	cyl.cap_bottom = false
 	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-	mat.albedo_color = Color(color.r, color.g, color.b, 0.3)
-	mat.metallic = 0.15
-	mat.metallic_specular = 0.6
-	mat.roughness = 0.12
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
+	mat.metallic = 0.2
+	mat.metallic_specular = 0.7
+	mat.roughness = 0.08
 	mat.emission_enabled = true
 	mat.emission = color
-	mat.emission_energy_multiplier = 0.12
+	mat.emission_energy_multiplier = 0.08
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material = mat
 	_tube_mesh = MeshInstance3D.new()
@@ -82,27 +82,35 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var segs := RADIAL_SEGMENTS
+	# Consistent reference up vector for stable cross-sections
+	var ref_up := Vector3.UP
 	# Generate rings of vertices at each path point
 	for pi in range(path.size()):
 		var p: Vector3 = path[pi]
-		# Direction: forward difference (or backward at last point)
-		var fwd := Vector3.UP
-		if pi < path.size() - 1:
+		# Smooth direction: average of forward and backward differences
+		var fwd := Vector3.FORWARD
+		if pi < path.size() - 1 and pi > 0:
+			var f1 := (Vector3(path[pi + 1]) - p).normalized()
+			var f2 := (p - Vector3(path[pi - 1])).normalized()
+			fwd = ((f1 + f2) * 0.5).normalized()
+		elif pi < path.size() - 1:
 			fwd = (Vector3(path[pi + 1]) - p).normalized()
 		elif pi > 0:
 			fwd = (p - Vector3(path[pi - 1])).normalized()
 		if fwd.is_zero_approx():
-			fwd = Vector3.UP
-		var side := Vector3.RIGHT if absf(fwd.dot(Vector3.RIGHT)) < 0.95 else Vector3.FORWARD
-		var x_ax := fwd.cross(side).normalized()
-		var z_ax := x_ax.cross(fwd).normalized()
+			fwd = Vector3.FORWARD
+		# Stable basis using consistent up reference
+		var x_ax := ref_up.cross(fwd).normalized()
+		if x_ax.is_zero_approx():
+			x_ax = Vector3.RIGHT
+		var z_ax := fwd.cross(x_ax).normalized()
 		var v: float = float(pi) / float(maxi(path.size() - 1, 1))
 		for si in range(segs):
 			var angle: float = float(si) / float(segs) * TAU
-			var offset := (x_ax * cos(angle) + z_ax * sin(angle)) * radius
+			var ring_offset := (x_ax * cos(angle) + z_ax * sin(angle)) * radius
 			st.set_normal((x_ax * cos(angle) + z_ax * sin(angle)).normalized())
 			st.set_uv(Vector2(float(si) / float(segs), v))
-			st.add_vertex(p + offset)
+			st.add_vertex(p + ring_offset)
 	# Connect rings with triangles
 	for pi in range(path.size() - 1):
 		var base_a: int = pi * segs
@@ -116,14 +124,14 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 			st.add_index(base_b + s_next)
 			st.add_index(base_a + s_next)
 	var mat := StandardMaterial3D.new()
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_DEPTH_PRE_PASS
-	mat.albedo_color = Color(color.r, color.g, color.b, 0.3)
-	mat.metallic = 0.15
-	mat.metallic_specular = 0.6
-	mat.roughness = 0.12
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
+	mat.metallic = 0.2
+	mat.metallic_specular = 0.7
+	mat.roughness = 0.08
 	mat.emission_enabled = true
 	mat.emission = color
-	mat.emission_energy_multiplier = 0.12
+	mat.emission_energy_multiplier = 0.08
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	_material = mat
 	var mesh_inst := MeshInstance3D.new()
@@ -145,28 +153,35 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		curve.add_point(Vector3(pt))
 	path_node.curve = curve
 	add_child(path_node)
-	# Spawn animated sphere followers
-	var count: int = clampi(int(magnitude * 8.0), 2, 10)
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.4
-	var sphere := SphereMesh.new()
-	sphere.radius = radius
-	sphere.height = radius * 2.0
-	sphere.radial_segments = 4
-	sphere.rings = 2
-	var smat := StandardMaterial3D.new()
-	smat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
-	smat.emission_enabled = true
-	smat.emission = color
-	smat.emission_energy_multiplier = 1.2
-	sphere.material = smat
+	var count: int = clampi(int(magnitude * 15.0), 4, 20)
+	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.35
+	var p_mat := StandardMaterial3D.new()
+	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
+	p_mat.emission_enabled = true
+	p_mat.emission = color
+	p_mat.emission_energy_multiplier = 1.5
 	for i in range(count):
+		# Randomize size, speed, and offset from center
+		var hash_v: float = fmod(float(i * 7 + 3) * 0.618, 1.0)
+		var size_mult: float = 0.6 + hash_v * 0.8
+		var speed_mult: float = 0.7 + fmod(float(i * 13 + 5) * 0.618, 1.0) * 0.6
+		var sphere := SphereMesh.new()
+		sphere.radius = base_r * size_mult
+		sphere.height = base_r * size_mult * 2.0
+		sphere.radial_segments = 4
+		sphere.rings = 2
+		sphere.material = p_mat
 		var follow := PathFollow3D.new()
 		follow.loop = true
 		follow.progress_ratio = float(i) / float(count)
-		follow.set_meta("flow_speed", absf(speed) * 0.15)
+		follow.set_meta("flow_speed", absf(speed) * 0.4 * speed_mult)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		# Slight random offset from tube center
+		var off_x: float = (hash_v - 0.5) * base_r * 1.5
+		var off_z: float = (fmod(float(i * 11) * 0.618, 1.0) - 0.5) * base_r * 1.5
+		mi.position = Vector3(off_x, 0, off_z)
 		follow.add_child(mi)
 		path_node.add_child(follow)
 	# Store for _process animation
