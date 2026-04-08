@@ -26,6 +26,7 @@ func _ready() -> void:
 	add_child(_season_request)
 	_season_request.request_completed.connect(_on_season_completed)
 	_step_request = HTTPRequest.new()
+	_step_request.download_chunk_size = 65536
 	add_child(_step_request)
 	_step_request.request_completed.connect(_on_step_completed)
 	_action_request = HTTPRequest.new()
@@ -108,6 +109,7 @@ func step_day(game_id: String, days: int, callback: Callable) -> void:
 func _on_step_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:
+	print("[API] step response: %d bytes, code=%d" % [body.size(), response_code])
 	_dispatch_callback(_step_callback, result, response_code, body)
 
 
