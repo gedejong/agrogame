@@ -42,8 +42,9 @@ fog_light_color = Color(0.3, 0.32, 0.4, 1)
 fog_density = 0.002
 fog_aerial_perspective = 0.3
 ssao_enabled = true
-ssao_radius = 1.5
-ssao_intensity = 1.5
+ssao_radius = 2.0
+ssao_intensity = 2.5
+ssao_light_affect = 0.3
 
 [node name="FarmView" type="Node3D"]
 script = ExtResource("1")

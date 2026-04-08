@@ -58,23 +58,24 @@ var _tex_cache := {}
 
 
 static func get_profile_layers(soil_type: String) -> Array:
+	# Soil horizons: A (topsoil) → B (subsoil) → C (parent material)
 	match soil_type:
 		"sandy":
 			return [
 				{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
 				{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
-				{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+				{"depth_cm": 40, "texture": "clay", "saturation": 0.40},
 			]
 		"clay":
 			return [
-				{"depth_cm": 30, "texture": "clay", "saturation": 0.55},
+				{"depth_cm": 30, "texture": "loam", "saturation": 0.48},
 				{"depth_cm": 35, "texture": "clay", "saturation": 0.54},
 				{"depth_cm": 40, "texture": "clay", "saturation": 0.53},
 			]
 		_:
 			return [
 				{"depth_cm": 25, "texture": "loam", "saturation": 0.45},
-				{"depth_cm": 35, "texture": "loam", "saturation": 0.44},
+				{"depth_cm": 35, "texture": "clay", "saturation": 0.44},
 				{"depth_cm": 40, "texture": "loam", "saturation": 0.42},
 			]
 
@@ -258,7 +259,7 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		mat.set_shader_parameter("tint_color", color)
 		mat.set_shader_parameter("water_fill", fill_frac)
 		mat.set_shader_parameter("box_height", h)
-		mat.set_shader_parameter("emission_strength", 0.35)
+		mat.set_shader_parameter("emission_strength", 0.1)
 		if albedo_tex:
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:
