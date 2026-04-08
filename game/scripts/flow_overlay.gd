@@ -192,16 +192,14 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"label_text": "Transpiration",
 		},
 		{
-			"start": Vector3(fx_soil, l1y, fz + 0.1),
-			"end": Vector3(fx_soil, l1y, fz + 0.35),
+			"path": _make_lateral_path(fx_soil, l1y, fz + 0.1, fz + 0.35, 0.06),
 			"color": COLOR_NH4,
 			"magnitude": 0.6,
 			"speed": 0.8,
 			"label_text": "NH4 \u2192 NO3",
 		},
 		{
-			"start": Vector3(fx_soil, l2y, fz + 0.1),
-			"end": Vector3(fx_soil, l2y, fz + 0.35),
+			"path": _make_lateral_path(fx_soil, l2y, fz + 0.1, fz + 0.35, 0.06),
 			"color": COLOR_PHOSPHORUS,
 			"magnitude": 0.4,
 			"speed": 0.5,
@@ -242,6 +240,32 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 	if layer_idx < 0 or layer_idx + 1 >= _layer_positions.size():
 		return 0.0
 	return (_layer_positions[layer_idx] + _layer_positions[layer_idx + 1]) * 0.5
+
+
+static func _make_lateral_path(
+	face_x: float, y: float, z_start: float, z_end: float, bend_r: float
+) -> Array:
+	## Build a path: curve out of face → straight → curve back into face.
+	## bend_r = radius of the 90-degree bends.
+	var pts: Array = []
+	var steps := 4
+	# Entry curve: from inside face going outward then turning along Z
+	for i in range(steps + 1):
+		var t: float = float(i) / float(steps)
+		var angle: float = PI * 0.5 * t
+		var cx: float = face_x + sin(angle) * bend_r
+		var cz: float = z_start - bend_r + cos(angle) * bend_r
+		pts.append(Vector3(cx, y, cz))
+	# Straight section
+	pts.append(Vector3(face_x + bend_r, y, z_end - bend_r))
+	# Exit curve: turning from along Z back into face
+	for i in range(steps + 1):
+		var t: float = float(i) / float(steps)
+		var angle: float = PI * 0.5 * t
+		var cx: float = face_x + bend_r - sin(angle) * bend_r
+		var cz: float = z_end - bend_r + cos(angle) * bend_r
+		pts.append(Vector3(cx, y, cz))
+	return pts
 
 
 func _events_to_configs(events: Array) -> Array[Dictionary]:
@@ -318,11 +342,17 @@ func _build_tube_config(
 			end = Vector3(fx_atmo, 0.2, face_z)
 			speed = absf(speed)
 		"lateral":
-			# Within-layer: on cutaway face, horizontal along Z
+			# Within-layer: curved path — out of face, straight, back in
 			var y_mid := _layer_midpoint_y(layer_idx)
-			start = Vector3(fx_soil, y_mid, face_z + 0.05)
-			end = Vector3(fx_soil, y_mid, face_z + 0.3)
+			var path := _make_lateral_path(fx_soil, y_mid, face_z + 0.05, face_z + 0.3, 0.06)
 			speed = absf(speed)
+			return {
+				"path": path,
+				"color": color,
+				"magnitude": norm_mag,
+				"speed": speed,
+				"label_text": label,
+			}
 
 	return {
 		"start": start,

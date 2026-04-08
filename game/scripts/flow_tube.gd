@@ -16,6 +16,7 @@ var _material: StandardMaterial3D = null
 
 static func create(config: Dictionary) -> FlowTube:
 	## Build a flow tube from config: start, end, color, magnitude, speed, label_text.
+	## Optional "path": Array[Vector3] for multi-segment tubes with curves.
 	var tube := FlowTube.new()
 	var start: Vector3 = config.get("start", Vector3.ZERO)
 	var end: Vector3 = config.get("end", Vector3(0, -0.1, 0))
@@ -23,11 +24,19 @@ static func create(config: Dictionary) -> FlowTube:
 	var magnitude: float = clampf(config.get("magnitude", 0.5), 0.01, 1.0)
 	var speed: float = config.get("speed", 1.0)
 	var label_text: String = config.get("label_text", "")
+	var path: Array = config.get("path", [])
 
-	tube._build_tube(start, end, color, magnitude)
-	if not label_text.is_empty():
-		tube._build_label(start, end, label_text, color)
-	tube._build_particles(start, end, color, magnitude, speed)
+	if path.size() >= 2:
+		for i in range(path.size() - 1):
+			tube._build_tube(path[i], path[i + 1], color, magnitude)
+		tube._build_particles(path[0], path[path.size() - 1], color, magnitude, speed)
+		if not label_text.is_empty():
+			tube._build_label(path[0], path[path.size() - 1], label_text, color)
+	else:
+		tube._build_tube(start, end, color, magnitude)
+		if not label_text.is_empty():
+			tube._build_label(start, end, label_text, color)
+		tube._build_particles(start, end, color, magnitude, speed)
 	return tube
 
 
