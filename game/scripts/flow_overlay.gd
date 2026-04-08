@@ -46,7 +46,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_mm",
 		"label": "Evaporation",
-		"z_slot": -0.35
+		"z_slot": -0.45
 	},
 	"TranspirationByLayer":
 	{
@@ -55,7 +55,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "total_mm",
 		"label": "Transpiration",
-		"z_slot": -0.2
+		"z_slot": -0.3
 	},
 	"RunoffGenerated":
 	{
@@ -73,7 +73,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.05
+		"z_slot": 0.0
 	},
 	"MineralizationOccurred":
 	{
@@ -82,7 +82,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.15
+		"z_slot": 0.2
 	},
 	"DenitrificationOccurred":
 	{
@@ -91,7 +91,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
-		"z_slot": 0.05
+		"z_slot": 0.1
 	},
 	"VolatilizationOccurred":
 	{
@@ -100,7 +100,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
-		"z_slot": 0.15
+		"z_slot": 0.25
 	},
 	"NutrientLeached":
 	{
@@ -118,7 +118,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": 0.25
+		"z_slot": 0.35
 	},
 	"SOMDecomposed":
 	{
@@ -127,7 +127,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": 0.35
+		"z_slot": 0.5
 	},
 	"CO2Respired":
 	{
@@ -135,8 +135,8 @@ const EVENT_CONFIG := {
 		"substance": "carbon",
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
-		"label": "CO2 Respiration",
-		"z_slot": 0.3
+		"label": "Soil CO2 \u2191",
+		"z_slot": 0.4
 	},
 }
 
@@ -404,8 +404,8 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 			configs
 			. append(
 				{
-					"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.2),
-					"end": Vector3(face_x_atmo, 0.01, face_z - 0.2),
+					"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.15),
+					"end": Vector3(face_x_atmo, 0.01, face_z - 0.15),
 					"color": COLOR_WATER,
 					"magnitude": rain_mag,
 					"speed": 2.0,
