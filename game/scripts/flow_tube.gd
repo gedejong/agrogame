@@ -284,15 +284,30 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 
 
 func fade_in(duration: float = 0.4) -> void:
-	modulate = Color(1, 1, 1, 0)
-	var tw := create_tween()
-	tw.tween_property(self, "modulate", Color(1, 1, 1, 1), duration)
+	if _material:
+		var target_alpha: float = _material.albedo_color.a
+		_material.albedo_color.a = 0.0
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			0.0,
+			target_alpha,
+			duration,
+		)
 
 
 func fade_out(duration: float = 0.4) -> void:
-	var tw := create_tween()
-	tw.tween_property(self, "modulate", Color(1, 1, 1, 0), duration)
-	tw.tween_callback(queue_free)
+	if _material:
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.0,
+			duration,
+		)
+		tw.tween_callback(queue_free)
+	else:
+		queue_free()
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:

@@ -127,8 +127,8 @@ func test_fade_in_sets_transparent() -> void:
 	)
 	add_child_autofree(tube)
 	tube.fade_in(0.1)
-	# Modulate alpha should start at 0
-	assert_lt(tube.modulate.a, 0.01, "Should start transparent for fade in")
+	# Material alpha should start at 0
+	assert_lt(tube._material.albedo_color.a, 0.01, "Should start transparent")
 
 
 func test_pulse_no_crash() -> void:
