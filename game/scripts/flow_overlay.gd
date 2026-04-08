@@ -195,7 +195,6 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 	# Lateral tubes run along Z at the face, at layer midpoints
 	var l1y: float = (_layer_positions[0] + _layer_positions[1]) * 0.5
 	var l2y: float = (_layer_positions[1] + _layer_positions[2]) * 0.5
-	var l3y: float = (_layer_positions[2] + _layer_positions[3]) * 0.5
 	# Surface y=0. Rain/transpiration/CO2 are above-ground tubes.
 	# Infiltration goes from surface down into soil layers.
 	# Nitrification/P fixation are within-layer horizontal tubes.

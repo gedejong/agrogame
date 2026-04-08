@@ -681,6 +681,6 @@ func _debug_step_and_show() -> void:
 				return
 			_last_step_data = data
 			_apply_day_result(data)
-			_select_tile(3, 3)
+			_select_tile(1, 3)
 			_show_soil_cutaway()
 	)

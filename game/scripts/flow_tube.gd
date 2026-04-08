@@ -46,7 +46,7 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 		return
 	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
 	var mid := (start + end) * 0.5
-	var basis := _basis_along(dir)
+	var tube_basis := _basis_along(dir)
 
 	# Single mesh: colored tube with slight transparency and specular
 	var cyl := CylinderMesh.new()
@@ -73,14 +73,14 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	_tube_mesh.material_override = mat
 	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_tube_mesh.position = mid
-	_tube_mesh.transform.basis = basis
+	_tube_mesh.transform.basis = tube_basis
 	add_child(_tube_mesh)
 	# Shadow-only mesh: invisible opaque duplicate for shadow casting
 	var shadow_mesh := MeshInstance3D.new()
 	shadow_mesh.mesh = cyl
 	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	shadow_mesh.position = mid
-	shadow_mesh.transform.basis = basis
+	shadow_mesh.transform.basis = tube_basis
 	add_child(shadow_mesh)
 
 
