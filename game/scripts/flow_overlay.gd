@@ -176,8 +176,7 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"label_text": "Rain",
 		},
 		{
-			"start": Vector3(fx_soil, surface_y, fz - 0.15),
-			"end": Vector3(fx_soil, l2y, fz - 0.15),
+			"path": _make_vertical_path(fx_soil, surface_y, l2y, fz - 0.15, 0.04),
 			"color": COLOR_WATER,
 			"magnitude": 0.5,
 			"speed": 1.0,
@@ -240,6 +239,31 @@ func _layer_midpoint_y(layer_idx: int) -> float:
 	if layer_idx < 0 or layer_idx + 1 >= _layer_positions.size():
 		return 0.0
 	return (_layer_positions[layer_idx] + _layer_positions[layer_idx + 1]) * 0.5
+
+
+static func _make_vertical_path(
+	face_x: float, y_top: float, y_bot: float, face_z: float, bend_r: float
+) -> Array:
+	## Curve out of face at y_top, straight down, curve back in at y_bot.
+	var pts: Array = []
+	var steps := 5
+	# Entry curve: (face_x, y_top) -> (face_x + bend_r, y_top - bend_r)
+	for i in range(steps + 1):
+		var t: float = float(i) / float(steps)
+		var angle: float = PI * 0.5 * t
+		var cx: float = face_x + sin(angle) * bend_r
+		var cy: float = y_top - (1.0 - cos(angle)) * bend_r
+		pts.append(Vector3(cx, cy, face_z))
+	# Straight vertical section at outer X
+	pts.append(Vector3(face_x + bend_r, y_bot + bend_r, face_z))
+	# Exit curve: (face_x + bend_r, y_bot + bend_r) -> (face_x, y_bot)
+	for i in range(steps + 1):
+		var t: float = float(i) / float(steps)
+		var angle: float = PI * 0.5 * t
+		var cx: float = face_x + cos(angle) * bend_r
+		var cy: float = y_bot + bend_r - sin(angle) * bend_r
+		pts.append(Vector3(cx, cy, face_z))
+	return pts
 
 
 static func _make_lateral_path(
@@ -329,14 +353,20 @@ func _build_tube_config(
 
 	match direction:
 		"down":
-			# Infiltration/percolation: on cutaway face, into soil
+			# Infiltration/percolation: curved out, down, curved back in
 			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
 			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
-			start = Vector3(fx_soil, y_top, face_z)
-			end = Vector3(fx_soil, y_bot, face_z)
+			var path := _make_vertical_path(fx_soil, y_top, y_bot, face_z, 0.04)
 			speed = absf(speed)
+			return {
+				"path": path,
+				"color": color,
+				"magnitude": norm_mag,
+				"speed": speed,
+				"label_text": label,
+			}
 		"up":
 			# Atmospheric: on tile surface, upward
 			start = Vector3(fx_atmo, 0.01, face_z)
