@@ -148,6 +148,8 @@ func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
 	# Column containers are direct children; roots are tagged as dynamic.
 	var col_idx := 0
 	for child: Node in get_children():
+		if child == _flow_overlay:
+			continue
 		if not child is Node3D or col_idx >= columns.size():
 			continue
 		var col_data: Dictionary = columns[col_idx]
@@ -230,8 +232,6 @@ func is_active() -> bool:
 func _clear() -> void:
 	_layer_materials.clear()
 	_water_tweens.clear()
-	if _flow_overlay:
-		_flow_overlay.clear_tubes()
 	for child in get_children():
 		child.queue_free()
 	_flow_overlay = null

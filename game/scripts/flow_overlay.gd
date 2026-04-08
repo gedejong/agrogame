@@ -346,7 +346,13 @@ func _build_tube_config(
 		"carbon":
 			norm_mag = clampf(mag / 5.0, 0.05, 1.0)
 
-	var layer_idx: int = int(data.get("layer", data.get("from_layer", 0)))
+	# WaterInfiltrated uses "layer_indices" array; others use "layer" or "from_layer"
+	var layer_indices: Array = data.get("layer_indices", [])
+	var layer_idx: int = (
+		int(layer_indices[0])
+		if not layer_indices.is_empty()
+		else int(data.get("layer", data.get("from_layer", 0)))
+	)
 	var start := Vector3.ZERO
 	var end := Vector3.ZERO
 	var speed: float = norm_mag * 2.0

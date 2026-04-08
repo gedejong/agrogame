@@ -2,13 +2,18 @@ extends GutTest
 ## Tests for FlowOverlay tube network manager.
 
 const FlowOverlayRef = preload("res://scripts/flow_overlay.gd")
-const SoilViewRef = preload("res://scripts/soil_view.gd")
+
+const TEST_PROFILE: Array[Dictionary] = [
+	{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
+	{"depth_cm": 35, "texture": "sand", "saturation": 0.37},
+	{"depth_cm": 40, "texture": "sand", "saturation": 0.36},
+]
 
 
 func test_empty_events_no_tubes() -> void:
 	var overlay := FlowOverlayRef.new()
 	add_child_autofree(overlay)
-	overlay.update_from_events([], SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events([], TEST_PROFILE, Vector3.ZERO)
 	assert_eq(overlay._tubes.size(), 0, "No events = no tubes")
 
 
@@ -22,7 +27,7 @@ func test_water_infiltrated_creates_tube() -> void:
 			"data": {"layer_indices": [0], "amounts_mm": [5.0]},
 		}
 	]
-	overlay.update_from_events(events, SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_gt(overlay._tubes.size(), 0, "WaterInfiltrated should create a tube")
 
 
@@ -36,7 +41,7 @@ func test_zero_magnitude_no_tube() -> void:
 			"data": {"layer_indices": [0], "amounts_mm": [0.0]},
 		}
 	]
-	overlay.update_from_events(events, SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_eq(overlay._tubes.size(), 0, "Zero magnitude = no tube")
 
 
@@ -56,7 +61,7 @@ func test_max_tubes_capped() -> void:
 				}
 			)
 		)
-	overlay.update_from_events(events, SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_lte(overlay._tubes.size(), FlowOverlayRef.MAX_TUBES, "Capped at MAX_TUBES")
 
 
@@ -70,7 +75,7 @@ func test_clear_tubes() -> void:
 			"data": {"amount_mm": 2.0},
 		}
 	]
-	overlay.update_from_events(events, SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_gt(overlay._tubes.size(), 0)
 	overlay.clear_tubes()
 	assert_eq(overlay._tubes.size(), 0, "clear_tubes empties array")
@@ -86,7 +91,7 @@ func test_unknown_event_ignored() -> void:
 			"data": {"value": 42},
 		}
 	]
-	overlay.update_from_events(events, SoilViewRef.get_profile_layers("sandy"), Vector3.ZERO)
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_eq(overlay._tubes.size(), 0, "Unknown events ignored")
 
 
