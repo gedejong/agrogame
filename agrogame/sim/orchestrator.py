@@ -225,6 +225,9 @@ class FullSimulationOrchestrator:
         self.crop_history: list[str] = []
         self.management_plan = management_plan or ManagementPlan()
         self._day_counter: int = 0
+        # Track last biomass increment for dynamic N/P demand (DSSAT approach:
+        # today's demand = yesterday's growth × tissue concentration).
+        self._last_biomass_inc_g_m2: float = 0.0
 
         # Crop parameters (use preset or defaults)
         phen_params = crop.phenology if crop else _default_phen_params()
@@ -308,6 +311,10 @@ class FullSimulationOrchestrator:
             chemistry=self.chem,
         )
         _ = CanopyRuntime(self.event_bus, self.canopy)
+        # Track biomass increments for dynamic N/P demand computation
+        from agrogame.soil.canopy.events import BiomassAccumulated
+
+        self.event_bus.subscribe(BiomassAccumulated, self._on_biomass_accumulated)
 
     def _som_pool_lists(self, attr: str) -> list[float]:
         """Extract per-layer SOM pool attribute as list."""
@@ -400,6 +407,7 @@ class FullSimulationOrchestrator:
         """
         self._current_crop = new_crop
         self._day_counter = 0
+        self._last_biomass_inc_g_m2 = 0.0
         # Capture soil state
         soil = self.snapshot_soil()
 
@@ -441,6 +449,31 @@ class FullSimulationOrchestrator:
         # Re-wire all runtime listeners
         self._wire_runtimes()
 
+    def _on_biomass_accumulated(self, ev: Any) -> None:
+        self._last_biomass_inc_g_m2 = float(ev.increment_g_m2)
+
+    def _compute_nutrient_demand(self) -> tuple[float, float]:
+        """Compute N and P demand from previous day's biomass increment.
+
+        Demand = biomass_increment (g/m² → kg/ha) × tissue_conc × demand_factor.
+        The demand_factor (2.0) accounts for luxury uptake and the fact that
+        newly formed tissue needs higher N concentration than the whole-plant
+        average (young leaves ~4% N vs whole-plant 2-3%).
+        Ref: DSSAT CERES (Jones et al. 2003); APSIM N-demand algorithm.
+        """
+        crop = self._current_crop
+        if crop is None:
+            return 0.0, 0.0
+        inc_kg_ha = self._last_biomass_inc_g_m2 * 0.01  # g/m² → kg/ha
+        # Factor 2.0: new tissue is N-richer than whole-plant average
+        demand_factor = 2.0
+        n_demand = inc_kg_ha * crop.tissue_n_conc_kg_kg * demand_factor
+        p_demand = inc_kg_ha * crop.tissue_p_conc_kg_kg * demand_factor
+        # Small baseline for maintenance uptake when growth is minimal
+        n_demand = max(n_demand, 0.01)
+        p_demand = max(p_demand, 0.001)
+        return n_demand, p_demand
+
     def step_day(
         self,
         drivers: DailyDrivers,
@@ -449,8 +482,8 @@ class FullSimulationOrchestrator:
         tmax_c: float,
         par_mj_m2: float,
         sim_date: date | None = None,
-        plant_n_demand_kg_ha: float = 1.0,
-        plant_p_demand_kg_ha: float = 0.1,
+        plant_n_demand_kg_ha: float | None = None,
+        plant_p_demand_kg_ha: float | None = None,
         target_ph: float = 6.8,
     ) -> None:
         # Execute scheduled management events for this day
@@ -468,6 +501,12 @@ class FullSimulationOrchestrator:
                     f"choose from 'irrigate', 'fertilize'"
                 )
 
+        # Compute dynamic demand from previous day's biomass increment
+        # unless the caller explicitly provides values.
+        dyn_n, dyn_p = self._compute_nutrient_demand()
+        n_demand = plant_n_demand_kg_ha if plant_n_demand_kg_ha is not None else dyn_n
+        p_demand = plant_p_demand_kg_ha if plant_p_demand_kg_ha is not None else dyn_p
+
         # Drive daily progression solely via DayTick phases
         self.calendar.tick(
             sim_date=sim_date or date.today(),
@@ -476,8 +515,8 @@ class FullSimulationOrchestrator:
             tmin_c=tmin_c,
             tmax_c=tmax_c,
             par_mj_m2=par_mj_m2,
-            plant_n_demand_kg_ha=plant_n_demand_kg_ha,
-            plant_p_demand_kg_ha=plant_p_demand_kg_ha,
+            plant_n_demand_kg_ha=n_demand,
+            plant_p_demand_kg_ha=p_demand,
         )
         self._day_counter += 1
 

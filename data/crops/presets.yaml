@@ -3,6 +3,10 @@
 crops:
   maize:
     name: "Maize (Zea mays)"
+    # Tissue nutrient concentrations (kg nutrient / kg DM).
+    # DSSAT CERES-Maize: whole-plant N 2.5-3.5%; P ~0.3%
+    tissue_n_conc_kg_kg: 0.030
+    tissue_p_conc_kg_kg: 0.003
     phenology:
       base_temperature_c: 8.0
       max_temperature_c: 35.0
@@ -47,6 +51,9 @@ crops:
 
   winter_wheat:
     name: "Winter Wheat (Triticum aestivum)"
+    # APSIM-Wheat: whole-plant N ~2.0-2.5%; P ~0.3%
+    tissue_n_conc_kg_kg: 0.025
+    tissue_p_conc_kg_kg: 0.003
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
@@ -83,6 +90,8 @@ crops:
 
   spring_wheat:
     name: "Spring Wheat (Triticum aestivum)"
+    tissue_n_conc_kg_kg: 0.025
+    tissue_p_conc_kg_kg: 0.003
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
@@ -111,6 +120,9 @@ crops:
 
   rice:
     name: "Rice (Oryza sativa)"
+    # DSSAT CERES-Rice: whole-plant N ~2.0-2.5%; P ~0.25%
+    tissue_n_conc_kg_kg: 0.022
+    tissue_p_conc_kg_kg: 0.0025
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -139,6 +151,9 @@ crops:
 
   sorghum:
     name: "Sorghum (Sorghum bicolor)"
+    # DSSAT CERES-Sorghum: whole-plant N ~2.5%; P ~0.3%
+    tissue_n_conc_kg_kg: 0.025
+    tissue_p_conc_kg_kg: 0.003
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -167,6 +182,9 @@ crops:
   soybean:
     name: "Soybean (Glycine max)"
     n_fixation_credit_kg_ha: 60.0  # Peoples et al. (2009): 40-80 kg N/ha
+    # Legumes: higher N from fixation, tissue N ~4-5%; P ~0.3%
+    tissue_n_conc_kg_kg: 0.045
+    tissue_p_conc_kg_kg: 0.003
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -194,6 +212,9 @@ crops:
 
   grape:
     name: "Grape (Vitis vinifera)"
+    # Perennial vine: lower tissue N ~1.5-2.0%; P ~0.2%
+    tissue_n_conc_kg_kg: 0.018
+    tissue_p_conc_kg_kg: 0.002
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 35.0
