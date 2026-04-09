@@ -676,7 +676,7 @@ func _debug_plant_next(crops: Array, idx: int) -> void:
 func _debug_step_and_show() -> void:
 	_api_client.step_day(
 		_game_id,
-		7,
+		21,
 		func(success: bool, data: Dictionary) -> void:
 			if not success:
 				return

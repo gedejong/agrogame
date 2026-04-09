@@ -13,6 +13,9 @@ func _ready() -> void:
 	add_child(api_client)
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	status_label.text = "Ready — backend at localhost:8000"
+	var skip_menu: bool = ProjectSettings.get_setting("agrogame/debug/skip_menu", false)
+	if skip_menu:
+		_on_new_game_pressed()
 
 
 func _on_new_game_pressed() -> void:

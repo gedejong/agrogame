@@ -10,9 +10,10 @@ config_version=5
 
 [agrogame]
 
-debug/auto_cutaway=false
+debug/auto_cutaway=true
 debug/flow_tubes_test=false
 debug/orbit_camera=false
+debug/skip_menu=true
 
 [animation]
 

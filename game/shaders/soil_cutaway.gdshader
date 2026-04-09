@@ -11,7 +11,7 @@ uniform float emission_strength : hint_range(0.0, 1.0) = 0.1;
 uniform float root_strength : hint_range(0.0, 1.0) = 0.0;
 
 const vec3 WATER_COLOR = vec3(0.25, 0.4, 0.6);
-const vec3 ROOT_COLOR = vec3(0.65, 0.5, 0.35);
+const vec3 ROOT_COLOR = vec3(0.72, 0.55, 0.32);
 const float EDGE_SOFT = 0.02;
 
 varying float v_height_norm;
@@ -82,18 +82,26 @@ void fragment() {
 		vec3(tex_norm.xy + (proc_norm.xy - 0.5) * 0.7, tex_norm.z)
 	);
 
-	// Roots: only on side faces (not top/bottom), blend into soil
+	// Roots: on side faces, use triplanar-style sampling for correct mapping
 	if (root_strength > 0.01) {
-		// Side faces have significant X or Z normal component
 		float side_mask = 1.0 - abs(wn.y);
 		if (side_mask > 0.3) {
-			// Sample root texture using UV (maps correctly on box side faces)
-			vec4 root_sample = texture(root_texture, UV);
+			// BoxMesh UV doesn't map well to side faces — use world pos instead.
+			// Map world X or Z (whichever face we're on) to U, world Y to V.
+			vec3 blend_side = abs(wn);
+			// X-facing faces use (Z, Y), Z-facing faces use (X, Y)
+			vec2 root_uv = blend_side.x > blend_side.z
+				? vec2(v_world_pos.z, -v_world_pos.y)
+				: vec2(v_world_pos.x, -v_world_pos.y);
+			// Normalize to 0-1 range based on box dimensions
+			root_uv = fract(root_uv);
+			vec4 root_sample = texture(root_texture, root_uv);
 			float root_alpha = root_sample.a * root_strength * side_mask;
-			// Tint soil with root color where root texture is opaque
-			soil = mix(soil, soil * ROOT_COLOR * 1.5, root_alpha);
-			// Bump: roots protrude slightly from soil surface
-			float root_bump = root_alpha * 0.5;
+			// Draw roots as distinct lighter color over soil
+			vec3 root_col = ROOT_COLOR * (1.2 + grain * 0.2);
+			soil = mix(soil, root_col, root_alpha * 0.85);
+			// Normal bump for 3D depth
+			float root_bump = root_alpha * 0.8;
 			norm = normalize(vec3(
 				norm.x + (root_sample.r - 0.5) * root_bump,
 				norm.y + (root_sample.g - 0.5) * root_bump,
