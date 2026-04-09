@@ -389,17 +389,11 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	# Aggregate by (event_type, layer) for lateral; by event_type for vertical
 	var agg: Dictionary = {}
 	var agg_data: Dictionary = {}
-	# Plant nutrient uptake — split NutrientStressComputed by nutrient type
+	# Plant nutrient uptake — currently hardcoded in simulation (see #223).
+	# Disabled until dynamic demand is implemented.
 	var n_uptake := 0.0
 	var p_uptake := 0.0
-	for evt: Dictionary in events:
-		if evt.get("event_type", "") == "NutrientStressComputed":
-			var d: Dictionary = evt.get("data", {})
-			if d.get("nutrient", "") == "N":
-				n_uptake += float(d.get("uptake_kg_ha", 0.0))
-			elif d.get("nutrient", "") == "P":
-				p_uptake += float(d.get("uptake_kg_ha", 0.0))
-	if n_uptake > 0.01:
+	if false:  # Enable when #223 is done
 		(
 			configs
 			. append(
