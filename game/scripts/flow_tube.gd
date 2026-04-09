@@ -4,8 +4,8 @@ extends Node3D
 ## fill with animated particles flowing along the tube path.
 ## Parameterizable: color, thickness, speed, direction, optional label.
 
-const MIN_RADIUS := 0.008
-const MAX_RADIUS := 0.035
+const MIN_RADIUS := 0.003
+const MAX_RADIUS := 0.03
 const RADIAL_SEGMENTS := 12
 
 var _tube_mesh: MeshInstance3D = null
@@ -44,9 +44,9 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	var length := dir.length()
 	if length < 0.001:
 		return
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var mid := (start + end) * 0.5
-	var basis := _basis_along(dir)
+	var tube_basis := _basis_along(dir)
 
 	# Single mesh: colored tube with slight transparency and specular
 	var cyl := CylinderMesh.new()
@@ -73,20 +73,20 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	_tube_mesh.material_override = mat
 	_tube_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	_tube_mesh.position = mid
-	_tube_mesh.transform.basis = basis
+	_tube_mesh.transform.basis = tube_basis
 	add_child(_tube_mesh)
 	# Shadow-only mesh: invisible opaque duplicate for shadow casting
 	var shadow_mesh := MeshInstance3D.new()
 	shadow_mesh.mesh = cyl
 	shadow_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 	shadow_mesh.position = mid
-	shadow_mesh.transform.basis = basis
+	shadow_mesh.transform.basis = tube_basis
 	add_child(shadow_mesh)
 
 
 func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	## Build a continuous tube mesh along a path using SurfaceTool.
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var segs := RADIAL_SEGMENTS
@@ -179,32 +179,39 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
-	var count: int = clampi(int(magnitude * 15.0), 4, 20)
-	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.2
+	var count: int = clampi(int(magnitude * 60.0), 0, 60)
+	if count < 1:
+		return
+	var particle_r := 0.002
+	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
 	p_mat.emission = color
 	p_mat.emission_energy_multiplier = 1.5
-	# Use truly random values via a seeded sequence (not golden ratio)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
 	for i in range(count):
-		var size_mult: float = 0.4 + rng.randf() * 0.7
-		var speed_mult: float = 0.6 + rng.randf() * 0.8
+		var speed_mult: float = 0.5 + rng.randf() * 1.0
 		var sphere := SphereMesh.new()
-		sphere.radius = base_r * size_mult
-		sphere.height = base_r * size_mult * 2.0
+		sphere.radius = particle_r
+		sphere.height = particle_r * 2.0
 		sphere.radial_segments = 4
 		sphere.rings = 2
 		sphere.material = p_mat
 		var follow := PathFollow3D.new()
-		follow.loop = true
-		follow.progress_ratio = rng.randf()
+		follow.loop = false
+		# Stagger emergence: each particle starts at progress 0 but with
+		# a random delay before it begins moving
+		follow.progress_ratio = 0.0
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
-		# Store random wobble parameters for radial animation
-		follow.set_meta("wobble_phase", rng.randf() * TAU)
-		follow.set_meta("wobble_radius", rng.randf() * base_r * 1.5)
+		follow.set_meta("start_delay", rng.randf() * 3.0)
+		follow.set_meta("age", 0.0)
+		# Random radial offset within tube cross-section
+		var angle: float = rng.randf() * TAU
+		var dist: float = rng.randf() * tube_r * 0.8
+		follow.set_meta("radial_x", cos(angle) * dist)
+		follow.set_meta("radial_z", sin(angle) * dist)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -223,17 +230,18 @@ func _build_particles(
 	if length < 0.001:
 		return
 
+	var p_count: int = clampi(int(magnitude * 60.0), 1, 60)
+	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	_particles = GPUParticles3D.new()
-	_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
+	_particles.amount = p_count
 	_particles.lifetime = maxf(length / maxf(absf(speed) * 0.2, 0.01), 0.5)
 	_particles.emitting = true
 	_particles.visibility_aabb = AABB(Vector3(-0.1, -0.1, -0.1), Vector3(0.2, length + 0.2, 0.2))
 
 	var mat := ParticleProcessMaterial.new()
+	# Emit across the full tube cross-section radius
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.3
-	# Tight emission: particles spawn within tube radius, along tube length
-	mat.emission_box_extents = Vector3(radius, length * 0.4, radius)
+	mat.emission_box_extents = Vector3(tube_r * 0.8, length * 0.4, tube_r * 0.8)
 	mat.gravity = Vector3.ZERO
 	# Flow along tube axis (Y in local space, rotated by tube basis)
 	var flow_speed: float = length * speed * 0.5
@@ -246,10 +254,9 @@ func _build_particles(
 	mat.color = Color(color.r, color.g, color.b, 0.9)
 	_particles.process_material = mat
 
-	# Tiny sphere mesh for each particle
 	var draw_pass := SphereMesh.new()
-	draw_pass.radius = radius * 1.5
-	draw_pass.height = radius * 3.0
+	draw_pass.radius = 0.006
+	draw_pass.height = 0.012
 	draw_pass.radial_segments = 4
 	draw_pass.rings = 2
 	var p_mat := StandardMaterial3D.new()
@@ -280,7 +287,114 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	var mid := (start + end) * 0.5
 	_label.position = mid + Vector3(0.05, 0.02, 0)
+	_label.visible = false
 	add_child(_label)
+	# Hover detection area along the tube
+	var area := Area3D.new()
+	var coll := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	var length := (end - start).length()
+	shape.height = maxf(length, 0.05)
+	shape.radius = 0.04
+	coll.shape = shape
+	area.add_child(coll)
+	area.position = mid
+	area.transform.basis = _basis_along(end - start)
+	area.input_ray_pickable = true
+	area.mouse_entered.connect(func() -> void: _label.visible = true)
+	area.mouse_exited.connect(func() -> void: _label.visible = false)
+	add_child(area)
+
+
+func fade_in(duration: float = 0.4) -> void:
+	if _material:
+		var target_alpha: float = _material.albedo_color.a
+		_material.albedo_color.a = 0.0
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			0.0,
+			target_alpha,
+			duration,
+		)
+
+
+func fade_out(duration: float = 0.4) -> void:
+	if _material:
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.0,
+			duration,
+		)
+		tw.tween_callback(queue_free)
+	else:
+		queue_free()
+
+
+func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
+	new_mag = clampf(new_mag, 0.01, 1.0)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
+		var cyl: CylinderMesh = _tube_mesh.mesh
+		var target_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(new_mag))
+		tw.tween_method(
+			func(r: float) -> void:
+				cyl.top_radius = r
+				cyl.bottom_radius = r,
+			cyl.top_radius,
+			target_r,
+			duration,
+		)
+	if _particles:
+		var target_count := clampi(int(new_mag * 20.0), 2, 20)
+		(
+			tw
+			. tween_callback(func() -> void: _particles.amount = target_count)
+			. set_delay(duration * 0.5)
+		)
+
+
+func pulse(intensity: float = 2.0, duration: float = 0.5) -> void:
+	if _material:
+		var orig_energy: float = _material.emission_energy_multiplier
+		_material.emission_energy_multiplier = orig_energy * intensity
+		var tw := create_tween()
+		tw.tween_property(_material, "emission_energy_multiplier", orig_energy, duration)
+	# Boost path particle brightness briefly
+	if has_meta("path_node"):
+		var pn: Path3D = get_meta("path_node")
+		for child in pn.get_children():
+			if child is PathFollow3D and child.get_child_count() > 0:
+				var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
+				if mi and mi.mesh and mi.mesh.material:
+					var mat: StandardMaterial3D = mi.mesh.material
+					var orig_e: float = mat.emission_energy_multiplier
+					mat.emission_energy_multiplier = orig_e * intensity
+					var tw2 := create_tween()
+					tw2.tween_property(mat, "emission_energy_multiplier", orig_e, duration)
+
+
+func enable_gas_dissipation() -> void:
+	## Make particles fade out and drift upward at the tube's end.
+	## Used for CO2, NH3, N2O — gases escaping into atmosphere.
+	if _particles and _particles.process_material is ParticleProcessMaterial:
+		var pm: ParticleProcessMaterial = _particles.process_material
+		# Slight upward gravity so particles drift up after leaving tube
+		pm.gravity = Vector3(0, 0.15, 0)
+		# Color ramp: full opacity → transparent at end of lifetime
+		var grad := Gradient.new()
+		grad.set_color(0, pm.color)
+		grad.add_point(0.6, pm.color)
+		grad.add_point(1.0, Color(pm.color.r, pm.color.g, pm.color.b, 0.0))
+		var grad_tex := GradientTexture1D.new()
+		grad_tex.gradient = grad
+		pm.color_ramp = grad_tex
+	# Also apply to path-following particles
+	if has_meta("path_node"):
+		set_meta("gas_dissipation", true)
 
 
 func set_speed(speed: float) -> void:
@@ -292,13 +406,13 @@ func set_speed(speed: float) -> void:
 
 
 func set_magnitude(magnitude: float) -> void:
-	magnitude = clampf(magnitude, 0.01, 1.0)
+	magnitude = clampf(magnitude, 0.0, 1.0)
 	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
-		var r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+		var r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 		(_tube_mesh.mesh as CylinderMesh).top_radius = r
 		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
-		_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
+		_particles.amount = clampi(int(magnitude * 60.0), 0, 60)
 
 
 func _process(delta: float) -> void:
@@ -307,16 +421,36 @@ func _process(delta: float) -> void:
 		return
 	var pn: Path3D = get_meta("path_node")
 	var t: float = fmod(Time.get_ticks_msec() * 0.001, 100.0)
+	var is_gas: bool = has_meta("gas_dissipation")
 	for child in pn.get_children():
 		if child is PathFollow3D:
 			var spd: float = child.get_meta("flow_speed")
-			child.progress_ratio = fmod(child.progress_ratio + spd * delta, 1.0)
-			# Wobble: animate radial offset around the path center
-			var phase: float = child.get_meta("wobble_phase")
-			var wobble_r: float = child.get_meta("wobble_radius")
-			var mi: Node3D = child.get_child(0)
-			mi.position.x = sin(t * 3.0 + phase) * wobble_r
-			mi.position.z = cos(t * 2.3 + phase * 1.7) * wobble_r
+			var age: float = child.get_meta("age") + delta
+			var delay: float = child.get_meta("start_delay")
+			child.set_meta("age", age)
+			var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
+			# Wait for staggered start delay
+			if age < delay:
+				mi.visible = false
+				continue
+			# Advance along path
+			child.progress_ratio = clampf(child.progress_ratio + spd * delta, 0.0, 1.0)
+			# Respawn at start when reaching end
+			if child.progress_ratio >= 0.99:
+				child.progress_ratio = 0.0
+				child.set_meta("start_delay", randf() * 0.5)
+				child.set_meta("age", 0.0)
+				mi.visible = false
+				continue
+			mi.visible = true
+			# Fixed radial offset within tube cross-section
+			mi.position.x = child.get_meta("radial_x")
+			mi.position.z = child.get_meta("radial_z")
+			if is_gas:
+				var prog: float = child.progress_ratio
+				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
+				mi.transparency = 1.0 - fade
+				mi.position.y = (1.0 - fade) * 0.03
 
 
 static func _basis_along(dir: Vector3) -> Basis:

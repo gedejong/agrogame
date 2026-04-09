@@ -183,7 +183,9 @@ func _update_flow_overlay(columns: Array[Dictionary]) -> void:
 	var events: Array = center.get("events", [])
 	var profile: Array = center.get("profile", [])
 	var pos: Vector3 = center.get("pos", Vector3.ZERO)
+	print("[FLOW] events=%d profile=%d pos=%s" % [events.size(), profile.size(), str(pos)])
 	_flow_overlay.update_from_events(events, profile, pos)
+	print("[FLOW] tubes=%d" % _flow_overlay._tubes.size())
 
 
 func _build_column(
@@ -288,9 +290,10 @@ func _build_roots(
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
-	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.002, 0, 0), 0)
+	# Root quads sit just inside the face so flow tubes render in front
+	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 - 0.005, 0, 0), 0)
 	q1.set_meta("soil_view_dynamic", true)
-	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.002), 1)
+	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 - 0.005), 1)
 	q2.set_meta("soil_view_dynamic", true)
 
 

@@ -561,6 +561,10 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
             climate_key = patch.config.climate_key
             preset = crops.get_preset(crop_key, climate_key)
             patch.orch.reset_crop(preset)
+            # Re-subscribe recorder (reset_crop clears all event bus subscriptions)
+            from agrogame.events.recorder import EventRecorder
+
+            patch.recorder = EventRecorder(patch.orch.event_bus)
             patch.config = PatchConfig(
                 soil_profile_key=patch.config.soil_profile_key,
                 crop_key=crop_key,

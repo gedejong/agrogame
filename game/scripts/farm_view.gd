@@ -93,8 +93,8 @@ var _daily_history: Dictionary = {}
 func _ready() -> void:
 	_api_client = preload("res://scripts/api_client.gd").new()
 	add_child(_api_client)
-	if GameState.game_id != "":
-		_game_id = GameState.game_id
+	# Force fresh game creation (stale IDs from old server cause empty events)
+	GameState.game_id = ""
 	next_day_btn.pressed.connect(_on_next_day)
 	ff7_btn.pressed.connect(_on_ff7)
 	ff_all_btn.pressed.connect(_on_ff_all)
@@ -333,6 +333,7 @@ func _ensure_game(callback: Callable) -> void:
 				return
 			_game_id = data.get("game_id", "")
 			GameState.game_id = _game_id
+			print("[GAME] created new game: %s" % _game_id)
 			callback.call()
 	)
 
@@ -681,6 +682,6 @@ func _debug_step_and_show() -> void:
 				return
 			_last_step_data = data
 			_apply_day_result(data)
-			_select_tile(3, 3)
+			_select_tile(1, 3)
 			_show_soil_cutaway()
 	)
