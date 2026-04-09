@@ -15,6 +15,7 @@ var _material: StandardMaterial3D = null
 var _color_start := Color.WHITE
 var _color_end := Color.WHITE
 var _has_gradient := false
+var _filtered_out := false
 
 
 static func create(config: Dictionary) -> FlowTube:
@@ -184,18 +185,27 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
 	if path.size() < 2:
 		return
+	# Deduplicate adjacent points to avoid zero-length curve segments
+	# (which cause Godot Basis invert det==0 errors in PathFollow3D).
+	var clean_path: Array[Vector3] = [Vector3(path[0])]
+	for pi in range(1, path.size()):
+		var pt := Vector3(path[pi])
+		if not pt.is_equal_approx(clean_path[clean_path.size() - 1]):
+			clean_path.append(pt)
+	if clean_path.size() < 2:
+		return
 	var path_node := Path3D.new()
 	var curve := Curve3D.new()
 	# Add points with smooth tangent handles to prevent jitter at joints
-	for pi in range(path.size()):
-		var pt: Vector3 = path[pi]
+	for pi in range(clean_path.size()):
+		var pt: Vector3 = clean_path[pi]
 		var tangent := Vector3.ZERO
-		if pi < path.size() - 1 and pi > 0:
-			tangent = (Vector3(path[pi + 1]) - Vector3(path[pi - 1])) * 0.25
-		elif pi < path.size() - 1:
-			tangent = (Vector3(path[pi + 1]) - pt) * 0.25
+		if pi < clean_path.size() - 1 and pi > 0:
+			tangent = (clean_path[pi + 1] - clean_path[pi - 1]) * 0.25
+		elif pi < clean_path.size() - 1:
+			tangent = (clean_path[pi + 1] - pt) * 0.25
 		elif pi > 0:
-			tangent = (pt - Vector3(path[pi - 1])) * 0.25
+			tangent = (pt - clean_path[pi - 1]) * 0.25
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
@@ -223,9 +233,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = shared_mat
 		var follow := PathFollow3D.new()
 		follow.loop = false
-		# Stagger emergence: each particle starts at progress 0 but with
-		# a random delay before it begins moving
-		follow.progress_ratio = 0.0
+		follow.rotation_mode = PathFollow3D.ROTATION_NONE
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
 		follow.set_meta("start_delay", rng.randf() * 3.0)
 		follow.set_meta("age", 0.0)
@@ -239,6 +247,8 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		follow.add_child(mi)
 		path_node.add_child(follow)
+		# progress_ratio defaults to 0.0; don't set it explicitly here
+		# because the FlowTube isn't in the scene tree yet during create().
 	# Store for _process animation
 	set_meta("path_node", path_node)
 	set_process(true)
@@ -347,6 +357,7 @@ func fade_in(duration: float = 0.4) -> void:
 			target_alpha,
 			duration,
 		)
+	_filtered_out = false
 
 
 func fade_out(duration: float = 0.4) -> void:
@@ -361,6 +372,52 @@ func fade_out(duration: float = 0.4) -> void:
 		tw.tween_callback(queue_free)
 	else:
 		queue_free()
+
+
+func filter_show(duration: float = 0.3) -> void:
+	## Show tube after filter — does NOT reset alpha if already visible.
+	if _filtered_out and _material:
+		_filtered_out = false
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.25,
+			duration,
+		)
+		_set_particles_visible(true)
+
+
+func filter_hide(duration: float = 0.3) -> void:
+	## Hide tube via filter — does NOT queue_free.
+	if not _filtered_out and _material:
+		_filtered_out = true
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.0,
+			duration,
+		)
+		_set_particles_visible(false)
+
+
+func _set_particles_visible(vis: bool) -> void:
+	if _particles:
+		_particles.emitting = vis
+		_particles.visible = vis
+	if has_meta("path_node"):
+		var pn: Path3D = get_meta("path_node")
+		for child in pn.get_children():
+			if child is PathFollow3D:
+				child.visible = vis
+	# Hide/show label and disable hover detection
+	if _label:
+		_label.visible = false  # always hide on toggle; hover re-shows
+	for child in get_children():
+		if child is Area3D:
+			child.input_ray_pickable = vis
+			child.monitorable = vis
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
@@ -450,7 +507,6 @@ func _process(delta: float) -> void:
 		set_process(false)
 		return
 	var pn: Path3D = get_meta("path_node")
-	var t: float = fmod(Time.get_ticks_msec() * 0.001, 100.0)
 	var is_gas: bool = has_meta("gas_dissipation")
 	for child in pn.get_children():
 		if child is PathFollow3D:
@@ -495,11 +551,14 @@ func _process(delta: float) -> void:
 
 static func _basis_along(dir: Vector3) -> Basis:
 	# CylinderMesh is Y-aligned; rotate to align Y with dir
-	var up := dir.normalized()
-	if up.is_zero_approx():
+	if dir.length_squared() < 1e-9:
 		return Basis.IDENTITY
+	var up := dir.normalized()
 	# Find a perpendicular vector for the basis
 	var side := Vector3.RIGHT if absf(up.dot(Vector3.RIGHT)) < 0.99 else Vector3.FORWARD
-	var x_axis := up.cross(side).normalized()
+	var x_axis := up.cross(side)
+	if x_axis.length_squared() < 1e-9:
+		return Basis.IDENTITY
+	x_axis = x_axis.normalized()
 	var z_axis := x_axis.cross(up).normalized()
 	return Basis(x_axis, up, z_axis)

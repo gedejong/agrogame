@@ -172,11 +172,23 @@ const EVENT_CONFIG := {
 	},
 }
 
+## Valid cycle filter values.
+const CYCLE_FILTERS := ["all", "water", "nitrogen", "carbon", "phosphorus"]
+## Display names for cycle filters.
+const CYCLE_LABELS := {
+	"all": "ALL FLOWS",
+	"water": "WATER BALANCE",
+	"nitrogen": "NITROGEN CYCLE",
+	"carbon": "CARBON CYCLE",
+	"phosphorus": "PHOSPHORUS CYCLE",
+}
+
 var _tubes: Array[Node3D] = []
 var _layer_positions: Array[float] = []
 var _pillar_pos := Vector3.ZERO
-
 var _prev_configs: Array[Dictionary] = []
+var _active_filter: String = "all"
+var _overlay_visible: bool = true
 
 
 func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector3) -> void:
@@ -222,6 +234,17 @@ func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector
 	_tubes.clear()
 	_tubes = new_tubes
 	_prev_configs = new_configs
+	# Apply current filter/visibility to newly created tubes.
+	# For non-matching new tubes, immediately hide (no fade needed).
+	if _active_filter != "all" or not _overlay_visible:
+		for i in range(_tubes.size()):
+			if not is_instance_valid(_tubes[i]):
+				continue
+			var tube: FlowTube = _tubes[i] as FlowTube
+			var should_show: bool = _overlay_visible and _matches_filter(i)
+			if not should_show:
+				tube._filtered_out = false  # force filter_hide to act
+				tube.filter_hide(0.0)
 	# Detect pulse events
 	_check_pulse_events(events)
 
@@ -338,6 +361,65 @@ func clear_tubes() -> void:
 	_prev_configs.clear()
 
 
+func set_filter(filter_name: String) -> void:
+	## Switch the active cycle filter. Fades non-matching tubes out,
+	## matching tubes in. "all" shows everything.
+	if filter_name not in CYCLE_FILTERS:
+		push_warning("FlowOverlay: unknown filter '%s'" % filter_name)
+		return
+	if filter_name == _active_filter:
+		return
+	_active_filter = filter_name
+	_apply_filter()
+
+
+func get_filter() -> String:
+	return _active_filter
+
+
+func set_overlay_visible(vis: bool) -> void:
+	## Toggle entire overlay visibility with fade.
+	if vis == _overlay_visible:
+		return
+	_overlay_visible = vis
+	for i in range(_tubes.size()):
+		if not is_instance_valid(_tubes[i]):
+			continue
+		var tube: FlowTube = _tubes[i] as FlowTube
+		if vis:
+			if _matches_filter(i):
+				tube.filter_show()
+		else:
+			tube.filter_hide()
+
+
+func is_overlay_visible() -> bool:
+	return _overlay_visible
+
+
+func _apply_filter() -> void:
+	if not _overlay_visible:
+		return
+	for i in range(_tubes.size()):
+		if not is_instance_valid(_tubes[i]):
+			continue
+		var tube: FlowTube = _tubes[i] as FlowTube
+		if _matches_filter(i):
+			tube.filter_show()
+		else:
+			tube.filter_hide()
+
+
+func _matches_filter(tube_idx: int) -> bool:
+	if _active_filter == "all":
+		return true
+	if tube_idx >= _prev_configs.size():
+		return true
+	var cfg: Dictionary = _prev_configs[tube_idx]
+	var substance: String = cfg.get("_substance", "")
+	return substance == _active_filter
+
+
 func _compute_layer_positions(profile_layers: Array) -> void:
 	_layer_positions.clear()
 	var y := 0.0
@@ -421,9 +503,9 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
 		if etype == "NutrientStressComputed":
-			var data: Dictionary = evt.get("data", {})
-			var nutrient: String = str(data.get("nutrient", ""))
-			var uptake: float = float(data.get("uptake_kg_ha", 0.0))
+			var ndata: Dictionary = evt.get("data", {})
+			var nutrient: String = str(ndata.get("nutrient", ""))
+			var uptake: float = float(ndata.get("uptake_kg_ha", 0.0))
 			if nutrient == "N":
 				n_uptake += uptake
 			elif nutrient == "P":
@@ -477,6 +559,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 					"magnitude": rain_mag,
 					"speed": 2.0,
 					"label_text": "Rain",
+					"_substance": "water",
 				}
 			)
 		)
@@ -500,6 +583,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 					"magnitude": clampf(n_uptake / N_UPTAKE_SCALE, 0.01, 1.0),
 					"speed": 1.2,
 					"label_text": n_text,
+					"_substance": "nitrogen",
 				}
 			)
 		)
@@ -520,6 +604,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 					"magnitude": clampf(p_uptake / P_UPTAKE_SCALE, 0.01, 1.0),
 					"speed": 1.2,
 					"label_text": p_text,
+					"_substance": "phosphorus",
 				}
 			)
 		)
@@ -619,6 +704,7 @@ func _build_tube_config(
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
+				"_substance": substance,
 			}
 			if color_end != null:
 				cfg_down["color_end"] = color_end
@@ -647,6 +733,7 @@ func _build_tube_config(
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
+				"_substance": substance,
 			}
 			if color_end != null:
 				cfg_lat["color_end"] = color_end
@@ -659,6 +746,7 @@ func _build_tube_config(
 		"magnitude": norm_mag,
 		"speed": speed,
 		"label_text": label,
+		"_substance": substance,
 	}
 	if color_end != null:
 		cfg_up["color_end"] = color_end

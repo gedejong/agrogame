@@ -206,5 +206,25 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 			var lbl := "%d–%dcm" % [0 if i == 0 else depth, depth]
 			layers_data.append({"depth_label": lbl, "values": vals})
 	_nutrient_panel.show_layers(layers_data)
+	_nutrient_panel.flow_filter_changed.connect(_on_flow_filter)
+	_nutrient_panel.flow_toggle_changed.connect(_on_flow_toggle)
 	_nutrient_panel.visible = true
 	ui_layer.add_child(_nutrient_panel)
+
+
+func _on_flow_filter(filter_name: String) -> void:
+	if not _soil_view or not _soil_view.has_method("get_flow_overlay"):
+		return
+	var overlay: FlowOverlay = _soil_view.get_flow_overlay()
+	if overlay:
+		if not overlay.is_overlay_visible():
+			overlay.set_overlay_visible(true)
+		overlay.set_filter(filter_name)
+
+
+func _on_flow_toggle(vis: bool) -> void:
+	if not _soil_view or not _soil_view.has_method("get_flow_overlay"):
+		return
+	var overlay: FlowOverlay = _soil_view.get_flow_overlay()
+	if overlay:
+		overlay.set_overlay_visible(vis)

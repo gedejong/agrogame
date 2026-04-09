@@ -219,6 +219,10 @@ func _cached_tex(path: String) -> Texture2D:
 	return _tex_cache[path]
 
 
+func get_flow_overlay() -> FlowOverlay:
+	return _flow_overlay
+
+
 func is_active() -> bool:
 	return _active
 
@@ -431,6 +435,7 @@ static func _draw_line_img(
 	var err: int = dx - dy
 	var x := x0
 	var y := y0
+	@warning_ignore("integer_division")
 	var r: int = thickness / 2
 	while true:
 		for tpy in range(-r, r + 1):

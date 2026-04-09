@@ -2,6 +2,7 @@ extends GutTest
 ## Tests for FlowOverlay tube network manager.
 
 const FlowOverlayRef = preload("res://scripts/flow_overlay.gd")
+const NutrientPanelRef = preload("res://scripts/nutrient_panel.gd")
 
 const TEST_PROFILE: Array[Dictionary] = [
 	{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
@@ -217,3 +218,109 @@ func test_rain_connector_added_for_heavy_rain() -> void:
 		if tube is FlowTube and tube._label:
 			labels.append(tube._label.text)
 	assert_has(labels, "Rain", "Heavy rain should add Rain connector tube")
+
+
+func _make_mixed_events() -> Array:
+	## Helper: returns events with water + nitrogen tubes.
+	return [
+		{
+			"event_type": "WaterInfiltrated",
+			"module": "agrogame.soil.water.events",
+			"data": {"layer_indices": [0], "amounts_mm": [5.0]},
+		},
+		{
+			"event_type": "NitrificationOccurred",
+			"module": "agrogame.soil.nitrogen.events",
+			"data": {"layer": 0, "amount_kg_ha": 2.0},
+		},
+		{
+			"event_type": "SOMDecomposed",
+			"module": "agrogame.soil.som.events",
+			"data": {"layer": 0, "decomposed_c_kg_ha": 3.0},
+		},
+	]
+
+
+func test_filter_water_only_shows_water_tubes() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	var total_before: int = overlay._tubes.size()
+	assert_gt(total_before, 1, "Should have multiple tube types")
+	overlay.set_filter("water")
+	assert_eq(overlay.get_filter(), "water")
+	# Check that only water-substance configs match
+	for i in range(overlay._tubes.size()):
+		if i < overlay._prev_configs.size():
+			var sub: String = overlay._prev_configs[i].get("_substance", "")
+			if sub == "water":
+				assert_true(overlay._matches_filter(i), "Water tube should match water filter")
+			else:
+				assert_false(overlay._matches_filter(i), "Non-water tube should not match")
+
+
+func test_filter_nitrogen_only_shows_n_tubes() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	overlay.set_filter("nitrogen")
+	for i in range(overlay._tubes.size()):
+		if i < overlay._prev_configs.size():
+			var sub: String = overlay._prev_configs[i].get("_substance", "")
+			if sub == "nitrogen":
+				assert_true(overlay._matches_filter(i), "N tube should match nitrogen filter")
+			else:
+				assert_false(overlay._matches_filter(i), "Non-N tube should not match")
+
+
+func test_toggle_off_hides_all() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	assert_true(overlay.is_overlay_visible())
+	overlay.set_overlay_visible(false)
+	assert_false(overlay.is_overlay_visible())
+	overlay.set_overlay_visible(true)
+	assert_true(overlay.is_overlay_visible())
+
+
+func test_filter_all_matches_everything() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	overlay.set_filter("all")
+	for i in range(overlay._tubes.size()):
+		assert_true(overlay._matches_filter(i), "All filter should match every tube")
+
+
+func test_invalid_filter_rejected() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.set_filter("water")
+	overlay.set_filter("typo_filter")
+	assert_eq(overlay.get_filter(), "water", "Invalid filter should be rejected")
+
+
+func test_nutrient_panel_emits_filter_signal() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanelRef)
+	add_child_autofree(panel)
+	var received: Array = []
+	panel.flow_filter_changed.connect(func(f: String) -> void: received.append(f))
+	panel.show_layers([])
+	# Simulate clicking the nitrogen filter button
+	panel._on_filter_btn("nitrogen")
+	assert_eq(received, ["nitrogen"], "Should emit filter signal")
+
+
+func test_nutrient_panel_emits_toggle_signal() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanelRef)
+	add_child_autofree(panel)
+	var toggled: Array = []
+	panel.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
+	panel.show_layers([])
+	panel._on_toggle_btn()
+	assert_eq(toggled, [false], "First toggle should emit false")
+	panel._on_toggle_btn()
+	assert_eq(toggled, [false, true], "Second toggle should emit true")
