@@ -179,11 +179,10 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
-	# Particle count scales with magnitude (0 at 0, up to 30)
-	var count: int = int(magnitude * 30.0)
+	var count: int = clampi(int(magnitude * 30.0), 0, 30)
 	if count < 1:
 		return
-	var particle_r := 0.004
+	var particle_r := 0.002
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
@@ -192,7 +191,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
 	for i in range(count):
-		var speed_mult: float = 0.7 + rng.randf() * 0.6
+		var speed_mult: float = 0.5 + rng.randf() * 1.0
 		var sphere := SphereMesh.new()
 		sphere.radius = particle_r
 		sphere.height = particle_r * 2.0
@@ -200,10 +199,12 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.rings = 2
 		sphere.material = p_mat
 		var follow := PathFollow3D.new()
-		follow.loop = true
+		follow.loop = false
 		follow.progress_ratio = rng.randf()
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
-		# Store random wobble parameters for radial animation
+		# Random lifetime: particle disappears and respawns at random position
+		follow.set_meta("lifetime", 1.0 + rng.randf() * 3.0)
+		follow.set_meta("age", rng.randf() * 3.0)
 		follow.set_meta("wobble_phase", rng.randf() * TAU)
 		follow.set_meta("wobble_radius", rng.randf() * particle_r * 3.0)
 		var mi := MeshInstance3D.new()
@@ -249,8 +250,8 @@ func _build_particles(
 	_particles.process_material = mat
 
 	var draw_pass := SphereMesh.new()
-	draw_pass.radius = 0.004
-	draw_pass.height = 0.008
+	draw_pass.radius = 0.006
+	draw_pass.height = 0.012
 	draw_pass.radial_segments = 4
 	draw_pass.rings = 2
 	var p_mat := StandardMaterial3D.new()
@@ -419,13 +420,21 @@ func _process(delta: float) -> void:
 	for child in pn.get_children():
 		if child is PathFollow3D:
 			var spd: float = child.get_meta("flow_speed")
-			child.progress_ratio = fmod(child.progress_ratio + spd * delta, 1.0)
+			var age: float = child.get_meta("age") + delta
+			var lifetime: float = child.get_meta("lifetime")
+			# Respawn at random position when lifetime expires
+			if age >= lifetime:
+				age = 0.0
+				child.progress_ratio = randf()
+				child.set_meta("wobble_phase", randf() * TAU)
+			child.set_meta("age", age)
+			child.progress_ratio = clampf(child.progress_ratio + spd * delta, 0.0, 1.0)
 			var phase: float = child.get_meta("wobble_phase")
 			var wobble_r: float = child.get_meta("wobble_radius")
 			var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
 			mi.position.x = sin(t * 3.0 + phase) * wobble_r
 			mi.position.z = cos(t * 2.3 + phase * 1.7) * wobble_r
-			# Gas dissipation: fade out + upward drift near end of path
+			mi.visible = child.progress_ratio < 0.99
 			if is_gas:
 				var prog: float = child.progress_ratio
 				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
