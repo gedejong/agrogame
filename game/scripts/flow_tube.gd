@@ -206,23 +206,15 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
-	# Shared material for solid-color tubes; per-particle for gradient
-	var shared_mat: StandardMaterial3D = null
-	if not _has_gradient:
-		shared_mat = StandardMaterial3D.new()
-		shared_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
-		shared_mat.emission_enabled = true
-		shared_mat.emission = color
-		shared_mat.emission_energy_multiplier = 1.5
+	# Shared material — gradient particles get unique material duplicates
+	# only when needed (on first _process tick), not at creation time.
+	var shared_mat := StandardMaterial3D.new()
+	shared_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
+	shared_mat.emission_enabled = true
+	shared_mat.emission = _color_start if _has_gradient else color
+	shared_mat.emission_energy_multiplier = 1.5
 	for i in range(count):
 		var speed_mult: float = 0.5 + rng.randf() * 1.0
-		var p_mat := shared_mat
-		if _has_gradient:
-			p_mat = StandardMaterial3D.new()
-			p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
-			p_mat.emission_enabled = true
-			p_mat.emission = _color_start
-			p_mat.emission_energy_multiplier = 1.5
 		var sphere := SphereMesh.new()
 		sphere.radius = particle_r
 		sphere.height = particle_r * 2.0
@@ -486,6 +478,12 @@ func _process(delta: float) -> void:
 			mi.position.z = child.get_meta("radial_z")
 			# Gradient: interpolate particle emission color along path
 			if _has_gradient and mi.mesh and mi.mesh.material is StandardMaterial3D:
+				# Lazy duplicate: first time a particle needs its own color,
+				# duplicate the shared material so we don't affect siblings.
+				if not child.has_meta("owns_material"):
+					mi.mesh = mi.mesh.duplicate()
+					mi.mesh.material = mi.mesh.material.duplicate()
+					child.set_meta("owns_material", true)
 				var pmat: StandardMaterial3D = mi.mesh.material
 				pmat.emission = _color_start.lerp(_color_end, child.progress_ratio)
 			if is_gas:

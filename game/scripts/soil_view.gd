@@ -55,6 +55,10 @@ var _last_center_pos := Vector3.INF
 var _flow_overlay: FlowOverlay = null
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
+## Root texture cache: avoid regenerating 256x512 noise image every step.
+var _cached_root_tex: Texture2D = null
+var _cached_root_depth := -1.0
+var _cached_root_crop := ""
 
 
 static func get_profile_layers(soil_type: String) -> Array:
@@ -222,6 +226,9 @@ func is_active() -> bool:
 func _clear() -> void:
 	_layer_materials.clear()
 	_water_tweens.clear()
+	_cached_root_tex = null
+	_cached_root_depth = -1.0
+	_cached_root_crop = ""
 	for child in get_children():
 		child.queue_free()
 	_flow_overlay = null
@@ -292,6 +299,17 @@ func _build_roots(profile_layers: Array, root_depth_cm: float, crop_key: String)
 		for mat in _layer_materials:
 			mat.set_shader_parameter("root_strength", 0.0)
 		return
+	# Cache: skip regeneration if depth and crop haven't changed
+	var depth_rounded: float = snappedf(root_depth_cm, 0.5)
+	if (
+		_cached_root_tex != null
+		and is_equal_approx(_cached_root_depth, depth_rounded)
+		and _cached_root_crop == crop_key
+	):
+		for mat in _layer_materials:
+			mat.set_shader_parameter("root_texture", _cached_root_tex)
+			mat.set_shader_parameter("root_strength", 1.0)
+		return
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
@@ -300,6 +318,9 @@ func _build_roots(profile_layers: Array, root_depth_cm: float, crop_key: String)
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
+	_cached_root_tex = tex
+	_cached_root_depth = depth_rounded
+	_cached_root_crop = crop_key
 	for mat in _layer_materials:
 		mat.set_shader_parameter("root_texture", tex)
 		mat.set_shader_parameter("root_strength", 1.0)
