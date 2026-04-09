@@ -44,7 +44,7 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 	var length := dir.length()
 	if length < 0.001:
 		return
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var mid := (start + end) * 0.5
 	var tube_basis := _basis_along(dir)
 
@@ -86,7 +86,7 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 
 func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	## Build a continuous tube mesh along a path using SurfaceTool.
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var segs := RADIAL_SEGMENTS
@@ -180,7 +180,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 	path_node.curve = curve
 	add_child(path_node)
 	var count: int = clampi(int(magnitude * 15.0), 4, 20)
-	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.2
+	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude)) * 0.2
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
@@ -231,7 +231,7 @@ func _build_particles(
 
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude) * 0.3
+	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude)) * 0.3
 	# Tight emission: particles spawn within tube radius, along tube length
 	mat.emission_box_extents = Vector3(radius, length * 0.4, radius)
 	mat.gravity = Vector3.ZERO
@@ -316,7 +316,7 @@ func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
 	tw.set_parallel(true)
 	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
 		var cyl: CylinderMesh = _tube_mesh.mesh
-		var target_r := lerpf(MIN_RADIUS, MAX_RADIUS, new_mag)
+		var target_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(new_mag))
 		tw.tween_method(
 			func(r: float) -> void:
 				cyl.top_radius = r
@@ -385,7 +385,7 @@ func set_speed(speed: float) -> void:
 func set_magnitude(magnitude: float) -> void:
 	magnitude = clampf(magnitude, 0.01, 1.0)
 	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
-		var r := lerpf(MIN_RADIUS, MAX_RADIUS, magnitude)
+		var r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 		(_tube_mesh.mesh as CylinderMesh).top_radius = r
 		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
