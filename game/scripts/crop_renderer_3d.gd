@@ -98,19 +98,19 @@ static func build_curved_leaf(
 		var bl := Vector3(-w0, y0, z0)
 		var br := Vector3(w0, y0, z0)
 		var tl := Vector3(-w1, y1, z1)
-		var tr := Vector3(w1, y1, z1)
-		# Triangle 1: bl, br, tr
+		var top_r := Vector3(w1, y1, z1)
+		# Triangle 1: bl, br, top_r
 		st.set_uv(Vector2(t0, 0.0))
 		st.add_vertex(bl)
 		st.set_uv(Vector2(t0, 1.0))
 		st.add_vertex(br)
 		st.set_uv(Vector2(t1, 1.0))
-		st.add_vertex(tr)
-		# Triangle 2: bl, tr, tl
+		st.add_vertex(top_r)
+		# Triangle 2: bl, top_r, tl
 		st.set_uv(Vector2(t0, 0.0))
 		st.add_vertex(bl)
 		st.set_uv(Vector2(t1, 1.0))
-		st.add_vertex(tr)
+		st.add_vertex(top_r)
 		st.set_uv(Vector2(t1, 0.0))
 		st.add_vertex(tl)
 	st.generate_normals()

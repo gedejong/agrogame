@@ -435,6 +435,7 @@ static func _draw_line_img(
 	var err: int = dx - dy
 	var x := x0
 	var y := y0
+	@warning_ignore("integer_division")
 	var r: int = thickness / 2
 	while true:
 		for tpy in range(-r, r + 1):

@@ -224,9 +224,6 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = shared_mat
 		var follow := PathFollow3D.new()
 		follow.loop = false
-		# Stagger emergence: each particle starts at progress 0 but with
-		# a random delay before it begins moving
-		follow.progress_ratio = 0.0
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
 		follow.set_meta("start_delay", rng.randf() * 3.0)
 		follow.set_meta("age", 0.0)
@@ -240,6 +237,8 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		follow.add_child(mi)
 		path_node.add_child(follow)
+		# Set progress after adding to tree (Godot requires Path3D parent)
+		follow.progress_ratio = 0.0
 	# Store for _process animation
 	set_meta("path_node", path_node)
 	set_process(true)
@@ -498,7 +497,6 @@ func _process(delta: float) -> void:
 		set_process(false)
 		return
 	var pn: Path3D = get_meta("path_node")
-	var t: float = fmod(Time.get_ticks_msec() * 0.001, 100.0)
 	var is_gas: bool = has_meta("gas_dissipation")
 	for child in pn.get_children():
 		if child is PathFollow3D:
@@ -543,11 +541,14 @@ func _process(delta: float) -> void:
 
 static func _basis_along(dir: Vector3) -> Basis:
 	# CylinderMesh is Y-aligned; rotate to align Y with dir
-	var up := dir.normalized()
-	if up.is_zero_approx():
+	if dir.length_squared() < 1e-9:
 		return Basis.IDENTITY
+	var up := dir.normalized()
 	# Find a perpendicular vector for the basis
 	var side := Vector3.RIGHT if absf(up.dot(Vector3.RIGHT)) < 0.99 else Vector3.FORWARD
-	var x_axis := up.cross(side).normalized()
+	var x_axis := up.cross(side)
+	if x_axis.length_squared() < 1e-9:
+		return Basis.IDENTITY
+	x_axis = x_axis.normalized()
 	var z_axis := x_axis.cross(up).normalized()
 	return Basis(x_axis, up, z_axis)
