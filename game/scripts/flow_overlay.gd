@@ -470,14 +470,21 @@ func _build_tube_config(
 	var color: Color = ecfg.get("color", COLOR_WATER)
 	var substance: String = ecfg.get("substance", "water")
 	var unit: String = "mm" if substance == "water" else "kg/ha"
-	var label: String = "%s\n%.2f %s" % [ecfg.get("label", ""), mag, unit]
+	# Smart precision: use enough decimals so value isn't "0.00"
+	var val_str: String = "%.2f" % mag
+	if mag > 0.0 and mag < 0.005:
+		val_str = "%.3f" % mag
+	# Skip tube if value too small to display meaningfully
+	if mag < 0.001:
+		return {}
+	var label: String = "%s\n%s %s" % [ecfg.get("label", ""), val_str, unit]
 	# Normalize to 0-1. Denominators from 100-day simulation P75:
 	# Water: median 1-3 mm, max 25 mm. N: median 2-3 kg/ha, max 9.
 	# P: ~0.015 kg/ha (tiny). C: median 20-50, max 140 kg/ha.
 	var norm_mag: float = 0.5
 	match ecfg.get("substance", "water"):
 		"water":
-			norm_mag = clampf(mag / 15.0, 0.05, 1.0)
+			norm_mag = clampf(mag / 5.0, 0.05, 1.0)
 		"nitrogen":
 			norm_mag = clampf(mag / 8.0, 0.05, 1.0)
 		"phosphorus":
