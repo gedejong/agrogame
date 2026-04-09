@@ -54,10 +54,14 @@ func update_from_patches(
 			var patch: Dictionary = patch_list[pi]
 			var events: Array = patch.get("events", [])
 			var soil: String = soil_types[pi] if pi < soil_types.size() else ""
+			var stress_count := 0
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
 				if STRESS_EVENTS.has(etype):
 					active_stresses[soil + "_" + etype] = {"soil": soil, "event": etype}
+					stress_count += 1
+			if stress_count > 0 or events.size() > 0:
+				print("[STRESS] patch %d: %d events, %d stress" % [pi, events.size(), stress_count])
 	var tile_stresses: Dictionary = {}
 	for key: String in active_stresses:
 		var info: Dictionary = active_stresses[key]
