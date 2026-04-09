@@ -237,7 +237,101 @@ Sparkline graphs and bar indicators follow these rules:
 
 The previous art guide referenced "Monument Valley meets agricultural textbook" — that aesthetic applies to the **3D world** (terrain, crops, soil). The UI design system described above applies to all **2D overlay panels, buttons, and HUD elements**. The two coexist: warm 3D world visible through cool-dark glassmorphism panels.
 
-## Asset Specifications
+## Procedural Soil PBR Materials
+
+### Overview
+
+Soil surfaces use procedurally generated PBR texture families, not hand-painted textures. Each soil type is a **parameterized material family** where appearance transforms across moisture, SOM, and density states while preserving soil identity.
+
+See issues #195 (pipeline), #196 (sand), #197 (clay), #198 (lime) for generation details.
+
+### Material Outputs Per Variant
+
+| Map | Format | Notes |
+|-----|--------|-------|
+| Albedo | 1024×1024 PNG, sRGB | No baked directional lighting |
+| Normal | 1024×1024 PNG, linear | Tangent-space, game-ready |
+| Roughness | 1024×1024 PNG, linear | Varies with moisture and crusting |
+| Ambient Occlusion | 1024×1024 PNG, linear | Follows pore/aggregate structure |
+| Metallic | 1024×1024 PNG, linear | Near zero for all soils |
+| Height | 1024×1024 PNG, linear | Optional displacement |
+| ORM (packed) | 1024×1024 PNG, linear | R=AO, G=roughness, B=metallic |
+
+All maps must be seamlessly tileable in X and Y.
+
+### Parameter Space
+
+| Dimension | Values | Visual Effect |
+|-----------|--------|---------------|
+| **Soil family** | sand, clay, lime | Base character (granular vs plastic vs chalky) |
+| **SOM** | low, medium, high | Darkening, organic fragment visibility |
+| **Moisture** | dry, moist, wet, saturated | Darkening, roughness reduction, reflectivity |
+| **Density** | loose, medium, compacted | Porosity reduction, crusting, packing |
+
+### Multi-Scale Strategy
+
+Three texture bands per variant for zoom-resilient rendering:
+
+| Scale | What's visible | UV multiplier | Distance |
+|-------|---------------|--------------|----------|
+| **Macro** | Field-scale tonal variation, patterning | 1× | Far zoom |
+| **Meso** | Clods, cracks, crust patches, aggregates | 4–8× | Mid zoom |
+| **Micro** | Individual grains, pores, organic specks | 16–32× | Close zoom |
+
+In-engine blending uses camera zoom level (orthographic) to interpolate weights between scales. Detail normal blending (UDN) for normal maps — not simple lerp.
+
+### Soil Family Visual Identity
+
+| Family | Key Features | Dry Color | Wet Color |
+|--------|-------------|-----------|-----------|
+| **Sand** | Visible grains, low cohesion, fast drainage | Light tan (10YR 6/3) | Dark tan |
+| **Clay** | Desiccation cracks (dry), plastic/smooth (wet), aggregates | Grey-brown (5YR 4/4) | Dark, smooth |
+| **Lime** | Pale carbonate, chalky powder, nodule fragments | Cream (10YR 7/2) | Moderate darkening |
+
+### File Naming
+
+```
+{family}__som-{som}__moisture-{moisture}__density-{density}__scale-{scale}__map-{type}.png
+```
+
+### Directory Structure
+
+```
+game/assets/materials/soil/{family}/{variant_id}/
+  maps/       # PBR texture files
+  previews/   # Rendered thumbnails
+  metadata/   # JSON + YAML per variant
+```
+
+### Surface vs Cross-Section Textures
+
+The game renders soil in two contexts that require different texture sets:
+
+| Context | View | Texture Type | Features |
+|---------|------|-------------|----------|
+| **Tile surface** | Top-down (ground plane) | Surface | Weathered crust, cracks, litter, surface grains |
+| **Cutaway interior** | Side face (vertical cut) | Cross-section | Horizon banding, aggregate interiors, root channels, pores |
+
+Cross-section textures add a **depth zone** dimension (A/B/C horizon):
+- **A (topsoil)**: darkest, most organic, most roots
+- **B (subsoil)**: lighter, clay/mineral accumulation, fewer roots
+- **C (parent material)**: lightest, least weathered, coarsest
+
+The cutaway shader selects texture by face normal: top face → surface texture, side faces → cross-section texture.
+
+See #201 for cross-section texture generation.
+
+### Godot Integration
+
+- `StandardMaterial3D` with separate maps or `ORMMaterial3D` with packed ORM
+- Shader selects variant based on simulation state (θ → moisture level, SOM → darkness)
+- Cutaway shader: top face uses surface texture, side faces use cross-section texture (selected by face normal)
+- Texture arrays for efficient GPU binding across moisture states
+- See #199 for multi-scale shader blending implementation
+
+## Asset Specifications (Legacy 2D)
+
+> **Note**: The specifications below are for the legacy 2D SVG assets. The 3D game now uses procedural PBR materials (above) for soil surfaces and procedural geometry for crops. These specs are retained for reference.
 
 ### Isometric Soil Tiles
 - **Size**: 64x32 pixels (isometric diamond)

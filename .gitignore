@@ -45,3 +45,4 @@ game/.godot/
 game/.mono/
 game/bin/
 *.import
+jira_export.csv
