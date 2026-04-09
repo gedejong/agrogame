@@ -231,6 +231,9 @@ var _overlay_visible: bool = true
 func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector3) -> void:
 	## Update tube network with smooth transitions.
 	_compute_layer_positions(profile_layers)
+	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
+		events = events.duplicate()
+		events.append_array(_debug_stress_events())
 	_pillar_pos = pillar_pos
 	var new_configs := _events_to_configs(events)
 	new_configs.sort_custom(
@@ -357,6 +360,42 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 		var tube := FlowTube.create(cfg)
 		_tubes.append(tube)
 		add_child(tube)
+
+
+static func _debug_stress_events() -> Array:
+	## Inject fake frost/heat/waterlogging events for visual debugging.
+	return [
+		{
+			"event_type": "FrostDamageApplied",
+			"module": "debug",
+			"data":
+			{
+				"lai_loss": 0.4,
+				"biomass_loss_g_m2": 20.0,
+				"tmin_c": -5.0,
+				"severity": 0.5,
+			},
+		},
+		{
+			"event_type": "HeatDamageApplied",
+			"module": "debug",
+			"data":
+			{
+				"grain_reduction_factor": 0.5,
+				"tmax_c": 38.0,
+			},
+		},
+		{
+			"event_type": "WaterloggingDetected",
+			"module": "debug",
+			"data":
+			{
+				"layer": 0,
+				"theta": 0.45,
+				"saturation": 0.45,
+			},
+		},
+	]
 
 
 static func _tube_key(cfg: Dictionary, idx: int) -> String:
