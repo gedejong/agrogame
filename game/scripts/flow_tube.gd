@@ -38,15 +38,17 @@ static func create(config: Dictionary) -> FlowTube:
 	else:
 		tube._color_end = color
 
+	var always_label: bool = config.get("always_show_label", false)
+
 	if path.size() >= 2:
 		tube._build_path_tube(path, color, magnitude)
 		tube._build_path_particles(path, color, magnitude, speed)
 		if not label_text.is_empty():
-			tube._build_label(path[0], path[path.size() - 1], label_text, color)
+			tube._build_label(path[0], path[path.size() - 1], label_text, color, always_label)
 	else:
 		tube._build_tube(start, end, color, magnitude)
 		if not label_text.is_empty():
-			tube._build_label(start, end, label_text, color)
+			tube._build_label(start, end, label_text, color, always_label)
 		tube._build_particles(start, end, color, magnitude, speed)
 	return tube
 
@@ -314,7 +316,9 @@ func _build_particles(
 	add_child(_particles)
 
 
-func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> void:
+func _build_label(
+	start: Vector3, end: Vector3, text: String, color: Color, always_visible: bool = false
+) -> void:
 	_label = Label3D.new()
 	_label.text = text
 	_label.font_size = 28
@@ -327,7 +331,7 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	var mid := (start + end) * 0.5
 	_label.position = mid + Vector3(0.05, 0.02, 0)
-	_label.visible = false
+	_label.visible = always_visible
 	add_child(_label)
 	# Hover detection area along the tube
 	var area := Area3D.new()

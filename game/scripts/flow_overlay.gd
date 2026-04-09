@@ -183,6 +183,7 @@ const EVENT_CONFIG := {
 		"mag_key": "severity",
 		"label": "Frost damage",
 		"z_slot": -0.50,
+		"always_show_label": true,
 	},
 	"HeatDamageApplied":
 	{
@@ -193,6 +194,7 @@ const EVENT_CONFIG := {
 		"label": "Heat stress",
 		"z_slot": 0.45,
 		"y_frac": 0.5,
+		"always_show_label": true,
 	},
 	"WaterloggingDetected":
 	{
@@ -203,6 +205,7 @@ const EVENT_CONFIG := {
 		"label": "Waterlogging",
 		"z_slot": -0.40,
 		"y_frac": 0.8,
+		"always_show_label": true,
 	},
 }
 
@@ -670,6 +673,7 @@ func _build_tube_config(
 	var color: Color = ecfg.get("color", COLOR_WATER)
 	var color_end: Variant = ecfg.get("color_end", null)
 	var substance: String = ecfg.get("substance", "water")
+	var always_label: bool = ecfg.get("always_show_label", false)
 	# Skip tube if value too small to display meaningfully
 	var min_display: float = 0.01
 	if mag < min_display:
@@ -739,6 +743,7 @@ func _build_tube_config(
 				"speed": speed,
 				"label_text": label,
 				"_substance": substance,
+				"always_show_label": always_label,
 			}
 			if color_end != null:
 				cfg_down["color_end"] = color_end
@@ -768,6 +773,7 @@ func _build_tube_config(
 				"speed": speed,
 				"label_text": label,
 				"_substance": substance,
+				"always_show_label": always_label,
 			}
 			if color_end != null:
 				cfg_lat["color_end"] = color_end
@@ -781,6 +787,7 @@ func _build_tube_config(
 		"speed": speed,
 		"label_text": label,
 		"_substance": substance,
+		"always_show_label": always_label,
 	}
 	if color_end != null:
 		cfg_up["color_end"] = color_end

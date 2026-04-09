@@ -366,6 +366,31 @@ def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     series = gen.generate(s.season_days, s.current_date)
     s.weather = series.records
     s.season_active = True
+    _maybe_inject_stress_weather(s)
+
+
+def _maybe_inject_stress_weather(s: GameSession) -> None:
+    """Inject extreme weather for debug stress testing.
+
+    When debug/stress_weather is enabled, overwrite specific days with
+    frost, heat wave, and heavy rain events for visual validation.
+    """
+    import os
+
+    if not os.environ.get("AGROGAME_STRESS_WEATHER"):
+        return
+    for i, rec in enumerate(s.weather):
+        # Days 15-17: frost (tmin = -5C)
+        if 15 <= i <= 17:
+            rec.tmin_c = -5.0
+            rec.tmax_c = 2.0
+        # Days 25-29: heat wave (tmax = 40C)
+        elif 25 <= i <= 29:
+            rec.tmin_c = 25.0
+            rec.tmax_c = 40.0
+        # Days 35-39: heavy rain / waterlogging
+        elif 35 <= i <= 39:
+            rec.precip_mm = 80.0
 
 
 def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
