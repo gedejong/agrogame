@@ -164,12 +164,14 @@ func clear_icons() -> void:
 
 
 static func _arrays_equal(a: Array, b: Array) -> bool:
+	## Order-insensitive comparison (stress keys may arrive in different order).
 	if a.size() != b.size():
 		return false
-	for i in range(a.size()):
-		if a[i] != b[i]:
-			return false
-	return true
+	var sa := a.duplicate()
+	sa.sort()
+	var sb := b.duplicate()
+	sb.sort()
+	return sa == sb
 
 
 func _collect_labels(node: Node3D) -> void:
@@ -232,6 +234,7 @@ func _create_icons(pos: Vector3, stress_keys: Array) -> Node3D:
 				lbl_ref.visible = true
 				lbl_ref.set_meta("hovered", true)
 		)
+		# Remove hovered meta; _process will hide on next frame if not zoomed in.
 		area.mouse_exited.connect(func() -> void: lbl_ref.remove_meta("hovered"))
 		container.add_child(area)
 	return container

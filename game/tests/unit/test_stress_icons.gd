@@ -131,3 +131,33 @@ func test_multiple_stresses_stack() -> void:
 	}
 	icons.update_from_patches(patches, [{"soil_type": "s"}], [mesh], ["s"])
 	assert_gt(icons._icons.size(), 0, "Multiple stresses should create icons")
+	# Verify both icon sprites exist in the container
+	var container: Node3D = icons._icons["0"]
+	var sprite_count := 0
+	for child in container.get_children():
+		if child is Sprite3D:
+			sprite_count += 1
+	assert_eq(sprite_count, 2, "Should have 2 sprite icons (frost + drought)")
+
+
+func test_p_deficiency_from_nutrient_stress() -> void:
+	var icons := StressIconsRef.new()
+	add_child_autofree(icons)
+	var mesh := _make_mesh()
+	var patches := {
+		"f":
+		[
+			{
+				"events":
+				[
+					{
+						"event_type": "NutrientStressComputed",
+						"module": "t",
+						"data": {"nutrient": "P", "stress": 0.3},
+					}
+				]
+			}
+		]
+	}
+	icons.update_from_patches(patches, [{"soil_type": "s"}], [mesh], ["s"])
+	assert_gt(icons._icons.size(), 0, "P deficiency icon should appear")
