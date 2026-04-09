@@ -179,22 +179,23 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
-	var count: int = clampi(int(magnitude * 15.0), 4, 20)
-	var base_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude)) * 0.2
+	# Particle count scales with magnitude (0 at 0, up to 30)
+	var count: int = int(magnitude * 30.0)
+	if count < 1:
+		return
+	var particle_r := 0.004
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
 	p_mat.emission = color
 	p_mat.emission_energy_multiplier = 1.5
-	# Use truly random values via a seeded sequence (not golden ratio)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
 	for i in range(count):
-		var size_mult: float = 0.4 + rng.randf() * 0.7
-		var speed_mult: float = 0.6 + rng.randf() * 0.8
+		var speed_mult: float = 0.7 + rng.randf() * 0.6
 		var sphere := SphereMesh.new()
-		sphere.radius = base_r * size_mult
-		sphere.height = base_r * size_mult * 2.0
+		sphere.radius = particle_r
+		sphere.height = particle_r * 2.0
 		sphere.radial_segments = 4
 		sphere.rings = 2
 		sphere.material = p_mat
@@ -204,7 +205,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
 		# Store random wobble parameters for radial animation
 		follow.set_meta("wobble_phase", rng.randf() * TAU)
-		follow.set_meta("wobble_radius", rng.randf() * base_r * 1.5)
+		follow.set_meta("wobble_radius", rng.randf() * particle_r * 3.0)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -223,17 +224,18 @@ func _build_particles(
 	if length < 0.001:
 		return
 
+	# Particle count scales with magnitude
+	var p_count: int = clampi(int(magnitude * 30.0), 1, 30)
 	_particles = GPUParticles3D.new()
-	_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
+	_particles.amount = p_count
 	_particles.lifetime = maxf(length / maxf(absf(speed) * 0.2, 0.01), 0.5)
 	_particles.emitting = true
 	_particles.visibility_aabb = AABB(Vector3(-0.1, -0.1, -0.1), Vector3(0.2, length + 0.2, 0.2))
 
 	var mat := ParticleProcessMaterial.new()
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude)) * 0.3
-	# Tight emission: particles spawn within tube radius, along tube length
-	mat.emission_box_extents = Vector3(radius, length * 0.4, radius)
+	var emit_r := 0.005
+	mat.emission_box_extents = Vector3(emit_r, length * 0.4, emit_r)
 	mat.gravity = Vector3.ZERO
 	# Flow along tube axis (Y in local space, rotated by tube basis)
 	var flow_speed: float = length * speed * 0.5
@@ -246,10 +248,9 @@ func _build_particles(
 	mat.color = Color(color.r, color.g, color.b, 0.9)
 	_particles.process_material = mat
 
-	# Tiny sphere mesh for each particle
 	var draw_pass := SphereMesh.new()
-	draw_pass.radius = radius * 1.5
-	draw_pass.height = radius * 3.0
+	draw_pass.radius = 0.004
+	draw_pass.height = 0.008
 	draw_pass.radial_segments = 4
 	draw_pass.rings = 2
 	var p_mat := StandardMaterial3D.new()
@@ -399,13 +400,13 @@ func set_speed(speed: float) -> void:
 
 
 func set_magnitude(magnitude: float) -> void:
-	magnitude = clampf(magnitude, 0.01, 1.0)
+	magnitude = clampf(magnitude, 0.0, 1.0)
 	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
 		var r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 		(_tube_mesh.mesh as CylinderMesh).top_radius = r
 		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
-		_particles.amount = clampi(int(magnitude * 20.0), 2, 20)
+		_particles.amount = clampi(int(magnitude * 30.0), 0, 30)
 
 
 func _process(delta: float) -> void:
