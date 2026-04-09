@@ -489,7 +489,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		var n_text: String = n_label
 		if not n_formula.is_empty():
 			n_text += " (%s)" % n_formula
-		n_text += "\n%.2f kg/ha" % n_uptake
+		n_text += "\n%s %s" % [UiTheme.format_mass(n_uptake), UiTheme.mass_label()]
 		(
 			configs
 			. append(
@@ -509,7 +509,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		var p_text: String = p_label
 		if not p_formula.is_empty():
 			p_text += " (%s)" % p_formula
-		p_text += "\n%.3f kg/ha" % p_uptake
+		p_text += "\n%s %s" % [UiTheme.format_mass(p_uptake, 3), UiTheme.mass_label()]
 		(
 			configs
 			. append(
@@ -551,16 +551,19 @@ func _build_tube_config(
 	var color: Color = ecfg.get("color", COLOR_WATER)
 	var color_end: Variant = ecfg.get("color_end", null)
 	var substance: String = ecfg.get("substance", "water")
-	var unit: String = "mm" if substance == "water" else "kg/ha"
-	# Smart precision: use enough decimals so value isn't "0.00"
-	var val_str: String = "%.2f" % mag
-	if mag > 0.0 and mag < 0.005:
-		val_str = "%.3f" % mag
 	# Skip tube if value too small to display meaningfully
-	# Water: < 0.01 mm. Other: < 0.01 kg/ha
 	var min_display: float = 0.01
 	if mag < min_display:
 		return {}
+	# Format value in active display unit
+	var unit: String
+	var val_str: String
+	if substance == "water":
+		unit = "mm"
+		val_str = "%.2f" % mag
+	else:
+		unit = UiTheme.mass_label()
+		val_str = UiTheme.format_mass(mag)
 	var base_label: String = ecfg.get("label", "")
 	# Deep drainage gets a distinct label
 	var to_l: int = int(data.get("to_layer", 0))

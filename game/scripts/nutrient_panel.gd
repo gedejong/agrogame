@@ -3,6 +3,8 @@ extends PanelContainer
 ## Styled per art guide: glassmorphism dark slate-navy panels.
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
+## Values stored in g/m² (simulation native unit); converted at display time.
+## "mass_type": "mass" for g/m²↔kg/ha, "carbon" for gC/m²↔kgC/ha, "" for no conversion.
 const NUTRIENT_BARS := {
 	"NO₃":
 	{
@@ -11,7 +13,7 @@ const NUTRIENT_BARS := {
 		"max": 100.0,
 		"opt_min": 5.0,
 		"opt_max": 60.0,
-		"unit": "g/m²"
+		"mass_type": "mass",
 	},
 	"NH₄":
 	{
@@ -20,7 +22,7 @@ const NUTRIENT_BARS := {
 		"max": 120.0,
 		"opt_min": 3.0,
 		"opt_max": 80.0,
-		"unit": "g/m²"
+		"mass_type": "mass",
 	},
 	"P":
 	{
@@ -29,7 +31,7 @@ const NUTRIENT_BARS := {
 		"max": 25.0,
 		"opt_min": 5.0,
 		"opt_max": 20.0,
-		"unit": "g/m²"
+		"mass_type": "mass",
 	},
 	"SOM":
 	{
@@ -38,7 +40,7 @@ const NUTRIENT_BARS := {
 		"max": 2500.0,
 		"opt_min": 200.0,
 		"opt_max": 2500.0,
-		"unit": "gC/m²"
+		"mass_type": "carbon",
 	},
 	"Water":
 	{
@@ -47,7 +49,8 @@ const NUTRIENT_BARS := {
 		"max": 0.45,
 		"opt_min": 0.10,
 		"opt_max": 0.35,
-		"unit": "m³/m³"
+		"mass_type": "",
+		"unit": "m³/m³",
 	},
 	"pH":
 	{
@@ -56,7 +59,8 @@ const NUTRIENT_BARS := {
 		"max": 9.0,
 		"opt_min": 5.5,
 		"opt_max": 7.5,
-		"unit": ""
+		"mass_type": "",
+		"unit": "",
 	},
 	"Microbe":
 	{
@@ -65,7 +69,7 @@ const NUTRIENT_BARS := {
 		"max": 250.0,
 		"opt_min": 50.0,
 		"opt_max": 250.0,
-		"unit": "gC/m²"
+		"mass_type": "carbon",
 	},
 }
 ## Functional accent colors per art guide
@@ -204,17 +208,25 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	bar_bg.add_child(outline)
 	row.add_child(bar_bg)
 
-	# Value text
+	# Value text — convert to active display unit
 	var val_lbl := Label.new()
-	var unit: String = cfg["unit"]
+	var mass_type: String = cfg.get("mass_type", "")
+	var unit: String = cfg.get("unit", "")
+	var display_val: float = val
+	if mass_type == "mass":
+		display_val = UiTheme.to_display_mass_from_gm2(val)
+		unit = UiTheme.mass_label()
+	elif mass_type == "carbon":
+		display_val = UiTheme.to_display_mass_from_gm2(val)
+		unit = UiTheme.carbon_label()
 	if label == "pH":
 		val_lbl.text = "%.1f" % val
-	elif val >= 100.0:
-		val_lbl.text = "%.0f" % val
-	elif val >= 1.0:
-		val_lbl.text = "%.1f" % val
+	elif display_val >= 100.0:
+		val_lbl.text = "%.0f" % display_val
+	elif display_val >= 1.0:
+		val_lbl.text = "%.1f" % display_val
 	else:
-		val_lbl.text = "%.2f" % val
+		val_lbl.text = "%.2f" % display_val
 	if not unit.is_empty():
 		val_lbl.text += " " + unit
 	val_lbl.add_theme_font_size_override("font_size", 9)

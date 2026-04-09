@@ -4,13 +4,17 @@ extends PanelContainer
 
 const Sparkline = preload("res://scripts/sparkline.gd")
 
-## Graph configs: key matches _daily_history fields
+## Graph configs: key matches _daily_history fields.
+## "mass_type": "mass" for g/m²↔kg/ha conversion, "" for no conversion.
 const GRAPHS := {
-	"lai": {"label": "LAI", "unit": "m²/m²", "color": UiTheme.ACCENT_GREEN},
-	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": UiTheme.ACCENT_GOLD},
-	"water_stress": {"label": "Water stress", "unit": "", "color": UiTheme.ACCENT_RED},
-	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": UiTheme.SUBSTANCE_WATER},
-	"n_available": {"label": "N available", "unit": "g/m²", "color": UiTheme.SUBSTANCE_NO3},
+	"lai": {"label": "LAI", "unit": "m²/m²", "mass_type": "", "color": UiTheme.ACCENT_GREEN},
+	"grain_g_m2": {"label": "Grain", "unit": "", "mass_type": "mass", "color": UiTheme.ACCENT_GOLD},
+	"water_stress":
+	{"label": "Water stress", "unit": "", "mass_type": "", "color": UiTheme.ACCENT_RED},
+	"theta_surface":
+	{"label": "Soil water", "unit": "m³/m³", "mass_type": "", "color": UiTheme.SUBSTANCE_WATER},
+	"n_available":
+	{"label": "N available", "unit": "", "mass_type": "mass", "color": UiTheme.SUBSTANCE_NO3},
 }
 
 var _sparklines: Dictionary = {}
@@ -59,7 +63,10 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 		var cfg: Dictionary = GRAPHS[key]
 		var spark := Control.new()
 		spark.set_script(Sparkline)
-		spark.setup(cfg["label"], cfg["unit"], cfg["color"], 36.0)
+		var display_unit: String = cfg.get("unit", "")
+		if cfg.get("mass_type", "") == "mass":
+			display_unit = UiTheme.mass_label()
+		spark.setup(cfg["label"], display_unit, cfg["color"], 36.0)
 		var data := _extract_series(history, key)
 		spark.set_data(data, stage_days)
 		_sparklines[key] = spark
