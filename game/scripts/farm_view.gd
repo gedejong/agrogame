@@ -61,6 +61,7 @@ var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _cutaway := SoilCutawayController.new()
+var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
@@ -105,6 +106,8 @@ func _ready() -> void:
 	_setup_crop_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
+	_stress_icons = StressIcons.new()
+	add_child(_stress_icons)
 	status_label.text = "3D view \u2014 click tile to select"
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
@@ -432,6 +435,8 @@ func _apply_day_result(data: Dictionary) -> void:
 	_apply_daily_snapshots(snapshots)
 
 	var patches: Dictionary = data.get("patches", {})
+	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
+		_inject_debug_stress_events(patches)
 	_apply_patch_data(patches, not snapshots.is_empty())
 
 
@@ -517,6 +522,9 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["lai"] = lai
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
+	# Update stress icons from patch events
+	if _stress_icons:
+		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes, SOIL_TYPES)
 	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		var soil_type: String = _tile_data[idx]["soil_type"]
@@ -649,6 +657,25 @@ func _show_soil_cutaway() -> void:
 	}
 	if not _cutaway.show_cutaway(ctx, self, $UILayer):
 		status_label.text = "No soil data available"
+
+
+func _inject_debug_stress_events(patches: Dictionary) -> void:
+	## Add fake stress events to each patch for visual debugging.
+	var fake := [
+		{"event_type": "FrostDamageApplied", "module": "debug", "data": {"severity": 0.5}},
+		{
+			"event_type": "HeatDamageApplied",
+			"module": "debug",
+			"data": {"grain_reduction_factor": 0.5}
+		},
+		{"event_type": "WaterloggingDetected", "module": "debug", "data": {"theta": 0.45}},
+	]
+	for field_key: String in patches:
+		var patch_list: Array = patches[field_key]
+		for patch: Dictionary in patch_list:
+			var events: Array = patch.get("events", [])
+			events.append_array(fake)
+			patch["events"] = events
 
 
 func _debug_auto_start() -> void:

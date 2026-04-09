@@ -301,26 +301,43 @@ func test_invalid_filter_rejected() -> void:
 	assert_eq(overlay.get_filter(), "water", "Invalid filter should be rejected")
 
 
-func test_nutrient_panel_emits_filter_signal() -> void:
+func test_nutrient_panel_emits_signals() -> void:
+	# Filter signal
 	var panel := PanelContainer.new()
 	panel.set_script(NutrientPanelRef)
 	add_child_autofree(panel)
 	var received: Array = []
 	panel.flow_filter_changed.connect(func(f: String) -> void: received.append(f))
 	panel.show_layers([])
-	# Simulate clicking the nitrogen filter button
 	panel._on_filter_btn("nitrogen")
 	assert_eq(received, ["nitrogen"], "Should emit filter signal")
-
-
-func test_nutrient_panel_emits_toggle_signal() -> void:
-	var panel := PanelContainer.new()
-	panel.set_script(NutrientPanelRef)
-	add_child_autofree(panel)
+	# Toggle signal
+	var panel2 := PanelContainer.new()
+	panel2.set_script(NutrientPanelRef)
+	add_child_autofree(panel2)
 	var toggled: Array = []
-	panel.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
-	panel.show_layers([])
-	panel._on_toggle_btn()
+	panel2.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
+	panel2.show_layers([])
+	panel2._on_toggle_btn()
 	assert_eq(toggled, [false], "First toggle should emit false")
-	panel._on_toggle_btn()
+	panel2._on_toggle_btn()
 	assert_eq(toggled, [false, true], "Second toggle should emit true")
+
+
+func test_weather_events_ignored_by_flow_overlay() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var events: Array = [
+		{
+			"event_type": "FrostDamageApplied",
+			"module": "agrogame.soil.canopy.events",
+			"data": {"severity": 0.5},
+		},
+		{
+			"event_type": "HeatDamageApplied",
+			"module": "agrogame.soil.canopy.events",
+			"data": {"grain_reduction_factor": 0.5},
+		},
+	]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	assert_eq(overlay._tubes.size(), 0, "Weather events should not create tubes")
