@@ -17,7 +17,9 @@ const COLOR_NO3 := Color(0.290, 0.871, 0.502, 0.8)  # bright green — mobile ni
 const COLOR_NH4 := Color(0.2, 0.75, 0.75, 0.8)  # teal/cyan — ammonium (held by clay)
 const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in organic matter
 const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
+const COLOR_PHOSPHORUS_FIXED := Color(0.45, 0.35, 0.7, 0.8)  # darker purple — immobilized
 const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
+const COLOR_CO2 := Color(0.6, 0.6, 0.6, 0.8)  # grey — gas
 
 ## Event type -> tube config.
 ## z_slot: small offset to separate sub-types within same layer.
@@ -72,6 +74,7 @@ const EVENT_CONFIG := {
 	"NitrificationOccurred":
 	{
 		"color": COLOR_NH4,
+		"color_end": COLOR_NO3,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
@@ -82,6 +85,7 @@ const EVENT_CONFIG := {
 	"MineralizationOccurred":
 	{
 		"color": COLOR_ORGANIC_N,
+		"color_end": COLOR_NH4,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
@@ -92,6 +96,7 @@ const EVENT_CONFIG := {
 	"DenitrificationOccurred":
 	{
 		"color": COLOR_NO3,
+		"color_end": COLOR_CO2,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
@@ -101,6 +106,7 @@ const EVENT_CONFIG := {
 	"VolatilizationOccurred":
 	{
 		"color": COLOR_NH4,
+		"color_end": COLOR_CO2,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
@@ -119,6 +125,7 @@ const EVENT_CONFIG := {
 	"PhosphorusFixationOccurred":
 	{
 		"color": COLOR_PHOSPHORUS,
+		"color_end": COLOR_PHOSPHORUS_FIXED,
 		"substance": "phosphorus",
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
@@ -129,6 +136,7 @@ const EVENT_CONFIG := {
 	"SOMDecomposed":
 	{
 		"color": COLOR_CARBON,
+		"color_end": COLOR_CO2,
 		"substance": "carbon",
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
@@ -139,6 +147,7 @@ const EVENT_CONFIG := {
 	"CO2Respired":
 	{
 		"color": COLOR_CARBON,
+		"color_end": COLOR_CO2,
 		"substance": "carbon",
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
@@ -502,6 +511,7 @@ func _build_tube_config(
 ) -> Dictionary:
 	var direction: String = ecfg.get("direction", "down")
 	var color: Color = ecfg.get("color", COLOR_WATER)
+	var color_end: Variant = ecfg.get("color_end", null)
 	var substance: String = ecfg.get("substance", "water")
 	var unit: String = "mm" if substance == "water" else "kg/ha"
 	# Smart precision: use enough decimals so value isn't "0.00"
@@ -557,13 +567,16 @@ func _build_tube_config(
 				y_bot = y_top - 0.1
 			var path := _make_vertical_path(fx_soil, y_top, y_bot, tube_z, 0.04)
 			speed = absf(speed)
-			return {
+			var cfg_down := {
 				"path": path,
 				"color": color,
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
 			}
+			if color_end != null:
+				cfg_down["color_end"] = color_end
+			return cfg_down
 		"up":
 			start = Vector3(fx_atmo, 0.01, tube_z)
 			end = Vector3(fx_atmo, 0.2, tube_z)
@@ -582,15 +595,18 @@ func _build_tube_config(
 			var y_pos: float = lerpf(y_top_l, y_bot_l, y_frac)
 			var path := _make_lateral_path(fx_soil, y_pos, tube_z, tube_z + 0.15, 0.03)
 			speed = absf(speed)
-			return {
+			var cfg_lat := {
 				"path": path,
 				"color": color,
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
 			}
+			if color_end != null:
+				cfg_lat["color_end"] = color_end
+			return cfg_lat
 
-	return {
+	var cfg_up := {
 		"start": start,
 		"end": end,
 		"color": color,
@@ -598,3 +614,6 @@ func _build_tube_config(
 		"speed": speed,
 		"label_text": label,
 	}
+	if color_end != null:
+		cfg_up["color_end"] = color_end
+	return cfg_up

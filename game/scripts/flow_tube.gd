@@ -12,19 +12,30 @@ var _tube_mesh: MeshInstance3D = null
 var _particles: GPUParticles3D = null
 var _label: Label3D = null
 var _material: StandardMaterial3D = null
+var _color_start := Color.WHITE
+var _color_end := Color.WHITE
+var _has_gradient := false
 
 
 static func create(config: Dictionary) -> FlowTube:
 	## Build a flow tube from config: start, end, color, magnitude, speed, label_text.
 	## Optional "path": Array[Vector3] for multi-segment tubes with curves.
+	## Optional "color_end": Color for gradient tubes (transformations).
 	var tube := FlowTube.new()
 	var start: Vector3 = config.get("start", Vector3.ZERO)
 	var end: Vector3 = config.get("end", Vector3(0, -0.1, 0))
 	var color: Color = config.get("color", Color(0.376, 0.647, 0.980, 0.8))
+	var color_end: Variant = config.get("color_end", null)
 	var magnitude: float = clampf(config.get("magnitude", 0.5), 0.01, 1.0)
 	var speed: float = config.get("speed", 1.0)
 	var label_text: String = config.get("label_text", "")
 	var path: Array = config.get("path", [])
+	tube._color_start = color
+	if color_end != null and color_end is Color:
+		tube._color_end = color_end
+		tube._has_gradient = true
+	else:
+		tube._color_end = color
 
 	if path.size() >= 2:
 		tube._build_path_tube(path, color, magnitude)
@@ -86,6 +97,7 @@ func _build_tube(start: Vector3, end: Vector3, color: Color, magnitude: float) -
 
 func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 	## Build a continuous tube mesh along a path using SurfaceTool.
+	## If _has_gradient, vertex colors interpolate from _color_start to _color_end.
 	var radius := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
@@ -117,6 +129,9 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 		var z_ax := fwd.cross(x_ax).normalized()
 		prev_x = x_ax
 		var v: float = float(pi) / float(maxi(path.size() - 1, 1))
+		# Vertex color for gradient tubes
+		if _has_gradient:
+			st.set_color(_color_start.lerp(_color_end, v))
 		for si in range(segs):
 			var angle: float = float(si) / float(segs) * TAU
 			var ring_offset := (x_ax * cos(angle) + z_ax * sin(angle)) * radius
@@ -137,7 +152,12 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 			st.add_index(base_a + s_next)
 	var mat := StandardMaterial3D.new()
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
+	if _has_gradient:
+		# Use vertex color so the gradient shows through
+		mat.vertex_color_use_as_albedo = true
+		mat.albedo_color = Color(1, 1, 1, 0.25)
+	else:
+		mat.albedo_color = Color(color.r, color.g, color.b, 0.25)
 	mat.metallic = 0.2
 	mat.metallic_specular = 0.7
 	mat.roughness = 0.08
@@ -184,15 +204,25 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		return
 	var particle_r := 0.002
 	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
-	var p_mat := StandardMaterial3D.new()
-	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
-	p_mat.emission_enabled = true
-	p_mat.emission = color
-	p_mat.emission_energy_multiplier = 1.5
 	var rng := RandomNumberGenerator.new()
 	rng.seed = int(path[0].x * 1000.0 + path[0].z * 7000.0) + count
+	# Shared material for solid-color tubes; per-particle for gradient
+	var shared_mat: StandardMaterial3D = null
+	if not _has_gradient:
+		shared_mat = StandardMaterial3D.new()
+		shared_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
+		shared_mat.emission_enabled = true
+		shared_mat.emission = color
+		shared_mat.emission_energy_multiplier = 1.5
 	for i in range(count):
 		var speed_mult: float = 0.5 + rng.randf() * 1.0
+		var p_mat := shared_mat
+		if _has_gradient:
+			p_mat = StandardMaterial3D.new()
+			p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
+			p_mat.emission_enabled = true
+			p_mat.emission = _color_start
+			p_mat.emission_energy_multiplier = 1.5
 		var sphere := SphereMesh.new()
 		sphere.radius = particle_r
 		sphere.height = particle_r * 2.0
@@ -252,6 +282,14 @@ func _build_particles(
 	mat.scale_min = 0.3
 	mat.scale_max = 0.5
 	mat.color = Color(color.r, color.g, color.b, 0.9)
+	# Gradient: color ramp from start to end color over particle lifetime
+	if _has_gradient:
+		var grad := Gradient.new()
+		grad.set_color(0, Color(_color_start.r, _color_start.g, _color_start.b, 0.9))
+		grad.add_point(1.0, Color(_color_end.r, _color_end.g, _color_end.b, 0.9))
+		var grad_tex := GradientTexture1D.new()
+		grad_tex.gradient = grad
+		mat.color_ramp = grad_tex
 	_particles.process_material = mat
 
 	var draw_pass := SphereMesh.new()
@@ -446,6 +484,10 @@ func _process(delta: float) -> void:
 			# Fixed radial offset within tube cross-section
 			mi.position.x = child.get_meta("radial_x")
 			mi.position.z = child.get_meta("radial_z")
+			# Gradient: interpolate particle emission color along path
+			if _has_gradient and mi.mesh and mi.mesh.material is StandardMaterial3D:
+				var pmat: StandardMaterial3D = mi.mesh.material
+				pmat.emission = _color_start.lerp(_color_end, child.progress_ratio)
 			if is_gas:
 				var prog: float = child.progress_ratio
 				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
