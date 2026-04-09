@@ -30,6 +30,8 @@ const LABEL_FORMULA := {
 	"Leaching": "NO\u2083\u207b \u2193",
 	"Decomposition": "Org-C \u2192 CO\u2082",
 	"Avail-P \u2192 Fixed-P": "H\u2082PO\u2084\u207b \u2192 Ca-P",
+	"N Assimilation": "NO\u2083\u207b/NH\u2084\u207a \u2192 plant",
+	"P Assimilation": "H\u2082PO\u2084\u207b \u2192 plant",
 }
 
 ## Event type -> tube config.
@@ -409,35 +411,62 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	# Aggregate by (event_type, layer) for lateral; by event_type for vertical
 	var agg: Dictionary = {}
 	var agg_data: Dictionary = {}
-	# Plant nutrient uptake — currently hardcoded in simulation (see #223).
-	# Disabled until dynamic demand is implemented.
+	# Extract N/P uptake from NutrientStressComputed events (#223 dynamic demand)
 	var n_uptake := 0.0
 	var p_uptake := 0.0
-	if false:  # Enable when #223 is done
+	for evt: Dictionary in events:
+		var etype: String = evt.get("event_type", "")
+		if etype == "NutrientStressComputed":
+			var data: Dictionary = evt.get("data", {})
+			var nutrient: String = str(data.get("nutrient", ""))
+			var uptake: float = float(data.get("uptake_kg_ha", 0.0))
+			if nutrient == "N":
+				n_uptake += uptake
+			elif nutrient == "P":
+				p_uptake += uptake
+	# N Assimilation tube (upward from soil into plant)
+	if n_uptake > 0.01:
+		var n_label := "N Assimilation"
+		var n_formula: String = LABEL_FORMULA.get(n_label, "")
+		var n_val: String = "%.2f" % n_uptake
+		if n_uptake < 0.005:
+			n_val = "%.3f" % n_uptake
+		var n_text: String = n_label
+		if not n_formula.is_empty():
+			n_text += " (%s)" % n_formula
+		n_text += "\n%s kg/ha" % n_val
 		(
 			configs
 			. append(
 				{
-					"start": Vector3(fx_a, 0.01, fz + 0.0),
-					"end": Vector3(fx_a, 0.2, fz + 0.0),  # N uptake at z=0.0
+					"start": Vector3(fx_a, 0.01, fz + 0.05),
+					"end": Vector3(fx_a, 0.2, fz + 0.05),
 					"color": COLOR_NO3,
-					"magnitude": clampf(n_uptake / 10.0, 0.0, 1.0),
+					"magnitude": clampf(n_uptake / 5.0, 0.01, 1.0),
 					"speed": 1.2,
-					"label_text": "N uptake\n%.2f kg/ha" % n_uptake,
+					"label_text": n_text,
 				}
 			)
 		)
-	if p_uptake > 0.01:
+	# P Assimilation tube
+	if p_uptake > 0.001:
+		var p_label := "P Assimilation"
+		var p_formula: String = LABEL_FORMULA.get(p_label, "")
+		var p_val: String = "%.3f" % p_uptake
+		var p_text: String = p_label
+		if not p_formula.is_empty():
+			p_text += " (%s)" % p_formula
+		p_text += "\n%s kg/ha" % p_val
 		(
 			configs
 			. append(
 				{
-					"start": Vector3(fx_a, 0.01, fz + 0.1),
-					"end": Vector3(fx_a, 0.2, fz + 0.1),  # P uptake at z=0.1
+					"start": Vector3(fx_a, 0.01, fz + 0.15),
+					"end": Vector3(fx_a, 0.2, fz + 0.15),
 					"color": COLOR_PHOSPHORUS,
-					"magnitude": clampf(p_uptake / 10.0, 0.0, 1.0),
+					"magnitude": clampf(p_uptake / 1.0, 0.01, 1.0),
 					"speed": 1.2,
-					"label_text": "P uptake\n%.3f kg/ha" % p_uptake,
+					"label_text": p_text,
 				}
 			)
 		)
