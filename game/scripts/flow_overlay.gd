@@ -19,7 +19,9 @@ const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in org
 const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
 const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
 
-## Event type -> tube config. z_slot spaces tubes along the face (-0.4 to +0.4).
+## Event type -> tube config.
+## z_slot: position on face. Right(-Z)=water, Center=nitrogen, Left(+Z)=carbon/P.
+## Tube max diameter ~0.07, slot spacing 0.09 for no overlap.
 const EVENT_CONFIG := {
 	"WaterInfiltrated":
 	{
@@ -28,7 +30,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amounts_mm_sum",
 		"label": "Infiltration",
-		"z_slot": -0.3
+		"z_slot": -0.18
 	},
 	"WaterDrained":
 	{
@@ -37,7 +39,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_mm",
 		"label": "Percolation",
-		"z_slot": -0.15
+		"z_slot": -0.09
 	},
 	"EvaporationTaken":
 	{
@@ -55,7 +57,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "total_mm",
 		"label": "Transpiration",
-		"z_slot": -0.3
+		"z_slot": -0.36
 	},
 	"RunoffGenerated":
 	{
@@ -64,7 +66,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_mm",
 		"label": "Runoff",
-		"z_slot": -0.4
+		"z_slot": -0.45
 	},
 	"NitrificationOccurred":
 	{
@@ -73,7 +75,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.0
+		"z_slot": 0.09
 	},
 	"MineralizationOccurred":
 	{
@@ -82,7 +84,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.2
+		"z_slot": 0.18
 	},
 	"DenitrificationOccurred":
 	{
@@ -91,7 +93,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
-		"z_slot": 0.1
+		"z_slot": 0.09
 	},
 	"VolatilizationOccurred":
 	{
@@ -100,7 +102,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
-		"z_slot": 0.25
+		"z_slot": 0.18
 	},
 	"NutrientLeached":
 	{
@@ -118,7 +120,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": 0.35
+		"z_slot": 0.27
 	},
 	"SOMDecomposed":
 	{
@@ -127,7 +129,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": 0.5
+		"z_slot": 0.36
 	},
 	"CO2Respired":
 	{
@@ -136,7 +138,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
 		"label": "Soil CO2 \u2191",
-		"z_slot": 0.4
+		"z_slot": 0.45
 	},
 }
 
@@ -371,41 +373,57 @@ static func _make_lateral_path(
 
 func _events_to_configs(events: Array) -> Array[Dictionary]:
 	var configs: Array[Dictionary] = []
-	var face_x_atmo: float = _pillar_pos.x + 0.48
-	var face_x_soil: float = _pillar_pos.x + 0.52
-	var face_z: float = _pillar_pos.z
-	# Aggregate magnitudes by event type — one tube per type, not per event
+	var fx_a: float = _pillar_pos.x + 0.48
+	var fx_s: float = _pillar_pos.x + 0.52
+	var fz: float = _pillar_pos.z
+	# Aggregate by (event_type, layer) for lateral; by event_type for vertical
 	var agg: Dictionary = {}
 	var agg_data: Dictionary = {}
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
 		if not EVENT_CONFIG.has(etype):
 			continue
+		var ecfg: Dictionary = EVENT_CONFIG[etype]
 		var data: Dictionary = evt.get("data", {})
-		var mag := _extract_magnitude(data, EVENT_CONFIG[etype])
+		var mag := _extract_magnitude(data, ecfg)
 		if mag < 0.001:
 			continue
-		agg[etype] = agg.get(etype, 0.0) + mag
-		if not agg_data.has(etype):
-			agg_data[etype] = data
-	for etype: String in agg:
-		var ecfg: Dictionary = EVENT_CONFIG[etype]
-		var total_mag: float = agg[etype]
-		var tube_cfg := _build_tube_config(
-			ecfg, agg_data[etype], total_mag, face_x_atmo, face_x_soil, face_z
+		var layer_indices: Array = data.get("layer_indices", [])
+		var li: int = (
+			int(layer_indices[0])
+			if not layer_indices.is_empty()
+			else int(data.get("layer", data.get("from_layer", 0)))
 		)
+		# Lateral: per-layer key. Vertical/up: aggregate across layers.
+		var key: String = etype
+		if ecfg.get("direction", "") == "lateral":
+			key = etype + "_L" + str(li)
+		agg[key] = agg.get(key, 0.0) + mag
+		if not agg_data.has(key):
+			agg_data[key] = data
+	# Layout zones (Z slots relative to face_z):
+	# Right: water vertical (-0.4 to -0.2)
+	# Center: nitrogen (0.0 to 0.15)
+	# Left: carbon/phosphorus (0.25 to 0.45)
+	# Atmospheric: spread above surface
+	for key: String in agg:
+		var etype: String = key.split("_L")[0]
+		var ecfg: Dictionary = EVENT_CONFIG[etype]
+		var total_mag: float = agg[key]
+		var z_off: float = ecfg.get("z_slot", 0.0)
+		var tube_cfg := _build_tube_config(ecfg, agg_data[key], total_mag, fx_a, fx_s, fz + z_off)
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
-	# Rain connector: sky -> surface when infiltration is significant
+	# Rain connector
 	var rain_total: float = agg.get("WaterInfiltrated", 0.0)
 	if rain_total > RAIN_CONNECTOR_MM:
-		var rain_mag: float = clampf(rain_total / 10.0, 0.1, 1.0)
+		var rain_mag: float = clampf(rain_total / 15.0, 0.1, 1.0)
 		(
 			configs
 			. append(
 				{
-					"start": Vector3(face_x_atmo, RAIN_SKY_Y, face_z - 0.15),
-					"end": Vector3(face_x_atmo, 0.01, face_z - 0.15),
+					"start": Vector3(fx_a, RAIN_SKY_Y, fz - 0.15),
+					"end": Vector3(fx_a, 0.01, fz - 0.15),
 					"color": COLOR_WATER,
 					"magnitude": rain_mag,
 					"speed": 2.0,
@@ -461,8 +479,7 @@ func _build_tube_config(
 		if not layer_indices.is_empty()
 		else int(data.get("layer", data.get("from_layer", 0)))
 	)
-	var z_off: float = ecfg.get("z_slot", 0.0)
-	var tube_z: float = face_z + z_off
+	var tube_z: float = face_z
 	var start := Vector3.ZERO
 	var end := Vector3.ZERO
 	var speed: float = norm_mag * 2.0
