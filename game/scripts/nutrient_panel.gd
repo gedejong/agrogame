@@ -6,7 +6,7 @@ extends PanelContainer
 const NUTRIENT_BARS := {
 	"NO₃":
 	{
-		"color": Color(0.2, 0.72, 0.2),
+		"color": UiTheme.SUBSTANCE_NO3,
 		"icon": "res://assets/icons/icon_no3.svg",
 		"max": 100.0,
 		"opt_min": 5.0,
@@ -15,7 +15,7 @@ const NUTRIENT_BARS := {
 	},
 	"NH₄":
 	{
-		"color": Color(0.45, 0.78, 0.35),
+		"color": UiTheme.SUBSTANCE_NH4,
 		"icon": "res://assets/icons/icon_nh4.svg",
 		"max": 120.0,
 		"opt_min": 3.0,
@@ -24,7 +24,7 @@ const NUTRIENT_BARS := {
 	},
 	"P":
 	{
-		"color": Color(0.6, 0.35, 0.78),
+		"color": UiTheme.SUBSTANCE_PHOSPHORUS,
 		"icon": "res://assets/icons/icon_p.svg",
 		"max": 25.0,
 		"opt_min": 5.0,
@@ -33,7 +33,7 @@ const NUTRIENT_BARS := {
 	},
 	"SOM":
 	{
-		"color": Color(0.6, 0.42, 0.25),
+		"color": UiTheme.SUBSTANCE_CARBON,
 		"icon": "res://assets/icons/icon_som.svg",
 		"max": 2500.0,
 		"opt_min": 200.0,
@@ -42,7 +42,7 @@ const NUTRIENT_BARS := {
 	},
 	"Water":
 	{
-		"color": Color(0.2, 0.55, 0.85),
+		"color": UiTheme.SUBSTANCE_WATER,
 		"icon": "res://assets/icons/icon_water.svg",
 		"max": 0.45,
 		"opt_min": 0.10,
@@ -51,7 +51,7 @@ const NUTRIENT_BARS := {
 	},
 	"pH":
 	{
-		"color": Color(0.55, 0.55, 0.6),
+		"color": UiTheme.SUBSTANCE_PH,
 		"icon": "res://assets/icons/icon_ph.svg",
 		"max": 9.0,
 		"opt_min": 5.5,
@@ -60,7 +60,7 @@ const NUTRIENT_BARS := {
 	},
 	"Microbe":
 	{
-		"color": Color(0.9, 0.55, 0.1),
+		"color": UiTheme.SUBSTANCE_MICROBE,
 		"icon": "res://assets/icons/icon_microbe.svg",
 		"max": 250.0,
 		"opt_min": 50.0,
@@ -69,9 +69,9 @@ const NUTRIENT_BARS := {
 	},
 }
 ## Functional accent colors per art guide
-const BAR_STRESS := Color(0.937, 0.267, 0.267)  # #EF4444
-const BAR_MARGINAL := Color(0.984, 0.749, 0.141)  # #FBBF24
-const BAR_OK := Color(0.290, 0.871, 0.502)  # #4ADE80
+const BAR_STRESS := UiTheme.ACCENT_RED
+const BAR_MARGINAL := UiTheme.ACCENT_GOLD
+const BAR_OK := UiTheme.ACCENT_GREEN
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:

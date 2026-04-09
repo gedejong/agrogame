@@ -11,15 +11,15 @@ const PULSE_INTENSITY := 2.5
 const PULSE_DURATION := 0.6
 const RAIN_SKY_Y := 0.25
 
-## Substance colors — NH4 and NO3 distinct for visible transformations
-const COLOR_WATER := Color(0.376, 0.647, 0.980, 0.8)
-const COLOR_NO3 := Color(0.290, 0.871, 0.502, 0.8)  # bright green — mobile nitrate
-const COLOR_NH4 := Color(0.2, 0.75, 0.75, 0.8)  # teal/cyan — ammonium (held by clay)
-const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in organic matter
-const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
-const COLOR_PHOSPHORUS_FIXED := Color(0.45, 0.35, 0.7, 0.8)  # darker purple — immobilized
-const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
-const COLOR_CO2 := Color(0.6, 0.6, 0.6, 0.8)  # grey — gas
+## Substance colors — sourced from UiTheme single source of truth
+const COLOR_WATER := UiTheme.SUBSTANCE_WATER
+const COLOR_NO3 := UiTheme.SUBSTANCE_NO3
+const COLOR_NH4 := UiTheme.SUBSTANCE_NH4
+const COLOR_ORGANIC_N := UiTheme.SUBSTANCE_ORGANIC_N
+const COLOR_PHOSPHORUS := UiTheme.SUBSTANCE_PHOSPHORUS
+const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
+const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
+const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
 
 ## Event type -> tube config.
 ## z_slot: small offset to separate sub-types within same layer.
