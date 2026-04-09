@@ -187,6 +187,7 @@ class CanopyModule:
         temp_factor: float,
         water_stress: float,
         n_stress: float,
+        heat_grain_factor: float = 1.0,
     ) -> CanopyFluxes:
         self.state.last_water_stress = water_stress
         fx = self.calculate_light_interception(incident_par_mj_m2)
@@ -200,7 +201,8 @@ class CanopyModule:
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
         if self._current_stage == PhenologyStage.GRAIN_FILL:
-            grain_inc = biomass_inc * self.params.harvest_index
+            # heat_grain_factor < 1.0 reduces grain during heat stress (AGRO-34)
+            grain_inc = biomass_inc * self.params.harvest_index * heat_grain_factor
         else:
             grain_inc = 0.0
         stem_biomass = biomass_inc * (1.0 - leaf_fraction) - grain_inc
@@ -240,6 +242,7 @@ class CanopyModule:
         actual_transpiration_mm: float,
         potential_transpiration_mm: float,
         n_stress: float,
+        heat_grain_factor: float = 1.0,
     ) -> CanopyFluxes:
         """Variant that derives water stress from ET supply/demand.
 
@@ -252,4 +255,5 @@ class CanopyModule:
             temp_factor=temp_factor,
             water_stress=ws,
             n_stress=n_stress,
+            heat_grain_factor=heat_grain_factor,
         )

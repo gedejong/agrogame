@@ -41,6 +41,20 @@ class CanopyParams:
     # Gebbing & Schnyder 1999: 30-50% of grain C from pre-anthesis reserves.
     # APSIM: stem_remobilisation_fraction parameter.
     remobilization_fraction: float = 0.0
+    # Extreme weather damage thresholds (AGRO-34)
+    # Frost: LAI loss when tmin < threshold during EMERGED-FLOWERING.
+    # Severity-proportional: loss = LAI * frac * clamp((thresh-tmin)/|thresh|)
+    # DSSAT CERES: maize 0C, wheat -2C (Hatfield & Prueger 2015)
+    frost_threshold_c: float = 0.0
+    frost_damage_fraction: float = 0.3
+    # Heat: grain reduction when tmax > threshold during FLOWERING.
+    # DSSAT CERES heat stress on grain set (Hatfield & Prueger 2015)
+    heat_damage_threshold_c: float = 35.0
+    heat_grain_reduction_fraction: float = 0.5
+    # Waterlogging: LAI loss after consecutive saturated days.
+    # Setter & Waters 2003: root oxygen stress after 2-3 days saturation.
+    waterlog_days_for_damage: int = 3
+    waterlog_lai_loss_fraction: float = 0.15
 
 
 def cardinal_temp_factor(tmean_c: float, base: float, opt: float, tmax: float) -> float:

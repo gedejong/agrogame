@@ -32,7 +32,23 @@ class WaterRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "water":
             return
+        # Check waterlogging BEFORE daily water model runs — irrigation
+        # applied before step_day may have saturated the soil.
+        self._check_waterlogging()
         drivers = ev.drivers or DailyDrivers(
             rainfall_mm=0.0, irrigation_mm=0.0, evaporation_mm=0.0
         )
         _ = self.model.update_daily(self.profile, self.state, drivers)
+
+    def _check_waterlogging(self) -> None:
+        """Emit WaterloggingDetected if top-layer theta >= saturation."""
+        if not self.profile.layers:
+            return
+        theta = self.state.theta[0]
+        sat = self.profile.layers[0].saturation
+        if theta >= sat * 0.95:  # near-saturation threshold
+            from agrogame.soil.water.events import WaterloggingDetected
+
+            self.event_bus.emit(
+                WaterloggingDetected(layer=0, theta=theta, saturation=sat)
+            )
