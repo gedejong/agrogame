@@ -30,7 +30,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amounts_mm_sum",
 		"label": "Infiltration",
-		"z_slot": 0.0
+		"z_slot": -0.35,
 	},
 	"WaterDrained":
 	{
@@ -39,7 +39,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_mm",
 		"label": "Percolation",
-		"z_slot": 0.08
+		"z_slot": -0.25,
 	},
 	"EvaporationTaken":
 	{
@@ -48,7 +48,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_mm",
 		"label": "Evaporation",
-		"z_slot": -0.15
+		"z_slot": -0.45,
 	},
 	"TranspirationByLayer":
 	{
@@ -57,7 +57,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "total_mm",
 		"label": "Transpiration",
-		"z_slot": -0.08
+		"z_slot": -0.35,
 	},
 	"RunoffGenerated":
 	{
@@ -66,7 +66,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_mm",
 		"label": "Runoff",
-		"z_slot": -0.22
+		"z_slot": -0.45,
+		"y_frac": 0.5,
 	},
 	"NitrificationOccurred":
 	{
@@ -75,7 +76,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.0
+		"z_slot": 0.0,
+		"y_frac": 0.2,
 	},
 	"MineralizationOccurred":
 	{
@@ -84,7 +86,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.08
+		"z_slot": 0.0,
+		"y_frac": 0.4,
 	},
 	"DenitrificationOccurred":
 	{
@@ -93,7 +96,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
-		"z_slot": 0.0
+		"z_slot": 0.0,
 	},
 	"VolatilizationOccurred":
 	{
@@ -102,7 +105,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
-		"z_slot": 0.08
+		"z_slot": 0.1,
 	},
 	"NutrientLeached":
 	{
@@ -111,7 +114,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
 		"label": "NO3 leaching",
-		"z_slot": 0.15
+		"z_slot": -0.15,
 	},
 	"PhosphorusFixationOccurred":
 	{
@@ -120,7 +123,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": 0.15
+		"z_slot": 0.0,
+		"y_frac": 0.6,
 	},
 	"SOMDecomposed":
 	{
@@ -129,7 +133,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": 0.22
+		"z_slot": 0.0,
+		"y_frac": 0.8,
 	},
 	"CO2Respired":
 	{
@@ -138,7 +143,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
 		"label": "Soil CO2 \u2191",
-		"z_slot": 0.22
+		"z_slot": 0.0,
 	},
 }
 
@@ -422,8 +427,8 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 			configs
 			. append(
 				{
-					"start": Vector3(fx_a, RAIN_SKY_Y, fz - 0.15),
-					"end": Vector3(fx_a, 0.01, fz - 0.15),
+					"start": Vector3(fx_a, RAIN_SKY_Y, fz - 0.25),
+					"end": Vector3(fx_a, 0.01, fz - 0.25),
 					"color": COLOR_WATER,
 					"magnitude": rain_mag,
 					"speed": 2.0,
@@ -504,8 +509,18 @@ func _build_tube_config(
 			end = Vector3(fx_atmo, 0.2, tube_z)
 			speed = absf(speed)
 		"lateral":
-			var y_mid := _layer_midpoint_y(layer_idx)
-			var path := _make_lateral_path(fx_soil, y_mid, tube_z, tube_z + 0.2, 0.04)
+			# Stack within layer using y_frac (0=top, 1=bottom of layer)
+			var y_frac: float = ecfg.get("y_frac", 0.5)
+			var y_top_l: float = (
+				_layer_positions[layer_idx] if layer_idx < _layer_positions.size() else 0.0
+			)
+			var y_bot_l: float = (
+				_layer_positions[layer_idx + 1]
+				if layer_idx + 1 < _layer_positions.size()
+				else y_top_l - 0.1
+			)
+			var y_pos: float = lerpf(y_top_l, y_bot_l, y_frac)
+			var path := _make_lateral_path(fx_soil, y_pos, tube_z, tube_z + 0.2, 0.04)
 			speed = absf(speed)
 			return {
 				"path": path,
