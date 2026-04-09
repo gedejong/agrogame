@@ -389,8 +389,48 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	# Aggregate by (event_type, layer) for lateral; by event_type for vertical
 	var agg: Dictionary = {}
 	var agg_data: Dictionary = {}
+	# Plant nutrient uptake — split NutrientStressComputed by nutrient type
+	var n_uptake := 0.0
+	var p_uptake := 0.0
+	for evt: Dictionary in events:
+		if evt.get("event_type", "") == "NutrientStressComputed":
+			var d: Dictionary = evt.get("data", {})
+			if d.get("nutrient", "") == "N":
+				n_uptake += float(d.get("uptake_kg_ha", 0.0))
+			elif d.get("nutrient", "") == "P":
+				p_uptake += float(d.get("uptake_kg_ha", 0.0))
+	if n_uptake > 0.01:
+		(
+			configs
+			. append(
+				{
+					"start": Vector3(fx_a, 0.01, fz + 0.0),
+					"end": Vector3(fx_a, 0.2, fz + 0.0),
+					"color": COLOR_NO3,
+					"magnitude": clampf(n_uptake / 10.0, 0.0, 1.0),
+					"speed": 1.2,
+					"label_text": "N uptake\n%.2f kg/ha" % n_uptake,
+				}
+			)
+		)
+	if p_uptake > 0.01:
+		(
+			configs
+			. append(
+				{
+					"start": Vector3(fx_a, 0.01, fz + 0.1),
+					"end": Vector3(fx_a, 0.2, fz + 0.1),
+					"color": COLOR_PHOSPHORUS,
+					"magnitude": clampf(p_uptake / 10.0, 0.0, 1.0),
+					"speed": 1.2,
+					"label_text": "P uptake\n%.3f kg/ha" % p_uptake,
+				}
+			)
+		)
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
+		if etype == "NutrientStressComputed":
+			continue
 		if not EVENT_CONFIG.has(etype):
 			continue
 		var ecfg: Dictionary = EVENT_CONFIG[etype]
