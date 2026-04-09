@@ -6,7 +6,8 @@ extends Node3D
 ## threshold-based stress (drought, N/P deficiency).
 
 const ICON_Y := 0.5
-const ICON_SIZE := Vector2(0.10, 0.10)
+const ICON_SIZE := Vector2(0.08, 0.08)
+const ICON_SPACING := 0.14
 const LABEL_ZOOM_THRESHOLD := 2.5
 const STRESS_THRESHOLD := 0.5
 
@@ -181,14 +182,14 @@ func _create_icons(pos: Vector3, stress_keys: Array) -> Node3D:
 	var container := Node3D.new()
 	container.position = Vector3(pos.x, pos.y, pos.z)
 	# Center the icon row
-	var total_width: float = maxf(0.0, float(stress_keys.size() - 1) * 0.20)
+	var total_width: float = maxf(0.0, float(stress_keys.size() - 1) * ICON_SPACING)
 	var x_start: float = -total_width * 0.5
 	for si in range(stress_keys.size()):
 		var skey: String = stress_keys[si]
 		if not _all_stress.has(skey):
 			continue
 		var cfg: Dictionary = _all_stress[skey]
-		var x_pos: float = x_start + float(si) * 0.20
+		var x_pos: float = x_start + float(si) * ICON_SPACING
 		# Sprite icon
 		var tex_path: String = cfg["texture"]
 		if not ResourceLoader.exists(tex_path):
