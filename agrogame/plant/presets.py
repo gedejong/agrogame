@@ -20,6 +20,11 @@ class CropPreset:
     canopy: CanopyParams
     roots: RootParams
     n_fixation_credit_kg_ha: float = 0.0
+    # Tissue nutrient concentrations (kg nutrient per kg dry matter).
+    # Used to compute daily N/P demand from biomass increment.
+    # DSSAT: maize ~0.03 N, ~0.003 P; wheat ~0.025 N, ~0.003 P.
+    tissue_n_conc_kg_kg: float = 0.03
+    tissue_p_conc_kg_kg: float = 0.003
     key: str = ""
 
 
@@ -146,6 +151,8 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             canopy=_build_canopy(raw),
             roots=_build_roots(raw),
             n_fixation_credit_kg_ha=float(raw.get("n_fixation_credit_kg_ha", 0.0)),
+            tissue_n_conc_kg_kg=float(raw.get("tissue_n_conc_kg_kg", 0.03)),
+            tissue_p_conc_kg_kg=float(raw.get("tissue_p_conc_kg_kg", 0.003)),
             key=key,
         )
         crops[key] = base
