@@ -10,6 +10,9 @@ const RAIN_CONNECTOR_MM := 1.0
 const PULSE_INTENSITY := 2.5
 const PULSE_DURATION := 0.6
 const RAIN_SKY_Y := 0.25
+## Normalization scales (kg/ha → 0-1 magnitude) for uptake tubes.
+const N_UPTAKE_SCALE := 5.0
+const P_UPTAKE_SCALE := 1.0
 
 ## Substance colors — sourced from UiTheme single source of truth
 const COLOR_WATER := UiTheme.SUBSTANCE_WATER
@@ -411,7 +414,8 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	# Aggregate by (event_type, layer) for lateral; by event_type for vertical
 	var agg: Dictionary = {}
 	var agg_data: Dictionary = {}
-	# Extract N/P uptake from NutrientStressComputed events (#223 dynamic demand)
+	# Single-pass: extract N/P uptake from NutrientStressComputed and
+	# aggregate other event types for tube generation.
 	var n_uptake := 0.0
 	var p_uptake := 0.0
 	for evt: Dictionary in events:
@@ -424,55 +428,6 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 				n_uptake += uptake
 			elif nutrient == "P":
 				p_uptake += uptake
-	# N Assimilation tube (upward from soil into plant)
-	if n_uptake > 0.01:
-		var n_label := "N Assimilation"
-		var n_formula: String = LABEL_FORMULA.get(n_label, "")
-		var n_val: String = "%.2f" % n_uptake
-		if n_uptake < 0.005:
-			n_val = "%.3f" % n_uptake
-		var n_text: String = n_label
-		if not n_formula.is_empty():
-			n_text += " (%s)" % n_formula
-		n_text += "\n%s kg/ha" % n_val
-		(
-			configs
-			. append(
-				{
-					"start": Vector3(fx_a, 0.01, fz + 0.05),
-					"end": Vector3(fx_a, 0.2, fz + 0.05),
-					"color": COLOR_NO3,
-					"magnitude": clampf(n_uptake / 5.0, 0.01, 1.0),
-					"speed": 1.2,
-					"label_text": n_text,
-				}
-			)
-		)
-	# P Assimilation tube
-	if p_uptake > 0.001:
-		var p_label := "P Assimilation"
-		var p_formula: String = LABEL_FORMULA.get(p_label, "")
-		var p_val: String = "%.3f" % p_uptake
-		var p_text: String = p_label
-		if not p_formula.is_empty():
-			p_text += " (%s)" % p_formula
-		p_text += "\n%s kg/ha" % p_val
-		(
-			configs
-			. append(
-				{
-					"start": Vector3(fx_a, 0.01, fz + 0.15),
-					"end": Vector3(fx_a, 0.2, fz + 0.15),
-					"color": COLOR_PHOSPHORUS,
-					"magnitude": clampf(p_uptake / 1.0, 0.01, 1.0),
-					"speed": 1.2,
-					"label_text": p_text,
-				}
-			)
-		)
-	for evt: Dictionary in events:
-		var etype: String = evt.get("event_type", "")
-		if etype == "NutrientStressComputed":
 			continue
 		if not EVENT_CONFIG.has(etype):
 			continue
@@ -522,6 +477,49 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 					"magnitude": rain_mag,
 					"speed": 2.0,
 					"label_text": "Rain",
+				}
+			)
+		)
+	# N/P Assimilation tubes — upward from soil into plant.
+	# Not in EVENT_CONFIG so _apply_gas_dissipation won't match them;
+	# this is intentional: uptake goes into the plant, not atmosphere.
+	if n_uptake > 0.01:
+		var n_label := "N Assimilation"
+		var n_formula: String = LABEL_FORMULA.get(n_label, "")
+		var n_text: String = n_label
+		if not n_formula.is_empty():
+			n_text += " (%s)" % n_formula
+		n_text += "\n%.2f kg/ha" % n_uptake
+		(
+			configs
+			. append(
+				{
+					"start": Vector3(fx_a, 0.01, fz + 0.05),
+					"end": Vector3(fx_a, 0.2, fz + 0.05),
+					"color": COLOR_NO3,
+					"magnitude": clampf(n_uptake / N_UPTAKE_SCALE, 0.01, 1.0),
+					"speed": 1.2,
+					"label_text": n_text,
+				}
+			)
+		)
+	if p_uptake > 0.001:
+		var p_label := "P Assimilation"
+		var p_formula: String = LABEL_FORMULA.get(p_label, "")
+		var p_text: String = p_label
+		if not p_formula.is_empty():
+			p_text += " (%s)" % p_formula
+		p_text += "\n%.3f kg/ha" % p_uptake
+		(
+			configs
+			. append(
+				{
+					"start": Vector3(fx_a, 0.01, fz + 0.15),
+					"end": Vector3(fx_a, 0.2, fz + 0.15),
+					"color": COLOR_PHOSPHORUS,
+					"magnitude": clampf(p_uptake / P_UPTAKE_SCALE, 0.01, 1.0),
+					"speed": 1.2,
+					"label_text": p_text,
 				}
 			)
 		)
