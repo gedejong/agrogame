@@ -14,7 +14,7 @@ debug/auto_cutaway=true
 debug/flow_tubes_test=false
 debug/orbit_camera=true
 debug/skip_menu=true
-debug/stress_events=false
+debug/stress_events=true
 display/mass_unit="g/m²"
 
 [animation]

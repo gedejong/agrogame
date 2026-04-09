@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- N deficiency: pale yellowing leaf — classic chlorosis symptom -->
+  <circle cx="8" cy="8" r="7.5" fill="#1A1714" opacity="0.85"/>
+  <!-- Leaf shape (yellow-green = chlorotic) -->
+  <path d="M8,2 Q13,5 13,8 Q13,12 8,14 Q3,12 3,8 Q3,5 8,2 Z" fill="#C8D86A"/>
+  <!-- Yellowed lower half (N is mobile — old leaves yellow first) -->
+  <path d="M8,8 Q3,10 3.5,12 Q5,14 8,14 Q11,14 12.5,12 Q13,10 8,8 Z" fill="#D8D070"/>
+  <!-- Midrib vein -->
+  <rect x="7.5" y="3" width="1" height="10" rx="0.5" fill="#A8B84A" opacity="0.6"/>
+  <!-- Side veins (still green near veins = interveinal chlorosis) -->
+  <rect x="4.5" y="6" width="3" height="0.7" rx="0.3" fill="#A8B84A" opacity="0.4" transform="rotate(-15 6 6.3)"/>
+  <rect x="8.5" y="6" width="3" height="0.7" rx="0.3" fill="#A8B84A" opacity="0.4" transform="rotate(15 10 6.3)"/>
+  <rect x="4.5" y="9" width="3" height="0.7" rx="0.3" fill="#A8B84A" opacity="0.3" transform="rotate(-15 6 9.3)"/>
+  <rect x="8.5" y="9" width="3" height="0.7" rx="0.3" fill="#A8B84A" opacity="0.3" transform="rotate(15 10 9.3)"/>
+</svg>

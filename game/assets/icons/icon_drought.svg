@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Drought: irregular cracked earth -->
+  <circle cx="8" cy="8" r="7.5" fill="#1A1714" opacity="0.85"/>
+  <!-- Dry earth base -->
+  <circle cx="8" cy="8" r="6.2" fill="#B8943A"/>
+  <!-- Irregular crack network (asymmetric, organic) -->
+  <g fill="#1A1714">
+    <!-- Main crack: off-center, branching -->
+    <polygon points="6.5,2.5 7.2,2.5 7.8,5 8.5,7.5 8,8.2 7,8 6.8,5.5"/>
+    <!-- Branch right from center -->
+    <polygon points="8,8.2 8.5,7.5 12,6.5 12.2,7.2 8.8,8.5"/>
+    <!-- Branch down-left -->
+    <polygon points="7,8 8,8.2 6,13 5.3,12.8"/>
+    <!-- Branch down-right -->
+    <polygon points="8,8.2 8.8,8.5 11.5,12.5 10.8,13"/>
+    <!-- Small branch upper-left -->
+    <polygon points="6.8,5.5 7,5 4,3.5 3.5,4"/>
+    <!-- Small branch right-up -->
+    <polygon points="12,6.5 11.8,6 13,3.5 13.5,4"/>
+    <!-- Small spur -->
+    <polygon points="6,13 5.5,12.5 3.5,13 3.5,13.5"/>
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- P deficiency: leaf with purple edges and lower half -->
+  <circle cx="8" cy="8" r="7.5" fill="#1A1714" opacity="0.85"/>
+  <!-- Leaf shape (bright green base — more contrast) -->
+  <path d="M8,2 Q13,5 13,8 Q13,12 8,14 Q3,12 3,8 Q3,5 8,2 Z" fill="#6AAA3A"/>
+  <!-- Purple lower zone (P deficiency — older tissue) -->
+  <path d="M8,8 Q3.5,10 3.5,12 Q5,14 8,14 Q11,14 12.5,12 Q12.5,10 8,8 Z" fill="#9060B0"/>
+  <!-- Purple leaf margins (edges turn purple first) -->
+  <path d="M8,2 Q13,5 13,7 Q11,5.5 8,3.5 Z" fill="#8050A0" opacity="0.6"/>
+  <path d="M8,2 Q3,5 3,7 Q5,5.5 8,3.5 Z" fill="#8050A0" opacity="0.6"/>
+  <!-- Midrib (bright, contrasting) -->
+  <rect x="7.3" y="3" width="1.4" height="10" rx="0.7" fill="#4A8A2A" opacity="0.5"/>
+</svg>
