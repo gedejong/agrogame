@@ -290,10 +290,10 @@ func _build_roots(
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
-	# Root quads sit just inside the face so flow tubes render in front
-	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 - 0.005, 0, 0), 0)
+	# Root quads just outside face (behind tubes at +0.02, in front of soil box)
+	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.001, 0, 0), 0)
 	q1.set_meta("soil_view_dynamic", true)
-	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 - 0.005), 1)
+	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.001), 1)
 	q2.set_meta("soil_view_dynamic", true)
 
 
