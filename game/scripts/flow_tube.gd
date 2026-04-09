@@ -179,10 +179,11 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
-	var count: int = clampi(int(magnitude * 30.0), 0, 30)
+	var count: int = clampi(int(magnitude * 60.0), 0, 60)
 	if count < 1:
 		return
 	var particle_r := 0.002
+	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	var p_mat := StandardMaterial3D.new()
 	p_mat.albedo_color = Color(1.0, 1.0, 1.0, 0.95)
 	p_mat.emission_enabled = true
@@ -200,13 +201,17 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = p_mat
 		var follow := PathFollow3D.new()
 		follow.loop = false
-		follow.progress_ratio = rng.randf()
+		# Stagger emergence: each particle starts at progress 0 but with
+		# a random delay before it begins moving
+		follow.progress_ratio = 0.0
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
-		# Random lifetime: particle disappears and respawns at random position
-		follow.set_meta("lifetime", 1.0 + rng.randf() * 3.0)
-		follow.set_meta("age", rng.randf() * 3.0)
-		follow.set_meta("wobble_phase", rng.randf() * TAU)
-		follow.set_meta("wobble_radius", rng.randf() * particle_r * 3.0)
+		follow.set_meta("start_delay", rng.randf() * 3.0)
+		follow.set_meta("age", 0.0)
+		# Random radial offset within tube cross-section
+		var angle: float = rng.randf() * TAU
+		var dist: float = rng.randf() * tube_r * 0.8
+		follow.set_meta("radial_x", cos(angle) * dist)
+		follow.set_meta("radial_z", sin(angle) * dist)
 		var mi := MeshInstance3D.new()
 		mi.mesh = sphere
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -225,8 +230,8 @@ func _build_particles(
 	if length < 0.001:
 		return
 
-	# Particle count scales with magnitude
-	var p_count: int = clampi(int(magnitude * 30.0), 1, 30)
+	var p_count: int = clampi(int(magnitude * 60.0), 1, 60)
+	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	_particles = GPUParticles3D.new()
 	_particles.amount = p_count
 	_particles.lifetime = maxf(length / maxf(absf(speed) * 0.2, 0.01), 0.5)
@@ -234,9 +239,9 @@ func _build_particles(
 	_particles.visibility_aabb = AABB(Vector3(-0.1, -0.1, -0.1), Vector3(0.2, length + 0.2, 0.2))
 
 	var mat := ParticleProcessMaterial.new()
+	# Emit across the full tube cross-section radius
 	mat.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
-	var emit_r := 0.005
-	mat.emission_box_extents = Vector3(emit_r, length * 0.4, emit_r)
+	mat.emission_box_extents = Vector3(tube_r * 0.8, length * 0.4, tube_r * 0.8)
 	mat.gravity = Vector3.ZERO
 	# Flow along tube axis (Y in local space, rotated by tube basis)
 	var flow_speed: float = length * speed * 0.5
@@ -407,7 +412,7 @@ func set_magnitude(magnitude: float) -> void:
 		(_tube_mesh.mesh as CylinderMesh).top_radius = r
 		(_tube_mesh.mesh as CylinderMesh).bottom_radius = r
 	if _particles:
-		_particles.amount = clampi(int(magnitude * 30.0), 0, 30)
+		_particles.amount = clampi(int(magnitude * 60.0), 0, 60)
 
 
 func _process(delta: float) -> void:
@@ -421,20 +426,26 @@ func _process(delta: float) -> void:
 		if child is PathFollow3D:
 			var spd: float = child.get_meta("flow_speed")
 			var age: float = child.get_meta("age") + delta
-			var lifetime: float = child.get_meta("lifetime")
-			# Respawn at random position when lifetime expires
-			if age >= lifetime:
-				age = 0.0
-				child.progress_ratio = randf()
-				child.set_meta("wobble_phase", randf() * TAU)
+			var delay: float = child.get_meta("start_delay")
 			child.set_meta("age", age)
-			child.progress_ratio = clampf(child.progress_ratio + spd * delta, 0.0, 1.0)
-			var phase: float = child.get_meta("wobble_phase")
-			var wobble_r: float = child.get_meta("wobble_radius")
 			var mi: MeshInstance3D = child.get_child(0) as MeshInstance3D
-			mi.position.x = sin(t * 3.0 + phase) * wobble_r
-			mi.position.z = cos(t * 2.3 + phase * 1.7) * wobble_r
-			mi.visible = child.progress_ratio < 0.99
+			# Wait for staggered start delay
+			if age < delay:
+				mi.visible = false
+				continue
+			# Advance along path
+			child.progress_ratio = clampf(child.progress_ratio + spd * delta, 0.0, 1.0)
+			# Respawn at start when reaching end
+			if child.progress_ratio >= 0.99:
+				child.progress_ratio = 0.0
+				child.set_meta("start_delay", randf() * 0.5)
+				child.set_meta("age", 0.0)
+				mi.visible = false
+				continue
+			mi.visible = true
+			# Fixed radial offset within tube cross-section
+			mi.position.x = child.get_meta("radial_x")
+			mi.position.z = child.get_meta("radial_z")
 			if is_gas:
 				var prog: float = child.progress_ratio
 				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
