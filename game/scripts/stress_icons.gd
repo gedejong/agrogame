@@ -1,11 +1,10 @@
 class_name StressIcons
 extends Node3D
 ## Floating warning signs above tiles for weather damage events.
-## American-style diamond warning sign with icon. Label shown on
-## hover or when camera is zoomed in close.
+## Yellow triangle with colored icon. Label shown on hover or close zoom.
 
 const ICON_Y := 0.55
-const SIGN_SIZE := 0.08
+const SIGN_SIZE := 0.07
 const POLE_HEIGHT := 0.25
 const POLE_RADIUS := 0.003
 const LABEL_ZOOM_THRESHOLD := 5.0
@@ -37,7 +36,6 @@ var _labels: Array[Label3D] = []
 
 
 func _process(_delta: float) -> void:
-	# Show/hide labels based on camera zoom distance
 	var cam := get_viewport().get_camera_3d()
 	if not cam:
 		return
@@ -51,7 +49,6 @@ func _process(_delta: float) -> void:
 func update_from_patches(
 	patches: Dictionary, tile_data: Array, tile_meshes: Array, soil_types: Array
 ) -> void:
-	## Scan patch events for stress, show/hide icons above affected tiles.
 	var active_stresses: Dictionary = {}
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
@@ -62,11 +59,7 @@ func update_from_patches(
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
 				if STRESS_EVENTS.has(etype):
-					active_stresses[soil + "_" + etype] = {
-						"soil": soil,
-						"event": etype,
-					}
-	# Find tile positions for active stresses
+					active_stresses[soil + "_" + etype] = {"soil": soil, "event": etype}
 	var tile_stresses: Dictionary = {}
 	for key: String in active_stresses:
 		var info: Dictionary = active_stresses[key]
@@ -77,28 +70,31 @@ func update_from_patches(
 				if not tile_stresses.has(i):
 					tile_stresses[i] = []
 				tile_stresses[i].append(etype)
-	# Remove icons for tiles no longer stressed
+	# Remove stale icons with shrink animation
 	var to_remove: Array = []
 	for icon_key: String in _icons:
 		if not tile_stresses.has(int(icon_key)):
 			to_remove.append(icon_key)
 	for key: String in to_remove:
 		var node: Node3D = _icons[key]
-		node.queue_free()
+		_animate_remove(node)
 		_icons.erase(key)
-	# Rebuild labels list
 	_labels.clear()
-	# Create/update icons for stressed tiles
+	# Collect still-valid labels
+	for key: String in _icons:
+		_collect_labels(_icons[key])
+	# Create new icons
 	for tile_idx: int in tile_stresses:
 		var etypes: Array = tile_stresses[tile_idx]
 		var key: String = str(tile_idx)
 		if _icons.has(key):
-			_rebuild_sign(_icons[key], etypes)
-		else:
-			var pos: Vector3 = tile_meshes[tile_idx].position
-			var sign_node := _create_sign(pos, etypes)
-			add_child(sign_node)
-			_icons[key] = sign_node
+			continue
+		var pos: Vector3 = tile_meshes[tile_idx].position
+		var sign_node := _create_sign(pos, etypes)
+		add_child(sign_node)
+		_icons[key] = sign_node
+		_animate_appear(sign_node)
+		_collect_labels(sign_node)
 
 
 func clear_icons() -> void:
@@ -108,20 +104,17 @@ func clear_icons() -> void:
 	_labels.clear()
 
 
+func _collect_labels(node: Node3D) -> void:
+	for child in node.get_children():
+		if child is Node3D:
+			for sub in child.get_children():
+				if sub is Label3D and sub.has_meta("stress_label"):
+					_labels.append(sub)
+
+
 func _create_sign(pos: Vector3, etypes: Array) -> Node3D:
 	var container := Node3D.new()
 	container.position = Vector3(pos.x, pos.y, pos.z)
-	_build_sign_content(container, etypes)
-	return container
-
-
-func _rebuild_sign(container: Node3D, etypes: Array) -> void:
-	for child in container.get_children():
-		child.queue_free()
-	_build_sign_content(container, etypes)
-
-
-func _build_sign_content(container: Node3D, etypes: Array) -> void:
 	var x_offset := 0.0
 	for etype: String in etypes:
 		if not STRESS_EVENTS.has(etype):
@@ -130,120 +123,117 @@ func _build_sign_content(container: Node3D, etypes: Array) -> void:
 		var sign_root := Node3D.new()
 		sign_root.position = Vector3(x_offset, 0, 0)
 		container.add_child(sign_root)
-		# Pole
-		var pole_mesh := CylinderMesh.new()
-		pole_mesh.height = POLE_HEIGHT
-		pole_mesh.top_radius = POLE_RADIUS
-		pole_mesh.bottom_radius = POLE_RADIUS
-		pole_mesh.radial_segments = 6
-		var pole_mat := StandardMaterial3D.new()
-		pole_mat.albedo_color = Color(0.5, 0.5, 0.5)
-		pole_mat.metallic = 0.6
-		pole_mat.roughness = 0.4
-		var pole_inst := MeshInstance3D.new()
-		pole_inst.mesh = pole_mesh
-		pole_inst.material_override = pole_mat
-		pole_inst.position = Vector3(0, ICON_Y - POLE_HEIGHT * 0.5, 0)
-		sign_root.add_child(pole_inst)
-		# Diamond sign background (rotated square quad)
-		var quad := QuadMesh.new()
-		quad.size = Vector2(SIGN_SIZE, SIGN_SIZE)
-		var sign_mat := StandardMaterial3D.new()
-		sign_mat.albedo_color = Color(1.0, 0.85, 0.0)
-		sign_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		sign_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sign_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		var sign_inst := MeshInstance3D.new()
-		sign_inst.mesh = quad
-		sign_inst.material_override = sign_mat
-		sign_inst.position = Vector3(0, ICON_Y + 0.01, 0)
-		sign_inst.rotation.z = PI * 0.25
-		sign_root.add_child(sign_inst)
-		# Black border (slightly larger diamond behind)
-		var border_quad := QuadMesh.new()
-		border_quad.size = Vector2(SIGN_SIZE * 1.12, SIGN_SIZE * 1.12)
-		var border_mat := StandardMaterial3D.new()
-		border_mat.albedo_color = Color(0.1, 0.1, 0.1)
-		border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		border_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		var border_inst := MeshInstance3D.new()
-		border_inst.mesh = border_quad
-		border_inst.material_override = border_mat
-		border_inst.position = Vector3(0, ICON_Y + 0.01, 0.001)
-		border_inst.rotation.z = PI * 0.25
-		sign_root.add_child(border_inst)
-		# Icon on the sign
-		var icon_label := Label3D.new()
-		icon_label.text = cfg["icon"]
-		icon_label.font_size = 36
-		icon_label.pixel_size = 0.002
-		icon_label.modulate = Color(0.1, 0.1, 0.1)
-		icon_label.no_depth_test = true
-		icon_label.render_priority = 14
-		icon_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		icon_label.position = Vector3(0, ICON_Y + 0.01, -0.002)
-		sign_root.add_child(icon_label)
-		# Text label below sign — hidden by default, shown on hover/zoom
-		var text_label := Label3D.new()
-		text_label.text = cfg["label"]
-		text_label.font_size = 22
-		text_label.pixel_size = 0.002
-		text_label.modulate = cfg["color"]
-		text_label.outline_size = 6
-		text_label.outline_modulate = Color(0, 0, 0, 0.7)
-		text_label.no_depth_test = true
-		text_label.render_priority = 14
-		text_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		text_label.position = Vector3(0, ICON_Y - 0.04, 0)
-		text_label.visible = false
-		sign_root.add_child(text_label)
-		_labels.append(text_label)
-		# Hover detection
-		var area := Area3D.new()
-		var coll := CollisionShape3D.new()
-		var shape := BoxShape3D.new()
-		shape.size = Vector3(SIGN_SIZE * 1.5, SIGN_SIZE * 1.5 + POLE_HEIGHT, SIGN_SIZE * 1.5)
-		coll.shape = shape
-		area.add_child(coll)
-		area.position = Vector3(0, ICON_Y, 0)
-		area.input_ray_pickable = true
-		var lbl_ref := text_label
+		_build_pole(sign_root)
+		_build_triangle(sign_root)
+		_build_icon(sign_root, cfg)
+		_build_label(sign_root, cfg)
+		_build_hover_area(sign_root)
+		x_offset += 0.18
+	return container
+
+
+func _build_pole(parent: Node3D) -> void:
+	var pole_mesh := CylinderMesh.new()
+	pole_mesh.height = POLE_HEIGHT
+	pole_mesh.top_radius = POLE_RADIUS
+	pole_mesh.bottom_radius = POLE_RADIUS
+	pole_mesh.radial_segments = 6
+	var pole_mat := StandardMaterial3D.new()
+	pole_mat.albedo_color = Color(0.5, 0.5, 0.5)
+	pole_mat.metallic = 0.6
+	pole_mat.roughness = 0.4
+	var pole_inst := MeshInstance3D.new()
+	pole_inst.mesh = pole_mesh
+	pole_inst.material_override = pole_mat
+	pole_inst.position = Vector3(0, ICON_Y - POLE_HEIGHT * 0.5, 0)
+	parent.add_child(pole_inst)
+
+
+func _build_triangle(parent: Node3D) -> void:
+	# Yellow warning triangle built with SurfaceTool (billboard via Label3D backing)
+	# Using a simple quad with triangle UV would be complex — use two Label3Ds instead:
+	# a yellow triangle character as background
+	var bg := Label3D.new()
+	bg.text = "⚠"
+	bg.font_size = 72
+	bg.pixel_size = 0.0025
+	bg.modulate = Color(1.0, 0.85, 0.0)
+	bg.outline_size = 12
+	bg.outline_modulate = Color(0.15, 0.15, 0.15)
+	bg.no_depth_test = true
+	bg.render_priority = 13
+	bg.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	bg.position = Vector3(0, ICON_Y + 0.01, 0)
+	parent.add_child(bg)
+
+
+func _build_icon(parent: Node3D, cfg: Dictionary) -> void:
+	var icon_label := Label3D.new()
+	icon_label.text = cfg["icon"]
+	icon_label.font_size = 28
+	icon_label.pixel_size = 0.0018
+	icon_label.modulate = cfg["color"]
+	icon_label.no_depth_test = true
+	icon_label.render_priority = 15
+	icon_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	icon_label.position = Vector3(0, ICON_Y - 0.005, -0.001)
+	parent.add_child(icon_label)
+
+
+func _build_label(parent: Node3D, cfg: Dictionary) -> void:
+	var text_label := Label3D.new()
+	text_label.text = cfg["label"]
+	text_label.font_size = 22
+	text_label.pixel_size = 0.002
+	text_label.modulate = cfg["color"]
+	text_label.outline_size = 6
+	text_label.outline_modulate = Color(0, 0, 0, 0.7)
+	text_label.no_depth_test = true
+	text_label.render_priority = 14
+	text_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	text_label.position = Vector3(0, ICON_Y - 0.05, 0)
+	text_label.visible = false
+	text_label.set_meta("stress_label", true)
+	parent.add_child(text_label)
+
+
+func _build_hover_area(parent: Node3D) -> void:
+	var area := Area3D.new()
+	var coll := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.12, 0.15, 0.12)
+	coll.shape = shape
+	area.add_child(coll)
+	area.position = Vector3(0, ICON_Y, 0)
+	area.input_ray_pickable = true
+	# Find the label in siblings
+	var lbl: Label3D = null
+	for child in parent.get_children():
+		if child is Label3D and child.has_meta("stress_label"):
+			lbl = child
+			break
+	if lbl:
+		var lbl_ref := lbl
 		area.mouse_entered.connect(
 			func() -> void:
 				lbl_ref.visible = true
 				lbl_ref.set_meta("hovered", true)
 		)
-		area.mouse_exited.connect(
-			func() -> void: lbl_ref.remove_meta("hovered")
-			# _process will hide if not zoomed in
-		)
-		sign_root.add_child(area)
-		# Attention-grabbing animation: gentle bob + scale pulse
-		_animate_sign(sign_root)
-		x_offset += 0.18
+		area.mouse_exited.connect(func() -> void: lbl_ref.remove_meta("hovered"))
+	parent.add_child(area)
 
 
-func _animate_sign(node: Node3D) -> void:
-	var base_y: float = node.position.y
+func _animate_appear(node: Node3D) -> void:
+	node.scale = Vector3(0.01, 0.01, 0.01)
 	var tw := create_tween()
-	tw.set_loops()
-	# Bob up and down
-	tw.tween_property(node, "position:y", base_y + 0.02, 0.8).set_ease(Tween.EASE_IN_OUT).set_trans(
-		Tween.TRANS_SINE
-	)
-	tw.tween_property(node, "position:y", base_y, 0.8).set_ease(Tween.EASE_IN_OUT).set_trans(
-		Tween.TRANS_SINE
-	)
-	# Separate scale pulse
-	var tw2 := create_tween()
-	tw2.set_loops()
-	(
-		tw2
-		. tween_property(node, "scale", Vector3(1.15, 1.15, 1.15), 0.6)
-		. set_ease(Tween.EASE_IN_OUT)
-		. set_trans(Tween.TRANS_SINE)
-	)
-	tw2.tween_property(node, "scale", Vector3.ONE, 0.6).set_ease(Tween.EASE_IN_OUT).set_trans(
-		Tween.TRANS_SINE
-	)
+	tw.set_ease(Tween.EASE_OUT)
+	tw.set_trans(Tween.TRANS_BACK)
+	tw.tween_property(node, "scale", Vector3.ONE, 0.5)
+
+
+func _animate_remove(node: Node3D) -> void:
+	var tw := create_tween()
+	tw.set_ease(Tween.EASE_IN)
+	tw.set_trans(Tween.TRANS_BACK)
+	tw.tween_property(node, "scale", Vector3(0.01, 0.01, 0.01), 0.3)
+	tw.tween_callback(node.queue_free)
