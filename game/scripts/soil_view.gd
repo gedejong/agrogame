@@ -32,14 +32,14 @@ const LAYER_TEXTURES := {
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
 
-## Per-crop root style: {plants_per_face, tap_thickness, lateral_thickness, max_branches}
+## Per-crop root style: plants, tap_w, fibrous density (0-1), depth bias (higher=shallower)
 const CROP_ROOT_STYLE := {
-	"maize": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 5},
-	"spring_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
-	"winter_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
-	"sorghum": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 6},
-	"rice": {"plants": 8, "tap_w": 1, "lat_w": 1, "branches": 2},
-	"grape": {"plants": 2, "tap_w": 4, "lat_w": 3, "branches": 4},
+	"maize": {"plants": 4, "tap_w": 3, "density": 0.7, "shallow_bias": 0.4},
+	"spring_wheat": {"plants": 10, "tap_w": 1, "density": 0.9, "shallow_bias": 0.6},
+	"winter_wheat": {"plants": 10, "tap_w": 1, "density": 0.9, "shallow_bias": 0.6},
+	"sorghum": {"plants": 4, "tap_w": 3, "density": 0.7, "shallow_bias": 0.35},
+	"rice": {"plants": 8, "tap_w": 1, "density": 0.85, "shallow_bias": 0.7},
+	"grape": {"plants": 2, "tap_w": 4, "density": 0.5, "shallow_bias": 0.3},
 }
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
@@ -311,127 +311,98 @@ static func _root_hash(seed_val: int, idx: int) -> float:
 
 
 static func _generate_root_image(root_depth: float, total_h: float, style: Dictionary) -> Image:
-	## Root systems per face, density matching the crop above.
+	## Generate root texture using noise-based fibrous density + taproot lines.
+	## Creates a dense, networky root mass that fills the rooted soil volume.
 	var w := 256
 	var h := 512
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var root_px: int = int(root_depth / total_h * float(h))
-	var depth_frac: float = clampf(root_depth / total_h, 0.0, 1.0)
+	if root_px < 2:
+		return img
 	var num_plants: int = style.get("plants", 4)
 	var tap_w: int = style.get("tap_w", 2)
-	var lat_w: int = style.get("lat_w", 1)
-	var max_branches: int = style.get("branches", 4)
+	var density: float = style.get("density", 0.7)
+	var shallow_bias: float = style.get("shallow_bias", 0.5)
+
+	# Noise layers for fibrous network
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.035
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 4
+	noise.fractal_lacunarity = 2.2
+	noise.fractal_gain = 0.55
+	# Ridged noise for vein-like branching structures
+	var vein_noise := FastNoiseLite.new()
+	vein_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	vein_noise.frequency = 0.02
+	vein_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	vein_noise.fractal_octaves = 5
+	vein_noise.fractal_lacunarity = 2.0
+	vein_noise.fractal_gain = 0.5
+	vein_noise.seed = 17
+	# Fine detail noise
+	var fine_noise := FastNoiseLite.new()
+	fine_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fine_noise.frequency = 0.08
+	fine_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	fine_noise.fractal_octaves = 3
+	fine_noise.seed = 42
+
+	# Taproot X positions
+	var tap_xs: Array[int] = []
 	for pi in range(num_plants):
-		var cx: int = int((float(pi) + 0.5) / float(num_plants) * float(w))
-		_draw_single_root_img(img, cx, root_px, depth_frac, pi, tap_w, lat_w, max_branches)
+		tap_xs.append(int((float(pi) + 0.5) / float(num_plants) * float(w)))
+
+	# Fill with noise-based root density
+	for py in range(mini(root_px, h)):
+		var depth_norm: float = float(py) / float(maxi(root_px, 1))
+		# Dense near surface, fading toward root front
+		var depth_fac: float = 1.0 - pow(depth_norm, 1.5 - shallow_bias)
+		# Soft fade at root front (last 15%)
+		var front_fade: float = 1.0
+		if depth_norm > 0.85:
+			front_fade = clampf((1.0 - depth_norm) / 0.15, 0.0, 1.0)
+		for px in range(w):
+			# Proximity to nearest taproot
+			var min_dist: float = float(w)
+			for tx: int in tap_xs:
+				var d: float = absf(float(px - tx))
+				if d < min_dist:
+					min_dist = d
+			var prox: float = clampf(1.0 - min_dist / (float(w) * 0.3), 0.0, 1.0)
+			# Noise layers
+			var n1: float = noise.get_noise_2d(float(px), float(py)) * 0.5 + 0.5
+			var n3: float = vein_noise.get_noise_2d(float(px), float(py))
+			var n2: float = fine_noise.get_noise_2d(float(px), float(py))
+			# Vein threshold: branching structures
+			var vein: float = clampf(1.0 - absf(n3) * 3.0, 0.0, 1.0)
+			var base_val: float = (prox * 0.4 + n1 * 0.3 + vein * 0.3) * density
+			base_val *= depth_fac * front_fade
+			# Fine rootlets near taproots
+			var fine_val: float = clampf(n2 * 2.0, 0.0, 1.0) * 0.3 * prox
+			var total: float = clampf(base_val + fine_val, 0.0, 1.0)
+			# Threshold for distinct root strands
+			if total > 0.35:
+				var alpha: float = clampf((total - 0.35) / 0.45, 0.0, 1.0)
+				var col := ROOT_COLOR.darkened(depth_norm * 0.2)
+				col.a = alpha
+				img.set_pixel(px, py, col)
+
+	# Draw taproots on top as distinct stems
+	for pi in range(num_plants):
+		var cx: int = tap_xs[pi]
+		var wobble: int = int((_root_hash(pi, 0) - 0.5) * 8.0)
+		var end_x: int = cx + int(float(wobble) * 0.3)
+		_draw_line_img(img, cx, 0, end_x, root_px, ROOT_COLOR, tap_w)
 	return img
-
-
-static func _draw_single_root_img(
-	img: Image,
-	cx: int,
-	root_px: int,
-	_depth_frac: float,
-	seed_val: int,
-	tap_w: int = 3,
-	lat_w: int = 2,
-	max_branches: int = 5,
-) -> void:
-	## Draw one root system with fixed-depth branching.
-	## Branch positions are absolute (fraction of total image height), so they
-	## stay in place as the taproot grows deeper over successive days.
-	var w: int = img.get_width()
-	var h: int = img.get_height()
-	var hi := 0
-	# Taproot: slight lateral wobble
-	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 10.0)
-	hi += 1
-	var mid_y: int = root_px / 2
-	var end_x: int = cx + int(float(curve_x) * 0.4)
-	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
-	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
-	# More branches for denser arborisation
-	var total_branches: int = maxi(2, int(_root_hash(seed_val, hi) * float(max_branches + 3)))
-	hi += 1
-	for bi in range(total_branches):
-		# Branch depth as fraction of TOTAL soil height (absolute), not root_px
-		var bd_abs: float = _root_hash(seed_val, hi) * 0.9 + 0.05
-		hi += 1
-		var by: int = int(float(h) * bd_abs)
-		# Skip if below current root front
-		if by > root_px:
-			hi += 7  # skip hash slots for consistency
-			continue
-		# X position on taproot at this absolute depth
-		var tap_frac: float = clampf(float(by) / float(maxi(root_px, 1)), 0.0, 1.0)
-		var tap_at_x: int = int(lerpf(float(cx), float(end_x), tap_frac))
-		# Lateral spread — wider near surface, narrower at depth
-		var spread: int = int((12.0 + _root_hash(seed_val, hi) * 24.0) * (1.0 - bd_abs))
-		hi += 1
-		var dir: int = 1 if _root_hash(seed_val, hi) > 0.4 else -1
-		hi += 1
-		var dy: int = int((_root_hash(seed_val, hi) - 0.2) * 14.0)
-		hi += 1
-		if spread < 3:
-			hi += 3
-			continue
-		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
-		var bey: int = by + dy + 8
-		var lw: int = clampi(int(float(lat_w) * (1.0 - bd_abs) + 0.5), 1, lat_w)
-		var lat_col := ROOT_COLOR.lightened(0.08).darkened(bd_abs * 0.2)
-		_draw_line_img(img, tap_at_x, by, bx, bey, lat_col, lw)
-		# Sub-branches off each lateral
-		var num_s: int = 2 + int(_root_hash(seed_val, hi) * 3.0)
-		hi += 1
-		for si in range(num_s):
-			var sf: float = 0.2 + _root_hash(seed_val, hi) * 0.6
-			hi += 1
-			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
-			var sy: int = int(lerpf(float(by), float(bey), sf))
-			var ss: int = int(float(spread) * (0.2 + _root_hash(seed_val, hi) * 0.4))
-			hi += 1
-			var sd: int = dir if _root_hash(seed_val, hi) > 0.5 else -dir
-			hi += 1
-			var sdy: int = 4 + int(_root_hash(seed_val, hi) * 8.0)
-			hi += 1
-			var sex: int = clampi(sx + ss * sd, 2, w - 3)
-			var sub_col := ROOT_COLOR.lightened(0.15).darkened(bd_abs * 0.15)
-			_draw_line_img(img, sx, sy, sex, sy + sdy, sub_col, maxi(1, lw - 1))
-			# Fine rootlets from sub-branch tips
-			var rl_color := ROOT_COLOR.lightened(0.25)
-			for ri in range(4):
-				if _root_hash(seed_val, hi) > 0.2:
-					hi += 1
-					var rd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
-					hi += 1
-					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 12.0) * rd
-					hi += 1
-					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 10.0)
-					hi += 1
-					var rx: int = clampi(sex + rl_dx, 2, w - 3)
-					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
-				else:
-					hi += 4
-			# Extra rootlets from lateral midpoint
-			if _root_hash(seed_val, hi) > 0.2:
-				hi += 1
-				var mid_lx: int = (tap_at_x + bx) / 2
-				var mid_ly: int = (by + bey) / 2
-				var mrd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
-				hi += 1
-				var mrx: int = clampi(mid_lx + mrd * 7, 2, w - 3)
-				var mry: int = mid_ly + 4 + int(_root_hash(seed_val, hi) * 6.0)
-				hi += 1
-				_draw_line_img(img, mid_lx, mid_ly, mrx, mry, rl_color, 1)
-			else:
-				hi += 3
 
 
 static func _draw_line_img(
 	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
 ) -> void:
-	## Bresenham line with thickness via square stamp at each pixel.
+	## Bresenham line with thickness.
 	var dx: int = absi(x1 - x0)
 	var dy: int = absi(y1 - y0)
 	var sx: int = 1 if x0 < x1 else -1
@@ -441,10 +412,10 @@ static func _draw_line_img(
 	var y := y0
 	var r: int = thickness / 2
 	while true:
-		for py in range(-r, r + 1):
-			for px in range(-r, r + 1):
-				var ix: int = x + px
-				var iy: int = y + py
+		for tpy in range(-r, r + 1):
+			for tpx in range(-r, r + 1):
+				var ix: int = x + tpx
+				var iy: int = y + tpy
 				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
 					img.set_pixel(ix, iy, color)
 		if x == x1 and y == y1:
