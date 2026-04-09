@@ -4,8 +4,8 @@ extends Node3D
 ## fill with animated particles flowing along the tube path.
 ## Parameterizable: color, thickness, speed, direction, optional label.
 
-const MIN_RADIUS := 0.008
-const MAX_RADIUS := 0.035
+const MIN_RADIUS := 0.003
+const MAX_RADIUS := 0.03
 const RADIAL_SEGMENTS := 12
 
 var _tube_mesh: MeshInstance3D = null
