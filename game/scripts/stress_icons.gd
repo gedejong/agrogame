@@ -4,8 +4,8 @@ extends Node3D
 ## Uses SVG icon sprites. Label shown on hover or close camera zoom.
 
 const ICON_Y := 0.5
-const ICON_SIZE := Vector2(0.12, 0.12)
-const LABEL_ZOOM_THRESHOLD := 5.0
+const ICON_SIZE := Vector2(0.10, 0.10)
+const LABEL_ZOOM_THRESHOLD := 2.5
 
 ## Event types that trigger stress icons.
 const STRESS_EVENTS := {
@@ -152,7 +152,7 @@ func _create_icons(pos: Vector3, etypes: Array) -> Node3D:
 		)
 		area.mouse_exited.connect(func() -> void: lbl_ref.remove_meta("hovered"))
 		container.add_child(area)
-		x_offset += 0.15
+		x_offset += 0.20
 	return container
 
 
