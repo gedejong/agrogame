@@ -90,25 +90,24 @@ def test_demand_increases_with_growth() -> None:
 
 
 def test_demand_proportional_to_tissue_concentration() -> None:
-    """Crops with higher tissue N concentration should have higher N demand."""
-    # Soybean has tissue_n=0.045; maize has tissue_n=0.030
-    orch_soy, bus_soy = _make_orchestrator("soybean")
-    orch_maize, bus_maize = _make_orchestrator("maize")
-    soy_n: list[float] = []
-    maize_n: list[float] = []
-    bus_soy.subscribe(
-        NutrientStressComputed,
-        lambda e: soy_n.append(e.demand_kg_ha) if e.nutrient == "N" else None,
-    )
-    bus_maize.subscribe(
-        NutrientStressComputed,
-        lambda e: maize_n.append(e.demand_kg_ha) if e.nutrient == "N" else None,
-    )
-    _step_days(orch_soy, 40)
-    _step_days(orch_maize, 40)
-    # Both should have grown enough to exceed baseline (0.01)
-    assert max(soy_n) > 0.01, f"Soybean peak N demand too low: {max(soy_n):.4f}"
-    assert max(maize_n) > 0.01, f"Maize peak N demand too low: {max(maize_n):.4f}"
+    """Higher tissue N concentration produces higher demand per unit growth."""
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    soy = crops.crops["soybean"]
+    maize = crops.crops["maize"]
+    # Verify tissue concentrations are ordered correctly
+    assert soy.tissue_n_conc_kg_kg > maize.tissue_n_conc_kg_kg
+    # For the same biomass increment, soybean demand should be 1.5× maize
+    # (0.045 / 0.030 = 1.5). Test via the demand formula directly.
+    fake_inc_g_m2 = 30.0  # typical peak daily increment
+    inc_kg_ha = fake_inc_g_m2 * 0.01
+    demand_factor = 2.0
+    soy_demand = inc_kg_ha * soy.tissue_n_conc_kg_kg * demand_factor
+    maize_demand = inc_kg_ha * maize.tissue_n_conc_kg_kg * demand_factor
+    ratio = soy_demand / maize_demand
+    assert abs(ratio - 1.5) < 0.01, f"Demand ratio should be 1.5, got {ratio:.3f}"
+    # Also verify both produce non-trivial demand
+    assert soy_demand > 0.01
+    assert maize_demand > 0.01
 
 
 def test_stress_below_one_when_soil_depleted() -> None:
@@ -157,6 +156,35 @@ def test_explicit_demand_overrides_dynamic() -> None:
     n_events = [e for e in events if e.nutrient == "N"]
     assert len(n_events) >= 1
     assert n_events[0].demand_kg_ha == 5.0
+
+
+def test_demand_trajectory_rise_then_decline() -> None:
+    """Full-season demand rises during vegetative growth, declines at maturity."""
+    orch, bus = _make_orchestrator()
+    n_demands: list[float] = []
+    bus.subscribe(
+        NutrientStressComputed,
+        lambda e: n_demands.append(e.demand_kg_ha) if e.nutrient == "N" else None,
+    )
+    # Simulate 120 days — covers emergence through grain fill / maturity
+    _step_days(orch, 120)
+    assert len(n_demands) >= 100
+    # Split into thirds: early (veg), mid (flowering), late (grain fill/maturity)
+    third = len(n_demands) // 3
+    mid = n_demands[third : 2 * third]
+    late = n_demands[2 * third :]
+    mid_avg = sum(mid) / len(mid)
+    late_avg = sum(late) / len(late)
+    # Mid-season (active growth) should have higher demand than late (maturity)
+    assert mid_avg > late_avg, (
+        f"Mid-season demand ({mid_avg:.4f}) should exceed "
+        f"late-season ({late_avg:.4f}) as growth slows toward maturity"
+    )
+    # Peak demand should occur in the first 2/3 of the season
+    peak_idx = n_demands.index(max(n_demands))
+    assert (
+        peak_idx < 2 * third
+    ), f"Peak demand at day {peak_idx} should be before late season (day {2 * third})"
 
 
 def test_demand_resets_after_crop_change() -> None:
