@@ -364,6 +364,9 @@ func clear_tubes() -> void:
 func set_filter(filter_name: String) -> void:
 	## Switch the active cycle filter. Fades non-matching tubes out,
 	## matching tubes in. "all" shows everything.
+	if filter_name not in CYCLE_FILTERS:
+		push_warning("FlowOverlay: unknown filter '%s'" % filter_name)
+		return
 	if filter_name == _active_filter:
 		return
 	_active_filter = filter_name

@@ -83,6 +83,8 @@ const BAR_OK := UiTheme.ACCENT_GREEN
 
 var _flow_visible := true
 var _cycle_label: Label = null
+var _filter_buttons: Dictionary = {}
+var _active_filter: String = "all"
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
@@ -289,6 +291,7 @@ func _build_cycle_row(parent: VBoxContainer) -> void:
 		"carbon": "C",
 		"phosphorus": "P",
 	}
+	_filter_buttons.clear()
 	for fkey: String in FlowOverlay.CYCLE_FILTERS:
 		var btn := Button.new()
 		btn.text = labels.get(fkey, fkey)
@@ -299,19 +302,23 @@ func _build_cycle_row(parent: VBoxContainer) -> void:
 		btn.add_theme_color_override("font_color", col)
 		btn.add_theme_color_override("font_hover_color", col.lightened(0.3))
 		btn.pressed.connect(_on_filter_btn.bind(fkey))
+		_filter_buttons[fkey] = btn
 		row.add_child(btn)
+	_update_button_highlight()
 	# Toggle visibility
 	var toggle := Button.new()
-	toggle.text = "\u2022"
+	toggle.text = "EYE"
 	toggle.tooltip_text = "Toggle flow overlay"
-	toggle.custom_minimum_size = Vector2(22, 22)
+	toggle.custom_minimum_size = Vector2(36, 22)
 	UiTheme.style_button(toggle)
-	toggle.add_theme_font_size_override("font_size", 10)
+	toggle.add_theme_font_size_override("font_size", 9)
 	toggle.pressed.connect(_on_toggle_btn)
 	row.add_child(toggle)
 
 
 func _on_filter_btn(filter_name: String) -> void:
+	_active_filter = filter_name
+	_update_button_highlight()
 	if _cycle_label:
 		_cycle_label.text = FlowOverlay.CYCLE_LABELS.get(filter_name, "ALL FLOWS")
 	if not _flow_visible:
@@ -323,3 +330,12 @@ func _on_filter_btn(filter_name: String) -> void:
 func _on_toggle_btn() -> void:
 	_flow_visible = not _flow_visible
 	flow_toggle_changed.emit(_flow_visible)
+
+
+func _update_button_highlight() -> void:
+	for fkey: String in _filter_buttons:
+		var btn: Button = _filter_buttons[fkey]
+		if fkey == _active_filter:
+			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("hover"))
+		else:
+			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("normal"))

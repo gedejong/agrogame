@@ -2,6 +2,7 @@ extends GutTest
 ## Tests for FlowOverlay tube network manager.
 
 const FlowOverlayRef = preload("res://scripts/flow_overlay.gd")
+const NutrientPanelRef = preload("res://scripts/nutrient_panel.gd")
 
 const TEST_PROFILE: Array[Dictionary] = [
 	{"depth_cm": 25, "texture": "sand", "saturation": 0.38},
@@ -290,3 +291,36 @@ func test_filter_all_matches_everything() -> void:
 	overlay.set_filter("all")
 	for i in range(overlay._tubes.size()):
 		assert_true(overlay._matches_filter(i), "All filter should match every tube")
+
+
+func test_invalid_filter_rejected() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.set_filter("water")
+	overlay.set_filter("typo_filter")
+	assert_eq(overlay.get_filter(), "water", "Invalid filter should be rejected")
+
+
+func test_nutrient_panel_emits_filter_signal() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanelRef)
+	add_child_autofree(panel)
+	var received: Array = []
+	panel.flow_filter_changed.connect(func(f: String) -> void: received.append(f))
+	panel.show_layers([])
+	# Simulate clicking the nitrogen filter button
+	panel._on_filter_btn("nitrogen")
+	assert_eq(received, ["nitrogen"], "Should emit filter signal")
+
+
+func test_nutrient_panel_emits_toggle_signal() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanelRef)
+	add_child_autofree(panel)
+	var toggled: Array = []
+	panel.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
+	panel.show_layers([])
+	panel._on_toggle_btn()
+	assert_eq(toggled, [false], "First toggle should emit false")
+	panel._on_toggle_btn()
+	assert_eq(toggled, [false, true], "Second toggle should emit true")
