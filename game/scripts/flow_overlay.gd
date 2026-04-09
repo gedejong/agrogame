@@ -76,7 +76,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.12,
+		"z_slot": 0.18,
 		"y_frac": 0.25,
 	},
 	"MineralizationOccurred":
@@ -86,7 +86,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.12,
+		"z_slot": 0.18,
 		"y_frac": 0.7,
 	},
 	"DenitrificationOccurred":
@@ -123,7 +123,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": -0.08,
+		"z_slot": -0.15,
 		"y_frac": 0.25,
 	},
 	"SOMDecomposed":
@@ -133,7 +133,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": -0.08,
+		"z_slot": -0.15,
 		"y_frac": 0.7,
 	},
 	"CO2Respired":
@@ -521,7 +521,7 @@ func _build_tube_config(
 				else y_top_l - 0.1
 			)
 			var y_pos: float = lerpf(y_top_l, y_bot_l, y_frac)
-			var path := _make_lateral_path(fx_soil, y_pos, tube_z, tube_z + 0.2, 0.04)
+			var path := _make_lateral_path(fx_soil, y_pos, tube_z, tube_z + 0.15, 0.03)
 			speed = absf(speed)
 			return {
 				"path": path,
