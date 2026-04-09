@@ -8,6 +8,8 @@ const SoilView = preload("res://scripts/soil_view.gd")
 var _soil_view: Node3D = null
 var _nutrient_panel: PanelContainer = null
 var _tile_info_panel: PanelContainer = null
+var _cycle_panel: PanelContainer = null
+var _cycle_label: Label = null
 var _hidden_tiles: Array[int] = []
 
 
@@ -66,6 +68,7 @@ func show_cutaway(ctx: Dictionary, parent_3d: Node3D, ui_layer: CanvasLayer) -> 
 		parent_3d.add_child(_soil_view)
 	_soil_view.show_cutaway(columns)
 	_show_nutrient_panel(columns, ui_layer)
+	_show_cycle_panel(ui_layer)
 	return true
 
 
@@ -77,6 +80,7 @@ func hide_cutaway(
 	if _soil_view and _soil_view.is_active():
 		_soil_view.hide_view()
 	hide_nutrient_panel()
+	_hide_cycle_panel()
 	restore_hidden_tiles(tile_meshes, crop_sprites, update_crop_fn)
 
 
@@ -208,3 +212,79 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel.show_layers(layers_data)
 	_nutrient_panel.visible = true
 	ui_layer.add_child(_nutrient_panel)
+
+
+func _show_cycle_panel(ui_layer: CanvasLayer) -> void:
+	_hide_cycle_panel()
+	_cycle_panel = PanelContainer.new()
+	_cycle_panel.add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
+	UiTheme.add_blur_bg(_cycle_panel)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 4)
+	_cycle_panel.add_child(vbox)
+	# Cycle view title label
+	_cycle_label = Label.new()
+	_cycle_label.text = "ALL FLOWS"
+	_cycle_label.uppercase = true
+	_cycle_label.add_theme_font_size_override("font_size", 10)
+	_cycle_label.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
+	_cycle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vbox.add_child(_cycle_label)
+	# Filter buttons row
+	var btn_row := HBoxContainer.new()
+	btn_row.add_theme_constant_override("separation", 2)
+	btn_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_child(btn_row)
+	var colors := {
+		"all": UiTheme.TEXT_PRIMARY,
+		"water": UiTheme.SUBSTANCE_WATER,
+		"nitrogen": UiTheme.SUBSTANCE_NO3,
+		"carbon": UiTheme.SUBSTANCE_CARBON,
+		"phosphorus": UiTheme.SUBSTANCE_PHOSPHORUS,
+	}
+	var labels := {"all": "All", "water": "H₂O", "nitrogen": "N", "carbon": "C", "phosphorus": "P"}
+	for fkey: String in FlowOverlay.CYCLE_FILTERS:
+		var btn := Button.new()
+		btn.text = labels.get(fkey, fkey)
+		btn.custom_minimum_size = Vector2(36, 24)
+		UiTheme.style_button(btn)
+		btn.add_theme_font_size_override("font_size", 10)
+		var col: Color = colors.get(fkey, UiTheme.TEXT_PRIMARY)
+		btn.add_theme_color_override("font_color", col)
+		btn.add_theme_color_override("font_hover_color", col.lightened(0.3))
+		btn.pressed.connect(_on_cycle_filter.bind(fkey))
+		btn_row.add_child(btn)
+	# Toggle button
+	var toggle := Button.new()
+	toggle.text = "👁"
+	toggle.custom_minimum_size = Vector2(28, 24)
+	UiTheme.style_button(toggle)
+	toggle.add_theme_font_size_override("font_size", 10)
+	toggle.pressed.connect(_on_toggle_overlay)
+	btn_row.add_child(toggle)
+	_cycle_panel.position = Vector2(16, 16)
+	_cycle_panel.size = Vector2(0, 0)
+	ui_layer.add_child(_cycle_panel)
+
+
+func _hide_cycle_panel() -> void:
+	if _cycle_panel:
+		_cycle_panel.queue_free()
+		_cycle_panel = null
+		_cycle_label = null
+
+
+func _on_cycle_filter(filter_name: String) -> void:
+	if _soil_view and _soil_view.has_method("get_flow_overlay"):
+		var overlay: FlowOverlay = _soil_view.get_flow_overlay()
+		if overlay:
+			overlay.set_filter(filter_name)
+	if _cycle_label:
+		_cycle_label.text = FlowOverlay.CYCLE_LABELS.get(filter_name, "ALL FLOWS")
+
+
+func _on_toggle_overlay() -> void:
+	if _soil_view and _soil_view.has_method("get_flow_overlay"):
+		var overlay: FlowOverlay = _soil_view.get_flow_overlay()
+		if overlay:
+			overlay.set_overlay_visible(not overlay.is_overlay_visible())

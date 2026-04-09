@@ -217,3 +217,76 @@ func test_rain_connector_added_for_heavy_rain() -> void:
 		if tube is FlowTube and tube._label:
 			labels.append(tube._label.text)
 	assert_has(labels, "Rain", "Heavy rain should add Rain connector tube")
+
+
+func _make_mixed_events() -> Array:
+	## Helper: returns events with water + nitrogen tubes.
+	return [
+		{
+			"event_type": "WaterInfiltrated",
+			"module": "agrogame.soil.water.events",
+			"data": {"layer_indices": [0], "amounts_mm": [5.0]},
+		},
+		{
+			"event_type": "NitrificationOccurred",
+			"module": "agrogame.soil.nitrogen.events",
+			"data": {"layer": 0, "amount_kg_ha": 2.0},
+		},
+		{
+			"event_type": "SOMDecomposed",
+			"module": "agrogame.soil.som.events",
+			"data": {"layer": 0, "decomposed_c_kg_ha": 3.0},
+		},
+	]
+
+
+func test_filter_water_only_shows_water_tubes() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	var total_before: int = overlay._tubes.size()
+	assert_gt(total_before, 1, "Should have multiple tube types")
+	overlay.set_filter("water")
+	assert_eq(overlay.get_filter(), "water")
+	# Check that only water-substance configs match
+	for i in range(overlay._tubes.size()):
+		if i < overlay._prev_configs.size():
+			var sub: String = overlay._prev_configs[i].get("_substance", "")
+			if sub == "water":
+				assert_true(overlay._matches_filter(i), "Water tube should match water filter")
+			else:
+				assert_false(overlay._matches_filter(i), "Non-water tube should not match")
+
+
+func test_filter_nitrogen_only_shows_n_tubes() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	overlay.set_filter("nitrogen")
+	for i in range(overlay._tubes.size()):
+		if i < overlay._prev_configs.size():
+			var sub: String = overlay._prev_configs[i].get("_substance", "")
+			if sub == "nitrogen":
+				assert_true(overlay._matches_filter(i), "N tube should match nitrogen filter")
+			else:
+				assert_false(overlay._matches_filter(i), "Non-N tube should not match")
+
+
+func test_toggle_off_hides_all() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	assert_true(overlay.is_overlay_visible())
+	overlay.set_overlay_visible(false)
+	assert_false(overlay.is_overlay_visible())
+	overlay.set_overlay_visible(true)
+	assert_true(overlay.is_overlay_visible())
+
+
+func test_filter_all_matches_everything() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	overlay.update_from_events(_make_mixed_events(), TEST_PROFILE, Vector3.ZERO)
+	overlay.set_filter("all")
+	for i in range(overlay._tubes.size()):
+		assert_true(overlay._matches_filter(i), "All filter should match every tube")

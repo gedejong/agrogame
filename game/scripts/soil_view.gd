@@ -219,6 +219,10 @@ func _cached_tex(path: String) -> Texture2D:
 	return _tex_cache[path]
 
 
+func get_flow_overlay() -> FlowOverlay:
+	return _flow_overlay
+
+
 func is_active() -> bool:
 	return _active
 
