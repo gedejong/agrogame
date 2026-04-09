@@ -332,84 +332,100 @@ static func _draw_single_root_img(
 	img: Image,
 	cx: int,
 	root_px: int,
-	depth_frac: float,
+	_depth_frac: float,
 	seed_val: int,
 	tap_w: int = 3,
 	lat_w: int = 2,
 	max_branches: int = 5,
 ) -> void:
-	## Draw one root system. Uses monotonic hash counter (hi) to avoid collisions.
+	## Draw one root system with fixed-depth branching.
+	## Branch positions are absolute (fraction of total image height), so they
+	## stay in place as the taproot grows deeper over successive days.
 	var w: int = img.get_width()
+	var h: int = img.get_height()
 	var hi := 0
-	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 8.0)
+	# Taproot: slight lateral wobble
+	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 10.0)
 	hi += 1
 	var mid_y: int = root_px / 2
-	var end_x: int = cx + int(float(curve_x) * 0.3)
+	var end_x: int = cx + int(float(curve_x) * 0.4)
 	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
 	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
-	var num_b: int = maxi(1, int(_root_hash(seed_val, hi) * float(max_branches)))
+	# More branches for denser arborisation
+	var total_branches: int = maxi(2, int(_root_hash(seed_val, hi) * float(max_branches + 3)))
 	hi += 1
-	for bi in range(num_b):
-		var bd: float = _root_hash(seed_val, hi) * 0.85 + 0.08
+	for bi in range(total_branches):
+		# Branch depth as fraction of TOTAL soil height (absolute), not root_px
+		var bd_abs: float = _root_hash(seed_val, hi) * 0.9 + 0.05
 		hi += 1
-		if bd > depth_frac:
+		var by: int = int(float(h) * bd_abs)
+		# Skip if below current root front
+		if by > root_px:
+			hi += 7  # skip hash slots for consistency
 			continue
-		var by: int = int(float(root_px) * bd)
-		var tap_at_x: int = int(lerpf(float(cx), float(end_x), bd))
-		var spread: int = int((8.0 + _root_hash(seed_val, hi) * 16.0) * (1.0 - bd))
+		# X position on taproot at this absolute depth
+		var tap_frac: float = clampf(float(by) / float(maxi(root_px, 1)), 0.0, 1.0)
+		var tap_at_x: int = int(lerpf(float(cx), float(end_x), tap_frac))
+		# Lateral spread — wider near surface, narrower at depth
+		var spread: int = int((12.0 + _root_hash(seed_val, hi) * 24.0) * (1.0 - bd_abs))
 		hi += 1
 		var dir: int = 1 if _root_hash(seed_val, hi) > 0.4 else -1
 		hi += 1
-		var dy: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0)
+		var dy: int = int((_root_hash(seed_val, hi) - 0.2) * 14.0)
 		hi += 1
 		if spread < 3:
+			hi += 3
 			continue
 		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
-		var bey: int = by + dy + 6
-		var lw: int = clampi(int(float(lat_w) * (1.0 - bd) + 0.5), 1, lat_w)
-		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lw)
-		var num_s: int = 1 + int(_root_hash(seed_val, hi) * 2.0)
+		var bey: int = by + dy + 8
+		var lw: int = clampi(int(float(lat_w) * (1.0 - bd_abs) + 0.5), 1, lat_w)
+		var lat_col := ROOT_COLOR.lightened(0.08).darkened(bd_abs * 0.2)
+		_draw_line_img(img, tap_at_x, by, bx, bey, lat_col, lw)
+		# Sub-branches off each lateral
+		var num_s: int = 2 + int(_root_hash(seed_val, hi) * 3.0)
 		hi += 1
 		for si in range(num_s):
-			var sf: float = 0.4 + _root_hash(seed_val, hi) * 0.4
+			var sf: float = 0.2 + _root_hash(seed_val, hi) * 0.6
 			hi += 1
 			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
 			var sy: int = int(lerpf(float(by), float(bey), sf))
-			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, hi) * 0.3))
+			var ss: int = int(float(spread) * (0.2 + _root_hash(seed_val, hi) * 0.4))
 			hi += 1
 			var sd: int = dir if _root_hash(seed_val, hi) > 0.5 else -dir
 			hi += 1
-			var sdy: int = 3 + int(_root_hash(seed_val, hi) * 6.0)
+			var sdy: int = 4 + int(_root_hash(seed_val, hi) * 8.0)
 			hi += 1
 			var sex: int = clampi(sx + ss * sd, 2, w - 3)
-			_draw_line_img(
-				img, sx, sy, sex, sy + sdy, ROOT_COLOR.lightened(0.2).darkened(bd * 0.15), 2
-			)
-			var rl_color := ROOT_COLOR.lightened(0.3)
-			for ri in range(3):
-				if _root_hash(seed_val, hi) > 0.25:
+			var sub_col := ROOT_COLOR.lightened(0.15).darkened(bd_abs * 0.15)
+			_draw_line_img(img, sx, sy, sex, sy + sdy, sub_col, maxi(1, lw - 1))
+			# Fine rootlets from sub-branch tips
+			var rl_color := ROOT_COLOR.lightened(0.25)
+			for ri in range(4):
+				if _root_hash(seed_val, hi) > 0.2:
 					hi += 1
 					var rd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
 					hi += 1
-					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0) * rd
+					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 12.0) * rd
 					hi += 1
-					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 8.0)
+					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 10.0)
 					hi += 1
 					var rx: int = clampi(sex + rl_dx, 2, w - 3)
 					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
 				else:
 					hi += 4
-			# Rootlets from lateral midpoint
-			if _root_hash(seed_val, hi) > 0.3:
+			# Extra rootlets from lateral midpoint
+			if _root_hash(seed_val, hi) > 0.2:
 				hi += 1
 				var mid_lx: int = (tap_at_x + bx) / 2
 				var mid_ly: int = (by + bey) / 2
 				var mrd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
 				hi += 1
-				var mrx: int = clampi(mid_lx + mrd * 5, 2, w - 3)
-				_draw_line_img(img, mid_lx, mid_ly, mrx, mid_ly + 6, rl_color, 1)
+				var mrx: int = clampi(mid_lx + mrd * 7, 2, w - 3)
+				var mry: int = mid_ly + 4 + int(_root_hash(seed_val, hi) * 6.0)
+				hi += 1
+				_draw_line_img(img, mid_lx, mid_ly, mrx, mry, rl_color, 1)
 			else:
-				hi += 2
+				hi += 3
 
 
 static func _draw_line_img(
