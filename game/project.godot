@@ -12,7 +12,7 @@ config_version=5
 
 debug/auto_cutaway=true
 debug/flow_tubes_test=false
-debug/orbit_camera=false
+debug/orbit_camera=true
 debug/skip_menu=true
 
 [animation]
