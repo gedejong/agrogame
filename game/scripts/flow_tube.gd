@@ -233,6 +233,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.material = shared_mat
 		var follow := PathFollow3D.new()
 		follow.loop = false
+		follow.rotation_mode = PathFollow3D.ROTATION_NONE
 		follow.set_meta("flow_speed", absf(speed) * 0.8 * speed_mult)
 		follow.set_meta("start_delay", rng.randf() * 3.0)
 		follow.set_meta("age", 0.0)
