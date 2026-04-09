@@ -513,7 +513,12 @@ func _build_tube_config(
 	var min_display: float = 0.01
 	if mag < min_display:
 		return {}
-	var label: String = "%s\n%s %s" % [ecfg.get("label", ""), val_str, unit]
+	var base_label: String = ecfg.get("label", "")
+	# Deep drainage gets a distinct label
+	var to_l: int = int(data.get("to_layer", 0))
+	if to_l == -1 and direction == "down":
+		base_label = "Deep drainage"
+	var label: String = "%s\n%s %s" % [base_label, val_str, unit]
 	# Normalize to 0-1. Water in mm, everything else in kg/ha.
 	# Single scale per unit so cross-substance comparison is meaningful:
 	# 0.004 kg/ha P should look tiny next to 7 kg/ha decomposition.
@@ -541,7 +546,13 @@ func _build_tube_config(
 	match direction:
 		"down":
 			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
-			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
+			var to_layer: int = int(data.get("to_layer", layer_idx + 1))
+			var y_bot: float = 0.0
+			if to_layer == -1:
+				# Deep drainage: extend below bottom of soil profile
+				y_bot = _layer_positions[_layer_positions.size() - 1] - 0.06
+			else:
+				y_bot = _layer_midpoint_y(mini(to_layer, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
 			var path := _make_vertical_path(fx_soil, y_top, y_bot, tube_z, 0.04)
