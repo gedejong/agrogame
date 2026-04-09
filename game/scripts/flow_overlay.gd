@@ -23,8 +23,6 @@ const COLOR_PHOSPHORUS := UiTheme.SUBSTANCE_PHOSPHORUS
 const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
 const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
 const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
-const COLOR_FROST := UiTheme.SUBSTANCE_FROST
-const COLOR_HEAT := UiTheme.SUBSTANCE_HEAT
 
 ## Chemical formula shown as subtitle on hover labels
 const LABEL_FORMULA := {
@@ -172,41 +170,6 @@ const EVENT_CONFIG := {
 		"label": "Soil CO2 \u2191",
 		"z_slot": 0.4,
 	},
-	# Extreme weather damage events (#34). Substance "weather" is intentionally
-	# not in CYCLE_FILTERS — these tubes are only visible under "all" view,
-	# since they don't belong to a specific biogeochemical cycle.
-	"FrostDamageApplied":
-	{
-		"color": COLOR_FROST,
-		"substance": "weather",
-		"direction": "down",
-		"mag_key": "severity",
-		"label": "Frost damage",
-		"z_slot": -0.50,
-		"always_show_label": true,
-	},
-	"HeatDamageApplied":
-	{
-		"color": COLOR_HEAT,
-		"substance": "weather",
-		"direction": "lateral",
-		"mag_key": "grain_reduction_factor",
-		"label": "Heat stress",
-		"z_slot": 0.45,
-		"y_frac": 0.5,
-		"always_show_label": true,
-	},
-	"WaterloggingDetected":
-	{
-		"color": COLOR_WATER,
-		"substance": "water",
-		"direction": "lateral",
-		"mag_key": "theta",
-		"label": "Waterlogging",
-		"z_slot": -0.40,
-		"y_frac": 0.8,
-		"always_show_label": true,
-	},
 }
 
 ## Valid cycle filter values.
@@ -231,9 +194,6 @@ var _overlay_visible: bool = true
 func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector3) -> void:
 	## Update tube network with smooth transitions.
 	_compute_layer_positions(profile_layers)
-	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
-		events = events.duplicate()
-		events.append_array(_debug_stress_events())
 	_pillar_pos = pillar_pos
 	var new_configs := _events_to_configs(events)
 	new_configs.sort_custom(
@@ -360,42 +320,6 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 		var tube := FlowTube.create(cfg)
 		_tubes.append(tube)
 		add_child(tube)
-
-
-static func _debug_stress_events() -> Array:
-	## Inject fake frost/heat/waterlogging events for visual debugging.
-	return [
-		{
-			"event_type": "FrostDamageApplied",
-			"module": "debug",
-			"data":
-			{
-				"lai_loss": 0.4,
-				"biomass_loss_g_m2": 20.0,
-				"tmin_c": -5.0,
-				"severity": 0.5,
-			},
-		},
-		{
-			"event_type": "HeatDamageApplied",
-			"module": "debug",
-			"data":
-			{
-				"grain_reduction_factor": 0.5,
-				"tmax_c": 38.0,
-			},
-		},
-		{
-			"event_type": "WaterloggingDetected",
-			"module": "debug",
-			"data":
-			{
-				"layer": 0,
-				"theta": 0.45,
-				"saturation": 0.45,
-			},
-		},
-	]
 
 
 static func _tube_key(cfg: Dictionary, idx: int) -> String:

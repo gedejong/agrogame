@@ -324,67 +324,20 @@ func test_nutrient_panel_emits_signals() -> void:
 	assert_eq(toggled, [false, true], "Second toggle should emit true")
 
 
-func test_extreme_weather_events_create_tubes() -> void:
-	# Frost
+func test_weather_events_ignored_by_flow_overlay() -> void:
 	var overlay := FlowOverlayRef.new()
 	add_child_autofree(overlay)
-	var frost_events: Array = [
+	var events: Array = [
 		{
 			"event_type": "FrostDamageApplied",
 			"module": "agrogame.soil.canopy.events",
-			"data":
-			{
-				"lai_loss": 0.5,
-				"biomass_loss_g_m2": 25.0,
-				"tmin_c": -3.0,
-				"severity": 0.3,
-			},
-		}
-	]
-	overlay.update_from_events(frost_events, TEST_PROFILE, Vector3.ZERO)
-	assert_gt(overlay._tubes.size(), 0, "Frost event should create a tube")
-	var found := false
-	for tube in overlay._tubes:
-		if tube is FlowTube and tube._label:
-			if tube._label.text.contains("Frost"):
-				found = true
-				break
-	assert_true(found, "Should have a tube labeled 'Frost damage'")
-	# Heat
-	var overlay2 := FlowOverlayRef.new()
-	add_child_autofree(overlay2)
-	var heat_events: Array = [
+			"data": {"severity": 0.5},
+		},
 		{
 			"event_type": "HeatDamageApplied",
 			"module": "agrogame.soil.canopy.events",
-			"data": {"grain_reduction_factor": 0.5, "tmax_c": 38.0},
-		}
+			"data": {"grain_reduction_factor": 0.5},
+		},
 	]
-	overlay2.update_from_events(heat_events, TEST_PROFILE, Vector3.ZERO)
-	assert_gt(overlay2._tubes.size(), 0, "Heat event should create a tube")
-	var found_heat := false
-	for tube2 in overlay2._tubes:
-		if tube2 is FlowTube and tube2._label:
-			if tube2._label.text.contains("Heat"):
-				found_heat = true
-				break
-	assert_true(found_heat, "Should have a tube labeled 'Heat stress'")
-	# Waterlogging
-	var overlay3 := FlowOverlayRef.new()
-	add_child_autofree(overlay3)
-	var wl_events: Array = [
-		{
-			"event_type": "WaterloggingDetected",
-			"module": "agrogame.soil.water.events",
-			"data": {"layer": 0, "theta": 0.45, "saturation": 0.45},
-		}
-	]
-	overlay3.update_from_events(wl_events, TEST_PROFILE, Vector3.ZERO)
-	assert_gt(overlay3._tubes.size(), 0, "Waterlogging event should create a tube")
-	var found_wl := false
-	for tube3 in overlay3._tubes:
-		if tube3 is FlowTube and tube3._label:
-			if tube3._label.text.contains("Waterlogging"):
-				found_wl = true
-				break
-	assert_true(found_wl, "Should have a tube labeled 'Waterlogging'")
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	assert_eq(overlay._tubes.size(), 0, "Weather events should not create tubes")
