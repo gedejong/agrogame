@@ -241,8 +241,8 @@ func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector
 			if not is_instance_valid(_tubes[i]):
 				continue
 			var tube: FlowTube = _tubes[i] as FlowTube
-			var show: bool = _overlay_visible and _matches_filter(i)
-			if not show:
+			var should_show: bool = _overlay_visible and _matches_filter(i)
+			if not should_show:
 				tube._filtered_out = false  # force filter_hide to act
 				tube.filter_hide(0.0)
 	# Detect pulse events
@@ -503,9 +503,9 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 	for evt: Dictionary in events:
 		var etype: String = evt.get("event_type", "")
 		if etype == "NutrientStressComputed":
-			var data: Dictionary = evt.get("data", {})
-			var nutrient: String = str(data.get("nutrient", ""))
-			var uptake: float = float(data.get("uptake_kg_ha", 0.0))
+			var ndata: Dictionary = evt.get("data", {})
+			var nutrient: String = str(ndata.get("nutrient", ""))
+			var uptake: float = float(ndata.get("uptake_kg_ha", 0.0))
 			if nutrient == "N":
 				n_uptake += uptake
 			elif nutrient == "P":
