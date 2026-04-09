@@ -144,24 +144,14 @@ func _refresh_water(columns: Array[Dictionary]) -> void:
 
 
 func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
-	# Rebuild roots without touching layer meshes.
-	# Column containers are direct children; roots are tagged as dynamic.
-	var col_idx := 0
-	for child: Node in get_children():
-		if child == _flow_overlay:
-			continue
-		if not child is Node3D or col_idx >= columns.size():
-			continue
-		var col_data: Dictionary = columns[col_idx]
-		for sub: Node in child.get_children():
-			if sub.has_meta("soil_view_dynamic"):
-				sub.queue_free()
-		var profile: Array = col_data.get("profile", [])
-		var rdcm: float = col_data.get("root_depth_cm", 0.0)
-		var crop_key: String = col_data.get("crop_key", "")
-		if rdcm > 0.0:
-			_build_roots(child, profile, rdcm, crop_key)
-		col_idx += 1
+	# Roots are shader-based: update layer material uniforms on refresh.
+	if columns.is_empty():
+		return
+	var col_data: Dictionary = columns[0]
+	var profile: Array = col_data.get("profile", [])
+	var rdcm: float = col_data.get("root_depth_cm", 0.0)
+	var crop_key: String = col_data.get("crop_key", "")
+	_build_roots(profile, rdcm, crop_key)
 
 
 func _update_flow_overlay(columns: Array[Dictionary]) -> void:
@@ -199,9 +189,7 @@ func _build_column(
 	var container := Node3D.new()
 	container.position = Vector3(pos.x, pos.y - 0.005, pos.z)
 	var crop_key: String = col_data.get("crop_key", "")
-	_build_layers(container, profile_layers, soil_state)
-	if root_depth_cm > 0.0:
-		_build_roots(container, profile_layers, root_depth_cm, crop_key)
+	_build_layers(container, profile_layers, soil_state, root_depth_cm, crop_key)
 	if show_info:
 		_build_info_labels(container, profile_layers, soil_state)
 	add_child(container)
@@ -239,8 +227,25 @@ func _clear() -> void:
 	_flow_overlay = null
 
 
-func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
+func _build_layers(
+	container: Node3D,
+	profile_layers: Array,
+	soil_state: Dictionary,
+	root_depth_cm: float = 0.0,
+	crop_key: String = "",
+) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
+	# Generate root texture once for all layers
+	var total_depth := 0.0
+	for layer: Dictionary in profile_layers:
+		total_depth += layer.get("depth_cm", 30.0)
+	var root_tex: Texture2D = null
+	if root_depth_cm > 0.0:
+		var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
+		var total_h: float = total_depth * SCALE_CM
+		var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
+		var img := _generate_root_image(root_world, total_h, style)
+		root_tex = ImageTexture.create_from_image(img)
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -266,6 +271,9 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:
 			mat.set_shader_parameter("normal_texture", normal_tex)
+		if root_tex:
+			mat.set_shader_parameter("root_texture", root_tex)
+			mat.set_shader_parameter("root_strength", 1.0)
 		_layer_materials.append(mat)
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
@@ -277,43 +285,24 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		y_offset += h
 
 
-func _build_roots(
-	container: Node3D, profile_layers: Array, root_depth_cm: float, crop_key: String
-) -> void:
+func _build_roots(profile_layers: Array, root_depth_cm: float, crop_key: String) -> void:
+	# Roots are now rendered via the cutaway shader (root_texture + root_strength).
+	# This function updates existing layer materials when roots change on refresh.
+	if root_depth_cm <= 0.0:
+		for mat in _layer_materials:
+			mat.set_shader_parameter("root_strength", 0.0)
+		return
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
-	if root_world < 0.01:
-		return
 	var total_h: float = total_depth * SCALE_CM
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
-	# Root quads just outside face (behind tubes at +0.02, in front of soil box)
-	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 + 0.001, 0, 0), 0)
-	q1.set_meta("soil_view_dynamic", true)
-	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 + 0.001), 1)
-	q2.set_meta("soil_view_dynamic", true)
-
-
-static func _add_face_quad(
-	container: Node3D, tex: Texture2D, total_h: float, offset: Vector3, face: int
-) -> MeshInstance3D:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(CUTAWAY_WIDTH, total_h)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var inst := MeshInstance3D.new()
-	inst.mesh = quad
-	inst.material_override = mat
-	inst.position = offset + Vector3(0, -total_h * 0.5, 0)
-	if face == 0:
-		inst.rotation.y = PI * 0.5
-	container.add_child(inst)
-	return inst
+	for mat in _layer_materials:
+		mat.set_shader_parameter("root_texture", tex)
+		mat.set_shader_parameter("root_strength", 1.0)
 
 
 static func _root_hash(seed_val: int, idx: int) -> float:

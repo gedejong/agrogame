@@ -1,14 +1,17 @@
 shader_type spatial;
-// Soil cutaway layer — triplanar procedural grain + subtle water fill.
+// Soil cutaway layer — triplanar procedural grain + water fill + roots.
 
 uniform sampler2D albedo_texture : source_color;
 uniform sampler2D normal_texture : hint_normal;
+uniform sampler2D root_texture : source_color;
 uniform vec4 tint_color : source_color = vec4(1.0);
 uniform float water_fill : hint_range(0.0, 1.0) = 0.0;
 uniform float box_height : hint_range(0.01, 2.0) = 0.25;
 uniform float emission_strength : hint_range(0.0, 1.0) = 0.1;
+uniform float root_strength : hint_range(0.0, 1.0) = 0.0;
 
 const vec3 WATER_COLOR = vec3(0.25, 0.4, 0.6);
+const vec3 ROOT_COLOR = vec3(0.65, 0.5, 0.35);
 const float EDGE_SOFT = 0.02;
 
 varying float v_height_norm;
@@ -41,7 +44,6 @@ float fbm(vec2 p) {
 	return v;
 }
 
-// Triplanar noise: pick coordinate pair based on face normal
 float tri_fbm(vec3 wp, vec3 n, float freq) {
 	vec3 blend = abs(n);
 	blend /= (blend.x + blend.y + blend.z);
@@ -62,7 +64,7 @@ void fragment() {
 	vec3 soil = texture(albedo_texture, uv2).rgb * tint_color.rgb;
 	vec3 wn = normalize(v_world_normal);
 
-	// Triplanar procedural grain — no stretching on any face
+	// Triplanar procedural grain
 	float grain = tri_fbm(v_world_pos, wn, 80.0);
 	float coarse = tri_fbm(v_world_pos + vec3(5.0, 2.0, 0.0), wn, 25.0);
 	float cracks = smoothstep(0.47, 0.50, tri_fbm(v_world_pos + vec3(1.3, 4.7, 0.0), wn, 40.0));
@@ -80,7 +82,27 @@ void fragment() {
 		vec3(tex_norm.xy + (proc_norm.xy - 0.5) * 0.7, tex_norm.z)
 	);
 
-	// Water: subtle darkening + slight tint
+	// Roots: only on side faces (not top/bottom), blend into soil
+	if (root_strength > 0.01) {
+		// Side faces have significant X or Z normal component
+		float side_mask = 1.0 - abs(wn.y);
+		if (side_mask > 0.3) {
+			// Sample root texture using UV (maps correctly on box side faces)
+			vec4 root_sample = texture(root_texture, UV);
+			float root_alpha = root_sample.a * root_strength * side_mask;
+			// Tint soil with root color where root texture is opaque
+			soil = mix(soil, soil * ROOT_COLOR * 1.5, root_alpha);
+			// Bump: roots protrude slightly from soil surface
+			float root_bump = root_alpha * 0.5;
+			norm = normalize(vec3(
+				norm.x + (root_sample.r - 0.5) * root_bump,
+				norm.y + (root_sample.g - 0.5) * root_bump,
+				norm.z
+			));
+		}
+	}
+
+	// Water fill
 	float wet = smoothstep(water_fill - EDGE_SOFT, water_fill + EDGE_SOFT, v_height_norm);
 	float wetness = 1.0 - wet;
 	vec3 color = mix(soil, soil * 0.7 + WATER_COLOR * 0.15, wetness);
