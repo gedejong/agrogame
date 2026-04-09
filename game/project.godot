@@ -10,10 +10,10 @@ config_version=5
 
 [agrogame]
 
-debug/auto_cutaway=false
+debug/auto_cutaway=true
 debug/flow_tubes_test=false
-debug/orbit_camera=false
-debug/skip_menu=false
+debug/orbit_camera=true
+debug/skip_menu=true
 display/mass_unit="g/m²"
 
 [animation]
