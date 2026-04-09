@@ -220,7 +220,7 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		sphere.height = particle_r * 2.0
 		sphere.radial_segments = 4
 		sphere.rings = 2
-		sphere.material = p_mat
+		sphere.material = shared_mat
 		var follow := PathFollow3D.new()
 		follow.loop = false
 		# Stagger emergence: each particle starts at progress 0 but with
