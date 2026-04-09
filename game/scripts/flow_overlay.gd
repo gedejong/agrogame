@@ -440,14 +440,19 @@ func _build_tube_config(
 	var direction: String = ecfg.get("direction", "down")
 	var color: Color = ecfg.get("color", COLOR_WATER)
 	var label: String = ecfg.get("label", "")
+	# Normalize magnitude to 0-1 using realistic daily ranges:
+	# Water: 0-20 mm/day, Nitrogen: 0-5 kg/ha/day, P: 0-1 kg/ha/day
+	# Carbon: SOM decomposition 50-200 kg C/ha/day, CO2 20-60 kg C/ha/day
 	var norm_mag: float = 0.5
 	match ecfg.get("substance", "water"):
 		"water":
-			norm_mag = clampf(mag / 10.0, 0.05, 1.0)
-		"nitrogen", "phosphorus":
-			norm_mag = clampf(mag / 2.0, 0.05, 1.0)
-		"carbon":
+			norm_mag = clampf(mag / 15.0, 0.05, 1.0)
+		"nitrogen":
 			norm_mag = clampf(mag / 5.0, 0.05, 1.0)
+		"phosphorus":
+			norm_mag = clampf(mag / 1.0, 0.05, 1.0)
+		"carbon":
+			norm_mag = clampf(mag / 150.0, 0.05, 1.0)
 
 	# WaterInfiltrated uses "layer_indices" array; others use "layer" or "from_layer"
 	var layer_indices: Array = data.get("layer_indices", [])
