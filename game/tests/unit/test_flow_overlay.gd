@@ -120,6 +120,87 @@ func test_update_reuses_matching_tubes() -> void:
 	assert_eq(overlay._tubes.size(), first_count, "Should reuse matching tubes")
 
 
+func _make_nutrient_event(nutrient: String, uptake: float, demand: float) -> Dictionary:
+	return {
+		"event_type": "NutrientStressComputed",
+		"module": "agrogame.plant.events",
+		"data":
+		{
+			"nutrient": nutrient,
+			"uptake_kg_ha": uptake,
+			"demand_kg_ha": demand,
+			"stress": uptake / maxf(demand, 0.001),
+		},
+	}
+
+
+func test_n_uptake_creates_assimilation_tube() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var events: Array = [_make_nutrient_event("N", 0.5, 1.0)]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	var labels: Array = []
+	for tube in overlay._tubes:
+		if tube is FlowTube and tube._label:
+			labels.append(tube._label.text)
+	var found := false
+	for lbl: String in labels:
+		if lbl.contains("N Assimilation"):
+			found = true
+			break
+	assert_true(found, "N uptake > threshold should create N Assimilation tube")
+
+
+func test_p_uptake_creates_assimilation_tube() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var events: Array = [_make_nutrient_event("P", 0.05, 0.1)]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	var labels: Array = []
+	for tube in overlay._tubes:
+		if tube is FlowTube and tube._label:
+			labels.append(tube._label.text)
+	var found := false
+	for lbl: String in labels:
+		if lbl.contains("P Assimilation"):
+			found = true
+			break
+	assert_true(found, "P uptake > threshold should create P Assimilation tube")
+
+
+func test_below_threshold_uptake_no_tube() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	# N uptake 0.005 < threshold 0.01, P uptake 0.0005 < threshold 0.001
+	var events: Array = [
+		_make_nutrient_event("N", 0.005, 0.01),
+		_make_nutrient_event("P", 0.0005, 0.001),
+	]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	assert_eq(overlay._tubes.size(), 0, "Below-threshold uptake should create no tubes")
+
+
+func test_multiple_nutrient_events_aggregate() -> void:
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	# Two N events should aggregate (0.3 + 0.4 = 0.7 > 0.01)
+	var events: Array = [
+		_make_nutrient_event("N", 0.3, 0.5),
+		_make_nutrient_event("N", 0.4, 0.5),
+	]
+	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
+	var labels: Array = []
+	for tube in overlay._tubes:
+		if tube is FlowTube and tube._label:
+			labels.append(tube._label.text)
+	var found := false
+	for lbl: String in labels:
+		if lbl.contains("N Assimilation") and lbl.contains("0.70"):
+			found = true
+			break
+	assert_true(found, "Multiple N events should aggregate to 0.70 kg/ha")
+
+
 func test_rain_connector_added_for_heavy_rain() -> void:
 	var overlay := FlowOverlayRef.new()
 	add_child_autofree(overlay)

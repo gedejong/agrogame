@@ -59,6 +59,13 @@ const SUBSTANCE_CO2 := Color(0.55, 0.55, 0.55, 0.8)  # neutral grey — gas
 const SUBSTANCE_MICROBE := Color(0.92, 0.52, 0.08, 0.8)  # orange — microbial biomass
 const SUBSTANCE_PH := Color(0.55, 0.55, 0.60, 0.8)  # cool grey
 
+# --- Mass unit display ---
+## Toggle between g/m² and kg/ha for nutrient/biomass display.
+## Setting: agrogame/display/mass_unit ("g/m²" or "kg/ha")
+## Conversion: 1 g/m² = 10 kg/ha.
+const MASS_UNIT_GM2 := "g/m²"
+const MASS_UNIT_KGHA := "kg/ha"
+
 # --- Icon tint ---
 const ICON_TINT := Color.WHITE
 const ICON_MUTED := Color(0.627, 0.667, 0.710)
@@ -81,6 +88,49 @@ const BODY_COLOR := TEXT_PRIMARY
 const MUTED_COLOR := TEXT_SECONDARY
 const VALUE_COLOR := TEXT_PRIMARY
 const SEPARATOR_COLOR := DIVIDER_COLOR
+
+# --- Mass unit helpers ---
+
+
+static func mass_unit() -> String:
+	return ProjectSettings.get_setting("agrogame/display/mass_unit", MASS_UNIT_GM2)
+
+
+static func to_display_mass(value_kg_ha: float) -> float:
+	"""Convert a value in kg/ha to the active display unit."""
+	if mass_unit() == MASS_UNIT_GM2:
+		return value_kg_ha / 10.0
+	return value_kg_ha
+
+
+static func to_display_mass_from_gm2(value_g_m2: float) -> float:
+	"""Convert a value in g/m² to the active display unit."""
+	if mass_unit() == MASS_UNIT_KGHA:
+		return value_g_m2 * 10.0
+	return value_g_m2
+
+
+static func mass_label() -> String:
+	"""Return the active mass unit label string."""
+	return mass_unit()
+
+
+static func carbon_label() -> String:
+	"""Return the active carbon mass label."""
+	if mass_unit() == MASS_UNIT_KGHA:
+		return "kgC/ha"
+	return "gC/m²"
+
+
+static func format_mass(value_kg_ha: float, decimals: int = 2) -> String:
+	"""Format a kg/ha value in the active display unit with smart precision."""
+	var v: float = to_display_mass(value_kg_ha)
+	if absf(v) < 0.005 and absf(v) > 0.0:
+		return "%.*f" % [decimals + 1, v]
+	return "%.*f" % [decimals, v]
+
+
+# --- Panel styles ---
 
 
 static func create_panel_style(transparent: bool = false) -> StyleBoxFlat:

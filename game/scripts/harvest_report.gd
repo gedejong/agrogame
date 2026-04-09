@@ -115,7 +115,9 @@ func _display_report(data: Dictionary) -> void:
 			var som2: float = patch2.get("som_total_c_g_m2", 0.0)
 			var theta2: float = patch2.get("theta_surface", 0.0)
 			var som_label := Label.new()
-			som_label.text = "  %s: SOM %.0f gC/m² | θ %.3f" % [soil2, som2, theta2]
+			var som_disp: float = UiTheme.to_display_mass_from_gm2(som2)
+			var som_unit: String = UiTheme.carbon_label()
+			som_label.text = "  %s: SOM %.0f %s | θ %.3f" % [soil2, som_disp, som_unit, theta2]
 			som_label.add_theme_font_size_override("font_size", 13)
 			# Color-code SOM: green >3000, yellow 1000-3000, red <1000
 			var som_color := Color(0.3, 0.85, 0.3)
