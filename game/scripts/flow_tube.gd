@@ -376,6 +376,7 @@ func filter_show(duration: float = 0.3) -> void:
 			0.25,
 			duration,
 		)
+		_set_particles_visible(true)
 
 
 func filter_hide(duration: float = 0.3) -> void:
@@ -389,6 +390,18 @@ func filter_hide(duration: float = 0.3) -> void:
 			0.0,
 			duration,
 		)
+		_set_particles_visible(false)
+
+
+func _set_particles_visible(vis: bool) -> void:
+	if _particles:
+		_particles.emitting = vis
+		_particles.visible = vis
+	if has_meta("path_node"):
+		var pn: Path3D = get_meta("path_node")
+		for child in pn.get_children():
+			if child is PathFollow3D:
+				child.visible = vis
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
