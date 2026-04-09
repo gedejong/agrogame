@@ -2,6 +2,10 @@ extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
 ## Styled per art guide: glassmorphism dark slate-navy panels.
 
+## Emitted when user clicks a cycle filter or toggle button.
+signal flow_filter_changed(filter_name: String)
+signal flow_toggle_changed(visible: bool)
+
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 ## Values stored in g/m² (simulation native unit); converted at display time.
 ## "mass_type": "mass" for g/m²↔kg/ha, "carbon" for gC/m²↔kgC/ha, "" for no conversion.
@@ -77,6 +81,9 @@ const BAR_STRESS := UiTheme.ACCENT_RED
 const BAR_MARGINAL := UiTheme.ACCENT_GOLD
 const BAR_OK := UiTheme.ACCENT_GREEN
 
+var _flow_visible := true
+var _cycle_label: Label = null
+
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
@@ -100,6 +107,10 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
+
+	# Flow cycle filter row
+	_build_cycle_row(vbox)
+	_add_separator(vbox)
 
 	for i in range(layers_data.size()):
 		if i > 0:
@@ -248,3 +259,67 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 	if val < opt_min:
 		return BAR_MARGINAL
 	return BAR_OK
+
+
+func _build_cycle_row(parent: VBoxContainer) -> void:
+	# Cycle view label
+	_cycle_label = Label.new()
+	_cycle_label.text = "ALL FLOWS"
+	_cycle_label.uppercase = true
+	_cycle_label.add_theme_font_size_override("font_size", 9)
+	_cycle_label.add_theme_color_override("font_color", UiTheme.TEXT_MUTED)
+	_cycle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	parent.add_child(_cycle_label)
+	# Button row
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	parent.add_child(row)
+	var colors := {
+		"all": UiTheme.TEXT_PRIMARY,
+		"water": UiTheme.SUBSTANCE_WATER,
+		"nitrogen": UiTheme.SUBSTANCE_NO3,
+		"carbon": UiTheme.SUBSTANCE_CARBON,
+		"phosphorus": UiTheme.SUBSTANCE_PHOSPHORUS,
+	}
+	var labels := {
+		"all": "All",
+		"water": "H\u2082O",
+		"nitrogen": "N",
+		"carbon": "C",
+		"phosphorus": "P",
+	}
+	for fkey: String in FlowOverlay.CYCLE_FILTERS:
+		var btn := Button.new()
+		btn.text = labels.get(fkey, fkey)
+		btn.custom_minimum_size = Vector2(36, 22)
+		UiTheme.style_button(btn)
+		btn.add_theme_font_size_override("font_size", 10)
+		var col: Color = colors.get(fkey, UiTheme.TEXT_PRIMARY)
+		btn.add_theme_color_override("font_color", col)
+		btn.add_theme_color_override("font_hover_color", col.lightened(0.3))
+		btn.pressed.connect(_on_filter_btn.bind(fkey))
+		row.add_child(btn)
+	# Toggle visibility
+	var toggle := Button.new()
+	toggle.text = "\u2022"
+	toggle.tooltip_text = "Toggle flow overlay"
+	toggle.custom_minimum_size = Vector2(22, 22)
+	UiTheme.style_button(toggle)
+	toggle.add_theme_font_size_override("font_size", 10)
+	toggle.pressed.connect(_on_toggle_btn)
+	row.add_child(toggle)
+
+
+func _on_filter_btn(filter_name: String) -> void:
+	if _cycle_label:
+		_cycle_label.text = FlowOverlay.CYCLE_LABELS.get(filter_name, "ALL FLOWS")
+	if not _flow_visible:
+		_flow_visible = true
+		flow_toggle_changed.emit(true)
+	flow_filter_changed.emit(filter_name)
+
+
+func _on_toggle_btn() -> void:
+	_flow_visible = not _flow_visible
+	flow_toggle_changed.emit(_flow_visible)
