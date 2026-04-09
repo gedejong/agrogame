@@ -20,8 +20,8 @@ const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
 const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
 
 ## Event type -> tube config.
-## z_slot: position on face. Right(-Z)=water, Center=nitrogen, Left(+Z)=carbon/P.
-## Tube max diameter ~0.07, slot spacing 0.09 for no overlap.
+## z_slot: small offset to separate sub-types within same layer.
+## Vertical tubes (up/down) at z_slot. Lateral per-layer at z_slot.
 const EVENT_CONFIG := {
 	"WaterInfiltrated":
 	{
@@ -30,7 +30,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amounts_mm_sum",
 		"label": "Infiltration",
-		"z_slot": -0.18
+		"z_slot": 0.0
 	},
 	"WaterDrained":
 	{
@@ -39,7 +39,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_mm",
 		"label": "Percolation",
-		"z_slot": -0.09
+		"z_slot": 0.08
 	},
 	"EvaporationTaken":
 	{
@@ -48,7 +48,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_mm",
 		"label": "Evaporation",
-		"z_slot": -0.45
+		"z_slot": -0.15
 	},
 	"TranspirationByLayer":
 	{
@@ -57,7 +57,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "total_mm",
 		"label": "Transpiration",
-		"z_slot": -0.36
+		"z_slot": -0.08
 	},
 	"RunoffGenerated":
 	{
@@ -66,7 +66,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_mm",
 		"label": "Runoff",
-		"z_slot": -0.45
+		"z_slot": -0.22
 	},
 	"NitrificationOccurred":
 	{
@@ -75,7 +75,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.09
+		"z_slot": 0.0
 	},
 	"MineralizationOccurred":
 	{
@@ -84,7 +84,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.18
+		"z_slot": 0.08
 	},
 	"DenitrificationOccurred":
 	{
@@ -93,7 +93,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
-		"z_slot": 0.09
+		"z_slot": 0.0
 	},
 	"VolatilizationOccurred":
 	{
@@ -102,7 +102,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
-		"z_slot": 0.18
+		"z_slot": 0.08
 	},
 	"NutrientLeached":
 	{
@@ -111,7 +111,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
 		"label": "NO3 leaching",
-		"z_slot": 0.0
+		"z_slot": 0.15
 	},
 	"PhosphorusFixationOccurred":
 	{
@@ -120,7 +120,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": 0.27
+		"z_slot": 0.15
 	},
 	"SOMDecomposed":
 	{
@@ -129,7 +129,7 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": 0.36
+		"z_slot": 0.22
 	},
 	"CO2Respired":
 	{
@@ -138,7 +138,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
 		"label": "Soil CO2 \u2191",
-		"z_slot": 0.45
+		"z_slot": 0.22
 	},
 }
 
