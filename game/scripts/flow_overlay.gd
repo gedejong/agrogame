@@ -234,11 +234,17 @@ func update_from_events(events: Array, profile_layers: Array, pillar_pos: Vector
 	_tubes.clear()
 	_tubes = new_tubes
 	_prev_configs = new_configs
-	# Apply current filter/visibility to newly created tubes
-	_apply_filter()
-	if not _overlay_visible:
-		for tube in _tubes:
-			(tube as FlowTube).fade_out()
+	# Apply current filter/visibility to newly created tubes.
+	# For non-matching new tubes, immediately hide (no fade needed).
+	if _active_filter != "all" or not _overlay_visible:
+		for i in range(_tubes.size()):
+			if not is_instance_valid(_tubes[i]):
+				continue
+			var tube: FlowTube = _tubes[i] as FlowTube
+			var show: bool = _overlay_visible and _matches_filter(i)
+			if not show:
+				tube._filtered_out = false  # force filter_hide to act
+				tube.filter_hide(0.0)
 	# Detect pulse events
 	_check_pulse_events(events)
 
@@ -374,12 +380,14 @@ func set_overlay_visible(vis: bool) -> void:
 		return
 	_overlay_visible = vis
 	for i in range(_tubes.size()):
+		if not is_instance_valid(_tubes[i]):
+			continue
 		var tube: FlowTube = _tubes[i] as FlowTube
 		if vis:
 			if _matches_filter(i):
-				tube.fade_in()
+				tube.filter_show()
 		else:
-			tube.fade_out()
+			tube.filter_hide()
 
 
 func is_overlay_visible() -> bool:
@@ -390,11 +398,13 @@ func _apply_filter() -> void:
 	if not _overlay_visible:
 		return
 	for i in range(_tubes.size()):
+		if not is_instance_valid(_tubes[i]):
+			continue
 		var tube: FlowTube = _tubes[i] as FlowTube
 		if _matches_filter(i):
-			tube.fade_in()
+			tube.filter_show()
 		else:
-			tube.fade_out()
+			tube.filter_hide()
 
 
 func _matches_filter(tube_idx: int) -> bool:

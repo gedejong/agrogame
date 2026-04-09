@@ -15,6 +15,7 @@ var _material: StandardMaterial3D = null
 var _color_start := Color.WHITE
 var _color_end := Color.WHITE
 var _has_gradient := false
+var _filtered_out := false
 
 
 static func create(config: Dictionary) -> FlowTube:
@@ -347,6 +348,7 @@ func fade_in(duration: float = 0.4) -> void:
 			target_alpha,
 			duration,
 		)
+	_filtered_out = false
 
 
 func fade_out(duration: float = 0.4) -> void:
@@ -361,6 +363,32 @@ func fade_out(duration: float = 0.4) -> void:
 		tw.tween_callback(queue_free)
 	else:
 		queue_free()
+
+
+func filter_show(duration: float = 0.3) -> void:
+	## Show tube after filter — does NOT reset alpha if already visible.
+	if _filtered_out and _material:
+		_filtered_out = false
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.25,
+			duration,
+		)
+
+
+func filter_hide(duration: float = 0.3) -> void:
+	## Hide tube via filter — does NOT queue_free.
+	if not _filtered_out and _material:
+		_filtered_out = true
+		var tw := create_tween()
+		tw.tween_method(
+			func(a: float) -> void: _material.albedo_color.a = a,
+			_material.albedo_color.a,
+			0.0,
+			duration,
+		)
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
