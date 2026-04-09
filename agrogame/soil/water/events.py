@@ -90,3 +90,16 @@ class CanopyEvaporated(BaseEvent):
     """Evaporation taken directly from the canopy store (mm)."""
 
     amount_mm: float
+
+
+@dataclass(frozen=True)
+class WaterloggingDetected(BaseEvent):
+    """Root zone is at or above saturation.
+
+    Emitted daily by WaterRuntime when top-layer theta >= saturation.
+    CanopyRuntime subscribes to track consecutive waterlogged days.
+    """
+
+    layer: int
+    theta: float
+    saturation: float

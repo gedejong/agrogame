@@ -21,11 +21,16 @@ class CanopyRuntime:
     # Initialized properly in __post_init__ using configurable window size
     _stress_history: deque[float] = field(init=False)
     _consecutive_wilt_days: int = 0
+    _consecutive_waterlog_days: int = 0
+    _waterlogged_today: bool = False
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(WaterStressComputed, self._on_water_stress)
         self.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
+        from agrogame.soil.water.events import WaterloggingDetected
+
+        self.event_bus.subscribe(WaterloggingDetected, self._on_waterlogging)
         self._stress_history = deque(maxlen=self.canopy.params.stress_memory_days)
 
     def _on_water_stress(self, ev: WaterStressComputed) -> None:
@@ -70,6 +75,71 @@ class CanopyRuntime:
             return water_stress
         return sum(self._stress_history) / len(self._stress_history)
 
+    def _on_waterlogging(self, _ev: object) -> None:
+        """Mark today as waterlogged (consumed by _check_waterlogging)."""
+        self._waterlogged_today = True
+
+    def _check_frost_damage(self, tmin_c: float) -> None:
+        """Apply LAI loss on frost days during vulnerable stages.
+
+        Severity is proportional to how far below the threshold:
+        loss = LAI * fraction * clamp((threshold - tmin) / |threshold|, 0, 1)
+        Ref: DSSAT CERES frost kill; Hatfield & Prueger 2015.
+        """
+        from agrogame.soil.phenology import PhenologyStage
+
+        stage = self.canopy._current_stage
+        if stage not in (
+            PhenologyStage.EMERGED,
+            PhenologyStage.VEGETATIVE,
+            PhenologyStage.FLOWERING,
+        ):
+            return
+        p = self.canopy.params
+        if tmin_c >= p.frost_threshold_c:
+            return
+        # Severity scales linearly: 0 at threshold, 1.0 at 10C below threshold
+        severity = min(1.0, (p.frost_threshold_c - tmin_c) / 10.0)
+        loss = self.canopy.state.lai * p.frost_damage_fraction * severity
+        self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
+        self.canopy.state.biomass_g_m2 = max(
+            0.0, self.canopy.state.biomass_g_m2 - loss * 10.0
+        )
+
+    def _check_heat_damage(self, tmax_c: float) -> float:
+        """Return grain reduction factor for heat stress during flowering.
+
+        When tmax > threshold during FLOWERING, grain_inc is multiplied by
+        (1 - heat_grain_reduction_fraction). Returns 1.0 if no heat stress.
+        Ref: DSSAT CERES heat stress on grain set.
+        """
+        from agrogame.soil.phenology import PhenologyStage
+
+        if self.canopy._current_stage != PhenologyStage.FLOWERING:
+            return 1.0
+        p = self.canopy.params
+        if tmax_c <= p.heat_damage_threshold_c:
+            return 1.0
+        return 1.0 - p.heat_grain_reduction_fraction
+
+    def _check_waterlogging_damage(self) -> None:
+        """Apply LAI loss after consecutive waterlogged days.
+
+        Follows the wilt damage pattern: counter increments when
+        waterlogged, resets when drained. Damage fires after threshold.
+        Ref: Setter & Waters 2003 — root O2 stress under saturation.
+        """
+        p = self.canopy.params
+        if self._waterlogged_today:
+            self._consecutive_waterlog_days += 1
+        else:
+            self._consecutive_waterlog_days = 0
+        self._waterlogged_today = False  # reset for next day
+        if self._consecutive_waterlog_days >= p.waterlog_days_for_damage:
+            loss = self.canopy.state.lai * p.waterlog_lai_loss_fraction
+            self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
+            self._consecutive_waterlog_days = 0
+
     def _check_wilt_damage(self, water_stress: float) -> None:
         """Apply irreversible LAI loss after prolonged severe stress.
 
@@ -96,21 +166,24 @@ class CanopyRuntime:
         p = self._last_p
         avg_water = self._update_stress_memory(water)
         vpd_factor = self._vpd_rue_factor(ev)
-        # Use running average to smooth transient stress spikes; avoids
-        # single zero-stress days zeroing growth while memory is still low.
         effective_water = avg_water * vpd_factor
 
-        # Liebig nutrient stress: minimum of N and P (AGRO-97).
-        # Water stress handled separately via effective_water.
         nutrient_stress = min(n, p)
         tf = self._compute_temp_factor(ev)
+
+        # Heat stress: reduce grain allocation during flowering (AGRO-34)
+        tmax = float(ev.tmax_c) if ev.tmax_c is not None else 25.0
+        heat_grain_factor = self._check_heat_damage(tmax)
+
         _ = self.canopy.daily_step(
             incident_par_mj_m2=par,
             temp_factor=tf,
             water_stress=effective_water,
             n_stress=nutrient_stress,
+            heat_grain_factor=heat_grain_factor,
         )
-        # Wilt check uses instantaneous stress so that recovery days
-        # (raw water > threshold) reset the counter, preventing false
-        # wilt triggers from averaged values hovering near threshold.
+        # Damage checks (wilt, frost, waterlogging) — AGRO-34
         self._check_wilt_damage(water)
+        tmin = float(ev.tmin_c) if ev.tmin_c is not None else 10.0
+        self._check_frost_damage(tmin)
+        self._check_waterlogging_damage()

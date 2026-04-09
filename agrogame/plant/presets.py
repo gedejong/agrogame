@@ -90,6 +90,14 @@ def _build_canopy(raw: dict) -> CanopyParams:
         grain_fill_duration_gdd=float(c.get("grain_fill_duration_gdd", 900.0)),
         harvest_index=float(c.get("harvest_index", 0.45)),
         remobilization_fraction=float(c.get("remobilization_fraction", 0.0)),
+        frost_threshold_c=float(c.get("frost_threshold_c", 0.0)),
+        frost_damage_fraction=float(c.get("frost_damage_fraction", 0.3)),
+        heat_damage_threshold_c=float(c.get("heat_damage_threshold_c", 35.0)),
+        heat_grain_reduction_fraction=float(
+            c.get("heat_grain_reduction_fraction", 0.5)
+        ),
+        waterlog_days_for_damage=int(c.get("waterlog_days_for_damage", 3)),
+        waterlog_lai_loss_fraction=float(c.get("waterlog_lai_loss_fraction", 0.15)),
     )
 
 

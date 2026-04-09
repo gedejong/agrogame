@@ -27,6 +27,12 @@ crops:
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55
       remobilization_fraction: 0.037  # NL posterior (AGRO-92)
+      frost_threshold_c: 0.0        # DSSAT: maize killed at 0C
+      frost_damage_fraction: 0.4
+      heat_damage_threshold_c: 35.0  # Hatfield & Prueger 2015
+      heat_grain_reduction_fraction: 0.5
+      waterlog_days_for_damage: 3
+      waterlog_lai_loss_fraction: 0.15
     climate_overrides:
       kenya_highlands:
         canopy:
@@ -83,6 +89,12 @@ crops:
       grain_fill_duration_gdd: 900.0
       harvest_index: 0.45          # APSIM wheat: 0.40-0.50
       remobilization_fraction: 0.025 # 2.5%/day (Gebbing & Schnyder 1999)
+      frost_threshold_c: -2.0       # Winter wheat tolerates mild frost
+      frost_damage_fraction: 0.2
+      heat_damage_threshold_c: 32.0  # C3 crop, sensitive to heat
+      heat_grain_reduction_fraction: 0.6
+      waterlog_days_for_damage: 4    # Deeper roots, more tolerant
+      waterlog_lai_loss_fraction: 0.1
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
@@ -113,6 +125,12 @@ crops:
       grain_fill_duration_gdd: 700.0
       harvest_index: 0.45          # spring wheat similar to winter
       remobilization_fraction: 0.025
+      frost_threshold_c: -1.0       # Spring wheat less frost-hardy
+      frost_damage_fraction: 0.25
+      heat_damage_threshold_c: 32.0
+      heat_grain_reduction_fraction: 0.6
+      waterlog_days_for_damage: 3
+      waterlog_lai_loss_fraction: 0.12
     roots:
       max_depth_cm: 100.0      # shallower than winter wheat
       growth_rate_cm_per_day: 1.5
@@ -144,6 +162,12 @@ crops:
       leaf_fraction_grain_fill: 0.15
       harvest_index: 0.45          # DSSAT CERES-Rice: 0.40-0.50
       remobilization_fraction: 0.02
+      frost_threshold_c: 10.0      # Tropical crop, very frost-sensitive
+      frost_damage_fraction: 0.5
+      heat_damage_threshold_c: 38.0  # Adapted to heat
+      heat_grain_reduction_fraction: 0.4
+      waterlog_days_for_damage: 7    # Paddy rice tolerates flooding
+      waterlog_lai_loss_fraction: 0.05
     roots:
       max_depth_cm: 60.0       # shallow-rooted
       growth_rate_cm_per_day: 1.0
@@ -174,6 +198,12 @@ crops:
       leaf_fraction_grain_fill: 0.10
       harvest_index: 0.35          # APSIM sorghum: 0.30-0.40
       remobilization_fraction: 0.029  # Bayesian posterior (AGRO-102)
+      frost_threshold_c: 2.0       # Tropical C4, frost-sensitive
+      frost_damage_fraction: 0.4
+      heat_damage_threshold_c: 38.0  # Heat-adapted C4
+      heat_grain_reduction_fraction: 0.3
+      waterlog_days_for_damage: 3
+      waterlog_lai_loss_fraction: 0.15
     roots:
       max_depth_cm: 180.0      # deep-rooted, drought-adapted
       growth_rate_cm_per_day: 2.5
@@ -205,6 +235,12 @@ crops:
       leaf_fraction_grain_fill: 0.10
       harvest_index: 0.40          # DSSAT CROPGRO-Soybean: 0.35-0.45
       remobilization_fraction: 0.02
+      frost_threshold_c: 0.0
+      frost_damage_fraction: 0.35
+      heat_damage_threshold_c: 35.0
+      heat_grain_reduction_fraction: 0.5
+      waterlog_days_for_damage: 2    # Soybean sensitive to waterlogging
+      waterlog_lai_loss_fraction: 0.2
     roots:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
@@ -234,6 +270,12 @@ crops:
       leaf_fraction_flowering: 0.5
       leaf_fraction_grain_fill: 0.3   # perennial, keeps producing leaves
       harvest_index: 0.0           # grape: fruit yield modeled separately
+      frost_threshold_c: -5.0      # Dormant vines tolerate cold
+      frost_damage_fraction: 0.2
+      heat_damage_threshold_c: 38.0
+      heat_grain_reduction_fraction: 0.3
+      waterlog_days_for_damage: 4
+      waterlog_lai_loss_fraction: 0.1
     roots:
       max_depth_cm: 200.0      # very deep-rooted perennial
       growth_rate_cm_per_day: 0.8
