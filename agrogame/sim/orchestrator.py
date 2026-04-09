@@ -455,23 +455,25 @@ class FullSimulationOrchestrator:
     def _compute_nutrient_demand(self) -> tuple[float, float]:
         """Compute N and P demand from previous day's biomass increment.
 
-        Demand = biomass_increment (g/m² → kg/ha) × tissue_conc × demand_factor.
-        The demand_factor (2.0) accounts for luxury uptake and the fact that
-        newly formed tissue needs higher N concentration than the whole-plant
-        average (young leaves ~4% N vs whole-plant 2-3%).
+        Demand = biomass_increment (g/m² → kg/ha) × tissue_conc × soil_fraction.
+        The soil_fraction (0.5) accounts for the fact that only ~50% of the
+        plant's N requirement comes from same-day soil uptake; the rest is
+        remobilized from older tissue (Ritchie et al. 1998, DSSAT CERES).
         Ref: DSSAT CERES (Jones et al. 2003); APSIM N-demand algorithm.
         """
         crop = self._current_crop
         if crop is None:
             return 0.0, 0.0
-        inc_kg_ha = self._last_biomass_inc_g_m2 * 0.01  # g/m² → kg/ha
-        # Factor 2.0: new tissue is N-richer than whole-plant average
-        demand_factor = 2.0
-        n_demand = inc_kg_ha * crop.tissue_n_conc_kg_kg * demand_factor
-        p_demand = inc_kg_ha * crop.tissue_p_conc_kg_kg * demand_factor
+        # 1 g/m² = 10 kg/ha (10,000 m² per ha)
+        inc_kg_ha = self._last_biomass_inc_g_m2 * 10.0
+        # Only ~50% of theoretical N demand is taken from soil each day;
+        # the rest comes from internal remobilization of older tissue.
+        soil_fraction = 0.5
+        n_demand = inc_kg_ha * crop.tissue_n_conc_kg_kg * soil_fraction
+        p_demand = inc_kg_ha * crop.tissue_p_conc_kg_kg * soil_fraction
         # Small baseline for maintenance uptake when growth is minimal
-        n_demand = max(n_demand, 0.01)
-        p_demand = max(p_demand, 0.001)
+        n_demand = max(n_demand, 0.1)
+        p_demand = max(p_demand, 0.01)
         return n_demand, p_demand
 
     def step_day(

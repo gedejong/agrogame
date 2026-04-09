@@ -57,8 +57,8 @@ def test_demand_baseline_before_emergence() -> None:
     _step_days(orch, 1)
     n_events = [e for e in events if e.nutrient == "N"]
     assert len(n_events) >= 1
-    # Demand should be the baseline minimum (0.01 kg/ha), not the old 1.0
-    assert n_events[0].demand_kg_ha <= 0.01 + 1e-9
+    # Demand should be the baseline minimum (0.1 kg/ha), not the old 1.0
+    assert n_events[0].demand_kg_ha <= 0.1 + 1e-9
 
 
 def test_demand_increases_with_growth() -> None:
@@ -77,16 +77,16 @@ def test_demand_increases_with_growth() -> None:
     _step_days(orch, 30)
     # After 30 days of growth, demand should have increased from baseline
     assert len(n_demands) >= 20
-    # Peak demand (during active growth) should exceed baseline (0.01)
+    # Peak demand (during active growth) should exceed baseline (0.1)
     peak_n = max(n_demands)
-    assert peak_n > 0.01, f"Peak N demand ({peak_n:.4f}) should exceed baseline"
-    # Late demands (post-emergence) should exceed pre-emergence baseline
+    assert peak_n > 1.0, f"Peak N demand ({peak_n:.4f}) should exceed 1.0 kg/ha"
+    # Late demands (post-emergence) should greatly exceed baseline
     late_avg = sum(n_demands[15:25]) / 10
-    assert late_avg > 0.01, f"Late demand ({late_avg:.4f}) should exceed baseline 0.01"
+    assert late_avg > 0.5, f"Late demand ({late_avg:.4f}) should exceed 0.5 kg/ha"
     # P demand should also increase above baseline
     assert len(p_demands) >= 20
     peak_p = max(p_demands)
-    assert peak_p > 0.001
+    assert peak_p > 0.1
 
 
 def test_demand_proportional_to_tissue_concentration() -> None:
@@ -99,15 +99,15 @@ def test_demand_proportional_to_tissue_concentration() -> None:
     # For the same biomass increment, soybean demand should be 1.5× maize
     # (0.045 / 0.030 = 1.5). Test via the demand formula directly.
     fake_inc_g_m2 = 30.0  # typical peak daily increment
-    inc_kg_ha = fake_inc_g_m2 * 0.01
-    demand_factor = 2.0
-    soy_demand = inc_kg_ha * soy.tissue_n_conc_kg_kg * demand_factor
-    maize_demand = inc_kg_ha * maize.tissue_n_conc_kg_kg * demand_factor
+    inc_kg_ha = fake_inc_g_m2 * 10.0  # g/m² → kg/ha
+    soil_fraction = 0.5
+    soy_demand = inc_kg_ha * soy.tissue_n_conc_kg_kg * soil_fraction
+    maize_demand = inc_kg_ha * maize.tissue_n_conc_kg_kg * soil_fraction
     ratio = soy_demand / maize_demand
     assert abs(ratio - 1.5) < 0.01, f"Demand ratio should be 1.5, got {ratio:.3f}"
-    # Also verify both produce non-trivial demand
-    assert soy_demand > 0.01
-    assert maize_demand > 0.01
+    # Both should produce meaningful demand (several kg N/ha/day)
+    assert soy_demand > 1.0
+    assert maize_demand > 1.0
 
 
 def test_stress_below_one_when_soil_depleted() -> None:
@@ -202,5 +202,5 @@ def test_demand_resets_after_crop_change() -> None:
     _step_days(orch, 1)
     n_events = [e for e in events if e.nutrient == "N"]
     assert len(n_events) >= 1
-    # Should be baseline (0.01), not carrying over maize's growth
-    assert n_events[0].demand_kg_ha <= 0.01 + 1e-9
+    # Should be baseline (0.1), not carrying over maize's growth
+    assert n_events[0].demand_kg_ha <= 0.1 + 1e-9
