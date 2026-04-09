@@ -669,6 +669,17 @@ func _inject_debug_stress_events(patches: Dictionary) -> void:
 			"data": {"grain_reduction_factor": 0.5}
 		},
 		{"event_type": "WaterloggingDetected", "module": "debug", "data": {"theta": 0.45}},
+		{"event_type": "WaterStressComputed", "module": "debug", "data": {"stress": 0.2}},
+		{
+			"event_type": "NutrientStressComputed",
+			"module": "debug",
+			"data": {"nutrient": "N", "stress": 0.1}
+		},
+		{
+			"event_type": "NutrientStressComputed",
+			"module": "debug",
+			"data": {"nutrient": "P", "stress": 0.3}
+		},
 	]
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]

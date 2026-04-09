@@ -1,14 +1,17 @@
 class_name StressIcons
 extends Node3D
-## Floating warning icons above tiles for weather damage events.
+## Floating warning icons above tiles for crop stress conditions.
 ## Uses SVG icon sprites. Label shown on hover or close camera zoom.
+## Detects both event-based stress (frost/heat/waterlogging) and
+## threshold-based stress (drought, N/P deficiency).
 
 const ICON_Y := 0.5
 const ICON_SIZE := Vector2(0.10, 0.10)
 const LABEL_ZOOM_THRESHOLD := 2.5
+const STRESS_THRESHOLD := 0.5
 
-## Event types that trigger stress icons.
-const STRESS_EVENTS := {
+## Event-based stress: icon shown when event is present in day's events.
+const EVENT_STRESS := {
 	"FrostDamageApplied":
 	{
 		"texture": "res://assets/icons/icon_frost.svg",
@@ -29,8 +32,38 @@ const STRESS_EVENTS := {
 	},
 }
 
+## Threshold-based stress: icon shown when stress factor < STRESS_THRESHOLD.
+const THRESHOLD_STRESS := {
+	"drought":
+	{
+		"texture": "res://assets/icons/icon_drought.svg",
+		"label": "Drought",
+		"color": Color(0.75, 0.55, 0.30, 0.8),
+	},
+	"n_deficiency":
+	{
+		"texture": "res://assets/icons/icon_n_deficiency.svg",
+		"label": "N deficiency",
+		"color": UiTheme.SUBSTANCE_NO3,
+	},
+	"p_deficiency":
+	{
+		"texture": "res://assets/icons/icon_p_deficiency.svg",
+		"label": "P deficiency",
+		"color": UiTheme.SUBSTANCE_PHOSPHORUS,
+	},
+}
+
+## Combined lookup for icon creation.
+var _all_stress: Dictionary = {}
+
 var _icons: Dictionary = {}
 var _labels: Array[Label3D] = []
+
+
+func _ready() -> void:
+	_all_stress.merge(EVENT_STRESS)
+	_all_stress.merge(THRESHOLD_STRESS)
 
 
 func _process(_delta: float) -> void:
@@ -54,10 +87,31 @@ func update_from_patches(
 			var patch: Dictionary = patch_list[pi]
 			var events: Array = patch.get("events", [])
 			var soil: String = soil_types[pi] if pi < soil_types.size() else ""
+			# Event-based stress
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
-				if STRESS_EVENTS.has(etype):
-					active_stresses[soil + "_" + etype] = {"soil": soil, "event": etype}
+				if EVENT_STRESS.has(etype):
+					active_stresses[soil + "_" + etype] = {"soil": soil, "stress_key": etype}
+				# Threshold-based: water stress
+				if etype == "WaterStressComputed":
+					var stress: float = float(evt.get("data", {}).get("stress", 1.0))
+					if stress < STRESS_THRESHOLD:
+						active_stresses[soil + "_drought"] = {"soil": soil, "stress_key": "drought"}
+				# Threshold-based: nutrient stress
+				if etype == "NutrientStressComputed":
+					var data: Dictionary = evt.get("data", {})
+					var nutrient: String = str(data.get("nutrient", ""))
+					var stress: float = float(data.get("stress", 1.0))
+					if stress < STRESS_THRESHOLD:
+						if nutrient == "N":
+							active_stresses[soil + "_n_deficiency"] = {
+								"soil": soil, "stress_key": "n_deficiency"
+							}
+						elif nutrient == "P":
+							active_stresses[soil + "_p_deficiency"] = {
+								"soil": soil, "stress_key": "p_deficiency"
+							}
+	# Map stresses to tile indices
 	var tile_stresses: Dictionary = {}
 	for key: String in active_stresses:
 		var info: Dictionary = active_stresses[key]
@@ -65,7 +119,9 @@ func update_from_patches(
 			if tile_data[i].get("soil_type", "") == info["soil"]:
 				if not tile_stresses.has(i):
 					tile_stresses[i] = []
-				tile_stresses[i].append(info["event"])
+				var sk: String = info["stress_key"]
+				if sk not in tile_stresses[i]:
+					tile_stresses[i].append(sk)
 	# Remove stale icons
 	var to_remove: Array = []
 	for icon_key: String in _icons:
@@ -77,13 +133,22 @@ func update_from_patches(
 	_labels.clear()
 	for key: String in _icons:
 		_collect_labels(_icons[key])
-	# Create new
+	# Create/update icons
 	for tile_idx: int in tile_stresses:
 		var key: String = str(tile_idx)
+		var stress_keys: Array = tile_stresses[tile_idx]
 		if _icons.has(key):
-			continue
+			# Update if stress set changed
+			var existing: Node3D = _icons[key]
+			var old_keys: Array = existing.get_meta("stress_keys", [])
+			if _arrays_equal(old_keys, stress_keys):
+				_collect_labels(existing)
+				continue
+			existing.queue_free()
+			_icons.erase(key)
 		var pos: Vector3 = tile_meshes[tile_idx].position
-		var node := _create_icons(pos, tile_stresses[tile_idx])
+		var node := _create_icons(pos, stress_keys)
+		node.set_meta("stress_keys", stress_keys)
 		add_child(node)
 		_icons[key] = node
 		_animate_appear(node)
@@ -97,28 +162,44 @@ func clear_icons() -> void:
 	_labels.clear()
 
 
+static func _arrays_equal(a: Array, b: Array) -> bool:
+	if a.size() != b.size():
+		return false
+	for i in range(a.size()):
+		if a[i] != b[i]:
+			return false
+	return true
+
+
 func _collect_labels(node: Node3D) -> void:
 	for child in node.get_children():
 		if child is Label3D and child.has_meta("stress_label"):
 			_labels.append(child)
 
 
-func _create_icons(pos: Vector3, etypes: Array) -> Node3D:
+func _create_icons(pos: Vector3, stress_keys: Array) -> Node3D:
 	var container := Node3D.new()
 	container.position = Vector3(pos.x, pos.y, pos.z)
-	var x_offset := 0.0
-	for etype: String in etypes:
-		if not STRESS_EVENTS.has(etype):
+	# Center the icon row
+	var total_width: float = maxf(0.0, float(stress_keys.size() - 1) * 0.20)
+	var x_start: float = -total_width * 0.5
+	for si in range(stress_keys.size()):
+		var skey: String = stress_keys[si]
+		if not _all_stress.has(skey):
 			continue
-		var cfg: Dictionary = STRESS_EVENTS[etype]
+		var cfg: Dictionary = _all_stress[skey]
+		var x_pos: float = x_start + float(si) * 0.20
 		# Sprite icon
+		var tex_path: String = cfg["texture"]
+		if not ResourceLoader.exists(tex_path):
+			continue
 		var sprite := Sprite3D.new()
-		sprite.texture = load(cfg["texture"])
+		sprite.texture = load(tex_path)
 		sprite.pixel_size = ICON_SIZE.x / maxf(sprite.texture.get_width(), 1.0)
 		sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		sprite.no_depth_test = true
 		sprite.render_priority = 14
-		sprite.position = Vector3(x_offset, ICON_Y, 0)
+		sprite.position = Vector3(x_pos, ICON_Y, 0)
 		container.add_child(sprite)
 		# Label below
 		var lbl := Label3D.new()
@@ -131,7 +212,7 @@ func _create_icons(pos: Vector3, etypes: Array) -> Node3D:
 		lbl.no_depth_test = true
 		lbl.render_priority = 14
 		lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		lbl.position = Vector3(x_offset, ICON_Y - 0.08, 0)
+		lbl.position = Vector3(x_pos, ICON_Y - 0.08, 0)
 		lbl.visible = false
 		lbl.set_meta("stress_label", true)
 		container.add_child(lbl)
@@ -142,7 +223,7 @@ func _create_icons(pos: Vector3, etypes: Array) -> Node3D:
 		shape.size = Vector3(0.12, 0.15, 0.12)
 		coll.shape = shape
 		area.add_child(coll)
-		area.position = Vector3(x_offset, ICON_Y, 0)
+		area.position = Vector3(x_pos, ICON_Y, 0)
 		area.input_ray_pickable = true
 		var lbl_ref := lbl
 		area.mouse_entered.connect(
@@ -152,7 +233,6 @@ func _create_icons(pos: Vector3, etypes: Array) -> Node3D:
 		)
 		area.mouse_exited.connect(func() -> void: lbl_ref.remove_meta("hovered"))
 		container.add_child(area)
-		x_offset += 0.20
 	return container
 
 
