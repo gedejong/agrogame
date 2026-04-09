@@ -185,18 +185,27 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
 	if path.size() < 2:
 		return
+	# Deduplicate adjacent points to avoid zero-length curve segments
+	# (which cause Godot Basis invert det==0 errors in PathFollow3D).
+	var clean_path: Array[Vector3] = [Vector3(path[0])]
+	for pi in range(1, path.size()):
+		var pt := Vector3(path[pi])
+		if not pt.is_equal_approx(clean_path[clean_path.size() - 1]):
+			clean_path.append(pt)
+	if clean_path.size() < 2:
+		return
 	var path_node := Path3D.new()
 	var curve := Curve3D.new()
 	# Add points with smooth tangent handles to prevent jitter at joints
-	for pi in range(path.size()):
-		var pt: Vector3 = path[pi]
+	for pi in range(clean_path.size()):
+		var pt: Vector3 = clean_path[pi]
 		var tangent := Vector3.ZERO
-		if pi < path.size() - 1 and pi > 0:
-			tangent = (Vector3(path[pi + 1]) - Vector3(path[pi - 1])) * 0.25
-		elif pi < path.size() - 1:
-			tangent = (Vector3(path[pi + 1]) - pt) * 0.25
+		if pi < clean_path.size() - 1 and pi > 0:
+			tangent = (clean_path[pi + 1] - clean_path[pi - 1]) * 0.25
+		elif pi < clean_path.size() - 1:
+			tangent = (clean_path[pi + 1] - pt) * 0.25
 		elif pi > 0:
-			tangent = (pt - Vector3(path[pi - 1])) * 0.25
+			tangent = (pt - clean_path[pi - 1]) * 0.25
 		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
@@ -237,8 +246,8 @@ func _build_path_particles(path: Array, color: Color, magnitude: float, speed: f
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		follow.add_child(mi)
 		path_node.add_child(follow)
-		# Set progress after adding to tree (Godot requires Path3D parent)
-		follow.progress_ratio = 0.0
+		# progress_ratio defaults to 0.0; don't set it explicitly here
+		# because the FlowTube isn't in the scene tree yet during create().
 	# Store for _process animation
 	set_meta("path_node", path_node)
 	set_process(true)
