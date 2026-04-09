@@ -130,6 +130,26 @@ def test_cascade_downward() -> None:
     assert deep >= 0.0
 
 
+def test_deep_drainage_emits_event() -> None:
+    """Heavy rain on sandy soil should emit WaterDrained with to_layer=-1."""
+    from agrogame.events import EventBus
+    from agrogame.soil.water.events import WaterDrained
+
+    lib = _load(Path("soils/presets.yaml"))
+    profile = lib.soils["sandy_arid"]
+    bus = EventBus()
+    drained: list[WaterDrained] = []
+    bus.subscribe(WaterDrained, lambda e: drained.append(e))
+    model = CascadingBucketWaterModel(event_bus=bus)
+    state = SoilWaterState(profile)
+    model.update_daily(profile, state, DailyDrivers(rainfall_mm=80.0))
+    # Should have layer-to-layer drains AND deep drainage (to_layer=-1)
+    assert len(drained) > 0, "Heavy rain should produce WaterDrained events"
+    deep = [d for d in drained if d.to_layer == -1]
+    assert len(deep) > 0, "Water should drain below bottom layer"
+    assert deep[0].amount_mm > 0.0
+
+
 def test_permeability_comparison() -> None:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     sand = lib.soils["sandy_arid"]

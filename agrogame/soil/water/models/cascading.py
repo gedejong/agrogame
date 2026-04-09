@@ -133,8 +133,16 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 leftover = excess - moved
                 if leftover > 0:
                     deep_drainage += leftover
+                    if self.event_bus:
+                        self.event_bus.emit(
+                            WaterDrained(from_layer=i, to_layer=-1, amount_mm=leftover)
+                        )
             else:
                 deep_drainage += excess
+                if self.event_bus and excess > 0:
+                    self.event_bus.emit(
+                        WaterDrained(from_layer=i, to_layer=-1, amount_mm=excess)
+                    )
         return deep_drainage
 
     def update_daily(
