@@ -21,6 +21,17 @@ const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
 const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
 const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
 
+## Chemical formula shown as subtitle on hover labels
+const LABEL_FORMULA := {
+	"Nitrification": "NH\u2084\u207a \u2192 NO\u2083\u207b",
+	"Ammonification": "Org-N \u2192 NH\u2084\u207a",
+	"Denitrification": "NO\u2083\u207b \u2192 N\u2082",
+	"Volatilization": "NH\u2084\u207a \u2192 NH\u2083 \u2191",
+	"Leaching": "NO\u2083\u207b \u2193",
+	"Decomposition": "Org-C \u2192 CO\u2082",
+	"Avail-P \u2192 Fixed-P": "H\u2082PO\u2084\u207b \u2192 Ca-P",
+}
+
 ## Event type -> tube config.
 ## z_slot: small offset to separate sub-types within same layer.
 ## Vertical tubes (up/down) at z_slot. Lateral per-layer at z_slot.
@@ -78,7 +89,7 @@ const EVENT_CONFIG := {
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "NH4 \u2192 NO3",
+		"label": "Nitrification",
 		"z_slot": 0.18,
 		"y_frac": 0.25,
 	},
@@ -89,7 +100,7 @@ const EVENT_CONFIG := {
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "Org-N \u2192 NH4",
+		"label": "Ammonification",
 		"z_slot": 0.18,
 		"y_frac": 0.7,
 	},
@@ -110,7 +121,7 @@ const EVENT_CONFIG := {
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
-		"label": "NH3 loss",
+		"label": "Volatilization",
 		"z_slot": 0.3,
 	},
 	"NutrientLeached":
@@ -119,7 +130,7 @@ const EVENT_CONFIG := {
 		"substance": "nitrogen",
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
-		"label": "NO3 leaching",
+		"label": "Leaching",
 		"z_slot": -0.15,
 	},
 	"PhosphorusFixationOccurred":
@@ -259,7 +270,7 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"color": COLOR_NH4,
 			"magnitude": 0.6,
 			"speed": 0.8,
-			"label_text": "NH4 \u2192 NO3",
+			"label_text": "Nitrification",
 		},
 		{
 			"path": _make_lateral_path(fx_soil, l2y, fz + 0.1, fz + 0.35, 0.04),
@@ -528,7 +539,12 @@ func _build_tube_config(
 	var to_l: int = int(data.get("to_layer", 0))
 	if to_l == -1 and direction == "down":
 		base_label = "Deep drainage"
-	var label: String = "%s\n%s %s" % [base_label, val_str, unit]
+	# Include chemical formula if available
+	var formula: String = LABEL_FORMULA.get(base_label, "")
+	var label: String = base_label
+	if not formula.is_empty():
+		label += " (%s)" % formula
+	label += "\n%s %s" % [val_str, unit]
 	# Normalize to 0-1. Water in mm, everything else in kg/ha.
 	# Single scale per unit so cross-substance comparison is meaningful:
 	# 0.004 kg/ha P should look tiny next to 7 kg/ha decomposition.
