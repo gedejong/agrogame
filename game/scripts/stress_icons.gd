@@ -152,12 +152,12 @@ func _build_sign_content(container: Node3D, etypes: Array) -> void:
 		sign_mat.albedo_color = Color(1.0, 0.85, 0.0)
 		sign_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		sign_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sign_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		var sign_inst := MeshInstance3D.new()
 		sign_inst.mesh = quad
 		sign_inst.material_override = sign_mat
 		sign_inst.position = Vector3(0, ICON_Y + 0.01, 0)
 		sign_inst.rotation.z = PI * 0.25
-		sign_inst.billboard = GeometryInstance3D.BILLBOARD_ENABLED
 		sign_root.add_child(sign_inst)
 		# Black border (slightly larger diamond behind)
 		var border_quad := QuadMesh.new()
@@ -166,12 +166,12 @@ func _build_sign_content(container: Node3D, etypes: Array) -> void:
 		border_mat.albedo_color = Color(0.1, 0.1, 0.1)
 		border_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		border_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		border_mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		var border_inst := MeshInstance3D.new()
 		border_inst.mesh = border_quad
 		border_inst.material_override = border_mat
 		border_inst.position = Vector3(0, ICON_Y + 0.01, 0.001)
 		border_inst.rotation.z = PI * 0.25
-		border_inst.billboard = GeometryInstance3D.BILLBOARD_ENABLED
 		sign_root.add_child(border_inst)
 		# Icon on the sign
 		var icon_label := Label3D.new()
