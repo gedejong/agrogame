@@ -76,8 +76,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "NH4 \u2192 NO3",
-		"z_slot": 0.0,
-		"y_frac": 0.2,
+		"z_slot": 0.12,
+		"y_frac": 0.25,
 	},
 	"MineralizationOccurred":
 	{
@@ -86,8 +86,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
 		"label": "Org-N \u2192 NH4",
-		"z_slot": 0.0,
-		"y_frac": 0.4,
+		"z_slot": 0.12,
+		"y_frac": 0.7,
 	},
 	"DenitrificationOccurred":
 	{
@@ -123,8 +123,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
 		"label": "Avail-P \u2192 Fixed-P",
-		"z_slot": 0.0,
-		"y_frac": 0.6,
+		"z_slot": -0.08,
+		"y_frac": 0.25,
 	},
 	"SOMDecomposed":
 	{
@@ -133,8 +133,8 @@ const EVENT_CONFIG := {
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
 		"label": "Decomposition",
-		"z_slot": 0.0,
-		"y_frac": 0.8,
+		"z_slot": -0.08,
+		"y_frac": 0.7,
 	},
 	"CO2Respired":
 	{
@@ -399,9 +399,10 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 			if not layer_indices.is_empty()
 			else int(data.get("layer", data.get("from_layer", 0)))
 		)
-		# Lateral: per-layer key. Vertical/up: aggregate across layers.
+		# Lateral and down: per-layer. Up: aggregate across layers.
 		var key: String = etype
-		if ecfg.get("direction", "") == "lateral":
+		var dir: String = ecfg.get("direction", "")
+		if dir == "lateral" or dir == "down":
 			key = etype + "_L" + str(li)
 		agg[key] = agg.get(key, 0.0) + mag
 		if not agg_data.has(key):
