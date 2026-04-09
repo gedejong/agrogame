@@ -97,8 +97,10 @@ void fragment() {
 			root_uv = fract(root_uv);
 			vec4 root_sample = texture(root_texture, root_uv);
 			float root_alpha = root_sample.a * root_strength * side_mask;
-			// Lighten soil toward root color — keeps scene shading intact
-			vec3 root_col = mix(soil, ROOT_COLOR, 0.6) * (1.0 + grain * 0.15);
+			// Blend toward root color; darken on light soils for contrast
+			float soil_luma = dot(soil, vec3(0.299, 0.587, 0.114));
+			float darken = mix(0.0, 0.25, smoothstep(0.4, 0.7, soil_luma));
+			vec3 root_col = mix(soil, ROOT_COLOR, 0.6) * (1.0 + grain * 0.15 - darken);
 			soil = mix(soil, root_col, root_alpha * 0.7);
 			// Normal bump for 3D depth
 			float root_bump = root_alpha * 0.8;

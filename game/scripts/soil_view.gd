@@ -390,19 +390,19 @@ static func _generate_root_image(root_depth: float, total_h: float, style: Dicti
 				col.a = alpha
 				img.set_pixel(px, py, col)
 
-	# Draw taproots on top as distinct stems
+	# Draw taproots as tapered stems (thick at top, 1px at tip)
 	for pi in range(num_plants):
 		var cx: int = tap_xs[pi]
 		var wobble: int = int((_root_hash(pi, 0) - 0.5) * 8.0)
 		var end_x: int = cx + int(float(wobble) * 0.3)
-		_draw_line_img(img, cx, 0, end_x, root_px, ROOT_COLOR, tap_w)
+		_draw_tapered_line(img, cx, 0, end_x, root_px, ROOT_COLOR, tap_w)
 	return img
 
 
 static func _draw_line_img(
 	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
 ) -> void:
-	## Bresenham line with thickness.
+	## Bresenham line with constant thickness.
 	var dx: int = absi(x1 - x0)
 	var dy: int = absi(y1 - y0)
 	var sx: int = 1 if x0 < x1 else -1
@@ -427,6 +427,42 @@ static func _draw_line_img(
 		if e2 < dx:
 			err += dx
 			y += sy
+
+
+static func _draw_tapered_line(
+	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, max_thickness: int
+) -> void:
+	## Bresenham line that tapers from max_thickness at start to 1px at end.
+	var dx: int = absi(x1 - x0)
+	var dy: int = absi(y1 - y0)
+	var total_steps: int = maxi(dx, dy)
+	if total_steps == 0:
+		return
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
+	var err: int = dx - dy
+	var x := x0
+	var y := y0
+	var step := 0
+	while true:
+		var t: float = float(step) / float(total_steps)
+		var r: int = maxi(0, int(lerpf(float(max_thickness), 0.5, t) * 0.5))
+		for tpy in range(-r, r + 1):
+			for tpx in range(-r, r + 1):
+				var ix: int = x + tpx
+				var iy: int = y + tpy
+				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
+					img.set_pixel(ix, iy, color)
+		if x == x1 and y == y1:
+			break
+		var e2: int = 2 * err
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err += dx
+			y += sy
+		step += 1
 
 
 func _build_info_labels(
