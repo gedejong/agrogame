@@ -23,8 +23,8 @@ const COLOR_PHOSPHORUS := UiTheme.SUBSTANCE_PHOSPHORUS
 const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
 const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
 const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
-const COLOR_FROST := Color(0.6, 0.85, 1.0, 0.8)  # ice-blue
-const COLOR_HEAT := Color(0.95, 0.3, 0.2, 0.8)  # warm red
+const COLOR_FROST := UiTheme.SUBSTANCE_FROST
+const COLOR_HEAT := UiTheme.SUBSTANCE_HEAT
 
 ## Chemical formula shown as subtitle on hover labels
 const LABEL_FORMULA := {
@@ -172,6 +172,9 @@ const EVENT_CONFIG := {
 		"label": "Soil CO2 \u2191",
 		"z_slot": 0.4,
 	},
+	# Extreme weather damage events (#34). Substance "weather" is intentionally
+	# not in CYCLE_FILTERS — these tubes are only visible under "all" view,
+	# since they don't belong to a specific biogeochemical cycle.
 	"FrostDamageApplied":
 	{
 		"color": COLOR_FROST,
@@ -179,7 +182,7 @@ const EVENT_CONFIG := {
 		"direction": "down",
 		"mag_key": "severity",
 		"label": "Frost damage",
-		"z_slot": -0.45,
+		"z_slot": -0.50,
 	},
 	"HeatDamageApplied":
 	{

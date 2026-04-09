@@ -58,6 +58,8 @@ const SUBSTANCE_CARBON := Color(0.96, 0.72, 0.10, 0.8)  # warm gold — organic 
 const SUBSTANCE_CO2 := Color(0.55, 0.55, 0.55, 0.8)  # neutral grey — gas
 const SUBSTANCE_MICROBE := Color(0.92, 0.52, 0.08, 0.8)  # orange — microbial biomass
 const SUBSTANCE_PH := Color(0.55, 0.55, 0.60, 0.8)  # cool grey
+const SUBSTANCE_FROST := Color(0.6, 0.85, 1.0, 0.8)  # ice-blue — frost damage
+const SUBSTANCE_HEAT := Color(0.95, 0.3, 0.2, 0.8)  # warm red — heat stress
 
 # --- Mass unit display ---
 ## Toggle between g/m² and kg/ha for nutrient/biomass display.

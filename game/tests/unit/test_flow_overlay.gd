@@ -121,7 +121,7 @@ func test_update_reuses_matching_tubes() -> void:
 	assert_eq(overlay._tubes.size(), first_count, "Should reuse matching tubes")
 
 
-func _mk_nutrient_event(nutrient: String, uptake: float, demand: float) -> Dictionary:
+func _make_nutrient_event(nutrient: String, uptake: float, demand: float) -> Dictionary:
 	return {
 		"event_type": "NutrientStressComputed",
 		"module": "agrogame.plant.events",
@@ -362,6 +362,13 @@ func test_extreme_weather_events_create_tubes() -> void:
 	]
 	overlay2.update_from_events(heat_events, TEST_PROFILE, Vector3.ZERO)
 	assert_gt(overlay2._tubes.size(), 0, "Heat event should create a tube")
+	var found_heat := false
+	for tube2 in overlay2._tubes:
+		if tube2 is FlowTube and tube2._label:
+			if tube2._label.text.contains("Heat"):
+				found_heat = true
+				break
+	assert_true(found_heat, "Should have a tube labeled 'Heat stress'")
 	# Waterlogging
 	var overlay3 := FlowOverlayRef.new()
 	add_child_autofree(overlay3)
@@ -374,3 +381,10 @@ func test_extreme_weather_events_create_tubes() -> void:
 	]
 	overlay3.update_from_events(wl_events, TEST_PROFILE, Vector3.ZERO)
 	assert_gt(overlay3._tubes.size(), 0, "Waterlogging event should create a tube")
+	var found_wl := false
+	for tube3 in overlay3._tubes:
+		if tube3 is FlowTube and tube3._label:
+			if tube3._label.text.contains("Waterlogging"):
+				found_wl = true
+				break
+	assert_true(found_wl, "Should have a tube labeled 'Waterlogging'")
