@@ -96,7 +96,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "Denitrification",
-		"z_slot": 0.0,
+		"z_slot": 0.2,
 	},
 	"VolatilizationOccurred":
 	{
@@ -105,7 +105,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
 		"label": "NH3 loss",
-		"z_slot": 0.1,
+		"z_slot": 0.3,
 	},
 	"NutrientLeached":
 	{
@@ -143,7 +143,7 @@ const EVENT_CONFIG := {
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
 		"label": "Soil CO2 \u2191",
-		"z_slot": 0.0,
+		"z_slot": 0.4,
 	},
 }
 
@@ -405,7 +405,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 			. append(
 				{
 					"start": Vector3(fx_a, 0.01, fz + 0.0),
-					"end": Vector3(fx_a, 0.2, fz + 0.0),
+					"end": Vector3(fx_a, 0.2, fz + 0.0),  # N uptake at z=0.0
 					"color": COLOR_NO3,
 					"magnitude": clampf(n_uptake / 10.0, 0.0, 1.0),
 					"speed": 1.2,
@@ -419,7 +419,7 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 			. append(
 				{
 					"start": Vector3(fx_a, 0.01, fz + 0.1),
-					"end": Vector3(fx_a, 0.2, fz + 0.1),
+					"end": Vector3(fx_a, 0.2, fz + 0.1),  # P uptake at z=0.1
 					"color": COLOR_PHOSPHORUS,
 					"magnitude": clampf(p_uptake / 10.0, 0.0, 1.0),
 					"speed": 1.2,
