@@ -107,6 +107,34 @@ def test_heat_during_flowering_reduces_grain() -> None:
     )
 
 
+def test_heat_grain_reduction_isolated() -> None:
+    """Heat just above threshold reduces grain without killing growth.
+
+    Uses tmax=36C (just above maize 35C threshold) so cardinal_temp_factor
+    is still positive (tmean=25.5, well below temp_max_c=42). This isolates
+    the heat_grain_reduction mechanism from temperature-growth suppression.
+    """
+    control = _make_orch("maize")
+    heat = _make_orch("maize")
+    # Grow to grain fill: maize flowers ~759 GDD, grain fill starts after.
+    # With tmin=15, tmax=28 (Tbase=8): GDD/day=13.5, flower ~day 56.
+    _step(control, 65, tmin=15.0, tmax=28.0)
+    _step(heat, 65, tmin=15.0, tmax=28.0)
+    # Both in GRAIN_FILL now. Apply heat: tmax=36C (just above 35C threshold)
+    _step(heat, 10, tmin=15.0, tmax=36.0, start_day=65)
+    _step(control, 10, tmin=15.0, tmax=28.0, start_day=65)
+    # Continue
+    _step(heat, 30, tmin=15.0, tmax=28.0, start_day=75)
+    _step(control, 30, tmin=15.0, tmax=28.0, start_day=75)
+    assert heat.canopy.state.grain_biomass_g_m2 < (
+        control.canopy.state.grain_biomass_g_m2
+    ), (
+        f"Heat grain ({heat.canopy.state.grain_biomass_g_m2:.1f}) should be "
+        f"less than control ({control.canopy.state.grain_biomass_g_m2:.1f}) "
+        f"with targeted heat just above threshold"
+    )
+
+
 def test_waterlogging_reduces_lai() -> None:
     """Waterlogging (saturated soil) should reduce LAI after threshold days."""
     control = _make_orch("soybean")  # Soybean: 2-day waterlog threshold

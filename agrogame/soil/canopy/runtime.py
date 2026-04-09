@@ -83,7 +83,7 @@ class CanopyRuntime:
         """Apply LAI loss on frost days during vulnerable stages.
 
         Severity is proportional to how far below the threshold:
-        loss = LAI * fraction * clamp((threshold - tmin) / |threshold|, 0, 1)
+        loss = LAI * fraction * clamp((threshold - tmin) / 10, 0, 1)
         Ref: DSSAT CERES frost kill; Hatfield & Prueger 2015.
         """
         from agrogame.soil.phenology import PhenologyStage
@@ -102,20 +102,26 @@ class CanopyRuntime:
         severity = min(1.0, (p.frost_threshold_c - tmin_c) / 10.0)
         loss = self.canopy.state.lai * p.frost_damage_fraction * severity
         self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
+        # Convert LAI loss to biomass using actual SLA (LAI = biomass * SLA)
+        sla = p.specific_leaf_area_m2_per_g
+        biomass_loss = loss / sla if sla > 0.0 else 0.0
         self.canopy.state.biomass_g_m2 = max(
-            0.0, self.canopy.state.biomass_g_m2 - loss * 10.0
+            0.0, self.canopy.state.biomass_g_m2 - biomass_loss
         )
 
     def _check_heat_damage(self, tmax_c: float) -> float:
-        """Return grain reduction factor for heat stress during flowering.
+        """Return grain reduction factor for heat stress on grain set.
 
-        When tmax > threshold during FLOWERING, grain_inc is multiplied by
-        (1 - heat_grain_reduction_fraction). Returns 1.0 if no heat stress.
-        Ref: DSSAT CERES heat stress on grain set.
+        When tmax > threshold during FLOWERING or GRAIN_FILL, grain_inc is
+        multiplied by (1 - heat_grain_reduction_fraction). Returns 1.0 if
+        no heat stress. Ref: DSSAT CERES heat stress on grain set.
         """
         from agrogame.soil.phenology import PhenologyStage
 
-        if self.canopy._current_stage != PhenologyStage.FLOWERING:
+        if self.canopy._current_stage not in (
+            PhenologyStage.FLOWERING,
+            PhenologyStage.GRAIN_FILL,
+        ):
             return 1.0
         p = self.canopy.params
         if tmax_c <= p.heat_damage_threshold_c:

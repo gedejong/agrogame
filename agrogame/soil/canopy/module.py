@@ -242,6 +242,7 @@ class CanopyModule:
         actual_transpiration_mm: float,
         potential_transpiration_mm: float,
         n_stress: float,
+        heat_grain_factor: float = 1.0,
     ) -> CanopyFluxes:
         """Variant that derives water stress from ET supply/demand.
 
@@ -254,4 +255,5 @@ class CanopyModule:
             temp_factor=temp_factor,
             water_stress=ws,
             n_stress=n_stress,
+            heat_grain_factor=heat_grain_factor,
         )
