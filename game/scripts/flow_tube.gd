@@ -402,6 +402,13 @@ func _set_particles_visible(vis: bool) -> void:
 		for child in pn.get_children():
 			if child is PathFollow3D:
 				child.visible = vis
+	# Hide/show label and disable hover detection
+	if _label:
+		_label.visible = false  # always hide on toggle; hover re-shows
+	for child in get_children():
+		if child is Area3D:
+			child.input_ray_pickable = vis
+			child.monitorable = vis
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:

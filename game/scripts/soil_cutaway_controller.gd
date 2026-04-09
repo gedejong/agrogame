@@ -262,8 +262,9 @@ func _show_cycle_panel(ui_layer: CanvasLayer) -> void:
 	toggle.add_theme_font_size_override("font_size", 10)
 	toggle.pressed.connect(_on_toggle_overlay)
 	btn_row.add_child(toggle)
-	_cycle_panel.position = Vector2(16, 16)
-	_cycle_panel.size = Vector2(0, 0)
+	var vp: Viewport = ui_layer.get_viewport()
+	_cycle_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 16)
+	_cycle_panel.size = Vector2(260, 0)
 	ui_layer.add_child(_cycle_panel)
 
 
@@ -278,6 +279,9 @@ func _on_cycle_filter(filter_name: String) -> void:
 	if _soil_view and _soil_view.has_method("get_flow_overlay"):
 		var overlay: FlowOverlay = _soil_view.get_flow_overlay()
 		if overlay:
+			# Auto-enable overlay when switching filters
+			if not overlay.is_overlay_visible():
+				overlay.set_overlay_visible(true)
 			overlay.set_filter(filter_name)
 	if _cycle_label:
 		_cycle_label.text = FlowOverlay.CYCLE_LABELS.get(filter_name, "ALL FLOWS")
