@@ -121,7 +121,7 @@ func test_update_reuses_matching_tubes() -> void:
 	assert_eq(overlay._tubes.size(), first_count, "Should reuse matching tubes")
 
 
-func _make_nutrient_event(nutrient: String, uptake: float, demand: float) -> Dictionary:
+func _mk_nutrient_event(nutrient: String, uptake: float, demand: float) -> Dictionary:
 	return {
 		"event_type": "NutrientStressComputed",
 		"module": "agrogame.plant.events",
@@ -301,26 +301,76 @@ func test_invalid_filter_rejected() -> void:
 	assert_eq(overlay.get_filter(), "water", "Invalid filter should be rejected")
 
 
-func test_nutrient_panel_emits_filter_signal() -> void:
+func test_nutrient_panel_emits_signals() -> void:
+	# Filter signal
 	var panel := PanelContainer.new()
 	panel.set_script(NutrientPanelRef)
 	add_child_autofree(panel)
 	var received: Array = []
 	panel.flow_filter_changed.connect(func(f: String) -> void: received.append(f))
 	panel.show_layers([])
-	# Simulate clicking the nitrogen filter button
 	panel._on_filter_btn("nitrogen")
 	assert_eq(received, ["nitrogen"], "Should emit filter signal")
-
-
-func test_nutrient_panel_emits_toggle_signal() -> void:
-	var panel := PanelContainer.new()
-	panel.set_script(NutrientPanelRef)
-	add_child_autofree(panel)
+	# Toggle signal
+	var panel2 := PanelContainer.new()
+	panel2.set_script(NutrientPanelRef)
+	add_child_autofree(panel2)
 	var toggled: Array = []
-	panel.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
-	panel.show_layers([])
-	panel._on_toggle_btn()
+	panel2.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
+	panel2.show_layers([])
+	panel2._on_toggle_btn()
 	assert_eq(toggled, [false], "First toggle should emit false")
-	panel._on_toggle_btn()
+	panel2._on_toggle_btn()
 	assert_eq(toggled, [false, true], "Second toggle should emit true")
+
+
+func test_extreme_weather_events_create_tubes() -> void:
+	# Frost
+	var overlay := FlowOverlayRef.new()
+	add_child_autofree(overlay)
+	var frost_events: Array = [
+		{
+			"event_type": "FrostDamageApplied",
+			"module": "agrogame.soil.canopy.events",
+			"data":
+			{
+				"lai_loss": 0.5,
+				"biomass_loss_g_m2": 25.0,
+				"tmin_c": -3.0,
+				"severity": 0.3,
+			},
+		}
+	]
+	overlay.update_from_events(frost_events, TEST_PROFILE, Vector3.ZERO)
+	assert_gt(overlay._tubes.size(), 0, "Frost event should create a tube")
+	var found := false
+	for tube in overlay._tubes:
+		if tube is FlowTube and tube._label:
+			if tube._label.text.contains("Frost"):
+				found = true
+				break
+	assert_true(found, "Should have a tube labeled 'Frost damage'")
+	# Heat
+	var overlay2 := FlowOverlayRef.new()
+	add_child_autofree(overlay2)
+	var heat_events: Array = [
+		{
+			"event_type": "HeatDamageApplied",
+			"module": "agrogame.soil.canopy.events",
+			"data": {"grain_reduction_factor": 0.5, "tmax_c": 38.0},
+		}
+	]
+	overlay2.update_from_events(heat_events, TEST_PROFILE, Vector3.ZERO)
+	assert_gt(overlay2._tubes.size(), 0, "Heat event should create a tube")
+	# Waterlogging
+	var overlay3 := FlowOverlayRef.new()
+	add_child_autofree(overlay3)
+	var wl_events: Array = [
+		{
+			"event_type": "WaterloggingDetected",
+			"module": "agrogame.soil.water.events",
+			"data": {"layer": 0, "theta": 0.45, "saturation": 0.45},
+		}
+	]
+	overlay3.update_from_events(wl_events, TEST_PROFILE, Vector3.ZERO)
+	assert_gt(overlay3._tubes.size(), 0, "Waterlogging event should create a tube")

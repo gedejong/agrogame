@@ -23,6 +23,8 @@ const COLOR_PHOSPHORUS := UiTheme.SUBSTANCE_PHOSPHORUS
 const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
 const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
 const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
+const COLOR_FROST := Color(0.6, 0.85, 1.0, 0.8)  # ice-blue
+const COLOR_HEAT := Color(0.95, 0.3, 0.2, 0.8)  # warm red
 
 ## Chemical formula shown as subtitle on hover labels
 const LABEL_FORMULA := {
@@ -169,6 +171,35 @@ const EVENT_CONFIG := {
 		"mag_key": "co2_c_kg_ha",
 		"label": "Soil CO2 \u2191",
 		"z_slot": 0.4,
+	},
+	"FrostDamageApplied":
+	{
+		"color": COLOR_FROST,
+		"substance": "weather",
+		"direction": "down",
+		"mag_key": "severity",
+		"label": "Frost damage",
+		"z_slot": -0.45,
+	},
+	"HeatDamageApplied":
+	{
+		"color": COLOR_HEAT,
+		"substance": "weather",
+		"direction": "lateral",
+		"mag_key": "grain_reduction_factor",
+		"label": "Heat stress",
+		"z_slot": 0.45,
+		"y_frac": 0.5,
+	},
+	"WaterloggingDetected":
+	{
+		"color": COLOR_WATER,
+		"substance": "water",
+		"direction": "lateral",
+		"mag_key": "theta",
+		"label": "Waterlogging",
+		"z_slot": -0.40,
+		"y_frac": 0.8,
 	},
 }
 
