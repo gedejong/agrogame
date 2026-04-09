@@ -32,14 +32,14 @@ const LAYER_TEXTURES := {
 const WATER_COLOR := Color(0.3, 0.55, 0.9, 0.45)
 const ROOT_COLOR := Color(0.75, 0.6, 0.4)
 
-## Per-crop root style: {plants_per_face, tap_thickness, lateral_thickness, max_branches}
+## Per-crop root style: plants, tap_w, fibrous density (0-1), depth bias (higher=shallower)
 const CROP_ROOT_STYLE := {
-	"maize": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 5},
-	"spring_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
-	"winter_wheat": {"plants": 10, "tap_w": 1, "lat_w": 1, "branches": 3},
-	"sorghum": {"plants": 4, "tap_w": 3, "lat_w": 2, "branches": 6},
-	"rice": {"plants": 8, "tap_w": 1, "lat_w": 1, "branches": 2},
-	"grape": {"plants": 2, "tap_w": 4, "lat_w": 3, "branches": 4},
+	"maize": {"plants": 4, "tap_w": 3, "density": 0.7, "shallow_bias": 0.4},
+	"spring_wheat": {"plants": 10, "tap_w": 1, "density": 0.9, "shallow_bias": 0.6},
+	"winter_wheat": {"plants": 10, "tap_w": 1, "density": 0.9, "shallow_bias": 0.6},
+	"sorghum": {"plants": 4, "tap_w": 3, "density": 0.7, "shallow_bias": 0.35},
+	"rice": {"plants": 8, "tap_w": 1, "density": 0.85, "shallow_bias": 0.7},
+	"grape": {"plants": 2, "tap_w": 4, "density": 0.5, "shallow_bias": 0.3},
 }
 const CUTAWAY_WIDTH := 1.0
 const CUTAWAY_DEPTH := 1.0
@@ -55,6 +55,10 @@ var _last_center_pos := Vector3.INF
 var _flow_overlay: FlowOverlay = null
 ## Cached loaded textures keyed by path to avoid repeated load() calls.
 var _tex_cache := {}
+## Root texture cache: avoid regenerating 256x512 noise image every step.
+var _cached_root_tex: Texture2D = null
+var _cached_root_depth := -1.0
+var _cached_root_crop := ""
 
 
 static func get_profile_layers(soil_type: String) -> Array:
@@ -144,24 +148,14 @@ func _refresh_water(columns: Array[Dictionary]) -> void:
 
 
 func _refresh_roots_and_labels(columns: Array[Dictionary]) -> void:
-	# Rebuild roots without touching layer meshes.
-	# Column containers are direct children; roots are tagged as dynamic.
-	var col_idx := 0
-	for child: Node in get_children():
-		if child == _flow_overlay:
-			continue
-		if not child is Node3D or col_idx >= columns.size():
-			continue
-		var col_data: Dictionary = columns[col_idx]
-		for sub: Node in child.get_children():
-			if sub.has_meta("soil_view_dynamic"):
-				sub.queue_free()
-		var profile: Array = col_data.get("profile", [])
-		var rdcm: float = col_data.get("root_depth_cm", 0.0)
-		var crop_key: String = col_data.get("crop_key", "")
-		if rdcm > 0.0:
-			_build_roots(child, profile, rdcm, crop_key)
-		col_idx += 1
+	# Roots are shader-based: update layer material uniforms on refresh.
+	if columns.is_empty():
+		return
+	var col_data: Dictionary = columns[0]
+	var profile: Array = col_data.get("profile", [])
+	var rdcm: float = col_data.get("root_depth_cm", 0.0)
+	var crop_key: String = col_data.get("crop_key", "")
+	_build_roots(profile, rdcm, crop_key)
 
 
 func _update_flow_overlay(columns: Array[Dictionary]) -> void:
@@ -199,9 +193,7 @@ func _build_column(
 	var container := Node3D.new()
 	container.position = Vector3(pos.x, pos.y - 0.005, pos.z)
 	var crop_key: String = col_data.get("crop_key", "")
-	_build_layers(container, profile_layers, soil_state)
-	if root_depth_cm > 0.0:
-		_build_roots(container, profile_layers, root_depth_cm, crop_key)
+	_build_layers(container, profile_layers, soil_state, root_depth_cm, crop_key)
 	if show_info:
 		_build_info_labels(container, profile_layers, soil_state)
 	add_child(container)
@@ -234,13 +226,33 @@ func is_active() -> bool:
 func _clear() -> void:
 	_layer_materials.clear()
 	_water_tweens.clear()
+	_cached_root_tex = null
+	_cached_root_depth = -1.0
+	_cached_root_crop = ""
 	for child in get_children():
 		child.queue_free()
 	_flow_overlay = null
 
 
-func _build_layers(container: Node3D, profile_layers: Array, soil_state: Dictionary) -> void:
+func _build_layers(
+	container: Node3D,
+	profile_layers: Array,
+	soil_state: Dictionary,
+	root_depth_cm: float = 0.0,
+	crop_key: String = "",
+) -> void:
 	var thetas: Array = soil_state.get("water_theta", [])
+	# Generate root texture once for all layers
+	var total_depth := 0.0
+	for layer: Dictionary in profile_layers:
+		total_depth += layer.get("depth_cm", 30.0)
+	var root_tex: Texture2D = null
+	if root_depth_cm > 0.0:
+		var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
+		var total_h: float = total_depth * SCALE_CM
+		var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
+		var img := _generate_root_image(root_world, total_h, style)
+		root_tex = ImageTexture.create_from_image(img)
 	var y_offset := 0.0
 	for i in range(profile_layers.size()):
 		var layer: Dictionary = profile_layers[i]
@@ -266,6 +278,9 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 			mat.set_shader_parameter("albedo_texture", albedo_tex)
 		if normal_tex:
 			mat.set_shader_parameter("normal_texture", normal_tex)
+		if root_tex:
+			mat.set_shader_parameter("root_texture", root_tex)
+			mat.set_shader_parameter("root_strength", 1.0)
 		_layer_materials.append(mat)
 		var mesh := BoxMesh.new()
 		mesh.size = Vector3(CUTAWAY_WIDTH, h, CUTAWAY_DEPTH)
@@ -277,43 +292,38 @@ func _build_layers(container: Node3D, profile_layers: Array, soil_state: Diction
 		y_offset += h
 
 
-func _build_roots(
-	container: Node3D, profile_layers: Array, root_depth_cm: float, crop_key: String
-) -> void:
+func _build_roots(profile_layers: Array, root_depth_cm: float, crop_key: String) -> void:
+	# Roots are now rendered via the cutaway shader (root_texture + root_strength).
+	# This function updates existing layer materials when roots change on refresh.
+	if root_depth_cm <= 0.0:
+		for mat in _layer_materials:
+			mat.set_shader_parameter("root_strength", 0.0)
+		return
+	# Cache: skip regeneration if depth and crop haven't changed
+	var depth_rounded: float = snappedf(root_depth_cm, 0.5)
+	if (
+		_cached_root_tex != null
+		and is_equal_approx(_cached_root_depth, depth_rounded)
+		and _cached_root_crop == crop_key
+	):
+		for mat in _layer_materials:
+			mat.set_shader_parameter("root_texture", _cached_root_tex)
+			mat.set_shader_parameter("root_strength", 1.0)
+		return
 	var total_depth := 0.0
 	for layer: Dictionary in profile_layers:
 		total_depth += layer.get("depth_cm", 30.0)
 	var root_world: float = minf(root_depth_cm, total_depth) * SCALE_CM
-	if root_world < 0.01:
-		return
 	var total_h: float = total_depth * SCALE_CM
 	var style: Dictionary = CROP_ROOT_STYLE.get(crop_key, CROP_ROOT_STYLE.get("maize", {}))
 	var img := _generate_root_image(root_world, total_h, style)
 	var tex := ImageTexture.create_from_image(img)
-	# Root quads sit just inside the face so flow tubes render in front
-	var q1 := _add_face_quad(container, tex, total_h, Vector3(CUTAWAY_WIDTH * 0.5 - 0.005, 0, 0), 0)
-	q1.set_meta("soil_view_dynamic", true)
-	var q2 := _add_face_quad(container, tex, total_h, Vector3(0, 0, CUTAWAY_DEPTH * 0.5 - 0.005), 1)
-	q2.set_meta("soil_view_dynamic", true)
-
-
-static func _add_face_quad(
-	container: Node3D, tex: Texture2D, total_h: float, offset: Vector3, face: int
-) -> MeshInstance3D:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(CUTAWAY_WIDTH, total_h)
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = tex
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var inst := MeshInstance3D.new()
-	inst.mesh = quad
-	inst.material_override = mat
-	inst.position = offset + Vector3(0, -total_h * 0.5, 0)
-	if face == 0:
-		inst.rotation.y = PI * 0.5
-	container.add_child(inst)
-	return inst
+	_cached_root_tex = tex
+	_cached_root_depth = depth_rounded
+	_cached_root_crop = crop_key
+	for mat in _layer_materials:
+		mat.set_shader_parameter("root_texture", tex)
+		mat.set_shader_parameter("root_strength", 1.0)
 
 
 static func _root_hash(seed_val: int, idx: int) -> float:
@@ -322,111 +332,98 @@ static func _root_hash(seed_val: int, idx: int) -> float:
 
 
 static func _generate_root_image(root_depth: float, total_h: float, style: Dictionary) -> Image:
-	## Root systems per face, density matching the crop above.
+	## Generate root texture using noise-based fibrous density + taproot lines.
+	## Creates a dense, networky root mass that fills the rooted soil volume.
 	var w := 256
 	var h := 512
 	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var root_px: int = int(root_depth / total_h * float(h))
-	var depth_frac: float = clampf(root_depth / total_h, 0.0, 1.0)
+	if root_px < 2:
+		return img
 	var num_plants: int = style.get("plants", 4)
 	var tap_w: int = style.get("tap_w", 2)
-	var lat_w: int = style.get("lat_w", 1)
-	var max_branches: int = style.get("branches", 4)
+	var density: float = style.get("density", 0.7)
+	var shallow_bias: float = style.get("shallow_bias", 0.5)
+
+	# Noise layers for fibrous network
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.035
+	noise.fractal_type = FastNoiseLite.FRACTAL_FBM
+	noise.fractal_octaves = 4
+	noise.fractal_lacunarity = 2.2
+	noise.fractal_gain = 0.55
+	# Ridged noise for vein-like branching structures
+	var vein_noise := FastNoiseLite.new()
+	vein_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	vein_noise.frequency = 0.02
+	vein_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	vein_noise.fractal_octaves = 5
+	vein_noise.fractal_lacunarity = 2.0
+	vein_noise.fractal_gain = 0.5
+	vein_noise.seed = 17
+	# Fine detail noise
+	var fine_noise := FastNoiseLite.new()
+	fine_noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	fine_noise.frequency = 0.08
+	fine_noise.fractal_type = FastNoiseLite.FRACTAL_RIDGED
+	fine_noise.fractal_octaves = 3
+	fine_noise.seed = 42
+
+	# Taproot X positions
+	var tap_xs: Array[int] = []
 	for pi in range(num_plants):
-		var cx: int = int((float(pi) + 0.5) / float(num_plants) * float(w))
-		_draw_single_root_img(img, cx, root_px, depth_frac, pi, tap_w, lat_w, max_branches)
+		tap_xs.append(int((float(pi) + 0.5) / float(num_plants) * float(w)))
+
+	# Fill with noise-based root density
+	for py in range(mini(root_px, h)):
+		var depth_norm: float = float(py) / float(maxi(root_px, 1))
+		# Dense near surface, fading toward root front
+		var depth_fac: float = 1.0 - pow(depth_norm, 1.5 - shallow_bias)
+		# Soft fade at root front (last 15%)
+		var front_fade: float = 1.0
+		if depth_norm > 0.85:
+			front_fade = clampf((1.0 - depth_norm) / 0.15, 0.0, 1.0)
+		for px in range(w):
+			# Proximity to nearest taproot
+			var min_dist: float = float(w)
+			for tx: int in tap_xs:
+				var d: float = absf(float(px - tx))
+				if d < min_dist:
+					min_dist = d
+			var prox: float = clampf(1.0 - min_dist / (float(w) * 0.3), 0.0, 1.0)
+			# Noise layers
+			var n1: float = noise.get_noise_2d(float(px), float(py)) * 0.5 + 0.5
+			var n3: float = vein_noise.get_noise_2d(float(px), float(py))
+			var n2: float = fine_noise.get_noise_2d(float(px), float(py))
+			# Vein threshold: branching structures
+			var vein: float = clampf(1.0 - absf(n3) * 3.0, 0.0, 1.0)
+			var base_val: float = (prox * 0.4 + n1 * 0.3 + vein * 0.3) * density
+			base_val *= depth_fac * front_fade
+			# Fine rootlets near taproots
+			var fine_val: float = clampf(n2 * 2.0, 0.0, 1.0) * 0.3 * prox
+			var total: float = clampf(base_val + fine_val, 0.0, 1.0)
+			# Threshold for distinct root strands
+			if total > 0.35:
+				var alpha: float = clampf((total - 0.35) / 0.45, 0.0, 1.0)
+				var col := ROOT_COLOR.darkened(depth_norm * 0.2)
+				col.a = alpha
+				img.set_pixel(px, py, col)
+
+	# Draw taproots as tapered stems (thick at top, 1px at tip)
+	for pi in range(num_plants):
+		var cx: int = tap_xs[pi]
+		var wobble: int = int((_root_hash(pi, 0) - 0.5) * 8.0)
+		var end_x: int = cx + int(float(wobble) * 0.3)
+		_draw_tapered_line(img, cx, 0, end_x, root_px, ROOT_COLOR, tap_w)
 	return img
-
-
-static func _draw_single_root_img(
-	img: Image,
-	cx: int,
-	root_px: int,
-	depth_frac: float,
-	seed_val: int,
-	tap_w: int = 3,
-	lat_w: int = 2,
-	max_branches: int = 5,
-) -> void:
-	## Draw one root system. Uses monotonic hash counter (hi) to avoid collisions.
-	var w: int = img.get_width()
-	var hi := 0
-	var curve_x: int = int((_root_hash(seed_val, hi) - 0.5) * 8.0)
-	hi += 1
-	var mid_y: int = root_px / 2
-	var end_x: int = cx + int(float(curve_x) * 0.3)
-	_draw_line_img(img, cx, 2, cx + curve_x, mid_y, ROOT_COLOR, tap_w)
-	_draw_line_img(img, cx + curve_x, mid_y, end_x, root_px, ROOT_COLOR.darkened(0.15), tap_w)
-	var num_b: int = maxi(1, int(_root_hash(seed_val, hi) * float(max_branches)))
-	hi += 1
-	for bi in range(num_b):
-		var bd: float = _root_hash(seed_val, hi) * 0.85 + 0.08
-		hi += 1
-		if bd > depth_frac:
-			continue
-		var by: int = int(float(root_px) * bd)
-		var tap_at_x: int = int(lerpf(float(cx), float(end_x), bd))
-		var spread: int = int((8.0 + _root_hash(seed_val, hi) * 16.0) * (1.0 - bd))
-		hi += 1
-		var dir: int = 1 if _root_hash(seed_val, hi) > 0.4 else -1
-		hi += 1
-		var dy: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0)
-		hi += 1
-		if spread < 3:
-			continue
-		var bx: int = clampi(tap_at_x + spread * dir, 2, w - 3)
-		var bey: int = by + dy + 6
-		var lw: int = clampi(int(float(lat_w) * (1.0 - bd) + 0.5), 1, lat_w)
-		_draw_line_img(img, tap_at_x, by, bx, bey, ROOT_COLOR.lightened(0.1).darkened(bd * 0.2), lw)
-		var num_s: int = 1 + int(_root_hash(seed_val, hi) * 2.0)
-		hi += 1
-		for si in range(num_s):
-			var sf: float = 0.4 + _root_hash(seed_val, hi) * 0.4
-			hi += 1
-			var sx: int = int(lerpf(float(tap_at_x), float(bx), sf))
-			var sy: int = int(lerpf(float(by), float(bey), sf))
-			var ss: int = int(float(spread) * (0.3 + _root_hash(seed_val, hi) * 0.3))
-			hi += 1
-			var sd: int = dir if _root_hash(seed_val, hi) > 0.5 else -dir
-			hi += 1
-			var sdy: int = 3 + int(_root_hash(seed_val, hi) * 6.0)
-			hi += 1
-			var sex: int = clampi(sx + ss * sd, 2, w - 3)
-			_draw_line_img(
-				img, sx, sy, sex, sy + sdy, ROOT_COLOR.lightened(0.2).darkened(bd * 0.15), 2
-			)
-			var rl_color := ROOT_COLOR.lightened(0.3)
-			for ri in range(3):
-				if _root_hash(seed_val, hi) > 0.25:
-					hi += 1
-					var rd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
-					hi += 1
-					var rl_dx: int = int((_root_hash(seed_val, hi) - 0.3) * 10.0) * rd
-					hi += 1
-					var rl_dy: int = 3 + int(_root_hash(seed_val, hi) * 8.0)
-					hi += 1
-					var rx: int = clampi(sex + rl_dx, 2, w - 3)
-					_draw_line_img(img, sex, sy + sdy, rx, sy + sdy + rl_dy, rl_color, 1)
-				else:
-					hi += 4
-			# Rootlets from lateral midpoint
-			if _root_hash(seed_val, hi) > 0.3:
-				hi += 1
-				var mid_lx: int = (tap_at_x + bx) / 2
-				var mid_ly: int = (by + bey) / 2
-				var mrd: int = 1 if _root_hash(seed_val, hi) > 0.5 else -1
-				hi += 1
-				var mrx: int = clampi(mid_lx + mrd * 5, 2, w - 3)
-				_draw_line_img(img, mid_lx, mid_ly, mrx, mid_ly + 6, rl_color, 1)
-			else:
-				hi += 2
 
 
 static func _draw_line_img(
 	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, thickness: int
 ) -> void:
-	## Bresenham line with thickness via square stamp at each pixel.
+	## Bresenham line with constant thickness.
 	var dx: int = absi(x1 - x0)
 	var dy: int = absi(y1 - y0)
 	var sx: int = 1 if x0 < x1 else -1
@@ -436,10 +433,10 @@ static func _draw_line_img(
 	var y := y0
 	var r: int = thickness / 2
 	while true:
-		for py in range(-r, r + 1):
-			for px in range(-r, r + 1):
-				var ix: int = x + px
-				var iy: int = y + py
+		for tpy in range(-r, r + 1):
+			for tpx in range(-r, r + 1):
+				var ix: int = x + tpx
+				var iy: int = y + tpy
 				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
 					img.set_pixel(ix, iy, color)
 		if x == x1 and y == y1:
@@ -451,6 +448,42 @@ static func _draw_line_img(
 		if e2 < dx:
 			err += dx
 			y += sy
+
+
+static func _draw_tapered_line(
+	img: Image, x0: int, y0: int, x1: int, y1: int, color: Color, max_thickness: int
+) -> void:
+	## Bresenham line that tapers from max_thickness at start to 1px at end.
+	var dx: int = absi(x1 - x0)
+	var dy: int = absi(y1 - y0)
+	var total_steps: int = maxi(dx, dy)
+	if total_steps == 0:
+		return
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
+	var err: int = dx - dy
+	var x := x0
+	var y := y0
+	var step := 0
+	while true:
+		var t: float = float(step) / float(total_steps)
+		var r: int = maxi(0, int(lerpf(float(max_thickness), 0.5, t) * 0.5))
+		for tpy in range(-r, r + 1):
+			for tpx in range(-r, r + 1):
+				var ix: int = x + tpx
+				var iy: int = y + tpy
+				if ix >= 0 and ix < img.get_width() and iy >= 0 and iy < img.get_height():
+					img.set_pixel(ix, iy, color)
+		if x == x1 and y == y1:
+			break
+		var e2: int = 2 * err
+		if e2 > -dy:
+			err -= dy
+			x += sx
+		if e2 < dx:
+			err += dx
+			y += sy
+		step += 1
 
 
 func _build_info_labels(

@@ -6,11 +6,11 @@ const Sparkline = preload("res://scripts/sparkline.gd")
 
 ## Graph configs: key matches _daily_history fields
 const GRAPHS := {
-	"lai": {"label": "LAI", "unit": "m²/m²", "color": Color(0.290, 0.871, 0.502)},
-	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": Color(0.984, 0.749, 0.141)},
-	"water_stress": {"label": "Water stress", "unit": "", "color": Color(0.937, 0.267, 0.267)},
-	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": Color(0.376, 0.647, 0.980)},
-	"n_available": {"label": "N available", "unit": "g/m²", "color": UiTheme.ACCENT_LIME},
+	"lai": {"label": "LAI", "unit": "m²/m²", "color": UiTheme.ACCENT_GREEN},
+	"grain_g_m2": {"label": "Grain", "unit": "g/m²", "color": UiTheme.ACCENT_GOLD},
+	"water_stress": {"label": "Water stress", "unit": "", "color": UiTheme.ACCENT_RED},
+	"theta_surface": {"label": "Soil water", "unit": "m³/m³", "color": UiTheme.SUBSTANCE_WATER},
+	"n_available": {"label": "N available", "unit": "g/m²", "color": UiTheme.SUBSTANCE_NO3},
 }
 
 var _sparklines: Dictionary = {}

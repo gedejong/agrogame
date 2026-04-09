@@ -11,13 +11,26 @@ const PULSE_INTENSITY := 2.5
 const PULSE_DURATION := 0.6
 const RAIN_SKY_Y := 0.25
 
-## Substance colors — NH4 and NO3 distinct for visible transformations
-const COLOR_WATER := Color(0.376, 0.647, 0.980, 0.8)
-const COLOR_NO3 := Color(0.290, 0.871, 0.502, 0.8)  # bright green — mobile nitrate
-const COLOR_NH4 := Color(0.2, 0.75, 0.75, 0.8)  # teal/cyan — ammonium (held by clay)
-const COLOR_ORGANIC_N := Color(0.45, 0.65, 0.35, 0.8)  # olive — locked in organic matter
-const COLOR_PHOSPHORUS := Color(0.655, 0.545, 0.980, 0.8)  # #A78BFA
-const COLOR_CARBON := Color(0.984, 0.749, 0.141, 0.8)
+## Substance colors — sourced from UiTheme single source of truth
+const COLOR_WATER := UiTheme.SUBSTANCE_WATER
+const COLOR_NO3 := UiTheme.SUBSTANCE_NO3
+const COLOR_NH4 := UiTheme.SUBSTANCE_NH4
+const COLOR_ORGANIC_N := UiTheme.SUBSTANCE_ORGANIC_N
+const COLOR_PHOSPHORUS := UiTheme.SUBSTANCE_PHOSPHORUS
+const COLOR_PHOSPHORUS_FIXED := UiTheme.SUBSTANCE_PHOSPHORUS_FIXED
+const COLOR_CARBON := UiTheme.SUBSTANCE_CARBON
+const COLOR_CO2 := UiTheme.SUBSTANCE_CO2
+
+## Chemical formula shown as subtitle on hover labels
+const LABEL_FORMULA := {
+	"Nitrification": "NH\u2084\u207a \u2192 NO\u2083\u207b",
+	"Ammonification": "Org-N \u2192 NH\u2084\u207a",
+	"Denitrification": "NO\u2083\u207b \u2192 N\u2082",
+	"Volatilization": "NH\u2084\u207a \u2192 NH\u2083 \u2191",
+	"Leaching": "NO\u2083\u207b \u2193",
+	"Decomposition": "Org-C \u2192 CO\u2082",
+	"Avail-P \u2192 Fixed-P": "H\u2082PO\u2084\u207b \u2192 Ca-P",
+}
 
 ## Event type -> tube config.
 ## z_slot: small offset to separate sub-types within same layer.
@@ -72,26 +85,29 @@ const EVENT_CONFIG := {
 	"NitrificationOccurred":
 	{
 		"color": COLOR_NH4,
+		"color_end": COLOR_NO3,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "NH4 \u2192 NO3",
+		"label": "Nitrification",
 		"z_slot": 0.18,
 		"y_frac": 0.25,
 	},
 	"MineralizationOccurred":
 	{
 		"color": COLOR_ORGANIC_N,
+		"color_end": COLOR_NH4,
 		"substance": "nitrogen",
 		"direction": "lateral",
 		"mag_key": "amount_kg_ha",
-		"label": "Org-N \u2192 NH4",
+		"label": "Ammonification",
 		"z_slot": 0.18,
 		"y_frac": 0.7,
 	},
 	"DenitrificationOccurred":
 	{
 		"color": COLOR_NO3,
+		"color_end": COLOR_CO2,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
@@ -101,10 +117,11 @@ const EVENT_CONFIG := {
 	"VolatilizationOccurred":
 	{
 		"color": COLOR_NH4,
+		"color_end": COLOR_CO2,
 		"substance": "nitrogen",
 		"direction": "up",
 		"mag_key": "amount_kg_ha",
-		"label": "NH3 loss",
+		"label": "Volatilization",
 		"z_slot": 0.3,
 	},
 	"NutrientLeached":
@@ -113,12 +130,13 @@ const EVENT_CONFIG := {
 		"substance": "nitrogen",
 		"direction": "down",
 		"mag_key": "amount_kg_ha",
-		"label": "NO3 leaching",
+		"label": "Leaching",
 		"z_slot": -0.15,
 	},
 	"PhosphorusFixationOccurred":
 	{
 		"color": COLOR_PHOSPHORUS,
+		"color_end": COLOR_PHOSPHORUS_FIXED,
 		"substance": "phosphorus",
 		"direction": "lateral",
 		"mag_key": "amount_fixed_kg_ha",
@@ -129,6 +147,7 @@ const EVENT_CONFIG := {
 	"SOMDecomposed":
 	{
 		"color": COLOR_CARBON,
+		"color_end": COLOR_CO2,
 		"substance": "carbon",
 		"direction": "lateral",
 		"mag_key": "decomposed_c_kg_ha",
@@ -139,6 +158,7 @@ const EVENT_CONFIG := {
 	"CO2Respired":
 	{
 		"color": COLOR_CARBON,
+		"color_end": COLOR_CO2,
 		"substance": "carbon",
 		"direction": "up",
 		"mag_key": "co2_c_kg_ha",
@@ -250,7 +270,7 @@ func show_test_tubes(pillar_pos := Vector3.ZERO) -> void:
 			"color": COLOR_NH4,
 			"magnitude": 0.6,
 			"speed": 0.8,
-			"label_text": "NH4 \u2192 NO3",
+			"label_text": "Nitrification",
 		},
 		{
 			"path": _make_lateral_path(fx_soil, l2y, fz + 0.1, fz + 0.35, 0.04),
@@ -502,6 +522,7 @@ func _build_tube_config(
 ) -> Dictionary:
 	var direction: String = ecfg.get("direction", "down")
 	var color: Color = ecfg.get("color", COLOR_WATER)
+	var color_end: Variant = ecfg.get("color_end", null)
 	var substance: String = ecfg.get("substance", "water")
 	var unit: String = "mm" if substance == "water" else "kg/ha"
 	# Smart precision: use enough decimals so value isn't "0.00"
@@ -513,7 +534,17 @@ func _build_tube_config(
 	var min_display: float = 0.01
 	if mag < min_display:
 		return {}
-	var label: String = "%s\n%s %s" % [ecfg.get("label", ""), val_str, unit]
+	var base_label: String = ecfg.get("label", "")
+	# Deep drainage gets a distinct label
+	var to_l: int = int(data.get("to_layer", 0))
+	if to_l == -1 and direction == "down":
+		base_label = "Deep drainage"
+	# Include chemical formula if available
+	var formula: String = LABEL_FORMULA.get(base_label, "")
+	var label: String = base_label
+	if not formula.is_empty():
+		label += " (%s)" % formula
+	label += "\n%s %s" % [val_str, unit]
 	# Normalize to 0-1. Water in mm, everything else in kg/ha.
 	# Single scale per unit so cross-substance comparison is meaningful:
 	# 0.004 kg/ha P should look tiny next to 7 kg/ha decomposition.
@@ -541,18 +572,27 @@ func _build_tube_config(
 	match direction:
 		"down":
 			var y_top: float = 0.0 if layer_idx == 0 else _layer_midpoint_y(layer_idx)
-			var y_bot := _layer_midpoint_y(mini(layer_idx + 1, _layer_positions.size() - 2))
+			var to_layer: int = int(data.get("to_layer", layer_idx + 1))
+			var y_bot: float = 0.0
+			if to_layer == -1:
+				# Deep drainage: extend below bottom of soil profile
+				y_bot = _layer_positions[_layer_positions.size() - 1] - 0.06
+			else:
+				y_bot = _layer_midpoint_y(mini(to_layer, _layer_positions.size() - 2))
 			if absf(y_top - y_bot) < 0.001:
 				y_bot = y_top - 0.1
 			var path := _make_vertical_path(fx_soil, y_top, y_bot, tube_z, 0.04)
 			speed = absf(speed)
-			return {
+			var cfg_down := {
 				"path": path,
 				"color": color,
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
 			}
+			if color_end != null:
+				cfg_down["color_end"] = color_end
+			return cfg_down
 		"up":
 			start = Vector3(fx_atmo, 0.01, tube_z)
 			end = Vector3(fx_atmo, 0.2, tube_z)
@@ -571,15 +611,18 @@ func _build_tube_config(
 			var y_pos: float = lerpf(y_top_l, y_bot_l, y_frac)
 			var path := _make_lateral_path(fx_soil, y_pos, tube_z, tube_z + 0.15, 0.03)
 			speed = absf(speed)
-			return {
+			var cfg_lat := {
 				"path": path,
 				"color": color,
 				"magnitude": norm_mag,
 				"speed": speed,
 				"label_text": label,
 			}
+			if color_end != null:
+				cfg_lat["color_end"] = color_end
+			return cfg_lat
 
-	return {
+	var cfg_up := {
 		"start": start,
 		"end": end,
 		"color": color,
@@ -587,3 +630,6 @@ func _build_tube_config(
 		"speed": speed,
 		"label_text": label,
 	}
+	if color_end != null:
+		cfg_up["color_end"] = color_end
+	return cfg_up

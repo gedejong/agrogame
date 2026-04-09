@@ -47,6 +47,18 @@ const ACCENT_BLUE := Color(0.376, 0.647, 0.980)  # #60A5FA
 const ACCENT_LIME := Color(0.502, 0.800, 0.333)  # #80CC55 — N-available
 const ACCENT_PURPLE := Color(0.655, 0.545, 0.980)  # #A78BFA — phosphorus
 
+# --- Substance colors (single source of truth for 3D tubes, 2D bars, graphs) ---
+const SUBSTANCE_WATER := Color(0.30, 0.60, 0.95, 0.8)  # vivid blue
+const SUBSTANCE_NO3 := Color(0.20, 0.85, 0.40, 0.8)  # bright green — mobile nitrate
+const SUBSTANCE_NH4 := Color(0.15, 0.80, 0.80, 0.8)  # saturated teal — adsorbed ammonium
+const SUBSTANCE_ORGANIC_N := Color(0.40, 0.68, 0.28, 0.8)  # olive green — organic N
+const SUBSTANCE_PHOSPHORUS := Color(0.60, 0.45, 0.95, 0.8)  # vivid purple — available P
+const SUBSTANCE_PHOSPHORUS_FIXED := Color(0.40, 0.30, 0.72, 0.8)  # deep purple — fixed P
+const SUBSTANCE_CARBON := Color(0.96, 0.72, 0.10, 0.8)  # warm gold — organic C / SOM
+const SUBSTANCE_CO2 := Color(0.55, 0.55, 0.55, 0.8)  # neutral grey — gas
+const SUBSTANCE_MICROBE := Color(0.92, 0.52, 0.08, 0.8)  # orange — microbial biomass
+const SUBSTANCE_PH := Color(0.55, 0.55, 0.60, 0.8)  # cool grey
+
 # --- Icon tint ---
 const ICON_TINT := Color.WHITE
 const ICON_MUTED := Color(0.627, 0.667, 0.710)

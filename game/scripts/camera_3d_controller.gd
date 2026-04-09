@@ -4,8 +4,8 @@ extends Camera3D
 ## trackpad pan/pinch.
 
 const ZOOM_SENSITIVITY := 0.05
-const ZOOM_MIN := 1.5
-const ZOOM_MAX := 30.0
+const ZOOM_MIN := 0.75
+const ZOOM_MAX := 60.0
 const ZOOM_SMOOTH := 8.0
 const PAN_SPEED := 0.05
 const KEY_PAN_SPEED := 5.0

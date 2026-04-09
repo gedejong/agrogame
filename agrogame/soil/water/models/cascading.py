@@ -126,15 +126,23 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 moved = min(nxt_room, excess)
                 if moved > 0:
                     state.set_layer_storage_mm(profile, i + 1, nxt + moved)
-                    if self.event_bus:
+                    if self.event_bus and moved > 0:
                         self.event_bus.emit(
                             WaterDrained(from_layer=i, to_layer=i + 1, amount_mm=moved)
                         )
                 leftover = excess - moved
                 if leftover > 0:
                     deep_drainage += leftover
+                    if self.event_bus and leftover > 0:
+                        self.event_bus.emit(
+                            WaterDrained(from_layer=i, to_layer=-1, amount_mm=leftover)
+                        )
             else:
                 deep_drainage += excess
+                if self.event_bus and excess > 0:
+                    self.event_bus.emit(
+                        WaterDrained(from_layer=i, to_layer=-1, amount_mm=excess)
+                    )
         return deep_drainage
 
     def update_daily(
