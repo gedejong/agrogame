@@ -279,8 +279,13 @@ static func _tube_key(cfg: Dictionary, idx: int) -> String:
 
 
 func _apply_gas_dissipation(tube: FlowTube, cfg: Dictionary) -> void:
-	var lbl: String = cfg.get("label_text", "")
-	if lbl.contains("CO2") or lbl.contains("NH3") or lbl.contains("Denitrification"):
+	# All "up" direction tubes fade out at the top (into atmosphere)
+	var ecfg: Dictionary = {}
+	for etype: String in EVENT_CONFIG:
+		if EVENT_CONFIG[etype].get("label", "") == cfg.get("label_text", ""):
+			ecfg = EVENT_CONFIG[etype]
+			break
+	if ecfg.get("direction", "") == "up":
 		tube.enable_gas_dissipation()
 
 
@@ -463,7 +468,9 @@ func _build_tube_config(
 ) -> Dictionary:
 	var direction: String = ecfg.get("direction", "down")
 	var color: Color = ecfg.get("color", COLOR_WATER)
-	var label: String = ecfg.get("label", "")
+	var substance: String = ecfg.get("substance", "water")
+	var unit: String = "mm" if substance == "water" else "kg/ha"
+	var label: String = "%s\n%.2f %s" % [ecfg.get("label", ""), mag, unit]
 	# Normalize to 0-1. Denominators from 100-day simulation P75:
 	# Water: median 1-3 mm, max 25 mm. N: median 2-3 kg/ha, max 9.
 	# P: ~0.015 kg/ha (tiny). C: median 20-50, max 140 kg/ha.

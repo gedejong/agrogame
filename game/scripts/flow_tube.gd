@@ -280,7 +280,23 @@ func _build_label(start: Vector3, end: Vector3, text: String, color: Color) -> v
 	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	var mid := (start + end) * 0.5
 	_label.position = mid + Vector3(0.05, 0.02, 0)
+	_label.visible = false
 	add_child(_label)
+	# Hover detection area along the tube
+	var area := Area3D.new()
+	var coll := CollisionShape3D.new()
+	var shape := CylinderShape3D.new()
+	var length := (end - start).length()
+	shape.height = maxf(length, 0.05)
+	shape.radius = 0.04
+	coll.shape = shape
+	area.add_child(coll)
+	area.position = mid
+	area.transform.basis = _basis_along(end - start)
+	area.input_ray_pickable = true
+	area.mouse_entered.connect(func() -> void: _label.visible = true)
+	area.mouse_exited.connect(func() -> void: _label.visible = false)
+	add_child(area)
 
 
 func fade_in(duration: float = 0.4) -> void:
