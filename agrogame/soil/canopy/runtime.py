@@ -108,6 +108,17 @@ class CanopyRuntime:
         self.canopy.state.biomass_g_m2 = max(
             0.0, self.canopy.state.biomass_g_m2 - biomass_loss
         )
+        if loss > 0.0:
+            from agrogame.soil.canopy.events import FrostDamageApplied
+
+            self.event_bus.emit(
+                FrostDamageApplied(
+                    lai_loss=loss,
+                    biomass_loss_g_m2=biomass_loss,
+                    tmin_c=tmin_c,
+                    severity=severity,
+                )
+            )
 
     def _check_heat_damage(self, tmax_c: float) -> float:
         """Return grain reduction factor for heat stress on grain set.
@@ -126,7 +137,13 @@ class CanopyRuntime:
         p = self.canopy.params
         if tmax_c <= p.heat_damage_threshold_c:
             return 1.0
-        return 1.0 - p.heat_grain_reduction_fraction
+        factor = 1.0 - p.heat_grain_reduction_fraction
+        from agrogame.soil.canopy.events import HeatDamageApplied
+
+        self.event_bus.emit(
+            HeatDamageApplied(grain_reduction_factor=factor, tmax_c=tmax_c)
+        )
+        return factor
 
     def _check_waterlogging_damage(self) -> None:
         """Apply LAI loss after consecutive waterlogged days.

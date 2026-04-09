@@ -61,8 +61,8 @@ def test_frost_during_flowering_reduces_lai() -> None:
     # Apply frost: 3 days of tmin=-5C
     _step(frost, 3, tmin=-5.0, tmax=5.0, start_day=15)
     _step(control, 3, start_day=15)
-    assert frost.canopy.state.lai < control.canopy.state.lai, (
-        f"Frost LAI ({frost.canopy.state.lai:.2f}) should be less than "
+    assert frost.canopy.state.lai < control.canopy.state.lai * 0.8, (
+        f"Frost LAI ({frost.canopy.state.lai:.2f}) should be <80% of "
         f"control ({control.canopy.state.lai:.2f})"
     )
 
@@ -98,12 +98,12 @@ def test_heat_during_flowering_reduces_grain() -> None:
     # Continue to maturity
     _step(heat, 40, tmin=15.0, tmax=28.0, start_day=60)
     _step(control, 40, tmin=15.0, tmax=28.0, start_day=60)
-    # Heat should have reduced grain vs control
+    # Heat should have reduced grain by at least 10% vs control
     assert heat.canopy.state.grain_biomass_g_m2 < (
-        control.canopy.state.grain_biomass_g_m2
+        control.canopy.state.grain_biomass_g_m2 * 0.9
     ), (
         f"Heat grain ({heat.canopy.state.grain_biomass_g_m2:.1f}) should be "
-        f"less than control ({control.canopy.state.grain_biomass_g_m2:.1f})"
+        f"<90% of control ({control.canopy.state.grain_biomass_g_m2:.1f})"
     )
 
 
@@ -146,9 +146,9 @@ def test_waterlogging_reduces_lai() -> None:
         waterlogged.apply_irrigation(200.0)  # saturate top layer
         _step(waterlogged, 1, start_day=20)
     _step(control, 5, rain=3.0, start_day=20)
-    assert waterlogged.canopy.state.lai < control.canopy.state.lai, (
+    assert waterlogged.canopy.state.lai < control.canopy.state.lai * 0.9, (
         f"Waterlogged LAI ({waterlogged.canopy.state.lai:.2f}) should be "
-        f"less than control ({control.canopy.state.lai:.2f})"
+        f"<90% of control ({control.canopy.state.lai:.2f})"
     )
 
 
