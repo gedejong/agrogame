@@ -128,7 +128,7 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	UiTheme.add_blur_bg(self)
 
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
+	vbox.add_theme_constant_override("separation", 6)
 	add_child(vbox)
 
 	# Title
@@ -179,8 +179,8 @@ func _add_separator(parent: VBoxContainer) -> void:
 	var sep := HSeparator.new()
 	var s := StyleBoxFlat.new()
 	s.bg_color = UiTheme.SEPARATOR_COLOR
-	s.content_margin_top = 3
-	s.content_margin_bottom = 3
+	s.content_margin_top = 5
+	s.content_margin_bottom = 5
 	sep.add_theme_stylebox_override("separator", s)
 	parent.add_child(sep)
 
@@ -203,6 +203,11 @@ func _add_bar_row(
 		icon.custom_minimum_size = Vector2(12, 12)
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(icon)
+	else:
+		# Spacer to keep columns aligned when no icon
+		var spacer := Control.new()
+		spacer.custom_minimum_size = Vector2(12, 12)
+		row.add_child(spacer)
 	# Label — nutrient name
 	var lbl := Label.new()
 	lbl.text = label
