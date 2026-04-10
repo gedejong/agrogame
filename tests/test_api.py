@@ -737,3 +737,23 @@ def test_plant_action_changes_crop(client) -> None:
     patches = resp.json()["patches"]["f1"]
     # Patch 0 should now be spring_wheat
     assert patches[0]["crop_key"] == "spring_wheat"
+
+
+def test_step_response_includes_redox_state(client) -> None:
+    """Step response should include redox_eh and dominant_acceptor (#235)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    soil = patches[0]["soil_state"]
+    # redox_eh should be a list of floats (one per layer)
+    assert "redox_eh" in soil
+    assert isinstance(soil["redox_eh"], list)
+    assert len(soil["redox_eh"]) > 0
+    # All values should be positive (well-drained after 5 days)
+    assert all(eh > 0 for eh in soil["redox_eh"])
+    # dominant_acceptor should be a list of strings
+    assert "dominant_acceptor" in soil
+    assert isinstance(soil["dominant_acceptor"], list)
+    assert len(soil["dominant_acceptor"]) > 0
+    assert soil["dominant_acceptor"][0] in ("O2", "NO3", "Fe3+", "CH4")

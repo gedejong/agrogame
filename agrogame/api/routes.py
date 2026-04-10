@@ -60,11 +60,8 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
         sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
     )
     redox_eh = list(snap.redox_eh) if snap.redox_eh else []
-    redox_acceptors = (
-        [a.value for a in patch.orch.redox_state.dominant_acceptor]
-        if hasattr(patch.orch, "redox_state")
-        else []
-    )
+    # redox_state is always present on FullSimulationOrchestrator (AGRO-73)
+    redox_acceptors = [a.value for a in patch.orch.redox_state.dominant_acceptor]
     return SoilStateResponse(
         water_theta=list(snap.water_theta),
         n_no3=list(snap.n_no3),
