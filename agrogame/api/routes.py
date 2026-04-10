@@ -87,9 +87,19 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
         agg_macro=([round(v, 4) for v in snap.agg_macro] if snap.agg_macro else []),
         agg_meso=([round(v, 4) for v in snap.agg_meso] if snap.agg_meso else []),
         agg_micro=([round(v, 4) for v in snap.agg_micro] if snap.agg_micro else []),
-        agg_mwd=[
-            round(patch.orch.agg_state.mwd(i), 3) for i in range(len(snap.agg_macro))
-        ],
+        agg_mwd=(
+            [
+                round(
+                    snap.agg_micro[i] * 0.01
+                    + snap.agg_meso[i] * 0.135
+                    + snap.agg_macro[i] * 2.0,
+                    3,
+                )
+                for i in range(len(snap.agg_macro))
+            ]
+            if snap.agg_macro
+            else []
+        ),
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -578,8 +588,13 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                             else 18.0
                         ),
                         agg_mwd_surface=(
-                            round(p.orch.agg_state.mwd(0), 3)
-                            if p.orch.agg_state.micro
+                            round(
+                                snap.agg_micro[0] * 0.01
+                                + snap.agg_meso[0] * 0.135
+                                + snap.agg_macro[0] * 2.0,
+                                3,
+                            )
+                            if snap.agg_macro
                             else 0.55
                         ),
                         rain_mm=round(rec.precip_mm or 0.0, 1),
@@ -673,7 +688,13 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                     req.params.get("amount_kg_ha", 50.0),
                 )
             elif req.action == "tillage":
-                patch.orch.apply_tillage(req.params.get("intensity", 0.5))
+                intensity = float(req.params.get("intensity", 0.5))
+                if not (0.0 <= intensity <= 1.0):
+                    raise HTTPException(
+                        400,
+                        f"Tillage intensity must be 0.0–1.0, got {intensity}",
+                    )
+                patch.orch.apply_tillage(intensity)
 
     return ActionResponse(
         status="executed",

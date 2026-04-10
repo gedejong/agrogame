@@ -217,7 +217,7 @@ class DayResultResponse(BaseModel):
 
 class ActionRequest(BaseModel):
     field_id: str = "field_1"
-    action: str = Field(description="irrigate, fertilize, plant, harvest")
+    action: str = Field(description="irrigate, fertilize, plant, harvest, tillage")
     params: dict = Field(default_factory=dict)
 
 

@@ -824,3 +824,11 @@ def test_tillage_reduces_macro(client) -> None:
     assert (
         macro_after < macro_before
     ), f"Tillage should reduce macro: {macro_before} → {macro_after}"
+    # Mass conservation: fractions must still sum to ~1.0
+    for i in range(len(soil_after["agg_macro"])):
+        total = (
+            soil_after["agg_macro"][i]
+            + soil_after["agg_meso"][i]
+            + soil_after["agg_micro"][i]
+        )
+        assert abs(total - 1.0) < 0.01, f"Layer {i} fractions sum to {total}"
