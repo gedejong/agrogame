@@ -25,7 +25,7 @@ func test_set_raining_on() -> void:
 	node.set_raining(true, 5.0)
 	assert_true(node.is_raining(), "Should be raining")
 	assert_true(node.emitting, "Should be emitting")
-	assert_eq(node.amount, 400, "5mm * 80 = 400 particles")
+	assert_eq(node.amount, 200, "5mm * 40 = 200 particles")
 
 
 func test_set_raining_off() -> void:
