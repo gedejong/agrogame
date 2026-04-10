@@ -461,6 +461,7 @@ func _apply_daily_snapshots(snapshots: Array) -> void:
 					"water_stress": 1.0 - snap.get("water_stress", 1.0),
 					"theta_surface": snap.get("soil_theta_surface", 0.0),
 					"n_available": snap.get("n_available_total", 0.0),
+					"redox_eh_surface": snap.get("redox_eh_surface", 400.0),
 				}
 			)
 		)
@@ -507,6 +508,12 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 							"water_stress": 1.0 - patch.get("water_stress", 1.0),
 							"theta_surface": theta,
 							"n_available": n_total,
+							"redox_eh_surface":
+							(
+								soil_state.get("redox_eh", [400.0])[0]
+								if soil_state.get("redox_eh", [])
+								else 400.0
+							),
 						}
 					)
 				)

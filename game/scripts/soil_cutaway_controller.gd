@@ -192,6 +192,8 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var theta: Array = soil_state.get("water_theta", [])
 		var ph: Array = soil_state.get("ph", [])
 		var mic: Array = soil_state.get("microbe_c", [])
+		var redox_eh: Array = soil_state.get("redox_eh", [])
+		var acceptor: Array = soil_state.get("dominant_acceptor", [])
 		for i in range(profile.size()):
 			var depth: int = profile[i].get("depth_cm", 30)
 			var vals := {
@@ -204,7 +206,19 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Microbe": mic[i] if i < mic.size() else 0.0,
 			}
 			var lbl := "%d–%dcm" % [0 if i == 0 else depth, depth]
-			layers_data.append({"depth_label": lbl, "values": vals})
+			var eh: float = redox_eh[i] if i < redox_eh.size() else 400.0
+			var acc: String = acceptor[i] if i < acceptor.size() else "O2"
+			(
+				layers_data
+				. append(
+					{
+						"depth_label": lbl,
+						"values": vals,
+						"redox_eh": eh,
+						"dominant_acceptor": acc,
+					}
+				)
+			)
 	_nutrient_panel.show_layers(layers_data)
 	_nutrient_panel.flow_filter_changed.connect(_on_flow_filter)
 	_nutrient_panel.flow_toggle_changed.connect(_on_flow_toggle)

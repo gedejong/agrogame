@@ -130,6 +130,10 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 			var cfg: Dictionary = NUTRIENT_BARS[key]
 			var val: float = vals.get(key, 0.0)
 			_add_bar_row(vbox, key, val, cfg)
+		# Redox Eh indicator
+		var eh: float = layer.get("redox_eh", 400.0)
+		var acc: String = layer.get("dominant_acceptor", "O2")
+		_add_eh_row(vbox, eh, acc)
 
 
 func hide_panel() -> void:
@@ -339,3 +343,62 @@ func _update_button_highlight() -> void:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("hover"))
 		else:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("normal"))
+
+
+func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
+	## Redox potential indicator with color-coded bar and acceptor label.
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	# Label
+	var lbl := Label.new()
+	lbl.text = "Eh"
+	lbl.add_theme_font_size_override("font_size", 10)
+	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
+	lbl.custom_minimum_size.x = 40
+	row.add_child(lbl)
+	# Color bar (100px wide, colored by Eh zone)
+	var bar_bg := Control.new()
+	bar_bg.custom_minimum_size = Vector2(100, 12)
+	var track := ColorRect.new()
+	track.color = UiTheme.TRACK_BG
+	track.size = Vector2(100, 12)
+	bar_bg.add_child(track)
+	# Eh ranges: -300 to +450 mV → 0-1 fraction
+	var frac: float = clampf((eh_mv + 300.0) / 750.0, 0.0, 1.0)
+	var bar_color: Color
+	if eh_mv > 200.0:
+		bar_color = UiTheme.ACCENT_GREEN
+	elif eh_mv > 0.0:
+		bar_color = UiTheme.ACCENT_GOLD
+	else:
+		bar_color = UiTheme.ACCENT_RED
+	var bar_fill := ColorRect.new()
+	bar_fill.color = bar_color
+	bar_fill.position = Vector2(0, 3)
+	bar_fill.size = Vector2(maxf(frac * 100.0, 1.0), 6)
+	bar_bg.add_child(bar_fill)
+	row.add_child(bar_bg)
+	# Value + acceptor label
+	var val_lbl := Label.new()
+	var acc_display := _format_acceptor(acceptor)
+	val_lbl.text = "%.0f mV  %s" % [eh_mv, acc_display]
+	val_lbl.add_theme_font_size_override("font_size", 9)
+	val_lbl.add_theme_color_override("font_color", bar_color)
+	val_lbl.custom_minimum_size.x = 90
+	row.add_child(val_lbl)
+	parent.add_child(row)
+
+
+static func _format_acceptor(acc: String) -> String:
+	## Format acceptor with subscript unicode.
+	match acc:
+		"O2":
+			return "O\u2082"
+		"NO3":
+			return "NO\u2083\u207b"
+		"Fe3+":
+			return "Fe\u00b3\u207a"
+		"CH4":
+			return "CH\u2084"
+		_:
+			return acc
