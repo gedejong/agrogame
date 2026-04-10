@@ -194,8 +194,11 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var mic: Array = soil_state.get("microbe_c", [])
 		var redox_eh: Array = soil_state.get("redox_eh", [])
 		var acceptor: Array = soil_state.get("dominant_acceptor", [])
+		var cum_depth := 0
 		for i in range(profile.size()):
-			var depth: int = profile[i].get("depth_cm", 30)
+			var layer_depth: int = profile[i].get("depth_cm", 30)
+			var top: int = cum_depth
+			cum_depth += layer_depth
 			var vals := {
 				"NO₃": no3[i] if i < no3.size() else 0.0,
 				"NH₄": nh4[i] if i < nh4.size() else 0.0,
@@ -205,7 +208,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"pH": ph[i] if i < ph.size() else 6.5,
 				"Microbe": mic[i] if i < mic.size() else 0.0,
 			}
-			var lbl := "%d–%dcm" % [0 if i == 0 else depth, depth]
+			var lbl := "%d–%dcm" % [top, cum_depth]
 			var eh: float = redox_eh[i] if i < redox_eh.size() else 400.0
 			var acc: String = acceptor[i] if i < acceptor.size() else "O2"
 			(

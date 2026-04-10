@@ -364,12 +364,20 @@ func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
 	## Redox potential indicator with color-coded bar and acceptor label.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
+	# Icon (12x12)
+	var icon_path := "res://assets/icons/icon_eh.svg"
+	if ResourceLoader.exists(icon_path):
+		var icon := TextureRect.new()
+		icon.texture = load(icon_path)
+		icon.custom_minimum_size = Vector2(12, 12)
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(icon)
 	# Label
 	var lbl := Label.new()
 	lbl.text = "Eh"
 	lbl.add_theme_font_size_override("font_size", 10)
 	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
-	lbl.custom_minimum_size.x = 40
+	lbl.custom_minimum_size.x = 28
 	row.add_child(lbl)
 	# Color bar (100px wide, colored by Eh zone)
 	var bar_bg := Control.new()
