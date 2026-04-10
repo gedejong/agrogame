@@ -45,4 +45,11 @@ game/.godot/
 game/.mono/
 game/bin/
 *.import
+# Un-ignore stress icon imports so SVG scale=4.0 persists for all devs
+!game/assets/icons/icon_frost.svg.import
+!game/assets/icons/icon_heat.svg.import
+!game/assets/icons/icon_waterlogging.svg.import
+!game/assets/icons/icon_drought.svg.import
+!game/assets/icons/icon_n_deficiency.svg.import
+!game/assets/icons/icon_p_deficiency.svg.import
 jira_export.csv

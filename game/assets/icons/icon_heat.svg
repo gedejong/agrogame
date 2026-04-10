@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Dark backing circle -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!-- Sun disk -->
+  <circle cx="8" cy="8" r="3.2" fill="#FF4444"/>
+  <!-- 8 rays — all bold, same size -->
+  <g fill="#FF5533">
+    <!-- Cardinal rays (large) -->
+    <polygon points="8,1 6.8,3.5 9.2,3.5"/>
+    <polygon points="8,15 6.8,12.5 9.2,12.5"/>
+    <polygon points="1,8 3.5,6.8 3.5,9.2"/>
+    <polygon points="15,8 12.5,6.8 12.5,9.2"/>
+    <!-- Diagonal rays (same size now) -->
+    <polygon points="2.8,2.8 4.2,4.8 5,4"/>
+    <polygon points="13.2,2.8 11.8,4.8 11,4"/>
+    <polygon points="2.8,13.2 4.2,11.2 5,12"/>
+    <polygon points="13.2,13.2 11.8,11.2 11,12"/>
+  </g>
+  <!-- Hot center glow -->
+  <circle cx="8" cy="8" r="1.8" fill="#FF8844"/>
+</svg>

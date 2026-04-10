@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Dark backing circle -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!-- Water body clipped to circle -->
+  <clipPath id="wbg">
+    <circle cx="8" cy="8" r="7"/>
+  </clipPath>
+  <g clip-path="url(#wbg)">
+    <rect x="0" y="8.5" width="16" height="8" fill="#4488DD" opacity="0.5"/>
+    <path d="M0.5,8.5 Q3,7 5,8.5 Q7,10 9,8.5 Q11,7 13,8.5 Q14.5,9.5 15.5,8.5" fill="#4488DD"/>
+    <path d="M0.5,10.5 Q3,9.5 6,10.5 Q9,11.5 12,10.5 Q14,9.8 15.5,10.5" fill="#3377CC" opacity="0.35"/>
+  </g>
+  <!-- Plant stalk (thinner) -->
+  <line x1="8" y1="8.5" x2="8" y2="3" stroke="#77BB44" stroke-width="1.3" stroke-linecap="round"/>
+  <!-- Left leaf: broad, drooping clearly downward -->
+  <path d="M8,4.5 Q6,3.5 4.5,3.5 Q5,5 7,5.5 Z" fill="#77BB44"/>
+  <!-- Right leaf: broad, drooping -->
+  <path d="M8,3.5 Q10,2.5 11.5,2.5 Q11,4 9,4.5 Z" fill="#77BB44"/>
+  <!-- Smaller lower leaf pair (shows it's a multi-leaf plant) -->
+  <path d="M8,6 Q6.5,5.5 5.5,5.5 Q6,6.8 7.5,7 Z" fill="#66AA33"/>
+  <path d="M8,5.5 Q9.5,5 10.5,5 Q10,6.3 8.5,6.5 Z" fill="#66AA33"/>
+  <!-- Submerged stalk (faded, behind water) -->
+  <line x1="8" y1="8.5" x2="8" y2="11.5" stroke="#4a7a2a" stroke-width="1" stroke-linecap="round" opacity="0.4"/>
+  <!-- Tiny submerged roots hint -->
+  <line x1="8" y1="11.5" x2="6.5" y2="12.5" stroke="#4a7a2a" stroke-width="0.6" stroke-linecap="round" opacity="0.3"/>
+  <line x1="8" y1="11.5" x2="9.5" y2="12.5" stroke="#4a7a2a" stroke-width="0.6" stroke-linecap="round" opacity="0.3"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- N deficiency: centered NO₃⁻ molecule (from icon_no3.svg) + red minus badge -->
+  <!-- Glassmorphism backing -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!--
+    NO₃⁻ trigonal planar geometry, centered at (8, 8):
+    3 outer atoms at 120° intervals, radius 4.0 from center
+    Atom 1: 270° (top)      = (8, 4)
+    Atom 2: 30°  (bot-right) = (11.46, 10)
+    Atom 3: 150° (bot-left)  = (4.54, 10)
+  -->
+  <!-- Bonds -->
+  <line x1="8" y1="8" x2="8" y2="4" fill="none" stroke="#33B833" stroke-width="1"/>
+  <line x1="8" y1="8" x2="11.46" y2="10" fill="none" stroke="#33B833" stroke-width="1"/>
+  <line x1="8" y1="8" x2="4.54" y2="10" fill="none" stroke="#33B833" stroke-width="1"/>
+  <!-- Center atom (N) -->
+  <circle cx="8" cy="8" r="1.8" fill="#33B833"/>
+  <!-- Outer atoms (O) -->
+  <circle cx="8" cy="4" r="1.5" fill="#33B833"/>
+  <circle cx="11.46" cy="10" r="1.5" fill="#33B833"/>
+  <circle cx="4.54" cy="10" r="1.5" fill="#33B833"/>
+  <!-- Red minus badge (top-right corner) -->
+  <circle cx="13" cy="3" r="2.5" fill="#DD3333"/>
+  <rect x="11.2" y="2.5" width="3.6" height="1.2" rx="0.4" fill="#FFFFFF"/>
+</svg>
