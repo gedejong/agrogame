@@ -120,12 +120,7 @@ var _active_filter: String = "all"
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
-	var style := UiTheme.create_panel_style(true)
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	add_theme_stylebox_override("panel", style)
+	add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
 	UiTheme.add_blur_bg(self)
 
 	var margin := MarginContainer.new()
