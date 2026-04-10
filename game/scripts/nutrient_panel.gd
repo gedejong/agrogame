@@ -82,6 +82,22 @@ const NUTRIENT_BARS := {
 		"mass_type": "carbon",
 		"tooltip": "Microbial biomass — decomposers that recycle nutrients from organic matter",
 	},
+	"Eh":
+	{
+		"color": UiTheme.SUBSTANCE_REDOX,
+		"icon": "",
+		"max": 450.0,
+		"opt_min": 200.0,
+		"opt_max": 450.0,
+		"mass_type": "",
+		"unit": "mV",
+		"tooltip":
+		(
+			"Redox potential — measures oxygen availability.\n"
+			+ "Green (>200): aerobic. Yellow (0-200): suboxic.\n"
+			+ "Red (<0): anaerobic, methane risk."
+		),
+	},
 }
 ## Functional accent colors per art guide
 const BAR_STRESS := UiTheme.ACCENT_RED
@@ -140,14 +156,13 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 		vbox.add_child(header)
 		var vals: Dictionary = layer.get("values", {})
+		var acc: String = layer.get("dominant_acceptor", "O2")
 		for key: String in NUTRIENT_BARS:
 			var cfg: Dictionary = NUTRIENT_BARS[key]
 			var val: float = vals.get(key, 0.0)
-			_add_bar_row(vbox, key, val, cfg)
-		# Redox Eh indicator
-		var eh: float = layer.get("redox_eh", 400.0)
-		var acc: String = layer.get("dominant_acceptor", "O2")
-		_add_eh_row(vbox, eh, acc)
+			# For Eh, append the dominant acceptor to the display
+			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
+			_add_bar_row(vbox, key, val, cfg, suffix)
 
 
 func hide_panel() -> void:
@@ -170,7 +185,9 @@ func _add_separator(parent: VBoxContainer) -> void:
 	parent.add_child(sep)
 
 
-func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Dictionary) -> void:
+func _add_bar_row(
+	parent: VBoxContainer, label: String, val: float, cfg: Dictionary, suffix: String = ""
+) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	var track_w := 100
@@ -223,6 +240,8 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
 	if label == "pH":
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
+	elif label == "Eh":
+		bar_frac = clampf((val - EH_MIN_MV) / EH_RANGE_MV, 0.0, 1.0)
 	var bar_color: Color = _stress_color(label, val, opt_min, opt_max)
 	var bar_fill := ColorRect.new()
 	bar_fill.color = bar_color
@@ -250,8 +269,8 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	elif mass_type == "carbon":
 		display_val = UiTheme.to_display_mass_from_gm2(val)
 		unit = UiTheme.carbon_label()
-	if label == "pH":
-		val_lbl.text = "%.1f" % val
+	if label == "pH" or label == "Eh":
+		val_lbl.text = "%.0f" % val
 	elif display_val >= 100.0:
 		val_lbl.text = "%.0f" % display_val
 	elif display_val >= 1.0:
@@ -260,8 +279,10 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		val_lbl.text = "%.2f" % display_val
 	if not unit.is_empty():
 		val_lbl.text += " " + unit
+	val_lbl.text += suffix
 	val_lbl.add_theme_font_size_override("font_size", 9)
-	val_lbl.add_theme_color_override("font_color", UiTheme.VALUE_COLOR)
+	# Color value text by stress zone (same color as bar)
+	val_lbl.add_theme_color_override("font_color", bar_color)
 	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
 	row.tooltip_text = cfg.get("tooltip", "")
@@ -273,6 +294,12 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 		if val < opt_min - 1.0 or val > opt_max + 1.0:
 			return BAR_STRESS
 		if val < opt_min or val > opt_max:
+			return BAR_MARGINAL
+		return BAR_OK
+	if key == "Eh":
+		if val < EH_ANOXIC_THRESHOLD:
+			return BAR_STRESS
+		if val < EH_OXIC_THRESHOLD:
 			return BAR_MARGINAL
 		return BAR_OK
 	if val < opt_min * 0.3:
@@ -358,61 +385,6 @@ func _update_button_highlight() -> void:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("hover"))
 		else:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("normal"))
-
-
-func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
-	## Redox potential indicator with color-coded bar and acceptor label.
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	# Icon — small lightning bolt glyph matching other nutrient icon style
-	var icon_lbl := Label.new()
-	icon_lbl.text = "⚡"
-	icon_lbl.add_theme_font_size_override("font_size", 12)
-	icon_lbl.custom_minimum_size = Vector2(12, 12)
-	row.add_child(icon_lbl)
-	# Label
-	var lbl := Label.new()
-	lbl.text = "Eh"
-	lbl.add_theme_font_size_override("font_size", 10)
-	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
-	lbl.custom_minimum_size.x = 28
-	row.add_child(lbl)
-	# Color bar (100px wide, colored by Eh zone)
-	var bar_bg := Control.new()
-	bar_bg.custom_minimum_size = Vector2(100, 12)
-	var track := ColorRect.new()
-	track.color = UiTheme.TRACK_BG
-	track.size = Vector2(100, 12)
-	bar_bg.add_child(track)
-	var frac: float = clampf((eh_mv - EH_MIN_MV) / EH_RANGE_MV, 0.0, 1.0)
-	var bar_color: Color
-	if eh_mv > EH_OXIC_THRESHOLD:
-		bar_color = UiTheme.ACCENT_GREEN
-	elif eh_mv > EH_ANOXIC_THRESHOLD:
-		bar_color = UiTheme.ACCENT_GOLD
-	else:
-		bar_color = UiTheme.ACCENT_RED
-	var bar_fill := ColorRect.new()
-	bar_fill.color = bar_color
-	bar_fill.position = Vector2(0, 3)
-	bar_fill.size = Vector2(maxf(frac * 100.0, 1.0), 6)
-	bar_bg.add_child(bar_fill)
-	row.add_child(bar_bg)
-	# Value + acceptor label
-	var val_lbl := Label.new()
-	var acc_display := _format_acceptor(acceptor)
-	val_lbl.text = "%.0f mV  %s" % [eh_mv, acc_display]
-	val_lbl.add_theme_font_size_override("font_size", 9)
-	val_lbl.add_theme_color_override("font_color", bar_color)
-	val_lbl.custom_minimum_size.x = 90
-	row.add_child(val_lbl)
-	row.tooltip_text = (
-		"Redox potential — measures oxygen availability in soil.\n"
-		+ "Green (>200 mV): aerobic, healthy roots.\n"
-		+ "Yellow (0-200 mV): suboxic, denitrification active.\n"
-		+ "Red (<0 mV): anaerobic, methane production, root suffocation risk."
-	)
-	parent.add_child(row)
 
 
 static func _format_acceptor(acc: String) -> String:

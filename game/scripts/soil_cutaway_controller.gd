@@ -199,6 +199,8 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 			var layer_depth: int = profile[i].get("depth_cm", 30)
 			var top: int = cum_depth
 			cum_depth += layer_depth
+			var eh: float = redox_eh[i] if i < redox_eh.size() else 400.0
+			var acc: String = acceptor[i] if i < acceptor.size() else "O2"
 			var vals := {
 				"NO₃": no3[i] if i < no3.size() else 0.0,
 				"NH₄": nh4[i] if i < nh4.size() else 0.0,
@@ -207,17 +209,15 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Water": theta[i] if i < theta.size() else 0.0,
 				"pH": ph[i] if i < ph.size() else 6.5,
 				"Microbe": mic[i] if i < mic.size() else 0.0,
+				"Eh": eh,
 			}
 			var lbl := "%d–%dcm" % [top, cum_depth]
-			var eh: float = redox_eh[i] if i < redox_eh.size() else 400.0
-			var acc: String = acceptor[i] if i < acceptor.size() else "O2"
 			(
 				layers_data
 				. append(
 					{
 						"depth_label": lbl,
 						"values": vals,
-						"redox_eh": eh,
 						"dominant_acceptor": acc,
 					}
 				)
