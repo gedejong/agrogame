@@ -24,7 +24,12 @@ var _sparklines: Dictionary = {}
 
 func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	_clear()
-	add_theme_stylebox_override("panel", UiTheme.create_panel_style(true))
+	var style := UiTheme.create_panel_style(true)
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
+	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
 	var vbox := VBoxContainer.new()
