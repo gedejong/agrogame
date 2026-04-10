@@ -24,6 +24,8 @@ from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
+from agrogame.soil.redox.module import RedoxModule
+from agrogame.soil.redox.events import N2OEmitted
 from agrogame.soil.microbes.events import (
     MicrobialActivityComputed,
     MicrobialFBUpdated,
@@ -420,9 +422,6 @@ class NitrogenCycle:
         self.event_bus.emit(DenitrificationOccurred(layer=idx, amount_kg_ha=dd))
         # N2O/N2 partitioning based on Eh
         # Ref: Firestone & Davidson 1989; Weier et al. 1993
-        from agrogame.soil.redox.module import RedoxModule
-        from agrogame.soil.redox.events import N2OEmitted
-
         n2o_frac = RedoxModule.n2o_fraction(eh_mv)
         n2o = dd * n2o_frac
         n2 = dd - n2o

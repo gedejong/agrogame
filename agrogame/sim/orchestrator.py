@@ -396,6 +396,12 @@ class FullSimulationOrchestrator:
                 som_ly.stable.n_kg_ha = snapshot.som_stable_n[i]
         if snapshot.redox_eh:
             self.redox_state.eh_mv = list(snapshot.redox_eh)
+            # Re-derive dominant acceptor from restored Eh values
+            for i, eh in enumerate(self.redox_state.eh_mv):
+                if i < len(self.redox_state.dominant_acceptor):
+                    self.redox_state.dominant_acceptor[i] = (
+                        RedoxModule._classify_acceptor(eh)
+                    )
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.

@@ -143,20 +143,22 @@ def test_ch4_temperature_sensitivity() -> None:
 
     Ref: Conrad 2002, FEMS Microbiol Ecol.
     """
-    state = RedoxState.from_layers(1)
-    state.eh_mv[0] = -250.0
     p = RedoxParams(ch4_q10=4.0, ch4_ref_temp_c=25.0)
 
+    state_cold = RedoxState.from_layers(1)
+    state_cold.eh_mv[0] = -250.0
     bus1 = EventBus()
     ch4_cold: list[CH4Emitted] = []
     bus1.subscribe(CH4Emitted, ch4_cold.append)
-    m1 = RedoxModule(p, state, event_bus=bus1)
+    m1 = RedoxModule(p, state_cold, event_bus=bus1)
     m1._process_methane(1, 15.0)
 
+    state_warm = RedoxState.from_layers(1)
+    state_warm.eh_mv[0] = -250.0
     bus2 = EventBus()
     ch4_warm: list[CH4Emitted] = []
     bus2.subscribe(CH4Emitted, ch4_warm.append)
-    m2 = RedoxModule(p, state, event_bus=bus2)
+    m2 = RedoxModule(p, state_warm, event_bus=bus2)
     m2._process_methane(1, 25.0)
 
     assert (

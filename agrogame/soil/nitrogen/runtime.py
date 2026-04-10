@@ -7,6 +7,7 @@ from agrogame.sim.calendar_events import DayTick
 from .cycle import NitrogenCycle
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
+from agrogame.soil.redox.events import RedoxChanged
 
 
 @dataclass
@@ -19,13 +20,11 @@ class NitrogenRuntime:
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self._stress = StressCalculator("liebig")
-        from agrogame.soil.redox.events import RedoxChanged
-
         self.event_bus.subscribe(RedoxChanged, self._on_redox_changed)
 
-    def _on_redox_changed(self, ev: object) -> None:
-        layer = getattr(ev, "layer", None)
-        eh = getattr(ev, "eh_mv", None)
+    def _on_redox_changed(self, ev: RedoxChanged) -> None:
+        layer = ev.layer
+        eh = ev.eh_mv
         if layer is not None and eh is not None:
             if self._eh_by_layer is None:
                 self._eh_by_layer = []
