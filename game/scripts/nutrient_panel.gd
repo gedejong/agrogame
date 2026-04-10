@@ -121,16 +121,23 @@ var _active_filter: String = "all"
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
 	var style := UiTheme.create_panel_style(true)
-	style.content_margin_left = 16
-	style.content_margin_right = 16
-	style.content_margin_top = 14
-	style.content_margin_bottom = 14
+	style.content_margin_left = 12
+	style.content_margin_right = 12
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
 	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	add_child(margin)
+
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
-	add_child(vbox)
+	margin.add_child(vbox)
 
 	# Title
 	var title := Label.new()
