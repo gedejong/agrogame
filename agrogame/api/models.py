@@ -69,7 +69,7 @@ class SoilStateResponse(BaseModel):
         description="Dominant electron acceptor per layer (O2, NO3, Fe3+, CH4)",
     )
 
-    # Micronutrients (AGRO-214)
+    # Micronutrients (#214)
     fe_available: list[float] = Field(
         default_factory=list, description="Plant-available Fe per layer (ppm)"
     )
