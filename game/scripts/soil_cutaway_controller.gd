@@ -177,7 +177,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel = PanelContainer.new()
 	_nutrient_panel.set_script(NutrientPanel)
 	var vp: Viewport = ui_layer.get_viewport()
-	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 70)
+	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 16)
 	_nutrient_panel.size = Vector2(260, 0)
 	var layers_data: Array[Dictionary] = []
 	for col_data: Dictionary in columns:
