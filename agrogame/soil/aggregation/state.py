@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -60,7 +60,7 @@ class SoilAggregationState:
             self.meso[layer] /= total
             self.macro[layer] /= total
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "micro": list(self.micro),
             "meso": list(self.meso),
@@ -68,7 +68,7 @@ class SoilAggregationState:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> SoilAggregationState:
+    def from_dict(cls, data: dict[str, Any]) -> SoilAggregationState:
         return cls(
             micro=list(data.get("micro", [])),
             meso=list(data.get("meso", [])),

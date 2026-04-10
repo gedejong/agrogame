@@ -634,7 +634,6 @@ class FullSimulationOrchestrator:
     # ------------------------------------------------------------------
     # Player actions
     # ------------------------------------------------------------------
-    _MANAGEMENT_ACTIONS = frozenset({"irrigate", "fertilize", "tillage"})
     _FERTILIZER_TYPES = frozenset({"urea", "ammonium_nitrate", "tsp"})
 
     def apply_irrigation(self, amount_mm: float) -> None:

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from agrogame.events import EventBus
 from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.aggregation.params import SoilAggregationParams
@@ -28,7 +26,7 @@ class AggregationModule:
         self,
         params: SoilAggregationParams,
         state: SoilAggregationState,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self.params = params
         self.state = state
@@ -202,7 +200,8 @@ class AggregationModule:
             return 0.0
         diff = temperature_c - p.temp_formation_optimum_c
         factor = p.temp_formation_q10 ** (diff / 10.0)
-        # Cap at 1.0 (optimum) and scale down for cold
+        # Cap at 1.0 (optimum) and scale down for cold.
+        # TODO: add decline above ~35°C (enzyme denaturation).
         return float(min(1.0, factor))
 
     def _emit_update(self, layer: int) -> None:

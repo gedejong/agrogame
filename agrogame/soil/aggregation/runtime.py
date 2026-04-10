@@ -28,15 +28,12 @@ class AggregationRuntime:
     _day_count: int = 0
     _root_fractions: list[float] | None = None
     _fungal_fractions: list[float] | None = None
-    _prev_wfps: list[float] | None = None
-    _was_dry: list[bool] | None = None
-    _was_frozen: list[bool] | None = None
 
     def __post_init__(self) -> None:
         n = len(self.profile.layers)
-        self._prev_wfps = [0.5] * n
-        self._was_dry = [False] * n
-        self._was_frozen = [False] * n
+        self._prev_wfps: list[float] = [0.5] * n
+        self._was_dry: list[bool] = [False] * n
+        self._was_frozen: list[bool] = [False] * n
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
         # Subscribe to microbial events for fungal fraction
@@ -87,8 +84,6 @@ class AggregationRuntime:
 
         Ref: Denef et al. 2001 — rewetting after dry spell disrupts macro.
         """
-        assert self._prev_wfps is not None
-        assert self._was_dry is not None
         dry_threshold = 0.3
         wet_threshold = 0.7
         for i in range(min(n, len(self._prev_wfps))):
@@ -110,7 +105,6 @@ class AggregationRuntime:
 
         Ref: Six et al. 2004 — 10–20% per freeze-thaw cycle.
         """
-        assert self._was_frozen is not None
         freeze_temp = self.module.params.freeze_temp_c
         for i in range(min(n, len(self._was_frozen))):
             if temp_c <= freeze_temp:

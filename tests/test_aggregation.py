@@ -204,10 +204,8 @@ def test_notill_recovery_one_year() -> None:
             sim_date=start + timedelta(days=d),
         )
     gained = orch.agg_state.macro[0] - initial_macro
-    # Relaxed bounds: formation depends on root establishment timing
-    assert (
-        gained > 0.01
-    ), f"No-till macro gain {gained:.4f} should be positive after 1 year"
+    # AC: 5–20% per year. Threshold at 0.05 to catch regressions.
+    assert gained > 0.05, f"No-till macro gain {gained:.4f} should be >5% after 1 year"
 
 
 # --- 7. Tillage + recovery (integration) ---
@@ -239,10 +237,11 @@ def test_tillage_then_recovery() -> None:
             par_mj_m2=16.0,
             sim_date=start + timedelta(days=d),
         )
-    # Some recovery should have occurred
+    # Some recovery should have occurred — at least 2% gain in 180 days
+    recovery = orch.agg_state.macro[0] - post_tillage_macro
     assert (
-        orch.agg_state.macro[0] > post_tillage_macro
-    ), "Macro should recover after tillage"
+        recovery > 0.02
+    ), f"Macro recovery {recovery:.4f} should be >2% after 180 days"
 
 
 # --- 8. Multi-season persistence (integration) ---
@@ -352,3 +351,125 @@ def test_tillage_management_event() -> None:
     assert (
         orch.agg_state.macro[0] < initial_macro
     ), "Tillage via management plan should reduce macro"
+
+
+# --- Runtime unit tests ---
+
+
+def test_runtime_weekly_cadence() -> None:
+    """AggregationRuntime should only run formation every 7 days."""
+    from agrogame.soil.aggregation.runtime import AggregationRuntime
+
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soils.soils["loam_temperate"]
+    bus = EventBus()
+    state = SoilAggregationState.from_layers(len(profile.layers))
+    module = AggregationModule(SoilAggregationParams(), state, event_bus=bus)
+    from agrogame.soil.water.state import SoilWaterState
+
+    water_state = SoilWaterState(profile)
+    AggregationRuntime(bus, module, profile, water_state)  # subscribes to bus
+
+    events: list[AggregateStructureUpdated] = []
+    bus.subscribe(AggregateStructureUpdated, events.append)
+
+    from agrogame.sim.calendar_events import DayTick
+
+    # Tick 6 days — no formation events (only raindrop/breakdown)
+    for d in range(6):
+        bus.emit(
+            DayTick(
+                sim_date=date(2024, 5, 1 + d),
+                phase="day_end",
+                drivers=DailyDrivers(rainfall_mm=0.0),
+                tmin_c=15.0,
+                tmax_c=25.0,
+            )
+        )
+    formation_events_6d = len(events)
+    assert formation_events_6d == 0, "No formation before day 7"
+
+    # Day 7 triggers weekly formation
+    bus.emit(
+        DayTick(
+            sim_date=date(2024, 5, 7),
+            phase="day_end",
+            drivers=DailyDrivers(rainfall_mm=0.0),
+            tmin_c=15.0,
+            tmax_c=25.0,
+        )
+    )
+    assert len(events) > 0, "Formation should trigger on day 7"
+
+
+def test_runtime_freeze_thaw_hysteresis() -> None:
+    """Freeze-thaw needs freeze then thaw with 2C hysteresis."""
+    from agrogame.soil.aggregation.runtime import AggregationRuntime
+    from agrogame.soil.water.state import SoilWaterState
+    from agrogame.sim.calendar_events import DayTick
+
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soils.soils["loam_temperate"]
+    bus = EventBus()
+    state = SoilAggregationState.from_layers(len(profile.layers))
+    module = AggregationModule(SoilAggregationParams(), state, event_bus=bus)
+    water_state = SoilWaterState(profile)
+    AggregationRuntime(bus, module, profile, water_state)  # subscribes to bus
+
+    degraded: list[StructureDegraded] = []
+    bus.subscribe(StructureDegraded, degraded.append)
+
+    # Freeze (temp <= 0)
+    bus.emit(
+        DayTick(
+            sim_date=date(2024, 1, 1),
+            phase="day_end",
+            drivers=DailyDrivers(rainfall_mm=0.0),
+            tmin_c=-5.0,
+            tmax_c=-2.0,
+        )
+    )
+    # Still frozen (temp = 1C, within 2C hysteresis)
+    bus.emit(
+        DayTick(
+            sim_date=date(2024, 1, 2),
+            phase="day_end",
+            drivers=DailyDrivers(rainfall_mm=0.0),
+            tmin_c=0.0,
+            tmax_c=2.0,
+        )
+    )
+    ft_events = [e for e in degraded if e.cause == "freeze_thaw"]
+    assert len(ft_events) == 0, "No thaw at 1C (within hysteresis)"
+
+    # Thaw (temp > 2C)
+    bus.emit(
+        DayTick(
+            sim_date=date(2024, 1, 3),
+            phase="day_end",
+            drivers=DailyDrivers(rainfall_mm=0.0),
+            tmin_c=2.0,
+            tmax_c=6.0,
+        )
+    )
+    ft_events = [e for e in degraded if e.cause == "freeze_thaw"]
+    assert len(ft_events) > 0, "Thaw above 2C should trigger breakdown"
+
+
+def test_runtime_microbes_fungal_update() -> None:
+    """Runtime should track fungal fraction from MicrobialFBUpdated."""
+    from agrogame.soil.aggregation.runtime import AggregationRuntime
+    from agrogame.soil.water.state import SoilWaterState
+    from agrogame.soil.microbes.events import MicrobialFBUpdated
+
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soils.soils["loam_temperate"]
+    bus = EventBus()
+    state = SoilAggregationState.from_layers(len(profile.layers))
+    module = AggregationModule(SoilAggregationParams(), state, event_bus=bus)
+    water_state = SoilWaterState(profile)
+    rt = AggregationRuntime(bus, module, profile, water_state)
+
+    bus.emit(MicrobialFBUpdated(layer=0, fungal_fraction=0.8))
+    assert rt._fungal_fractions is not None
+    assert rt._fungal_fractions[0] == 0.8
