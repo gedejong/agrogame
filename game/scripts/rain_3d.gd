@@ -64,7 +64,8 @@ func _process(delta: float) -> void:
 func set_raining(raining: bool, intensity_mm: float = 5.0) -> void:
 	_is_raining = raining
 	if raining:
-		_base_amount = clampi(int(intensity_mm * 80.0), 50, MAX_AMOUNT)
+		# 40 particles per mm: light drizzle (2mm)=80, moderate (5mm)=200, heavy (10mm)=400
+		_base_amount = clampi(int(intensity_mm * 40.0), 50, MAX_AMOUNT)
 		amount = _base_amount
 		emitting = true
 	else:
