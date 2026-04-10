@@ -771,3 +771,64 @@ def test_step_response_includes_micronutrients(client) -> None:
         assert isinstance(soil[elem], list)
         assert len(soil[elem]) > 0
         assert all(v >= 0 for v in soil[elem])
+
+
+def test_step_response_includes_aggregation(client) -> None:
+    """Step response should include aggregate fractions and MWD (#248)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    soil = patches[0]["soil_state"]
+    for key in ("agg_macro", "agg_meso", "agg_micro", "agg_mwd"):
+        assert key in soil, f"{key} missing from soil_state"
+        assert isinstance(soil[key], list)
+        assert len(soil[key]) > 0
+    # Fractions should sum to ~1.0 per layer
+    for i in range(len(soil["agg_macro"])):
+        total = soil["agg_macro"][i] + soil["agg_meso"][i] + soil["agg_micro"][i]
+        assert abs(total - 1.0) < 0.01, f"Layer {i} fractions sum to {total}"
+    # MWD should be positive
+    assert all(m > 0 for m in soil["agg_mwd"])
+    # DailySnapshots should include agg_mwd_surface
+    snaps = resp.json().get("daily_snapshots", [])
+    if snaps:
+        assert "agg_mwd_surface" in snaps[0]
+        assert snaps[0]["agg_mwd_surface"] > 0
+
+
+def test_tillage_reduces_macro(client) -> None:
+    """Tillage action via API should reduce macroaggregate fraction (#248)."""
+    game_id = _create_game(client)
+    # Step a few days to establish baseline
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=3&seed=42")
+    assert resp.status_code == 200
+    soil_before = resp.json()["patches"]["f1"][0]["soil_state"]
+    macro_before = soil_before["agg_macro"][0]
+    # Apply intensive tillage
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={
+            "field_id": "f1",
+            "action": "tillage",
+            "params": {"intensity": 1.0},
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["action"] == "tillage"
+    # Step to see the soil state after tillage
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    assert resp.status_code == 200
+    soil_after = resp.json()["patches"]["f1"][0]["soil_state"]
+    macro_after = soil_after["agg_macro"][0]
+    assert (
+        macro_after < macro_before
+    ), f"Tillage should reduce macro: {macro_before} → {macro_after}"
+    # Mass conservation: fractions must still sum to ~1.0
+    for i in range(len(soil_after["agg_macro"])):
+        total = (
+            soil_after["agg_macro"][i]
+            + soil_after["agg_meso"][i]
+            + soil_after["agg_micro"][i]
+        )
+        assert abs(total - 1.0) < 0.01, f"Layer {i} fractions sum to {total}"
