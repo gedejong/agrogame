@@ -60,6 +60,15 @@ class SoilStateResponse(BaseModel):
     # Microbial state
     microbe_c: list[float] = Field(description="Microbial biomass C per layer")
 
+    # Redox state (AGRO-73)
+    redox_eh: list[float] = Field(
+        default_factory=list, description="Redox potential per layer (mV)"
+    )
+    dominant_acceptor: list[str] = Field(
+        default_factory=list,
+        description="Dominant electron acceptor per layer (O2, NO3, Fe3+, CH4)",
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
@@ -154,6 +163,7 @@ class DailySnapshot(BaseModel):
     water_stress: float = 1.0
     soil_theta_surface: float = 0.0
     n_available_total: float = 0.0
+    redox_eh_surface: float = 400.0
     rain_mm: float = 0.0
     events: list[dict] = Field(
         default_factory=list,

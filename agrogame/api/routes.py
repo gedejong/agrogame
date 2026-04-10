@@ -59,6 +59,12 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
     som_total = (
         sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
     )
+    redox_eh = list(snap.redox_eh) if snap.redox_eh else []
+    redox_acceptors = (
+        [a.value for a in patch.orch.redox_state.dominant_acceptor]
+        if hasattr(patch.orch, "redox_state")
+        else []
+    )
     return SoilStateResponse(
         water_theta=list(snap.water_theta),
         n_no3=list(snap.n_no3),
@@ -70,6 +76,8 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
         som_intermediate_c=list(snap.som_intermediate_c),
         som_stable_c=list(snap.som_stable_c),
         microbe_c=list(snap.microbe_c),
+        redox_eh=[round(e, 1) for e in redox_eh],
+        dominant_acceptor=redox_acceptors,
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -537,6 +545,9 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                         water_stress=round(p.orch.canopy.state.last_water_stress, 2),
                         soil_theta_surface=round(theta_top, 4),
                         n_available_total=round(n_total, 1),
+                        redox_eh_surface=(
+                            round(snap.redox_eh[0], 1) if snap.redox_eh else 400.0
+                        ),
                         rain_mm=round(rec.precip_mm or 0.0, 1),
                         events=patch_events,
                     )
