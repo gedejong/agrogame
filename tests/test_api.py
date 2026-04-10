@@ -757,3 +757,17 @@ def test_step_response_includes_redox_state(client) -> None:
     assert isinstance(soil["dominant_acceptor"], list)
     assert len(soil["dominant_acceptor"]) > 0
     assert soil["dominant_acceptor"][0] in ("O2", "NO3", "Fe3+", "CH4")
+
+
+def test_step_response_includes_micronutrients(client) -> None:
+    """Step response should include Fe, Zn, Mn availability (#237)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    soil = patches[0]["soil_state"]
+    for elem in ("fe_available", "zn_available", "mn_available"):
+        assert elem in soil, f"{elem} missing from soil_state"
+        assert isinstance(soil[elem], list)
+        assert len(soil[elem]) > 0
+        assert all(v >= 0 for v in soil[elem])
