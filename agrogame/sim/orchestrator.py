@@ -44,6 +44,12 @@ from agrogame.soil.micronutrients import (
     MicronutrientState,
 )
 from agrogame.soil.micronutrients.runtime import MicronutrientRuntime
+from agrogame.soil.aggregation import (
+    AggregationModule,
+    SoilAggregationParams,
+    SoilAggregationState,
+)
+from agrogame.soil.aggregation.runtime import AggregationRuntime
 
 
 class SimulationOrchestrator:
@@ -147,6 +153,9 @@ class SoilSnapshot:
     micro_fe_total: list[float] = field(default_factory=list)
     micro_zn_total: list[float] = field(default_factory=list)
     micro_mn_total: list[float] = field(default_factory=list)
+    agg_micro: list[float] = field(default_factory=list)
+    agg_meso: list[float] = field(default_factory=list)
+    agg_macro: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -176,6 +185,9 @@ class SoilSnapshot:
             "micro_fe_total": list(self.micro_fe_total),
             "micro_zn_total": list(self.micro_zn_total),
             "micro_mn_total": list(self.micro_mn_total),
+            "agg_micro": list(self.agg_micro),
+            "agg_meso": list(self.agg_meso),
+            "agg_macro": list(self.agg_macro),
         }
 
     @classmethod
@@ -207,6 +219,9 @@ class SoilSnapshot:
             micro_fe_total=list(data.get("micro_fe_total", [])),
             micro_zn_total=list(data.get("micro_zn_total", [])),
             micro_mn_total=list(data.get("micro_mn_total", [])),
+            agg_micro=list(data.get("agg_micro", [])),
+            agg_meso=list(data.get("agg_meso", [])),
+            agg_macro=list(data.get("agg_macro", [])),
         )
 
 
@@ -304,6 +319,11 @@ class FullSimulationOrchestrator:
         self.micro_cycle = MicronutrientCycle(
             self.event_bus, self.micro_state, MicronutrientParams(), len(profile.layers)
         )
+        # Soil aggregation — aggregate size distribution (AGRO-218)
+        self.agg_state = SoilAggregationState.from_layers(len(profile.layers))
+        self.agg_module = AggregationModule(
+            SoilAggregationParams(), self.agg_state, event_bus=self.event_bus
+        )
         # ET model (emits transpiration/evaporation related events via water model)
         self.et = Evapotranspiration(et_params or EtParams())
         # Calendar for phased daily progression
@@ -350,6 +370,9 @@ class FullSimulationOrchestrator:
             profile=self.profile,
             water_state=self.water_state,
             chemistry=self.chem,
+        )
+        _ = AggregationRuntime(
+            self.event_bus, self.agg_module, self.profile, self.water_state
         )
         _ = CanopyRuntime(self.event_bus, self.canopy)
         # Track biomass increments for dynamic N/P demand computation
@@ -402,6 +425,9 @@ class FullSimulationOrchestrator:
             micro_fe_total=list(self.micro_state.fe_total),
             micro_zn_total=list(self.micro_state.zn_total),
             micro_mn_total=list(self.micro_state.mn_total),
+            agg_micro=list(self.agg_state.micro),
+            agg_meso=list(self.agg_state.meso),
+            agg_macro=list(self.agg_state.macro),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -447,6 +473,10 @@ class FullSimulationOrchestrator:
             self.micro_state.fe_total = list(snapshot.micro_fe_total)
             self.micro_state.zn_total = list(snapshot.micro_zn_total)
             self.micro_state.mn_total = list(snapshot.micro_mn_total)
+        if snapshot.agg_micro:
+            self.agg_state.micro = list(snapshot.agg_micro)
+            self.agg_state.meso = list(snapshot.agg_meso)
+            self.agg_state.macro = list(snapshot.agg_macro)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
@@ -515,6 +545,9 @@ class FullSimulationOrchestrator:
             MicronutrientParams(),
             len(self.profile.layers),
         )
+        self.agg_module = AggregationModule(
+            SoilAggregationParams(), self.agg_state, event_bus=self.event_bus
+        )
         self.calendar = Calendar(self.event_bus)
 
         # Restore soil state (water, N, P pools)
@@ -571,10 +604,12 @@ class FullSimulationOrchestrator:
                     ev.params.get("type", "urea"),
                     ev.params.get("amount_kg_ha", 0.0),
                 )
+            elif ev.action == "tillage":
+                self.apply_tillage(ev.params.get("intensity", 0.5))
             else:
                 raise ValueError(
                     f"Unknown management action {ev.action!r}; "
-                    f"choose from 'irrigate', 'fertilize'"
+                    f"choose from 'irrigate', 'fertilize', 'tillage'"
                 )
 
         # Compute dynamic demand from previous day's biomass increment
@@ -612,6 +647,15 @@ class FullSimulationOrchestrator:
         if amount_mm <= 0.0:
             return
         self.water_model._infiltrate_layers(self.profile, self.water_state, amount_mm)
+
+    def apply_tillage(self, intensity: float = 0.5) -> None:
+        """Apply tillage to soil, destroying macroaggregates.
+
+        Args:
+            intensity: Tillage intensity (0.0 = no-till, 1.0 = moldboard plow).
+        """
+        depths = [ly.depth_cm for ly in self.profile.layers]
+        self.agg_module.apply_tillage(intensity, layer_depths_cm=depths)
 
     def apply_fertilizer(
         self, fert_type: str, amount_kg_ha: float, layer: int = 0

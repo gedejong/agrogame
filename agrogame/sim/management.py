@@ -12,10 +12,11 @@ class ManagementEvent:
 
     Args:
         day: Day number (0-indexed from season start) to execute.
-        action: One of "irrigate" or "fertilize".
+        action: One of "irrigate", "fertilize", or "tillage".
         params: Action-specific parameters.
             For "irrigate": {"amount_mm": float}
             For "fertilize": {"type": str, "amount_kg_ha": float}
+            For "tillage": {"intensity": float}  # 0.0–1.0
     """
 
     day: int
