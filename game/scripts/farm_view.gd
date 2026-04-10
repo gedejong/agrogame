@@ -462,6 +462,9 @@ func _apply_daily_snapshots(snapshots: Array) -> void:
 					"theta_surface": snap.get("soil_theta_surface", 0.0),
 					"n_available": snap.get("n_available_total", 0.0),
 					"redox_eh_surface": snap.get("redox_eh_surface", 400.0),
+					"fe_available_surface": snap.get("fe_available_surface", 10.0),
+					"zn_available_surface": snap.get("zn_available_surface", 1.2),
+					"mn_available_surface": snap.get("mn_available_surface", 18.0),
 				}
 			)
 		)
@@ -513,6 +516,24 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 								soil_state.get("redox_eh", [400.0])[0]
 								if soil_state.get("redox_eh", [])
 								else 400.0
+							),
+							"fe_available_surface":
+							(
+								soil_state.get("fe_available", [10.0])[0]
+								if soil_state.get("fe_available", [])
+								else 10.0
+							),
+							"zn_available_surface":
+							(
+								soil_state.get("zn_available", [1.2])[0]
+								if soil_state.get("zn_available", [])
+								else 1.2
+							),
+							"mn_available_surface":
+							(
+								soil_state.get("mn_available", [18.0])[0]
+								if soil_state.get("mn_available", [])
+								else 18.0
 							),
 						}
 					)
