@@ -52,4 +52,8 @@ game/bin/
 !game/assets/icons/icon_drought.svg.import
 !game/assets/icons/icon_n_deficiency.svg.import
 !game/assets/icons/icon_p_deficiency.svg.import
+!game/assets/icons/icon_eh.svg.import
+!game/assets/icons/icon_anaerobic.svg.import
+!game/assets/icons/icon_ch4.svg.import
+!game/assets/icons/icon_n2o.svg.import
 jira_export.csv

@@ -341,3 +341,15 @@ func test_weather_events_ignored_by_flow_overlay() -> void:
 	]
 	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)
 	assert_eq(overlay._tubes.size(), 0, "Weather events should not create tubes")
+	# CH4Oxidized creates a tube (carbon cycle, not weather)
+	var overlay2 := FlowOverlayRef.new()
+	add_child_autofree(overlay2)
+	var ch4ox: Array = [
+		{
+			"event_type": "CH4Oxidized",
+			"module": "agrogame.soil.redox.events",
+			"data": {"layer": 0, "amount_kg_c_ha": 0.01},
+		}
+	]
+	overlay2.update_from_events(ch4ox, TEST_PROFILE, Vector3.ZERO)
+	assert_gt(overlay2._tubes.size(), 0, "CH4Oxidized should create a tube")

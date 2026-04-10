@@ -18,6 +18,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 5.0,
 		"opt_max": 60.0,
 		"mass_type": "mass",
+		"tooltip": "Nitrate — mobile plant nutrient, easily leached by rain",
 	},
 	"NH₄":
 	{
@@ -27,6 +28,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 3.0,
 		"opt_max": 80.0,
 		"mass_type": "mass",
+		"tooltip": "Ammonium — held by clay, converted to nitrate by bacteria",
 	},
 	"P":
 	{
@@ -36,6 +38,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 5.0,
 		"opt_max": 20.0,
 		"mass_type": "mass",
+		"tooltip": "Phosphorus — essential for roots and energy, easily locked up in soil",
 	},
 	"SOM":
 	{
@@ -45,6 +48,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 200.0,
 		"opt_max": 2500.0,
 		"mass_type": "carbon",
+		"tooltip": "Soil organic matter — feeds microbes, improves structure and water holding",
 	},
 	"Water":
 	{
@@ -55,6 +59,7 @@ const NUTRIENT_BARS := {
 		"opt_max": 0.35,
 		"mass_type": "",
 		"unit": "m³/m³",
+		"tooltip": "Soil water content — too low causes drought, too high causes waterlogging",
 	},
 	"pH":
 	{
@@ -65,6 +70,7 @@ const NUTRIENT_BARS := {
 		"opt_max": 7.5,
 		"mass_type": "",
 		"unit": "",
+		"tooltip": "Soil acidity — most crops prefer pH 5.5-7.5; affects nutrient availability",
 	},
 	"Microbe":
 	{
@@ -74,12 +80,20 @@ const NUTRIENT_BARS := {
 		"opt_min": 50.0,
 		"opt_max": 250.0,
 		"mass_type": "carbon",
+		"tooltip": "Microbial biomass — decomposers that recycle nutrients from organic matter",
 	},
 }
 ## Functional accent colors per art guide
 const BAR_STRESS := UiTheme.ACCENT_RED
 const BAR_MARGINAL := UiTheme.ACCENT_GOLD
 const BAR_OK := UiTheme.ACCENT_GREEN
+
+## Eh display range and zone thresholds (mV).
+const EH_MIN_MV := -300.0
+const EH_MAX_MV := 450.0
+const EH_RANGE_MV := EH_MAX_MV - EH_MIN_MV
+const EH_OXIC_THRESHOLD := 200.0
+const EH_ANOXIC_THRESHOLD := 0.0
 
 var _flow_visible := true
 var _cycle_label: Label = null
@@ -250,6 +264,7 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	val_lbl.add_theme_color_override("font_color", UiTheme.VALUE_COLOR)
 	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
+	row.tooltip_text = cfg.get("tooltip", "")
 	parent.add_child(row)
 
 
@@ -363,12 +378,11 @@ func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
 	track.color = UiTheme.TRACK_BG
 	track.size = Vector2(100, 12)
 	bar_bg.add_child(track)
-	# Eh ranges: -300 to +450 mV → 0-1 fraction
-	var frac: float = clampf((eh_mv + 300.0) / 750.0, 0.0, 1.0)
+	var frac: float = clampf((eh_mv - EH_MIN_MV) / EH_RANGE_MV, 0.0, 1.0)
 	var bar_color: Color
-	if eh_mv > 200.0:
+	if eh_mv > EH_OXIC_THRESHOLD:
 		bar_color = UiTheme.ACCENT_GREEN
-	elif eh_mv > 0.0:
+	elif eh_mv > EH_ANOXIC_THRESHOLD:
 		bar_color = UiTheme.ACCENT_GOLD
 	else:
 		bar_color = UiTheme.ACCENT_RED
@@ -386,6 +400,12 @@ func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
 	val_lbl.add_theme_color_override("font_color", bar_color)
 	val_lbl.custom_minimum_size.x = 90
 	row.add_child(val_lbl)
+	row.tooltip_text = (
+		"Redox potential — measures oxygen availability in soil.\n"
+		+ "Green (>200 mV): aerobic, healthy roots.\n"
+		+ "Yellow (0-200 mV): suboxic, denitrification active.\n"
+		+ "Red (<0 mV): anaerobic, methane production, root suffocation risk."
+	)
 	parent.add_child(row)
 
 

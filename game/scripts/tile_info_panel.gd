@@ -16,7 +16,7 @@ const GRAPHS := {
 	"n_available":
 	{"label": "N available", "unit": "", "mass_type": "mass", "color": UiTheme.SUBSTANCE_NO3},
 	"redox_eh_surface":
-	{"label": "Redox Eh", "unit": "mV", "mass_type": "", "color": Color(0.7, 0.5, 0.3)},
+	{"label": "Redox Eh", "unit": "mV", "mass_type": "", "color": UiTheme.SUBSTANCE_REDOX},
 }
 
 var _sparklines: Dictionary = {}

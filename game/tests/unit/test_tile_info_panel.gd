@@ -4,8 +4,10 @@ const TileInfoPanel = preload("res://scripts/tile_info_panel.gd")
 
 
 func test_graphs_defined() -> void:
-	assert_eq(TileInfoPanel.GRAPHS.size(), 5, "5 graph configs")
-	for key: String in ["lai", "grain_g_m2", "water_stress", "theta_surface", "n_available"]:
+	assert_eq(TileInfoPanel.GRAPHS.size(), 6, "6 graph configs")
+	for key: String in [
+		"lai", "grain_g_m2", "water_stress", "theta_surface", "n_available", "redox_eh_surface"
+	]:
 		assert_true(TileInfoPanel.GRAPHS.has(key), "Graph for %s" % key)
 
 
