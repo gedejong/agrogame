@@ -112,6 +112,13 @@ func update_from_patches(
 							active_stresses[soil + "_p_deficiency"] = {
 								"soil": soil, "stress_key": "p_deficiency"
 							}
+				# Redox: anaerobic stress when Eh < -100 mV
+				if etype == "RedoxChanged":
+					var eh: float = float(evt.get("data", {}).get("eh_mv", 400.0))
+					if eh < -100.0:
+						active_stresses[soil + "_anaerobic"] = {
+							"soil": soil, "stress_key": "anaerobic"
+						}
 	# Map stresses to tile indices
 	var tile_stresses: Dictionary = {}
 	for key: String in active_stresses:

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Eh / Redox potential: electron symbol (e⁻) — the fundamental unit of redox -->
+  <!-- Glassmorphism backing -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!-- Electron orbit ring -->
+  <ellipse cx="8" cy="8" rx="5.5" ry="3" fill="none" stroke="#E6801A" stroke-width="1.2" transform="rotate(-25 8 8)"/>
+  <!-- Central atom/nucleus -->
+  <circle cx="8" cy="8" r="2.2" fill="#E6801A"/>
+  <!-- Electron dot on orbit -->
+  <circle cx="3.5" cy="5.5" r="1.2" fill="#FFB84D"/>
+  <!-- "e⁻" hint: small minus near electron -->
+  <rect x="2.2" y="4.2" width="1.5" height="0.6" rx="0.2" fill="#FFB84D"/>
+</svg>
