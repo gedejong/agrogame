@@ -86,6 +86,7 @@ const NUTRIENT_BARS := {
 	{
 		"color": UiTheme.SUBSTANCE_REDOX,
 		"icon": "",
+		"icon_glyph": "\u26a1",
 		"max": 450.0,
 		"opt_min": 200.0,
 		"opt_max": 450.0,
@@ -120,10 +121,10 @@ var _active_filter: String = "all"
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
 	var style := UiTheme.create_panel_style(true)
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
+	style.content_margin_left = 16
+	style.content_margin_right = 16
+	style.content_margin_top = 14
+	style.content_margin_bottom = 14
 	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
@@ -196,18 +197,23 @@ func _add_bar_row(
 	var bar_y: int = (track_h - bar_h) / 2
 
 	# Icon (12×12)
+	# Icon column — fixed 14px wide for alignment
+	var icon_container := Control.new()
+	icon_container.custom_minimum_size = Vector2(14, 14)
 	var icon_path: String = cfg.get("icon", "")
 	if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
 		var icon := TextureRect.new()
 		icon.texture = load(icon_path)
-		icon.custom_minimum_size = Vector2(12, 12)
+		icon.custom_minimum_size = Vector2(14, 14)
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		row.add_child(icon)
-	else:
-		# Spacer to keep columns aligned when no icon
-		var spacer := Control.new()
-		spacer.custom_minimum_size = Vector2(12, 12)
-		row.add_child(spacer)
+		icon_container.add_child(icon)
+	elif cfg.get("icon_glyph", ""):
+		var glyph := Label.new()
+		glyph.text = cfg["icon_glyph"]
+		glyph.add_theme_font_size_override("font_size", 11)
+		glyph.add_theme_color_override("font_color", cfg.get("color", Color.WHITE))
+		icon_container.add_child(glyph)
+	row.add_child(icon_container)
 	# Label — nutrient name
 	var lbl := Label.new()
 	lbl.text = label
