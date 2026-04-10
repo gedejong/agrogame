@@ -38,6 +38,12 @@ from agrogame.sim.management import ManagementPlan
 from agrogame.soil.som.runtime import SOMRuntime
 from agrogame.soil.redox import RedoxModule, RedoxParams, RedoxState
 from agrogame.soil.redox.runtime import RedoxRuntime
+from agrogame.soil.micronutrients import (
+    MicronutrientCycle,
+    MicronutrientParams,
+    MicronutrientState,
+)
+from agrogame.soil.micronutrients.runtime import MicronutrientRuntime
 
 
 class SimulationOrchestrator:
@@ -135,6 +141,12 @@ class SoilSnapshot:
     som_stable_c: list[float] = field(default_factory=list)
     som_stable_n: list[float] = field(default_factory=list)
     redox_eh: list[float] = field(default_factory=list)
+    micro_fe_avail: list[float] = field(default_factory=list)
+    micro_zn_avail: list[float] = field(default_factory=list)
+    micro_mn_avail: list[float] = field(default_factory=list)
+    micro_fe_total: list[float] = field(default_factory=list)
+    micro_zn_total: list[float] = field(default_factory=list)
+    micro_mn_total: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -158,6 +170,12 @@ class SoilSnapshot:
             "som_stable_c": list(self.som_stable_c),
             "som_stable_n": list(self.som_stable_n),
             "redox_eh": list(self.redox_eh),
+            "micro_fe_avail": list(self.micro_fe_avail),
+            "micro_zn_avail": list(self.micro_zn_avail),
+            "micro_mn_avail": list(self.micro_mn_avail),
+            "micro_fe_total": list(self.micro_fe_total),
+            "micro_zn_total": list(self.micro_zn_total),
+            "micro_mn_total": list(self.micro_mn_total),
         }
 
     @classmethod
@@ -183,6 +201,12 @@ class SoilSnapshot:
             som_stable_c=list(data.get("som_stable_c", [])),
             som_stable_n=list(data.get("som_stable_n", [])),
             redox_eh=list(data.get("redox_eh", [])),
+            micro_fe_avail=list(data.get("micro_fe_avail", [])),
+            micro_zn_avail=list(data.get("micro_zn_avail", [])),
+            micro_mn_avail=list(data.get("micro_mn_avail", [])),
+            micro_fe_total=list(data.get("micro_fe_total", [])),
+            micro_zn_total=list(data.get("micro_zn_total", [])),
+            micro_mn_total=list(data.get("micro_mn_total", [])),
         )
 
 
@@ -275,6 +299,11 @@ class FullSimulationOrchestrator:
         self.redox = RedoxModule(
             RedoxParams(), self.redox_state, event_bus=self.event_bus
         )
+        # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
+        self.micro_state = MicronutrientState.from_layers(len(profile.layers))
+        self.micro_cycle = MicronutrientCycle(
+            self.event_bus, self.micro_state, MicronutrientParams(), len(profile.layers)
+        )
         # ET model (emits transpiration/evaporation related events via water model)
         self.et = Evapotranspiration(et_params or EtParams())
         # Calendar for phased daily progression
@@ -310,6 +339,7 @@ class FullSimulationOrchestrator:
         )
         _ = RedoxRuntime(self.event_bus, self.redox, self.profile, self.water_state)
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
+        _ = MicronutrientRuntime(self.event_bus, self.micro_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
         self._som_runtime = SOMRuntime(
             self.event_bus, self.profile, self.water_state, self.chem
@@ -366,6 +396,12 @@ class FullSimulationOrchestrator:
             som_stable_c=self._som_pool_lists("stable.c_kg_ha"),
             som_stable_n=self._som_pool_lists("stable.n_kg_ha"),
             redox_eh=list(self.redox_state.eh_mv),
+            micro_fe_avail=list(self.micro_state.fe_available),
+            micro_zn_avail=list(self.micro_state.zn_available),
+            micro_mn_avail=list(self.micro_state.mn_available),
+            micro_fe_total=list(self.micro_state.fe_total),
+            micro_zn_total=list(self.micro_state.zn_total),
+            micro_mn_total=list(self.micro_state.mn_total),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -402,6 +438,15 @@ class FullSimulationOrchestrator:
                     self.redox_state.dominant_acceptor[i] = (
                         RedoxModule._classify_acceptor(eh)
                     )
+
+        if snapshot.micro_fe_avail:
+            self.micro_state.fe_available = list(snapshot.micro_fe_avail)
+            self.micro_state.zn_available = list(snapshot.micro_zn_avail)
+            self.micro_state.mn_available = list(snapshot.micro_mn_avail)
+        if snapshot.micro_fe_total:
+            self.micro_state.fe_total = list(snapshot.micro_fe_total)
+            self.micro_state.zn_total = list(snapshot.micro_zn_total)
+            self.micro_state.mn_total = list(snapshot.micro_mn_total)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
@@ -463,6 +508,12 @@ class FullSimulationOrchestrator:
         )
         self.redox = RedoxModule(
             RedoxParams(), self.redox_state, event_bus=self.event_bus
+        )
+        self.micro_cycle = MicronutrientCycle(
+            self.event_bus,
+            self.micro_state,
+            MicronutrientParams(),
+            len(self.profile.layers),
         )
         self.calendar = Calendar(self.event_bus)
 

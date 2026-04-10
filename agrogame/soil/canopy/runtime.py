@@ -18,6 +18,9 @@ class CanopyRuntime:
     _last_water: float = 1.0
     _last_n: float = 1.0
     _last_p: float = 1.0
+    _last_fe: float = 1.0
+    _last_zn: float = 1.0
+    _last_mn: float = 1.0
     # Initialized properly in __post_init__ using configurable window size
     _stress_history: deque[float] = field(init=False)
     _consecutive_wilt_days: int = 0
@@ -38,10 +41,17 @@ class CanopyRuntime:
 
     def _on_nutrient_stress(self, ev: NutrientStressComputed) -> None:
         s = max(0.0, min(1.0, float(ev.stress)))
-        if ev.nutrient.upper() == "N":
+        key = ev.nutrient.upper()
+        if key == "N":
             self._last_n = s
-        elif ev.nutrient.upper() == "P":
+        elif key == "P":
             self._last_p = s
+        elif key == "FE":
+            self._last_fe = s
+        elif key == "ZN":
+            self._last_zn = s
+        elif key == "MN":
+            self._last_mn = s
 
     def _compute_temp_factor(self, ev: DayTick) -> float:
         if ev.tmin_c is None or ev.tmax_c is None:
@@ -191,7 +201,8 @@ class CanopyRuntime:
         vpd_factor = self._vpd_rue_factor(ev)
         effective_water = avg_water * vpd_factor
 
-        nutrient_stress = min(n, p)
+        # Liebig minimum: N, P, and micronutrients (Fe, Zn, Mn)
+        nutrient_stress = min(n, p, self._last_fe, self._last_zn, self._last_mn)
         tf = self._compute_temp_factor(ev)
 
         # Heat stress: reduce grain allocation during flowering (AGRO-34)
