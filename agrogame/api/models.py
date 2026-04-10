@@ -80,6 +80,20 @@ class SoilStateResponse(BaseModel):
         default_factory=list, description="Plant-available Mn per layer (ppm)"
     )
 
+    # Aggregation (#248)
+    agg_macro: list[float] = Field(
+        default_factory=list, description="Macroaggregate fraction per layer"
+    )
+    agg_meso: list[float] = Field(
+        default_factory=list, description="Mesoaggregate fraction per layer"
+    )
+    agg_micro: list[float] = Field(
+        default_factory=list, description="Microaggregate fraction per layer"
+    )
+    agg_mwd: list[float] = Field(
+        default_factory=list, description="Mean weight diameter per layer (mm)"
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
@@ -178,6 +192,7 @@ class DailySnapshot(BaseModel):
     fe_available_surface: float = 10.0
     zn_available_surface: float = 1.2
     mn_available_surface: float = 18.0
+    agg_mwd_surface: float = 0.55
     rain_mm: float = 0.0
     events: list[dict] = Field(
         default_factory=list,

@@ -84,6 +84,12 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
         mn_available=(
             [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
         ),
+        agg_macro=([round(v, 4) for v in snap.agg_macro] if snap.agg_macro else []),
+        agg_meso=([round(v, 4) for v in snap.agg_meso] if snap.agg_meso else []),
+        agg_micro=([round(v, 4) for v in snap.agg_micro] if snap.agg_micro else []),
+        agg_mwd=[
+            round(patch.orch.agg_state.mwd(i), 3) for i in range(len(snap.agg_macro))
+        ],
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -345,7 +351,7 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
 # Day-by-day game loop (#125)
 # ---------------------------------------------------------------------------
 
-_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest"}
+_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest", "tillage"}
 
 
 def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
@@ -363,6 +369,8 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
         crop_key = params.get("crop_key", "maize")
         return int(prices.input_costs.get(f"seed_{crop_key}", 200))
     if action == "harvest":
+        return int(prices.input_costs.get("labor_per_action", 50))
+    if action == "tillage":
         return int(prices.input_costs.get("labor_per_action", 50))
     return 0
 
@@ -569,6 +577,11 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                             if snap.micro_mn_avail
                             else 18.0
                         ),
+                        agg_mwd_surface=(
+                            round(p.orch.agg_state.mwd(0), 3)
+                            if p.orch.agg_state.micro
+                            else 0.55
+                        ),
                         rain_mm=round(rec.precip_mm or 0.0, 1),
                         events=patch_events,
                     )
@@ -659,6 +672,8 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                     req.params.get("type", "urea"),
                     req.params.get("amount_kg_ha", 50.0),
                 )
+            elif req.action == "tillage":
+                patch.orch.apply_tillage(req.params.get("intensity", 0.5))
 
     return ActionResponse(
         status="executed",
