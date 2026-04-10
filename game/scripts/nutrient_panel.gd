@@ -82,6 +82,42 @@ const NUTRIENT_BARS := {
 		"mass_type": "carbon",
 		"tooltip": "Microbial biomass — decomposers that recycle nutrients from organic matter",
 	},
+	"Fe":
+	{
+		"color": Color(0.75, 0.45, 0.20, 0.8),
+		"icon": "",
+		"icon_glyph": "Fe",
+		"max": 20.0,
+		"opt_min": 4.5,
+		"opt_max": 20.0,
+		"mass_type": "",
+		"unit": "ppm",
+		"tooltip": "Iron — essential for chlorophyll; deficiency causes yellowing (chlorosis)",
+	},
+	"Zn":
+	{
+		"color": Color(0.45, 0.55, 0.70, 0.8),
+		"icon": "",
+		"icon_glyph": "Zn",
+		"max": 5.0,
+		"opt_min": 0.8,
+		"opt_max": 5.0,
+		"mass_type": "",
+		"unit": "ppm",
+		"tooltip": "Zinc — needed for enzymes and growth hormones; deficiency stunts growth",
+	},
+	"Mn":
+	{
+		"color": Color(0.50, 0.35, 0.60, 0.8),
+		"icon": "",
+		"icon_glyph": "Mn",
+		"max": 50.0,
+		"opt_min": 1.0,
+		"opt_max": 50.0,
+		"mass_type": "",
+		"unit": "ppm",
+		"tooltip": "Manganese — activates enzymes in photosynthesis; pH-sensitive availability",
+	},
 	"Eh":
 	{
 		"color": UiTheme.SUBSTANCE_REDOX,

@@ -53,6 +53,30 @@ const THRESHOLD_STRESS := {
 		"label": "P deficiency",
 		"color": UiTheme.SUBSTANCE_PHOSPHORUS,
 	},
+	"fe_deficiency":
+	{
+		"texture": "res://assets/icons/icon_fe_deficiency.svg",
+		"label": "Fe deficiency",
+		"color": Color(0.75, 0.45, 0.20, 0.8),
+	},
+	"zn_deficiency":
+	{
+		"texture": "res://assets/icons/icon_zn_deficiency.svg",
+		"label": "Zn deficiency",
+		"color": Color(0.45, 0.55, 0.70, 0.8),
+	},
+	"mn_deficiency":
+	{
+		"texture": "res://assets/icons/icon_mn_deficiency.svg",
+		"label": "Mn deficiency",
+		"color": Color(0.50, 0.35, 0.60, 0.8),
+	},
+	"anaerobic":
+	{
+		"texture": "res://assets/icons/icon_anaerobic.svg",
+		"label": "Anaerobic",
+		"color": Color(0.6, 0.4, 0.3, 0.8),
+	},
 }
 
 ## Combined lookup for icon creation.
@@ -111,6 +135,18 @@ func update_from_patches(
 						elif nutrient == "P":
 							active_stresses[soil + "_p_deficiency"] = {
 								"soil": soil, "stress_key": "p_deficiency"
+							}
+						elif nutrient == "Fe":
+							active_stresses[soil + "_fe_deficiency"] = {
+								"soil": soil, "stress_key": "fe_deficiency"
+							}
+						elif nutrient == "Zn":
+							active_stresses[soil + "_zn_deficiency"] = {
+								"soil": soil, "stress_key": "zn_deficiency"
+							}
+						elif nutrient == "Mn":
+							active_stresses[soil + "_mn_deficiency"] = {
+								"soil": soil, "stress_key": "mn_deficiency"
 							}
 				# Redox: anaerobic stress when Eh < -100 mV
 				if etype == "RedoxChanged":

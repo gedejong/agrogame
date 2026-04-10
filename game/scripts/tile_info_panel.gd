@@ -17,6 +17,12 @@ const GRAPHS := {
 	{"label": "N available", "unit": "", "mass_type": "mass", "color": UiTheme.SUBSTANCE_NO3},
 	"redox_eh_surface":
 	{"label": "Redox Eh", "unit": "mV", "mass_type": "", "color": UiTheme.SUBSTANCE_REDOX},
+	"fe_available_surface":
+	{"label": "Fe avail", "unit": "ppm", "mass_type": "", "color": Color(0.75, 0.45, 0.20)},
+	"zn_available_surface":
+	{"label": "Zn avail", "unit": "ppm", "mass_type": "", "color": Color(0.45, 0.55, 0.70)},
+	"mn_available_surface":
+	{"label": "Mn avail", "unit": "ppm", "mass_type": "", "color": Color(0.50, 0.35, 0.60)},
 }
 
 var _sparklines: Dictionary = {}
