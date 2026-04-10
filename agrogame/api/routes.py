@@ -369,6 +369,24 @@ def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     _maybe_inject_stress_weather(s)
 
 
+def _maybe_force_saturation(s: GameSession, rec: WeatherRecord) -> None:
+    """Force soil saturation on heavy-rain stress days for redox validation.
+
+    Only active when AGROGAME_STRESS_WEATHER is set. Sets theta to
+    saturation so the redox phase computes low Eh values.
+    """
+    import os
+
+    if not os.environ.get("AGROGAME_STRESS_WEATHER"):
+        return
+    if (rec.precip_mm or 0.0) < 50.0:
+        return
+    for fld in s.field_manager.fields.values():
+        for p in fld.patches:
+            for i, ly in enumerate(p.orch.profile.layers):
+                p.orch.water_state.theta[i] = ly.saturation
+
+
 def _maybe_inject_stress_weather(s: GameSession) -> None:
     """Inject extreme weather for debug stress testing.
 
@@ -484,6 +502,8 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                 p.recorder.clear()
                 p.recorder.set_day(s.day_index + i)
         drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
+        # Debug: force saturation before step so redox sees high WFPS
+        _maybe_force_saturation(s, rec)
         s.field_manager.step_day(
             drivers=drivers,
             tmin_c=rec.tmin_c,

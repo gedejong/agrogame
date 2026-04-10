@@ -170,6 +170,25 @@ const EVENT_CONFIG := {
 		"label": "Soil CO2 \u2191",
 		"z_slot": 0.4,
 	},
+	"N2OEmitted":
+	{
+		"color": COLOR_NO3,
+		"color_end": COLOR_CO2,
+		"substance": "nitrogen",
+		"direction": "up",
+		"mag_key": "amount_kg_n_ha",
+		"label": "N\u2082O \u2191",
+		"z_slot": 0.25,
+	},
+	"CH4Emitted":
+	{
+		"color": COLOR_CARBON,
+		"substance": "carbon",
+		"direction": "up",
+		"mag_key": "amount_kg_c_ha",
+		"label": "CH\u2084 \u2191",
+		"z_slot": 0.5,
+	},
 }
 
 ## Valid cycle filter values.
