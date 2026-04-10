@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- N₂O (nitrous oxide): linear molecule N=N=O + upward arrow (emission) -->
+  <!-- Glassmorphism backing -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!--
+    N₂O is linear: N—N—O
+    3 atoms in a row, centered at (8, 9)
+    Atom 1 (N): (4, 9)
+    Atom 2 (N): (8, 9)
+    Atom 3 (O): (12, 9)
+  -->
+  <!-- Bonds -->
+  <rect x="4" y="8.6" width="8" height="0.8" rx="0.3" fill="#33B833"/>
+  <!-- Atoms: 2 green N, 1 slightly different green-yellow O -->
+  <circle cx="4" cy="9" r="1.6" fill="#33B833"/>
+  <circle cx="8" cy="9" r="1.6" fill="#33B833"/>
+  <circle cx="12" cy="9" r="1.6" fill="#55CC55"/>
+  <!-- Upward emission arrow -->
+  <polygon points="8,1.5 5.5,5 7,5 7,7 9,7 9,5 10.5,5" fill="#AADDAA" opacity="0.7"/>
+</svg>

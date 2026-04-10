@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- Anaerobic stress: O₂ molecule with red prohibition sign -->
+  <!-- Glassmorphism backing -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
+  <!-- O₂ molecule (two blue oxygen atoms with bond) -->
+  <rect x="5.5" y="7.5" width="5" height="1" rx="0.3" fill="#60A5FA"/>
+  <circle cx="5.5" cy="8" r="1.8" fill="#60A5FA"/>
+  <circle cx="10.5" cy="8" r="1.8" fill="#60A5FA"/>
+  <!-- Red prohibition: ring + diagonal slash, all as filled paths -->
+  <!-- Outer ring (thick donut) -->
+  <path d="M8,1.5 A6.5,6.5 0 1,1 7.99,1.5 Z M8,3 A5,5 0 1,0 8.01,3 Z" fill="#DD3333" fill-rule="evenodd"/>
+  <!-- Diagonal slash bar -->
+  <rect x="7.2" y="1" width="1.6" height="14" rx="0.6" fill="#DD3333" transform="rotate(45 8 8)"/>
+</svg>
