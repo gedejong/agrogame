@@ -379,7 +379,8 @@ def _maybe_force_saturation(s: GameSession, rec: WeatherRecord) -> None:
 
     if not os.environ.get("AGROGAME_STRESS_WEATHER"):
         return
-    if (rec.precip_mm or 0.0) < 50.0:
+    # Force saturation on all stress weather days (precip >= 50mm)
+    if (rec.precip_mm or 0.0) < 40.0:
         return
     for fld in s.field_manager.fields.values():
         for p in fld.patches:
@@ -399,12 +400,17 @@ def _maybe_inject_stress_weather(s: GameSession) -> None:
     if not os.environ.get("AGROGAME_STRESS_WEATHER"):
         return
     for i, rec in enumerate(s.weather):
-        # Every 3rd day: frost + heavy rain (always visible on any step)
-        if i % 3 == 0 and i >= 10:
+        if i < 10:
+            continue
+        # Cycle: frost, heat, heavy rain (waterlogging)
+        phase = i % 3
+        if phase == 0:
             s.weather[i] = replace(rec, tmin_c=-5.0, tmax_c=2.0, precip_mm=80.0)
-        # Every 3rd day offset: heat wave
-        elif i % 3 == 1 and i >= 10:
-            s.weather[i] = replace(rec, tmin_c=25.0, tmax_c=40.0)
+        elif phase == 1:
+            s.weather[i] = replace(rec, tmin_c=25.0, tmax_c=40.0, precip_mm=80.0)
+        else:
+            # All remaining days: heavy rain for persistent waterlogging
+            s.weather[i] = replace(rec, precip_mm=80.0)
 
 
 def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:

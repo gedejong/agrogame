@@ -179,6 +179,8 @@ const EVENT_CONFIG := {
 		"mag_key": "amount_kg_n_ha",
 		"label": "N\u2082O \u2191",
 		"z_slot": 0.25,
+		"min_display": 0.0005,
+		"norm_scale": 0.1,
 	},
 	"CH4Emitted":
 	{
@@ -188,6 +190,8 @@ const EVENT_CONFIG := {
 		"mag_key": "amount_kg_c_ha",
 		"label": "CH\u2084 \u2191",
 		"z_slot": 0.5,
+		"min_display": 0.0005,
+		"norm_scale": 0.1,
 	},
 }
 
@@ -657,7 +661,7 @@ func _build_tube_config(
 	var substance: String = ecfg.get("substance", "water")
 	var always_label: bool = ecfg.get("always_show_label", false)
 	# Skip tube if value too small to display meaningfully
-	var min_display: float = 0.01
+	var min_display: float = ecfg.get("min_display", 0.01)
 	if mag < min_display:
 		return {}
 	# Format value in active display unit
@@ -684,11 +688,14 @@ func _build_tube_config(
 	# Single scale per unit so cross-substance comparison is meaningful:
 	# 0.004 kg/ha P should look tiny next to 7 kg/ha decomposition.
 	var norm_mag: float = 0.0
-	if substance == "water":
+	var norm_scale: float = ecfg.get("norm_scale", 0.0)
+	if norm_scale > 0.0:
+		# Per-event custom scale (e.g., CH4 at 0.001-0.01 kg/ha range)
+		norm_mag = clampf(mag / norm_scale, 0.01, 1.0)
+	elif substance == "water":
 		norm_mag = clampf(mag / 5.0, 0.0, 1.0)
 	else:
 		# All kg/ha substances on the same scale: 0-10 kg/ha = 0-1
-		# P at 0.004 → 0.0004, Nitrif at 3 → 0.3, Decomp at 50 → capped 1.0
 		norm_mag = clampf(mag / 10.0, 0.0, 1.0)
 
 	# WaterInfiltrated uses "layer_indices" array; others use "layer" or "from_layer"
