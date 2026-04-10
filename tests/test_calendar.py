@@ -24,6 +24,7 @@ def test_calendar_emits_phased_daytick_in_order() -> None:
         "day_start",
         "chemistry",
         "water",
+        "redox",
         "plant_structure",
         "et",
         "nutrients",

@@ -18,6 +18,28 @@ class PhosphorusRuntime:
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self._stress = StressCalculator("liebig")
+        from agrogame.soil.redox.events import RedoxChanged
+
+        self.event_bus.subscribe(RedoxChanged, self._on_redox_changed)
+
+    def _on_redox_changed(self, ev: object) -> None:
+        """Release fixed P when Eh drops below Fe(III) reduction threshold.
+
+        Ref: Patrick & Khalid 1974, Science — Fe-P release under reducing.
+        """
+        eh = getattr(ev, "eh_mv", 400.0)
+        layer = getattr(ev, "layer", None)
+        if layer is None or eh >= 100.0:
+            return
+        state = self.cycle.state
+        if layer >= len(state.fixed_p):
+            return
+        # Release fraction of fixed P proportional to reducing severity
+        release_frac = 0.005 * min(1.0, (100.0 - eh) / 200.0)
+        released = state.fixed_p[layer] * release_frac
+        if released > 0.0:
+            state.fixed_p[layer] -= released
+            state.available_p[layer] += released
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":

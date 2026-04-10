@@ -30,6 +30,7 @@ class Calendar:
                 "day_start",
                 "chemistry",
                 "water",
+                "redox",
                 "plant_structure",
                 "et",
                 "nutrients",
