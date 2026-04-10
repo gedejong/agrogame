@@ -369,6 +369,25 @@ def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     _maybe_inject_stress_weather(s)
 
 
+def _maybe_force_saturation(s: GameSession, rec: WeatherRecord) -> None:
+    """Force soil saturation on heavy-rain stress days for redox validation.
+
+    Only active when AGROGAME_STRESS_WEATHER is set. Sets theta to
+    saturation so the redox phase computes low Eh values.
+    """
+    import os
+
+    if not os.environ.get("AGROGAME_STRESS_WEATHER"):
+        return
+    # Force saturation on all stress weather days (precip >= 50mm)
+    if (rec.precip_mm or 0.0) < 40.0:
+        return
+    for fld in s.field_manager.fields.values():
+        for p in fld.patches:
+            for i, ly in enumerate(p.orch.profile.layers):
+                p.orch.water_state.theta[i] = ly.saturation
+
+
 def _maybe_inject_stress_weather(s: GameSession) -> None:
     """Inject extreme weather for debug stress testing.
 
@@ -381,12 +400,17 @@ def _maybe_inject_stress_weather(s: GameSession) -> None:
     if not os.environ.get("AGROGAME_STRESS_WEATHER"):
         return
     for i, rec in enumerate(s.weather):
-        # Every 3rd day: frost + heavy rain (always visible on any step)
-        if i % 3 == 0 and i >= 10:
+        if i < 10:
+            continue
+        # Cycle: frost, heat, heavy rain (waterlogging)
+        phase = i % 3
+        if phase == 0:
             s.weather[i] = replace(rec, tmin_c=-5.0, tmax_c=2.0, precip_mm=80.0)
-        # Every 3rd day offset: heat wave
-        elif i % 3 == 1 and i >= 10:
-            s.weather[i] = replace(rec, tmin_c=25.0, tmax_c=40.0)
+        elif phase == 1:
+            s.weather[i] = replace(rec, tmin_c=25.0, tmax_c=40.0, precip_mm=80.0)
+        else:
+            # All remaining days: heavy rain for persistent waterlogging
+            s.weather[i] = replace(rec, precip_mm=80.0)
 
 
 def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
@@ -484,6 +508,8 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                 p.recorder.clear()
                 p.recorder.set_day(s.day_index + i)
         drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
+        # Debug: force saturation before step so redox sees high WFPS
+        _maybe_force_saturation(s, rec)
         s.field_manager.step_day(
             drivers=drivers,
             tmin_c=rec.tmin_c,

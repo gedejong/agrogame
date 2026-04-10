@@ -24,6 +24,8 @@ from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
+from agrogame.soil.redox.module import RedoxModule
+from agrogame.soil.redox.events import N2OEmitted
 from agrogame.soil.microbes.events import (
     MicrobialActivityComputed,
     MicrobialFBUpdated,
@@ -210,6 +212,7 @@ class NitrogenCycle:
         plant_demand_kg_ha: float = 0.0,
         root_fractions: list[float] | None = None,
         ph_by_layer: list[float] | None = None,
+        eh_by_layer: list[float] | None = None,
     ) -> NitrogenFluxes:
         """Process daily N transformations and return diagnostics.
 
@@ -251,7 +254,8 @@ class NitrogenCycle:
             nitrified += self._nitrify_layer(
                 i, temp_factor, moisture_nitrif, nitrif_aeration, ph_factor
             )
-            denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor)
+            eh = eh_by_layer[i] if eh_by_layer and i < len(eh_by_layer) else 200.0
+            denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor, eh)
 
         volatilized = self._volatilize_surface(temp_factor)
 
@@ -401,7 +405,11 @@ class NitrogenCycle:
         return dn
 
     def _denitrify_layer(
-        self, idx: int, temp_factor: float, anaerobic_factor: float
+        self,
+        idx: int,
+        temp_factor: float,
+        anaerobic_factor: float,
+        eh_mv: float = 200.0,
     ) -> float:
         no3 = self.state.no3[idx]
         if no3 <= 0.0 or anaerobic_factor <= 0.0:
@@ -412,6 +420,15 @@ class NitrogenCycle:
             return 0.0
         self.state.no3[idx] -= dd
         self.event_bus.emit(DenitrificationOccurred(layer=idx, amount_kg_ha=dd))
+        # N2O/N2 partitioning based on Eh
+        # Ref: Firestone & Davidson 1989; Weier et al. 1993
+        n2o_frac = RedoxModule.n2o_fraction(eh_mv)
+        n2o = dd * n2o_frac
+        n2 = dd - n2o
+        if n2o > 0.0:
+            self.event_bus.emit(
+                N2OEmitted(layer=idx, amount_kg_n_ha=n2o, n2_amount_kg_n_ha=n2)
+            )
         return dd
 
     def _volatilize_surface(self, temp_factor: float) -> float:

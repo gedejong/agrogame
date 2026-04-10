@@ -36,6 +36,8 @@ from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
 from agrogame.sim.management import ManagementPlan
 from agrogame.soil.som.runtime import SOMRuntime
+from agrogame.soil.redox import RedoxModule, RedoxParams, RedoxState
+from agrogame.soil.redox.runtime import RedoxRuntime
 
 
 class SimulationOrchestrator:
@@ -132,6 +134,7 @@ class SoilSnapshot:
     som_intermediate_n: list[float] = field(default_factory=list)
     som_stable_c: list[float] = field(default_factory=list)
     som_stable_n: list[float] = field(default_factory=list)
+    redox_eh: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -154,6 +157,7 @@ class SoilSnapshot:
             "som_intermediate_n": list(self.som_intermediate_n),
             "som_stable_c": list(self.som_stable_c),
             "som_stable_n": list(self.som_stable_n),
+            "redox_eh": list(self.redox_eh),
         }
 
     @classmethod
@@ -178,6 +182,7 @@ class SoilSnapshot:
             som_intermediate_n=list(data.get("som_intermediate_n", [])),
             som_stable_c=list(data.get("som_stable_c", [])),
             som_stable_n=list(data.get("som_stable_n", [])),
+            redox_eh=list(data.get("redox_eh", [])),
         )
 
 
@@ -265,6 +270,11 @@ class FullSimulationOrchestrator:
         )
         # Chemistry emits pH events used by N/P
         self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
+        # Redox dynamics — Eh computation, CH4 production (AGRO-73)
+        self.redox_state = RedoxState.from_layers(len(profile.layers))
+        self.redox = RedoxModule(
+            RedoxParams(), self.redox_state, event_bus=self.event_bus
+        )
         # ET model (emits transpiration/evaporation related events via water model)
         self.et = Evapotranspiration(et_params or EtParams())
         # Calendar for phased daily progression
@@ -298,6 +308,7 @@ class FullSimulationOrchestrator:
             _evap_state=EtState(),
             _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
         )
+        _ = RedoxRuntime(self.event_bus, self.redox, self.profile, self.water_state)
         _ = NitrogenRuntime(self.event_bus, self.n_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
         self._som_runtime = SOMRuntime(
@@ -354,6 +365,7 @@ class FullSimulationOrchestrator:
             som_intermediate_n=self._som_pool_lists("intermediate.n_kg_ha"),
             som_stable_c=self._som_pool_lists("stable.c_kg_ha"),
             som_stable_n=self._som_pool_lists("stable.n_kg_ha"),
+            redox_eh=list(self.redox_state.eh_mv),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -382,6 +394,14 @@ class FullSimulationOrchestrator:
                 som_ly.intermediate.n_kg_ha = snapshot.som_intermediate_n[i]
                 som_ly.stable.c_kg_ha = snapshot.som_stable_c[i]
                 som_ly.stable.n_kg_ha = snapshot.som_stable_n[i]
+        if snapshot.redox_eh:
+            self.redox_state.eh_mv = list(snapshot.redox_eh)
+            # Re-derive dominant acceptor from restored Eh values
+            for i, eh in enumerate(self.redox_state.eh_mv):
+                if i < len(self.redox_state.dominant_acceptor):
+                    self.redox_state.dominant_acceptor[i] = (
+                        RedoxModule._classify_acceptor(eh)
+                    )
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
@@ -440,6 +460,9 @@ class FullSimulationOrchestrator:
         )
         self.chem = SoilChemistryModule(
             self.event_bus, n_layers=len(self.profile.layers)
+        )
+        self.redox = RedoxModule(
+            RedoxParams(), self.redox_state, event_bus=self.event_bus
         )
         self.calendar = Calendar(self.event_bus)
 
