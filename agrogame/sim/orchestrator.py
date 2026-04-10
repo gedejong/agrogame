@@ -144,6 +144,9 @@ class SoilSnapshot:
     micro_fe_avail: list[float] = field(default_factory=list)
     micro_zn_avail: list[float] = field(default_factory=list)
     micro_mn_avail: list[float] = field(default_factory=list)
+    micro_fe_total: list[float] = field(default_factory=list)
+    micro_zn_total: list[float] = field(default_factory=list)
+    micro_mn_total: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -170,6 +173,9 @@ class SoilSnapshot:
             "micro_fe_avail": list(self.micro_fe_avail),
             "micro_zn_avail": list(self.micro_zn_avail),
             "micro_mn_avail": list(self.micro_mn_avail),
+            "micro_fe_total": list(self.micro_fe_total),
+            "micro_zn_total": list(self.micro_zn_total),
+            "micro_mn_total": list(self.micro_mn_total),
         }
 
     @classmethod
@@ -198,6 +204,9 @@ class SoilSnapshot:
             micro_fe_avail=list(data.get("micro_fe_avail", [])),
             micro_zn_avail=list(data.get("micro_zn_avail", [])),
             micro_mn_avail=list(data.get("micro_mn_avail", [])),
+            micro_fe_total=list(data.get("micro_fe_total", [])),
+            micro_zn_total=list(data.get("micro_zn_total", [])),
+            micro_mn_total=list(data.get("micro_mn_total", [])),
         )
 
 
@@ -390,6 +399,9 @@ class FullSimulationOrchestrator:
             micro_fe_avail=list(self.micro_state.fe_available),
             micro_zn_avail=list(self.micro_state.zn_available),
             micro_mn_avail=list(self.micro_state.mn_available),
+            micro_fe_total=list(self.micro_state.fe_total),
+            micro_zn_total=list(self.micro_state.zn_total),
+            micro_mn_total=list(self.micro_state.mn_total),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -431,6 +443,10 @@ class FullSimulationOrchestrator:
             self.micro_state.fe_available = list(snapshot.micro_fe_avail)
             self.micro_state.zn_available = list(snapshot.micro_zn_avail)
             self.micro_state.mn_available = list(snapshot.micro_mn_avail)
+        if snapshot.micro_fe_total:
+            self.micro_state.fe_total = list(snapshot.micro_fe_total)
+            self.micro_state.zn_total = list(snapshot.micro_zn_total)
+            self.micro_state.mn_total = list(snapshot.micro_mn_total)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.

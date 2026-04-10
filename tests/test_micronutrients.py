@@ -5,9 +5,11 @@ Literature-cited quantitative assertions for scientific accuracy.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
 from agrogame.events import EventBus
+from agrogame.soil.water.types import DailyDrivers
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -188,6 +190,42 @@ def test_snapshot_preserves_micronutrients() -> None:
     orch.micro_state.fe_available[0] = 15.0
     orch.restore_soil(snap)
     assert orch.micro_state.fe_available[0] == 5.0
+
+
+def test_multi_season_pool_continuity() -> None:
+    """Micronutrient pools should persist across harvest + reset_crop.
+
+    Amendment in season 1 should still be visible in season 2.
+    """
+
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    orch = FullSimulationOrchestrator(
+        soils.soils["loam_temperate"],
+        event_bus=EventBus(),
+        crop=crops.crops["maize"],
+    )
+    # Apply Zn amendment in season 1
+    orch.micro_cycle.apply_amendment("zn", 1000.0)
+    start = date(2024, 5, 1)
+    for d in range(10):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=3.0),
+            tmin_c=15.0,
+            tmax_c=28.0,
+            par_mj_m2=18.0,
+            sim_date=start + timedelta(days=d),
+        )
+    # Harvest and reset
+    _ = orch.harvest()
+    orch.reset_crop(crops.crops["spring_wheat"])
+    # Verify pools persisted
+    assert (
+        orch.micro_state.zn_total[0] > 60.0
+    ), "Zn total should reflect amendment from season 1"
+    assert (
+        orch.micro_state.zn_available[0] > 0.5
+    ), "Zn available should persist across seasons"
 
 
 def test_high_ph_reduces_fe_availability() -> None:

@@ -25,7 +25,7 @@ class NutrientStressComputed(BaseEvent):
     """Nutrient stress signals computed from uptake vs demand proxies.
 
     Attributes:
-        nutrient: "N" or "P".
+        nutrient: "N", "P", "Fe", "Zn", or "Mn".
         uptake_kg_ha: Actual plant uptake (kg/ha) during the day.
         demand_kg_ha: Plant demand (kg/ha) requested for the day.
         stress: Computed stress factor in 0..1 (uptake/demand clamped).

@@ -47,7 +47,12 @@ DEFAULT_DEMAND_FE_G_HA = 300.0
 DEFAULT_DEMAND_ZN_G_HA = 150.0
 DEFAULT_DEMAND_MN_G_HA = 200.0
 
-# Soil bulk density for ppm → kg/ha conversion (typical loam).
+# Soil bulk density for ppm → g/ha conversion (typical loam).
 BULK_DENSITY_KG_M3 = 1300.0
-# Layer depth for conversion (cm → m).
 DEFAULT_LAYER_DEPTH_CM = 30.0
+
+# Conversion factor: ppm (mg/kg) ↔ g/ha for a single layer.
+# soil_mass = bulk_density * depth_m * 10_000 m²/ha = 3,900,000 kg
+# 1 ppm = 1 mg/kg = 3,900,000 mg = 3,900 g per ha
+# So: g/ha = ppm * PPM_TO_G_HA; ppm = g/ha / PPM_TO_G_HA
+PPM_TO_G_HA = BULK_DENSITY_KG_M3 * (DEFAULT_LAYER_DEPTH_CM / 100.0) * 10_000 / 1_000

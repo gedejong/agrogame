@@ -124,13 +124,9 @@ class MicronutrientCycle:
         """
         if layer >= self._n_layers:
             return
-        # Convert g/ha to ppm: ppm = g_ha / (bulk_density * depth * 10)
-        from agrogame.soil.micronutrients.constants import (
-            BULK_DENSITY_KG_M3,
-            DEFAULT_LAYER_DEPTH_CM,
-        )
+        from agrogame.soil.micronutrients.constants import PPM_TO_G_HA
 
-        ppm = amount_g_ha / (BULK_DENSITY_KG_M3 * DEFAULT_LAYER_DEPTH_CM * 0.01)
+        ppm = amount_g_ha / PPM_TO_G_HA
         avail = getattr(self.state, f"{element}_available", None)
         total = getattr(self.state, f"{element}_total", None)
         if avail is not None and total is not None and layer < len(avail):
@@ -177,21 +173,16 @@ class MicronutrientCycle:
         """Extract micronutrient from available pools by root distribution."""
         if demand_g_ha <= 0.0:
             return 0.0
-        from agrogame.soil.micronutrients.constants import (
-            BULK_DENSITY_KG_M3,
-            DEFAULT_LAYER_DEPTH_CM,
-        )
+        from agrogame.soil.micronutrients.constants import PPM_TO_G_HA
 
         avail = getattr(self.state, f"{element}_available")
         taken_total = 0.0
         n = min(self._n_layers, len(root_fractions))
         for i in range(n):
             want = demand_g_ha * root_fractions[i]
-            # Convert available ppm to g/ha for comparison
-            avail_g_ha = avail[i] * BULK_DENSITY_KG_M3 * DEFAULT_LAYER_DEPTH_CM * 0.01
+            avail_g_ha = avail[i] * PPM_TO_G_HA
             take = min(want, avail_g_ha * 0.05)  # max 5% of pool per day
-            # Convert back to ppm reduction
-            ppm_taken = take / (BULK_DENSITY_KG_M3 * DEFAULT_LAYER_DEPTH_CM * 0.01)
+            ppm_taken = take / PPM_TO_G_HA
             avail[i] = max(0.0, avail[i] - ppm_taken)
             taken_total += take
         return taken_total
