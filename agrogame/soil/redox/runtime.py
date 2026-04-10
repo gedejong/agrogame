@@ -9,6 +9,7 @@ from agrogame.sim.calendar_events import DayTick
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.redox.module import RedoxModule
+from agrogame.plant.roots.events import RootDistributionUpdated
 
 
 @dataclass
@@ -30,14 +31,10 @@ class RedoxRuntime:
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
-        from agrogame.plant.roots.events import RootDistributionUpdated
-
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
 
-    def _on_root_distribution(self, ev: object) -> None:
-        fracs = getattr(ev, "fractions", None)
-        if fracs is not None:
-            self._root_fractions = list(fracs)
+    def _on_root_distribution(self, ev: RootDistributionUpdated) -> None:
+        self._root_fractions = list(ev.fractions)
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase == "chemistry":
