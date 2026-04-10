@@ -274,7 +274,9 @@ func _add_bar_row(
 	elif mass_type == "carbon":
 		display_val = UiTheme.to_display_mass_from_gm2(val)
 		unit = UiTheme.carbon_label()
-	if label == "pH" or label == "Eh":
+	if label == "pH":
+		val_lbl.text = "%.1f" % val
+	elif label == "Eh":
 		val_lbl.text = "%.0f" % val
 	elif display_val >= 100.0:
 		val_lbl.text = "%.0f" % display_val
