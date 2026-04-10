@@ -69,6 +69,17 @@ class SoilStateResponse(BaseModel):
         description="Dominant electron acceptor per layer (O2, NO3, Fe3+, CH4)",
     )
 
+    # Micronutrients (AGRO-214)
+    fe_available: list[float] = Field(
+        default_factory=list, description="Plant-available Fe per layer (ppm)"
+    )
+    zn_available: list[float] = Field(
+        default_factory=list, description="Plant-available Zn per layer (ppm)"
+    )
+    mn_available: list[float] = Field(
+        default_factory=list, description="Plant-available Mn per layer (ppm)"
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
@@ -164,6 +175,9 @@ class DailySnapshot(BaseModel):
     soil_theta_surface: float = 0.0
     n_available_total: float = 0.0
     redox_eh_surface: float = 400.0
+    fe_available_surface: float = 10.0
+    zn_available_surface: float = 1.2
+    mn_available_surface: float = 18.0
     rain_mm: float = 0.0
     events: list[dict] = Field(
         default_factory=list,

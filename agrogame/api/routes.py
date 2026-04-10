@@ -75,6 +75,15 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
         microbe_c=list(snap.microbe_c),
         redox_eh=[round(e, 1) for e in redox_eh],
         dominant_acceptor=redox_acceptors,
+        fe_available=(
+            [round(v, 2) for v in snap.micro_fe_avail] if snap.micro_fe_avail else []
+        ),
+        zn_available=(
+            [round(v, 3) for v in snap.micro_zn_avail] if snap.micro_zn_avail else []
+        ),
+        mn_available=(
+            [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
+        ),
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -544,6 +553,21 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
                         n_available_total=round(n_total, 1),
                         redox_eh_surface=(
                             round(snap.redox_eh[0], 1) if snap.redox_eh else 400.0
+                        ),
+                        fe_available_surface=(
+                            round(snap.micro_fe_avail[0], 2)
+                            if snap.micro_fe_avail
+                            else 10.0
+                        ),
+                        zn_available_surface=(
+                            round(snap.micro_zn_avail[0], 3)
+                            if snap.micro_zn_avail
+                            else 1.2
+                        ),
+                        mn_available_surface=(
+                            round(snap.micro_mn_avail[0], 2)
+                            if snap.micro_mn_avail
+                            else 18.0
                         ),
                         rain_mm=round(rec.precip_mm or 0.0, 1),
                         events=patch_events,
