@@ -473,3 +473,74 @@ def test_runtime_microbes_fungal_update() -> None:
     bus.emit(MicrobialFBUpdated(layer=0, fungal_fraction=0.8))
     assert rt._fungal_fractions is not None
     assert rt._fungal_fractions[0] == 0.8
+
+
+# --- B1: Cardinal temperature function ---
+
+
+def test_temp_factor_declines_above_optimum() -> None:
+    """Formation rate should decline above optimum temperature.
+
+    At 40C (near Tmax=42), formation should be near zero.
+    Ref: enzyme denaturation above ~35C.
+    """
+    state = SoilAggregationState.from_layers(1)
+    module = AggregationModule(SoilAggregationParams(), state)
+    f_25 = module._temp_factor(25.0)
+    f_35 = module._temp_factor(35.0)
+    f_40 = module._temp_factor(40.0)
+    f_45 = module._temp_factor(45.0)
+    assert f_25 == 1.0, f"Optimum should be 1.0, got {f_25}"
+    assert f_35 < f_25, f"35C ({f_35}) should be < 25C ({f_25})"
+    assert f_40 < 0.2, f"40C should be near zero, got {f_40}"
+    assert f_45 == 0.0, f"Above Tmax should be 0.0, got {f_45}"
+
+
+def test_temp_factor_zero_below_minimum() -> None:
+    """Formation rate should be 0 at or below Tmin (2C)."""
+    state = SoilAggregationState.from_layers(1)
+    module = AggregationModule(SoilAggregationParams(), state)
+    assert module._temp_factor(2.0) == 0.0
+    assert module._temp_factor(-5.0) == 0.0
+    assert module._temp_factor(5.0) > 0.0
+
+
+# --- B2: Tillage plow depth ---
+
+
+def test_tillage_only_affects_plow_depth() -> None:
+    """Tillage at intensity=1.0 should not affect layers below plow depth.
+
+    Default plow_depth_cm=30. With layers [20, 20, 30, 30] cm,
+    only layers 0 and 1 (cumulative 40cm, but layer 0 starts at 0
+    and layer 1 starts at 20 < 30) should be affected.
+    """
+    state = SoilAggregationState.from_layers(4)
+    for i in range(4):
+        state.macro[i] = 0.50
+        state.meso[i] = 0.30
+        state.micro[i] = 0.20
+    module = AggregationModule(SoilAggregationParams(), state)
+    # Layer depths: [20, 20, 30, 30] cm → cumulative [20, 40, 70, 100]
+    # Plow depth = 30cm * 1.0 = 30cm → layers 0 (0-20) and 1 (20-40)
+    # Layer 2 starts at 40 > 30 → should NOT be affected
+    module.apply_tillage(1.0, layer_depths_cm=[20.0, 20.0, 30.0, 30.0])
+    assert state.macro[0] < 0.50, "Layer 0 should be tilled"
+    assert state.macro[1] < 0.50, "Layer 1 should be tilled"
+    assert state.macro[2] == 0.50, "Layer 2 (below plow) should be untouched"
+    assert state.macro[3] == 0.50, "Layer 3 (below plow) should be untouched"
+
+
+# --- S1: Negative fraction clamping ---
+
+
+def test_normalize_clamps_negative() -> None:
+    """Normalize should clamp negative fractions to zero."""
+    state = SoilAggregationState.from_layers(1)
+    state.micro[0] = -0.05
+    state.meso[0] = 0.55
+    state.macro[0] = 0.50
+    state.normalize(0)
+    assert state.micro[0] == 0.0
+    total = state.micro[0] + state.meso[0] + state.macro[0]
+    assert abs(total - 1.0) < 1e-6

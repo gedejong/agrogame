@@ -61,7 +61,9 @@ class AggregationModule:
             ) + p.fungal_formation_weight * min(ff, 1.0)
             bio_activity = min(bio_activity, 1.0)
 
-            # Micro → meso formation (clay flocculation + organic binding)
+            # Micro → meso formation: baseline from abiotic clay flocculation
+            # (rate > 0 even without roots/fungi), boosted up to 2x by biology.
+            # Ref: Tisdall & Oades 1982 — transient vs persistent binding agents.
             meso_gain = (
                 p.meso_formation_rate_per_week * temp_factor * (1.0 + bio_activity)
             )
@@ -78,17 +80,27 @@ class AggregationModule:
             self.state.normalize(i)
             self._emit_update(i)
 
-    def apply_tillage(self, intensity: float) -> None:
-        """Apply tillage disturbance to all layers.
+    def apply_tillage(
+        self,
+        intensity: float,
+        layer_depths_cm: list[float] | None = None,
+    ) -> None:
+        """Apply tillage disturbance to plow-depth layers only.
 
         Destroys macroaggregates proportional to intensity (0–1).
         Destroyed macro redistributes to meso (70%) and micro (30%).
+        Only affects layers within plow depth (scales with intensity).
 
         Ref: Six et al. 2000, SSSAJ — tillage destroys 30–70% of macroaggregates.
 
         Args:
             intensity: Tillage intensity (0.0 = no-till, 1.0 = moldboard plow).
+            layer_depths_cm: Per-layer thickness. If None, all layers affected.
         """
+        import math
+
+        if math.isnan(intensity):
+            return
         intensity = max(0.0, min(1.0, intensity))
         if intensity <= 0.0:
             return
@@ -101,8 +113,16 @@ class AggregationModule:
             * intensity
         )
 
+        # Plow depth scales with intensity (light tillage = shallower)
+        plow_depth = p.plow_depth_cm * intensity
         n = len(self.state.micro)
+        cumulative_depth = 0.0
         for i in range(n):
+            # Only affect layers within plow depth
+            if layer_depths_cm is not None and i < len(layer_depths_cm):
+                cumulative_depth += layer_depths_cm[i]
+                if cumulative_depth - layer_depths_cm[i] >= plow_depth:
+                    break
             macro_lost = self.state.macro[i] * destruction_frac
             # Redistribute: 70% → meso, 30% → micro
             # Ref: Six et al. 2004 — breakdown products are mostly meso-sized
@@ -190,19 +210,27 @@ class AggregationModule:
             )
 
     def _temp_factor(self, temperature_c: float) -> float:
-        """Temperature scaling for biological formation.
+        """Cardinal temperature function for biological formation.
 
-        Q10 function centered on optimum temperature.
-        Returns 0–1 multiplier; peaks at 1.0 at optimum.
+        Bell-shaped: 0 at Tmin and Tmax, 1.0 at Topt.
+        Ref: Yan & Hunt 1999, Annals of Botany — beta function model;
+             used in APSIM/DSSAT for biological rate scaling.
         """
         p = self.params
-        if temperature_c <= 0.0:
+        if temperature_c <= p.temp_min_c or temperature_c >= p.temp_max_c:
             return 0.0
-        diff = temperature_c - p.temp_formation_optimum_c
-        factor = p.temp_formation_q10 ** (diff / 10.0)
-        # Cap at 1.0 (optimum) and scale down for cold.
-        # TODO: add decline above ~35°C (enzyme denaturation).
-        return float(min(1.0, factor))
+        # Normalized position: 0 at Tmin, 1 at Topt
+        num = temperature_c - p.temp_min_c
+        denom = p.temp_optimum_c - p.temp_min_c
+        if denom <= 0.0:
+            return 0.0
+        ratio = num / denom
+        # Declining above optimum: linear ramp to 0 at Tmax
+        if temperature_c > p.temp_optimum_c:
+            above = (p.temp_max_c - temperature_c) / (p.temp_max_c - p.temp_optimum_c)
+            return max(0.0, above)
+        # Below optimum: concave ramp (square root shape for smooth onset)
+        return min(1.0, ratio)
 
     def _emit_update(self, layer: int) -> None:
         if self.event_bus:

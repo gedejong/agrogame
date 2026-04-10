@@ -22,8 +22,8 @@ class SoilAggregationState:
     meso: list[float] = field(default_factory=list)
     macro: list[float] = field(default_factory=list)
 
-    @staticmethod
-    def from_layers(n_layers: int) -> SoilAggregationState:
+    @classmethod
+    def from_layers(cls, n_layers: int) -> SoilAggregationState:
         """Initialize with typical tilled agricultural soil.
 
         Start: 40% micro, 35% meso, 25% macro — moderate structure.
@@ -51,9 +51,12 @@ class SoilAggregationState:
         )
 
     def normalize(self, layer: int) -> None:
-        """Ensure fractions sum to 1.0."""
+        """Clamp to non-negative and ensure fractions sum to 1.0."""
         if layer >= len(self.micro):
             return
+        self.micro[layer] = max(0.0, self.micro[layer])
+        self.meso[layer] = max(0.0, self.meso[layer])
+        self.macro[layer] = max(0.0, self.macro[layer])
         total = self.micro[layer] + self.meso[layer] + self.macro[layer]
         if total > 0.0:
             self.micro[layer] /= total

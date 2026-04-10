@@ -32,8 +32,12 @@ class SoilAggregationParams:
             Ref: Le Bissonnais 1996, Catena.
         rain_threshold_mm: Daily rainfall above which raindrop impact matters.
         freeze_temp_c: Temperature threshold for freeze detection.
-        temp_formation_optimum_c: Optimal temperature for biological formation.
-        temp_formation_q10: Q10 for temperature scaling of formation.
+        temp_min_c: Minimum temperature for biological formation (cardinal).
+        temp_optimum_c: Optimal temperature for formation (cardinal).
+        temp_max_c: Lethal high temperature — formation ceases.
+            Ref: enzyme denaturation above ~40°C.
+        plow_depth_cm: Maximum tillage depth at intensity=1.0 (moldboard plow).
+            Ref: DSSAT — typical plow depth 20–30 cm.
     """
 
     macro_formation_rate_per_week: float = 0.015
@@ -47,5 +51,7 @@ class SoilAggregationParams:
     raindrop_surface_breakdown: float = 0.002
     rain_threshold_mm: float = 10.0
     freeze_temp_c: float = 0.0
-    temp_formation_optimum_c: float = 25.0
-    temp_formation_q10: float = 2.0
+    temp_min_c: float = 2.0
+    temp_optimum_c: float = 25.0
+    temp_max_c: float = 42.0
+    plow_depth_cm: float = 30.0

@@ -654,7 +654,8 @@ class FullSimulationOrchestrator:
         Args:
             intensity: Tillage intensity (0.0 = no-till, 1.0 = moldboard plow).
         """
-        self.agg_module.apply_tillage(intensity)
+        depths = [ly.depth_cm for ly in self.profile.layers]
+        self.agg_module.apply_tillage(intensity, layer_depths_cm=depths)
 
     def apply_fertilizer(
         self, fert_type: str, amount_kg_ha: float, layer: int = 0

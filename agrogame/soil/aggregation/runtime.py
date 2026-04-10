@@ -9,6 +9,7 @@ from agrogame.sim.calendar_events import DayTick
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.aggregation.module import AggregationModule
+from agrogame.soil.microbes.events import MicrobialFBUpdated
 from agrogame.plant.roots.events import RootDistributionUpdated
 
 
@@ -36,23 +37,17 @@ class AggregationRuntime:
         self._was_frozen: list[bool] = [False] * n
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
-        # Subscribe to microbial events for fungal fraction
-        from agrogame.soil.microbes.events import MicrobialFBUpdated
-
         self.event_bus.subscribe(MicrobialFBUpdated, self._on_microbes_updated)
 
     def _on_root_distribution(self, ev: RootDistributionUpdated) -> None:
         self._root_fractions = list(ev.fractions)
 
-    def _on_microbes_updated(self, ev: object) -> None:
-        ff = getattr(ev, "fungal_fraction", None)
-        layer = getattr(ev, "layer", None)
-        if ff is not None and layer is not None:
-            n = len(self.profile.layers)
-            if self._fungal_fractions is None:
-                self._fungal_fractions = [0.3] * n
-            if layer < n:
-                self._fungal_fractions[layer] = float(ff)
+    def _on_microbes_updated(self, ev: MicrobialFBUpdated) -> None:
+        n = len(self.profile.layers)
+        if self._fungal_fractions is None:
+            self._fungal_fractions = [0.3] * n
+        if ev.layer < n:
+            self._fungal_fractions[ev.layer] = ev.fungal_fraction
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "day_end":
