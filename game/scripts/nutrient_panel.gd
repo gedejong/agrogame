@@ -364,14 +364,12 @@ func _add_eh_row(parent: VBoxContainer, eh_mv: float, acceptor: String) -> void:
 	## Redox potential indicator with color-coded bar and acceptor label.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	# Icon (12x12)
-	var icon_path := "res://assets/icons/icon_eh.svg"
-	if ResourceLoader.exists(icon_path):
-		var icon := TextureRect.new()
-		icon.texture = load(icon_path)
-		icon.custom_minimum_size = Vector2(12, 12)
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		row.add_child(icon)
+	# Icon — small lightning bolt glyph matching other nutrient icon style
+	var icon_lbl := Label.new()
+	icon_lbl.text = "⚡"
+	icon_lbl.add_theme_font_size_override("font_size", 12)
+	icon_lbl.custom_minimum_size = Vector2(12, 12)
+	row.add_child(icon_lbl)
 	# Label
 	var lbl := Label.new()
 	lbl.text = "Eh"
