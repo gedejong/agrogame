@@ -37,3 +37,14 @@ func test_stress_color_ph_extreme() -> void:
 func test_stress_color_ph_optimal() -> void:
 	var c: Color = NutrientPanel._stress_color("pH", 6.5, 5.5, 7.5)
 	assert_eq(c, NutrientPanel.BAR_OK, "Optimal pH = green")
+
+
+func test_format_acceptor_all_values() -> void:
+	assert_eq(NutrientPanel._format_acceptor("O2"), "O\u2082")
+	assert_eq(NutrientPanel._format_acceptor("NO3"), "NO\u2083\u207b")
+	assert_eq(NutrientPanel._format_acceptor("Fe3+"), "Fe\u00b3\u207a")
+	assert_eq(NutrientPanel._format_acceptor("CH4"), "CH\u2084")
+
+
+func test_format_acceptor_unknown() -> void:
+	assert_eq(NutrientPanel._format_acceptor("Mn4+"), "Mn4+", "Unknown returns as-is")

@@ -193,6 +193,18 @@ const EVENT_CONFIG := {
 		"min_display": 0.0005,
 		"norm_scale": 0.1,
 	},
+	"CH4Oxidized":
+	{
+		"color": COLOR_CARBON,
+		"color_end": COLOR_CO2,
+		"substance": "carbon",
+		"direction": "down",
+		"mag_key": "amount_kg_c_ha",
+		"label": "CH\u2084 oxidation",
+		"z_slot": -0.10,
+		"min_display": 0.0005,
+		"norm_scale": 0.1,
+	},
 }
 
 ## Valid cycle filter values.

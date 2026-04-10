@@ -18,6 +18,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 5.0,
 		"opt_max": 60.0,
 		"mass_type": "mass",
+		"tooltip": "Nitrate — mobile plant nutrient, easily leached by rain",
 	},
 	"NH₄":
 	{
@@ -27,6 +28,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 3.0,
 		"opt_max": 80.0,
 		"mass_type": "mass",
+		"tooltip": "Ammonium — held by clay, converted to nitrate by bacteria",
 	},
 	"P":
 	{
@@ -36,6 +38,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 5.0,
 		"opt_max": 20.0,
 		"mass_type": "mass",
+		"tooltip": "Phosphorus — essential for roots and energy, easily locked up in soil",
 	},
 	"SOM":
 	{
@@ -45,6 +48,7 @@ const NUTRIENT_BARS := {
 		"opt_min": 200.0,
 		"opt_max": 2500.0,
 		"mass_type": "carbon",
+		"tooltip": "Soil organic matter — feeds microbes, improves structure and water holding",
 	},
 	"Water":
 	{
@@ -55,6 +59,7 @@ const NUTRIENT_BARS := {
 		"opt_max": 0.35,
 		"mass_type": "",
 		"unit": "m³/m³",
+		"tooltip": "Soil water content — too low causes drought, too high causes waterlogging",
 	},
 	"pH":
 	{
@@ -65,6 +70,7 @@ const NUTRIENT_BARS := {
 		"opt_max": 7.5,
 		"mass_type": "",
 		"unit": "",
+		"tooltip": "Soil acidity — most crops prefer pH 5.5-7.5; affects nutrient availability",
 	},
 	"Microbe":
 	{
@@ -74,12 +80,37 @@ const NUTRIENT_BARS := {
 		"opt_min": 50.0,
 		"opt_max": 250.0,
 		"mass_type": "carbon",
+		"tooltip": "Microbial biomass — decomposers that recycle nutrients from organic matter",
+	},
+	"Eh":
+	{
+		"color": UiTheme.SUBSTANCE_REDOX,
+		"icon": "",
+		"icon_glyph": "\u26a1",
+		"max": 450.0,
+		"opt_min": 200.0,
+		"opt_max": 450.0,
+		"mass_type": "",
+		"unit": "mV",
+		"tooltip":
+		(
+			"Redox potential — measures oxygen availability.\n"
+			+ "Green (>200): aerobic. Yellow (0-200): suboxic.\n"
+			+ "Red (<0): anaerobic, methane risk."
+		),
 	},
 }
 ## Functional accent colors per art guide
 const BAR_STRESS := UiTheme.ACCENT_RED
 const BAR_MARGINAL := UiTheme.ACCENT_GOLD
 const BAR_OK := UiTheme.ACCENT_GREEN
+
+## Eh display range and zone thresholds (mV).
+const EH_MIN_MV := -300.0
+const EH_MAX_MV := 450.0
+const EH_RANGE_MV := EH_MAX_MV - EH_MIN_MV
+const EH_OXIC_THRESHOLD := 200.0
+const EH_ANOXIC_THRESHOLD := 0.0
 
 var _flow_visible := true
 var _cycle_label: Label = null
@@ -90,16 +121,23 @@ var _active_filter: String = "all"
 func show_layers(layers_data: Array[Dictionary]) -> void:
 	_clear()
 	var style := UiTheme.create_panel_style(true)
-	style.content_margin_left = 12
-	style.content_margin_right = 12
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
 	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	add_child(margin)
+
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 4)
-	add_child(vbox)
+	vbox.add_theme_constant_override("separation", 6)
+	margin.add_child(vbox)
 
 	# Title
 	var title := Label.new()
@@ -126,10 +164,13 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
 		vbox.add_child(header)
 		var vals: Dictionary = layer.get("values", {})
+		var acc: String = layer.get("dominant_acceptor", "O2")
 		for key: String in NUTRIENT_BARS:
 			var cfg: Dictionary = NUTRIENT_BARS[key]
 			var val: float = vals.get(key, 0.0)
-			_add_bar_row(vbox, key, val, cfg)
+			# For Eh, append the dominant acceptor to the display
+			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
+			_add_bar_row(vbox, key, val, cfg, suffix)
 
 
 func hide_panel() -> void:
@@ -146,13 +187,15 @@ func _add_separator(parent: VBoxContainer) -> void:
 	var sep := HSeparator.new()
 	var s := StyleBoxFlat.new()
 	s.bg_color = UiTheme.SEPARATOR_COLOR
-	s.content_margin_top = 3
-	s.content_margin_bottom = 3
+	s.content_margin_top = 5
+	s.content_margin_bottom = 5
 	sep.add_theme_stylebox_override("separator", s)
 	parent.add_child(sep)
 
 
-func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Dictionary) -> void:
+func _add_bar_row(
+	parent: VBoxContainer, label: String, val: float, cfg: Dictionary, suffix: String = ""
+) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	var track_w := 100
@@ -161,13 +204,23 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var bar_y: int = (track_h - bar_h) / 2
 
 	# Icon (12×12)
+	# Icon column — fixed 14px wide for alignment
+	var icon_container := Control.new()
+	icon_container.custom_minimum_size = Vector2(14, 14)
 	var icon_path: String = cfg.get("icon", "")
 	if not icon_path.is_empty() and ResourceLoader.exists(icon_path):
 		var icon := TextureRect.new()
 		icon.texture = load(icon_path)
-		icon.custom_minimum_size = Vector2(12, 12)
+		icon.custom_minimum_size = Vector2(14, 14)
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		row.add_child(icon)
+		icon_container.add_child(icon)
+	elif cfg.get("icon_glyph", ""):
+		var glyph := Label.new()
+		glyph.text = cfg["icon_glyph"]
+		glyph.add_theme_font_size_override("font_size", 11)
+		glyph.add_theme_color_override("font_color", cfg.get("color", Color.WHITE))
+		icon_container.add_child(glyph)
+	row.add_child(icon_container)
 	# Label — nutrient name
 	var lbl := Label.new()
 	lbl.text = label
@@ -205,6 +258,8 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 	var bar_frac: float = clampf(val / maxf(max_val, 0.001), 0.0, 1.0)
 	if label == "pH":
 		bar_frac = clampf((val - 4.0) / (9.0 - 4.0), 0.0, 1.0)
+	elif label == "Eh":
+		bar_frac = clampf((val - EH_MIN_MV) / EH_RANGE_MV, 0.0, 1.0)
 	var bar_color: Color = _stress_color(label, val, opt_min, opt_max)
 	var bar_fill := ColorRect.new()
 	bar_fill.color = bar_color
@@ -234,6 +289,8 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		unit = UiTheme.carbon_label()
 	if label == "pH":
 		val_lbl.text = "%.1f" % val
+	elif label == "Eh":
+		val_lbl.text = "%.0f" % val
 	elif display_val >= 100.0:
 		val_lbl.text = "%.0f" % display_val
 	elif display_val >= 1.0:
@@ -242,10 +299,13 @@ func _add_bar_row(parent: VBoxContainer, label: String, val: float, cfg: Diction
 		val_lbl.text = "%.2f" % display_val
 	if not unit.is_empty():
 		val_lbl.text += " " + unit
+	val_lbl.text += suffix
 	val_lbl.add_theme_font_size_override("font_size", 9)
-	val_lbl.add_theme_color_override("font_color", UiTheme.VALUE_COLOR)
+	# Color value text by stress zone (same color as bar)
+	val_lbl.add_theme_color_override("font_color", bar_color)
 	val_lbl.custom_minimum_size.x = 70
 	row.add_child(val_lbl)
+	row.tooltip_text = cfg.get("tooltip", "")
 	parent.add_child(row)
 
 
@@ -254,6 +314,12 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 		if val < opt_min - 1.0 or val > opt_max + 1.0:
 			return BAR_STRESS
 		if val < opt_min or val > opt_max:
+			return BAR_MARGINAL
+		return BAR_OK
+	if key == "Eh":
+		if val < EH_ANOXIC_THRESHOLD:
+			return BAR_STRESS
+		if val < EH_OXIC_THRESHOLD:
 			return BAR_MARGINAL
 		return BAR_OK
 	if val < opt_min * 0.3:
@@ -339,3 +405,18 @@ func _update_button_highlight() -> void:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("hover"))
 		else:
 			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("normal"))
+
+
+static func _format_acceptor(acc: String) -> String:
+	## Format acceptor with subscript unicode.
+	match acc:
+		"O2":
+			return "O\u2082"
+		"NO3":
+			return "NO\u2083\u207b"
+		"Fe3+":
+			return "Fe\u00b3\u207a"
+		"CH4":
+			return "CH\u2084"
+		_:
+			return acc

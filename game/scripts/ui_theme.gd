@@ -60,6 +60,7 @@ const SUBSTANCE_MICROBE := Color(0.92, 0.52, 0.08, 0.8)  # orange — microbial 
 const SUBSTANCE_PH := Color(0.55, 0.55, 0.60, 0.8)  # cool grey
 const SUBSTANCE_FROST := Color(0.6, 0.85, 1.0, 0.8)  # ice-blue — frost damage
 const SUBSTANCE_HEAT := Color(0.95, 0.3, 0.2, 0.8)  # warm red — heat stress
+const SUBSTANCE_REDOX := Color(0.7, 0.5, 0.3, 0.8)  # brown/orange — redox Eh
 
 # --- Mass unit display ---
 ## Toggle between g/m² and kg/ha for nutrient/biomass display.

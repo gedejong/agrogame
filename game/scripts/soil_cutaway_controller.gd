@@ -177,7 +177,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel = PanelContainer.new()
 	_nutrient_panel.set_script(NutrientPanel)
 	var vp: Viewport = ui_layer.get_viewport()
-	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 70)
+	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 16)
 	_nutrient_panel.size = Vector2(260, 0)
 	var layers_data: Array[Dictionary] = []
 	for col_data: Dictionary in columns:
@@ -192,8 +192,15 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var theta: Array = soil_state.get("water_theta", [])
 		var ph: Array = soil_state.get("ph", [])
 		var mic: Array = soil_state.get("microbe_c", [])
+		var redox_eh: Array = soil_state.get("redox_eh", [])
+		var acceptor: Array = soil_state.get("dominant_acceptor", [])
+		var cum_depth := 0
 		for i in range(profile.size()):
-			var depth: int = profile[i].get("depth_cm", 30)
+			var layer_depth: int = profile[i].get("depth_cm", 30)
+			var top: int = cum_depth
+			cum_depth += layer_depth
+			var eh: float = redox_eh[i] if i < redox_eh.size() else 400.0
+			var acc: String = acceptor[i] if i < acceptor.size() else "O2"
 			var vals := {
 				"NO₃": no3[i] if i < no3.size() else 0.0,
 				"NH₄": nh4[i] if i < nh4.size() else 0.0,
@@ -202,9 +209,19 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Water": theta[i] if i < theta.size() else 0.0,
 				"pH": ph[i] if i < ph.size() else 6.5,
 				"Microbe": mic[i] if i < mic.size() else 0.0,
+				"Eh": eh,
 			}
-			var lbl := "%d–%dcm" % [0 if i == 0 else depth, depth]
-			layers_data.append({"depth_label": lbl, "values": vals})
+			var lbl := "%d–%dcm" % [top, cum_depth]
+			(
+				layers_data
+				. append(
+					{
+						"depth_label": lbl,
+						"values": vals,
+						"dominant_acceptor": acc,
+					}
+				)
+			)
 	_nutrient_panel.show_layers(layers_data)
 	_nutrient_panel.flow_filter_changed.connect(_on_flow_filter)
 	_nutrient_panel.flow_toggle_changed.connect(_on_flow_toggle)
