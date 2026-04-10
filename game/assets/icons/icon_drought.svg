@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
-  <!-- Drought: irregular cracked earth -->
-  <circle cx="8" cy="8" r="7.5" fill="#1A1714" opacity="0.85"/>
+  <!-- Drought: irregular cracked earth — glassmorphism backing -->
+  <circle cx="8" cy="8" r="7.5" fill="#1E2532" opacity="0.80"/>
+  <circle cx="8" cy="8" r="7.2" fill="none" stroke="#ffffff" stroke-width="0.4" opacity="0.12"/>
   <!-- Dry earth base -->
   <circle cx="8" cy="8" r="6.2" fill="#B8943A"/>
   <!-- Irregular crack network (asymmetric, organic) -->
