@@ -13,6 +13,9 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 10.0
+        initial_fe_ppm: 3.0
+        initial_zn_ppm: 0.4
+        initial_mn_ppm: 1.5
       - depth_cm: 40
         texture: sand
         field_capacity: 0.10
@@ -24,6 +27,9 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_fe_ppm: 2.5
+        initial_zn_ppm: 0.3
+        initial_mn_ppm: 1.0
       - depth_cm: 50
         texture: sand
         field_capacity: 0.09
@@ -35,6 +41,9 @@ soils:
         initial_no3_kg_ha: 2.0
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 5.0
+        initial_fe_ppm: 2.0
+        initial_zn_ppm: 0.2
+        initial_mn_ppm: 0.8
 
   sandy_temperate:
     name: "Sandy - Temperate"
@@ -50,6 +59,9 @@ soils:
         initial_no3_kg_ha: 7.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 14.0
+        initial_fe_ppm: 6.0
+        initial_zn_ppm: 0.8
+        initial_mn_ppm: 4.0
       - depth_cm: 35
         texture: sand
         field_capacity: 0.11
@@ -61,6 +73,9 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 1.5
         initial_p_kg_ha: 8.0
+        initial_fe_ppm: 4.0
+        initial_zn_ppm: 0.6
+        initial_mn_ppm: 3.0
       - depth_cm: 40
         texture: sand
         field_capacity: 0.10
@@ -72,6 +87,9 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_fe_ppm: 3.0
+        initial_zn_ppm: 0.4
+        initial_mn_ppm: 2.0
 
   loam_temperate:
     name: "Loam - Temperate"
@@ -87,6 +105,9 @@ soils:
         initial_no3_kg_ha: 10.0
         initial_nh4_kg_ha: 4.0
         initial_p_kg_ha: 20.0
+        initial_fe_ppm: 15.0
+        initial_zn_ppm: 1.5
+        initial_mn_ppm: 12.0
       - depth_cm: 35
         texture: loam
         field_capacity: 0.24
@@ -98,6 +119,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_fe_ppm: 10.0
+        initial_zn_ppm: 1.0
+        initial_mn_ppm: 8.0
       - depth_cm: 40
         texture: loam
         field_capacity: 0.22
@@ -109,6 +133,9 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 10.0
+        initial_fe_ppm: 7.0
+        initial_zn_ppm: 0.8
+        initial_mn_ppm: 5.0
 
   clay_temperate:
     name: "Clay - Temperate"
@@ -124,6 +151,9 @@ soils:
         initial_no3_kg_ha: 12.0
         initial_nh4_kg_ha: 5.0
         initial_p_kg_ha: 22.0
+        initial_fe_ppm: 25.0
+        initial_zn_ppm: 3.0
+        initial_mn_ppm: 20.0
       - depth_cm: 35
         texture: clay
         field_capacity: 0.35
@@ -135,6 +165,9 @@ soils:
         initial_no3_kg_ha: 8.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 15.0
+        initial_fe_ppm: 18.0
+        initial_zn_ppm: 2.0
+        initial_mn_ppm: 15.0
       - depth_cm: 40
         texture: clay
         field_capacity: 0.34
@@ -146,6 +179,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_fe_ppm: 12.0
+        initial_zn_ppm: 1.5
+        initial_mn_ppm: 10.0
 
   clay_netherlands:
     name: "Clay - Netherlands"
@@ -161,6 +197,9 @@ soils:
         initial_no3_kg_ha: 14.0
         initial_nh4_kg_ha: 5.0
         initial_p_kg_ha: 24.0
+        initial_fe_ppm: 30.0
+        initial_zn_ppm: 3.5
+        initial_mn_ppm: 25.0
       - depth_cm: 35
         texture: clay
         field_capacity: 0.35
@@ -172,6 +211,9 @@ soils:
         initial_no3_kg_ha: 9.0
         initial_nh4_kg_ha: 3.5
         initial_p_kg_ha: 16.0
+        initial_fe_ppm: 20.0
+        initial_zn_ppm: 2.5
+        initial_mn_ppm: 18.0
       - depth_cm: 40
         texture: clay
         field_capacity: 0.33
@@ -183,6 +225,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_fe_ppm: 14.0
+        initial_zn_ppm: 1.8
+        initial_mn_ppm: 12.0
 
   sandy_loam_temperate:
     name: "Sandy Loam - Temperate"
@@ -198,6 +243,9 @@ soils:
         initial_no3_kg_ha: 9.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 18.0
+        initial_fe_ppm: 10.0
+        initial_zn_ppm: 1.0
+        initial_mn_ppm: 8.0
       - depth_cm: 35
         texture: sandy_loam
         field_capacity: 0.19
@@ -209,6 +257,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 12.0
+        initial_fe_ppm: 7.0
+        initial_zn_ppm: 0.7
+        initial_mn_ppm: 5.0
       - depth_cm: 40
         texture: sandy_loam
         field_capacity: 0.18
@@ -220,6 +271,9 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 1.5
         initial_p_kg_ha: 9.0
+        initial_fe_ppm: 5.0
+        initial_zn_ppm: 0.5
+        initial_mn_ppm: 3.0
 
   clay_loam_temperate:
     name: "Clay Loam - Temperate"
@@ -235,6 +289,9 @@ soils:
         initial_no3_kg_ha: 11.0
         initial_nh4_kg_ha: 4.0
         initial_p_kg_ha: 20.0
+        initial_fe_ppm: 20.0
+        initial_zn_ppm: 2.0
+        initial_mn_ppm: 15.0
       - depth_cm: 35
         texture: clay_loam
         field_capacity: 0.29
@@ -246,6 +303,9 @@ soils:
         initial_no3_kg_ha: 8.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 14.0
+        initial_fe_ppm: 14.0
+        initial_zn_ppm: 1.5
+        initial_mn_ppm: 10.0
       - depth_cm: 40
         texture: clay_loam
         field_capacity: 0.28
@@ -257,6 +317,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 11.0
+        initial_fe_ppm: 10.0
+        initial_zn_ppm: 1.0
+        initial_mn_ppm: 7.0
 
   peat_cool_wet:
     name: "Peat - Cool Wet"
@@ -272,6 +335,9 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 8.0
+        initial_fe_ppm: 40.0
+        initial_zn_ppm: 2.5
+        initial_mn_ppm: 30.0
       - depth_cm: 35
         texture: peat
         field_capacity: 0.52
@@ -283,6 +349,9 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 7.0
+        initial_fe_ppm: 35.0
+        initial_zn_ppm: 2.0
+        initial_mn_ppm: 25.0
       - depth_cm: 40
         texture: peat
         field_capacity: 0.50
@@ -294,6 +363,9 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 6.0
+        initial_fe_ppm: 30.0
+        initial_zn_ppm: 1.8
+        initial_mn_ppm: 20.0
 
   sandy_subsaharan:
     name: "Sandy - Sub-Saharan Variant"
@@ -309,6 +381,9 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_fe_ppm: 2.0
+        initial_zn_ppm: 0.3
+        initial_mn_ppm: 1.0
       - depth_cm: 40
         texture: sand
         field_capacity: 0.09
@@ -320,6 +395,9 @@ soils:
         initial_no3_kg_ha: 2.0
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 4.0
+        initial_fe_ppm: 1.5
+        initial_zn_ppm: 0.2
+        initial_mn_ppm: 0.8
       - depth_cm: 50
         texture: sand
         field_capacity: 0.08
@@ -331,3 +409,6 @@ soils:
         initial_no3_kg_ha: 1.0
         initial_nh4_kg_ha: 0.5
         initial_p_kg_ha: 3.0
+        initial_fe_ppm: 1.0
+        initial_zn_ppm: 0.1
+        initial_mn_ppm: 0.5

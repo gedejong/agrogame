@@ -166,6 +166,28 @@ def test_stress_events_emitted() -> None:
 # --- Integration: orchestrator wiring ---
 
 
+def test_soil_specific_micronutrient_pools() -> None:
+    """Sandy arid soil should have lower Fe/Zn than loam.
+
+    Ref: Sims & Johnson 1991 — sandy soils have lower DTPA-extractable levels.
+    """
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    sandy = FullSimulationOrchestrator(
+        soils.soils["sandy_arid"],
+        event_bus=EventBus(),
+    )
+    loam = FullSimulationOrchestrator(
+        soils.soils["loam_temperate"],
+        event_bus=EventBus(),
+    )
+    assert (
+        sandy.micro_state.fe_available[0] < loam.micro_state.fe_available[0]
+    ), "Sandy Fe should be < loam Fe"
+    assert (
+        sandy.micro_state.zn_available[0] < loam.micro_state.zn_available[0]
+    ), "Sandy Zn should be < loam Zn"
+
+
 def _make_orch() -> FullSimulationOrchestrator:
     soils = load_soil_presets(Path("soils/presets.yaml"))
     crops = load_crop_presets(Path("data/crops/presets.yaml"))

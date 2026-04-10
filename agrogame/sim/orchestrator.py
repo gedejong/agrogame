@@ -300,7 +300,7 @@ class FullSimulationOrchestrator:
             RedoxParams(), self.redox_state, event_bus=self.event_bus
         )
         # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
-        self.micro_state = MicronutrientState.from_layers(len(profile.layers))
+        self.micro_state = MicronutrientState.from_profile(profile)
         self.micro_cycle = MicronutrientCycle(
             self.event_bus, self.micro_state, MicronutrientParams(), len(profile.layers)
         )

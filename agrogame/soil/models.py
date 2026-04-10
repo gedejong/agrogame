@@ -56,6 +56,10 @@ class SoilLayer(BaseModel):
         default=None,
         description="Clay content percentage (%). Derived from texture if not set.",
     )
+    # Micronutrient initial pools (ppm DTPA-extractable). Ref: Sims & Johnson 1991.
+    initial_fe_ppm: float = Field(default=10.0, description="DTPA-Fe (ppm)")
+    initial_zn_ppm: float = Field(default=1.2, description="DTPA-Zn (ppm)")
+    initial_mn_ppm: float = Field(default=18.0, description="DTPA-Mn (ppm)")
 
     @model_validator(mode="after")
     def validate_water_bounds(self) -> "SoilLayer":
