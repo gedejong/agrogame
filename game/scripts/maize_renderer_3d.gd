@@ -25,10 +25,9 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	# Stem elongation is nonlinear: stays short during vegetative phase,
-	# then elongates rapidly during stem extension (~growth 0.5-0.8).
-	# h = STEM_HEIGHT * growth^2.5 — at growth 0.25: h=3cm, at 0.5: h=44cm
-	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
+	# Stem elongation: moderately nonlinear. At growth 0.33: ~19% height.
+	# Stem is mostly grown by flowering (growth ~0.8).
+	var h: float = STEM_HEIGHT * pow(growth_progress, 1.5)
 	# Stem tapers: bottom thicker than top, both scale with growth
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
 	var r_top: float = 0.001  # taper to a point at the top
