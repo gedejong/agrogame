@@ -5,6 +5,7 @@ extends PanelContainer
 ## Emitted when user clicks a cycle filter or toggle button.
 signal flow_filter_changed(filter_name: String)
 signal flow_toggle_changed(visible: bool)
+signal layer_selected(layer_idx: int)
 
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 ## Values stored in g/m² (simulation native unit); converted at display time.
@@ -169,6 +170,9 @@ var _flow_visible := true
 var _cycle_label: Label = null
 var _filter_buttons: Dictionary = {}
 var _active_filter: String = "all"
+var _layer_bodies: Array[VBoxContainer] = []
+var _layer_headers: Array[Button] = []
+var _all_expanded := false
 
 
 func show_layers(layers_data: Array[Dictionary]) -> void:
@@ -181,49 +185,104 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
+	# ScrollContainer for overflow
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.custom_minimum_size = Vector2(260, 0)
+	add_child(scroll)
+
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_right", 10)
 	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_bottom", 8)
-	add_child(margin)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(margin)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margin.add_child(vbox)
 
-	# Title
+	# Title row with Expand All button
+	var title_row := HBoxContainer.new()
 	var title := Label.new()
 	title.text = "Soil Analysis"
 	title.uppercase = true
 	title.add_theme_font_size_override("font_size", 11)
 	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	vbox.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
+	var expand_btn := Button.new()
+	expand_btn.text = "Expand All"
+	expand_btn.add_theme_font_size_override("font_size", 9)
+	UiTheme.style_button(expand_btn)
+	expand_btn.pressed.connect(_on_expand_all)
+	title_row.add_child(expand_btn)
+	vbox.add_child(title_row)
 
 	# Flow cycle filter row
 	_build_cycle_row(vbox)
 	_add_separator(vbox)
 
+	# Accordion layers — only layer 0 expanded by default
+	_layer_bodies.clear()
+	_layer_headers.clear()
 	for i in range(layers_data.size()):
 		if i > 0:
 			_add_separator(vbox)
 		var layer: Dictionary = layers_data[i]
 		var depth: String = layer.get("depth_label", "Layer %d" % (i + 1))
-		# Layer header
-		var header := Label.new()
-		header.text = "▸ %s" % depth
+		# Clickable layer header
+		var header := Button.new()
+		header.text = "▾ %s" % depth if i == 0 else "▸ %s" % depth
 		header.add_theme_font_size_override("font_size", 11)
 		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
+		header.flat = true
+		header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		header.pressed.connect(_on_layer_header.bind(i))
+		_layer_headers.append(header)
 		vbox.add_child(header)
+		# Layer body (bars) — collapsible
+		var body := VBoxContainer.new()
+		body.add_theme_constant_override("separation", 2)
+		body.visible = (i == 0)  # only top layer expanded
 		var vals: Dictionary = layer.get("values", {})
 		var acc: String = layer.get("dominant_acceptor", "O2")
 		for key: String in NUTRIENT_BARS:
 			var cfg: Dictionary = NUTRIENT_BARS[key]
 			var val: float = vals.get(key, 0.0)
-			# For Eh, append the dominant acceptor to the display
 			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
-			_add_bar_row(vbox, key, val, cfg, suffix)
+			_add_bar_row(body, key, val, cfg, suffix)
+		_layer_bodies.append(body)
+		vbox.add_child(body)
+
+
+func expand_layer(layer_idx: int) -> void:
+	"""Expand a specific layer (e.g. from cutaway click)."""
+	if layer_idx < 0 or layer_idx >= _layer_bodies.size():
+		return
+	_layer_bodies[layer_idx].visible = true
+	_layer_headers[layer_idx].text = ("▾ " + _layer_headers[layer_idx].text.substr(2))
+
+
+func _on_layer_header(layer_idx: int) -> void:
+	var body: VBoxContainer = _layer_bodies[layer_idx]
+	var header: Button = _layer_headers[layer_idx]
+	var label_text: String = header.text.substr(2)  # strip arrow
+	body.visible = not body.visible
+	header.text = ("▾ " if body.visible else "▸ ") + label_text
+	if body.visible:
+		layer_selected.emit(layer_idx)
+
+
+func _on_expand_all() -> void:
+	_all_expanded = not _all_expanded
+	for i in range(_layer_bodies.size()):
+		_layer_bodies[i].visible = _all_expanded
+		var label_text: String = _layer_headers[i].text.substr(2)
+		var arrow: String = "▾ " if _all_expanded else "▸ "
+		_layer_headers[i].text = arrow + label_text
 
 
 func hide_panel() -> void:
@@ -232,7 +291,10 @@ func hide_panel() -> void:
 
 
 func _clear() -> void:
+	_layer_bodies.clear()
+	_layer_headers.clear()
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 
 
