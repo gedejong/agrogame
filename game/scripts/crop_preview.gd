@@ -90,12 +90,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_cam_distance = minf(10.0, _cam_distance + 0.3)
 			_update_camera()
-		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
+		elif mb.button_index == MOUSE_BUTTON_MIDDLE or mb.button_index == MOUSE_BUTTON_RIGHT:
 			_dragging = mb.pressed
 	elif event is InputEventMouseMotion and _dragging:
 		var mm: InputEventMouseMotion = event as InputEventMouseMotion
 		_cam_yaw -= mm.relative.x * 0.3
 		_cam_pitch = clampf(_cam_pitch - mm.relative.y * 0.3, -89.0, 89.0)
+		_update_camera()
+	elif event is InputEventPanGesture:
+		var pan: InputEventPanGesture = event as InputEventPanGesture
+		_cam_distance = clampf(_cam_distance + pan.delta.y * 0.3, 0.5, 10.0)
+		_update_camera()
+	elif event is InputEventMagnifyGesture:
+		var mag: InputEventMagnifyGesture = event as InputEventMagnifyGesture
+		_cam_distance = clampf(_cam_distance / mag.factor, 0.5, 10.0)
 		_update_camera()
 
 
