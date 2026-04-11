@@ -42,8 +42,6 @@ static func create_leaf_material(
 	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
 	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
 	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
-	# Leaf rolling: drought causes edges to curl inward (reduce transpiration).
-	mat.set_shader_parameter("stress_roll", stresses.get("water", 0.0) * 0.8)
 	return mat
 
 
