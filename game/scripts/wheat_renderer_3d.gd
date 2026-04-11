@@ -51,7 +51,7 @@ static func create_plant(
 			var ped_h: float = h - sheath_top
 			var stem_mat := CR.create_stem_material(senescence)
 			var ped := MeshInstance3D.new()
-			ped.mesh = CR.create_stem_mesh(ped_h, sheath_r_top * 0.6, sheath_r_top * 0.4)
+			ped.mesh = CR.create_stem_mesh(ped_h, sheath_r_top, sheath_r_top * 0.6)
 			ped.material_override = stem_mat
 			ped.position = Vector3(offset_x, sheath_top + ped_h * 0.5, offset_z)
 			ped.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
@@ -89,7 +89,7 @@ static func create_plant(
 			head_mesh.radial_segments = 5
 			head.mesh = head_mesh
 			head.material_override = CR.create_grain_material(grain_frac)
-			head.position = Vector3(offset_x, h + HEAD_HEIGHT * 0.3, offset_z)
+			head.position = Vector3(offset_x, h - HEAD_HEIGHT * 0.2, offset_z)
 			head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			plant.add_child(head)
 
