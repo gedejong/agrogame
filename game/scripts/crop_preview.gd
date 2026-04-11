@@ -1,21 +1,23 @@
 extends Node3D
 ## Debug crop preview: side-view of crops at adjustable growth stages.
 ## Activated via project setting agrogame/debug/crop_preview = true.
-## Sliders control growth, senescence, grain, and stress parameters.
+## Uses the same stage→growth/senescence pipeline as the real game.
 
 const CropVisuals = preload("res://scripts/crop_visuals.gd")
 
 const CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
+const STAGE_NAMES: Array[String] = ["None", "Emerged", "Vegetative", "Flowering", "Maturity"]
+
 const SLIDER_DEFS: Array[Dictionary] = [
-	{"key": "growth", "label": "Growth", "min": 0.0, "max": 1.0, "default": 0.8},
-	{"key": "senescence", "label": "Senescence", "min": 0.0, "max": 1.0, "default": 0.0},
-	{"key": "grain", "label": "Grain", "min": 0.0, "max": 1.0, "default": 0.3},
-	{"key": "water", "label": "Water stress", "min": 0.0, "max": 1.0, "default": 0.0},
-	{"key": "n", "label": "N stress", "min": 0.0, "max": 1.0, "default": 0.0},
-	{"key": "p", "label": "P stress", "min": 0.0, "max": 1.0, "default": 0.0},
-	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "default": 0.0},
-	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "default": 0.0},
+	{"key": "stage", "label": "Stage (0-4)", "min": 0.0, "max": 4.0, "step": 1.0, "default": 2.0},
+	{"key": "lai", "label": "LAI", "min": 0.0, "max": 6.0, "step": 0.1, "default": 3.0},
+	{"key": "grain", "label": "Grain frac", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "water", "label": "Water stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "n", "label": "N stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "p", "label": "P stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 ]
 
 var _container: Node3D = null
@@ -35,7 +37,7 @@ func _ready() -> void:
 	# Ground plane
 	var ground := MeshInstance3D.new()
 	var ground_mesh := PlaneMesh.new()
-	ground_mesh.size = Vector2(4, 4)
+	ground_mesh.size = Vector2(6, 4)
 	ground.mesh = ground_mesh
 	var ground_mat := StandardMaterial3D.new()
 	ground_mat.albedo_color = Color(0.35, 0.25, 0.15)
@@ -59,8 +61,8 @@ func _ready() -> void:
 
 func _setup_camera() -> void:
 	_camera = Camera3D.new()
-	_camera.position = Vector3(0, 1.5, 3.0)
-	_camera.look_at(Vector3(0, 0.8, 0))
+	_camera.position = Vector3(0, 1.2, 3.5)
+	_camera.look_at(Vector3(0, 0.6, 0))
 	_camera.current = true
 	add_child(_camera)
 
@@ -70,7 +72,7 @@ func _setup_ui() -> void:
 	add_child(_ui)
 	var panel := PanelContainer.new()
 	panel.position = Vector2(10, 10)
-	panel.size = Vector2(280, 0)
+	panel.size = Vector2(300, 0)
 	_ui.add_child(panel)
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 4)
@@ -98,14 +100,14 @@ func _setup_ui() -> void:
 		var slider := HSlider.new()
 		slider.min_value = def["min"]
 		slider.max_value = def["max"]
-		slider.step = 0.01
+		slider.step = def.get("step", 0.01)
 		slider.value = def["default"]
 		slider.custom_minimum_size.x = 140
 		slider.value_changed.connect(_on_slider_changed)
 		row.add_child(slider)
 		var val_lbl := Label.new()
-		val_lbl.text = "%.2f" % def["default"]
-		val_lbl.custom_minimum_size.x = 40
+		val_lbl.text = _format_slider(def["key"], def["default"])
+		val_lbl.custom_minimum_size.x = 60
 		val_lbl.add_theme_font_size_override("font_size", 11)
 		row.add_child(val_lbl)
 		_sliders[def["key"]] = {"slider": slider, "label": val_lbl}
@@ -115,6 +117,13 @@ func _setup_ui() -> void:
 	_label.add_theme_font_size_override("font_size", 10)
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 	vbox.add_child(_label)
+
+
+func _format_slider(key: String, val: float) -> String:
+	if key == "stage":
+		var idx: int = int(clampf(val, 0.0, 4.0))
+		return "%d %s" % [idx, STAGE_NAMES[idx]]
+	return "%.2f" % val
 
 
 func _on_crop_changed(idx: int) -> void:
@@ -129,9 +138,13 @@ func _on_slider_changed(_value: float) -> void:
 func _rebuild() -> void:
 	for child in _container.get_children():
 		child.queue_free()
-	var growth: float = _sliders["growth"]["slider"].value
-	var sen: float = _sliders["senescence"]["slider"].value
-	var grain: float = _sliders["grain"]["slider"].value
+	var stage: int = int(_sliders["stage"]["slider"].value)
+	var lai: float = _sliders["lai"]["slider"].value
+	var grain_frac: float = _sliders["grain"]["slider"].value
+	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	# Use the same pipeline as CropVisuals
+	var growth: float = CropVisuals._calc_growth(stage, lai_frac, grain_frac)
+	var sen: float = CropVisuals._calc_senescence(stage, lai, grain_frac)
 	var stresses := {
 		"water": _sliders["water"]["slider"].value,
 		"n": _sliders["n"]["slider"].value,
@@ -142,16 +155,18 @@ func _rebuild() -> void:
 	# Update value labels
 	for key: String in _sliders:
 		var s: Dictionary = _sliders[key]
-		s["label"].text = "%.2f" % s["slider"].value
-	# Create a row of 5 plants with same params but different seeds
+		s["label"].text = _format_slider(key, s["slider"].value)
+	# Create 5 plants at same stage but different seeds
 	for i in range(5):
 		var plant := CropVisuals.create_3d_plant(
-			_current_crop, growth, sen, stresses, grain, i * 17 + 42
+			_current_crop, growth, sen, stresses, grain_frac, i * 17 + 42
 		)
-		plant.position = Vector3(float(i - 2) * 0.5, 0, 0)
+		plant.position = Vector3(float(i - 2) * 0.6, 0, 0)
 		_container.add_child(plant)
 	# Info text
-	var info := "%s  g=%.2f s=%.2f gr=%.2f" % [_current_crop, growth, sen, grain]
+	var stage_name: String = STAGE_NAMES[stage] if stage < STAGE_NAMES.size() else "?"
+	var info := "%s — %s\n" % [_current_crop, stage_name]
+	info += "growth=%.2f  sen=%.2f  grain=%.2f  LAI=%.1f" % [growth, sen, grain_frac, lai]
 	var stress_parts: Array[String] = []
 	for key: String in stresses:
 		if stresses[key] > 0.01:
