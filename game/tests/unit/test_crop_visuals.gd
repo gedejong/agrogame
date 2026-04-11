@@ -8,10 +8,17 @@ func test_calc_growth_stage_0() -> void:
 	assert_eq(VisualsRef._calc_growth(0, 0.5, 0.5), 0.0)
 
 
-func test_calc_growth_stage_1() -> void:
-	var g: float = VisualsRef._calc_growth(1, 0.5, 0.0)
-	assert_gt(g, 0.04)
-	assert_lt(g, 0.26)
+func test_calc_growth_stage_1_low_lai() -> void:
+	# Emerged with low LAI: at least the floor (0.05)
+	var g: float = VisualsRef._calc_growth(1, 0.05, 0.0)
+	assert_gte(g, 0.05, "Emerged has floor")
+	assert_lt(g, 0.15, "Low LAI = small")
+
+
+func test_calc_growth_lai_drives_size() -> void:
+	# High LAI at stage 2 should produce large plant
+	var g: float = VisualsRef._calc_growth(2, 0.9, 0.0)
+	assert_gt(g, 0.85, "High LAI = large regardless of stage")
 
 
 func test_calc_growth_stage_4() -> void:

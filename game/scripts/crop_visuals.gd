@@ -70,18 +70,17 @@ static func update_crop(
 
 
 static func _calc_growth(stage: int, lai_frac: float, grain_frac: float) -> float:
-	# Growth progress: continuous ramp driven by LAI, not stage jumps.
-	# Stages set the range; LAI fills it in smoothly.
-	match stage:
-		1:
-			return clampf(0.05 + lai_frac * 0.2, 0.05, 0.25)
-		2:
-			return clampf(0.25 + lai_frac * 0.55, 0.25, 0.8)
-		3:
-			return clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
-		4:
-			return clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
-	return 0.0
+	# Growth driven by LAI (continuous size). Stage only sets minimum
+	# floor so a just-emerged plant isn't invisible.
+	# LAI is the authoritative size indicator from the simulation.
+	if stage == 0:
+		return 0.0
+	var base: float = clampf(lai_frac, 0.0, 1.0)
+	# Floor: emerged plants have at least 5% even at LAI~0
+	var floor_val: float = 0.05 if stage >= 1 else 0.0
+	# Grain fill adds a small top-end boost (stem extension)
+	var grain_boost: float = grain_frac * 0.1 if stage >= 3 else 0.0
+	return clampf(maxf(base, floor_val) + grain_boost, 0.0, 1.0)
 
 
 static func _calc_senescence(stage: int, lai: float, grain_frac: float) -> float:
