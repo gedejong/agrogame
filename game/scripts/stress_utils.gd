@@ -12,6 +12,9 @@ static func parse_stress_data(tile_data: Dictionary) -> Dictionary:
 
 	Returns {water: float, n: float, p: float, fe: float, zn: float}.
 	Values are continuous 0.0 (no stress) to 1.0 (severe).
+	Note: water_stress is wired end-to-end. Nutrient stress keys
+	(n_stress, p_stress, fe_stress, zn_stress) require API exposure
+	of per-nutrient stress factors — TODO in a follow-up issue.
 	"""
 	var water: float = _clamp01(1.0 - tile_data.get("water_stress", 1.0))
 	var n_stress: float = _clamp01(tile_data.get("n_stress", 0.0))

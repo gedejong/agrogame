@@ -39,8 +39,8 @@ void fragment() {
 
 	// --- Per-type stress overlays (additive blending, clamped) ---
 
-	// Drought: darken + brown, stronger at leaf edges (UV.x near 0 or 1)
-	float edge = smoothstep(0.3, 0.0, abs(UV.y - 0.5));  // edge proximity
+	// Drought: darken + brown, stronger at leaf margins (UV.y near 0 or 1)
+	float edge = smoothstep(0.0, 0.3, abs(UV.y - 0.5));  // 1.0 at margins, 0.0 at midrib
 	float drought_intensity = stress_water * (0.5 + edge * 0.5);
 	color = mix(color, DROUGHT_COLOR, drought_intensity * 0.6);
 
