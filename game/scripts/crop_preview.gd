@@ -22,6 +22,12 @@ const SLIDER_DEFS: Array[Dictionary] = [
 
 var _container: Node3D = null
 var _camera: Camera3D = null
+var _camera_pivot: Node3D = null
+var _cam_distance: float = 3.5
+var _cam_yaw: float = 0.0
+var _cam_pitch: float = -15.0
+var _cam_target: Vector3 = Vector3(0, 0.6, 0)
+var _dragging: bool = false
 var _ui: CanvasLayer = null
 var _sliders: Dictionary = {}
 var _crop_menu: OptionButton = null
@@ -60,11 +66,37 @@ func _ready() -> void:
 
 
 func _setup_camera() -> void:
+	_camera_pivot = Node3D.new()
+	_camera_pivot.position = _cam_target
+	add_child(_camera_pivot)
 	_camera = Camera3D.new()
-	_camera.position = Vector3(0, 1.2, 3.5)
-	_camera.look_at(Vector3(0, 0.6, 0))
 	_camera.current = true
-	add_child(_camera)
+	_camera_pivot.add_child(_camera)
+	_update_camera()
+
+
+func _update_camera() -> void:
+	_camera_pivot.rotation_degrees = Vector3(_cam_pitch, _cam_yaw, 0)
+	_camera.position = Vector3(0, 0, _cam_distance)
+	_camera.look_at(_camera_pivot.global_position)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb: InputEventMouseButton = event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_cam_distance = maxf(0.5, _cam_distance - 0.3)
+			_update_camera()
+		elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_cam_distance = minf(10.0, _cam_distance + 0.3)
+			_update_camera()
+		elif mb.button_index == MOUSE_BUTTON_MIDDLE:
+			_dragging = mb.pressed
+	elif event is InputEventMouseMotion and _dragging:
+		var mm: InputEventMouseMotion = event as InputEventMouseMotion
+		_cam_yaw -= mm.relative.x * 0.3
+		_cam_pitch = clampf(_cam_pitch - mm.relative.y * 0.3, -89.0, 89.0)
+		_update_camera()
 
 
 func _setup_ui() -> void:
