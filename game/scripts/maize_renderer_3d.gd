@@ -30,7 +30,7 @@ static func create_plant(
 	var h: float = STEM_HEIGHT * pow(growth_progress, 1.5)
 	# Stem tapers: bottom thicker than top, both scale with growth
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
-	var r_top: float = 0.001  # taper to a point at the top
+	var r_top: float = r_bot * 0.15  # taper toward top, not zero (avoid z-fighting)
 	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
 	var stem_mat := CR.create_stem_material(senescence)
 	var stem := MeshInstance3D.new()

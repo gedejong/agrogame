@@ -133,8 +133,23 @@ static func build_curved_leaf(
 		var y1: float = rise * 4.0 * t1 * (1.0 - t1) - droop * length * t1 * t1 * t1
 		var z0: float = length * t0
 		var z1: float = length * t1
+		# Skip degenerate segments where both ends are near-zero width
+		if w0 < 0.001 and w1 < 0.001:
+			continue
 		var bl := Vector3(-w0, y0, z0)
 		var br := Vector3(w0, y0, z0)
+		# First segment with zero-width base: single triangle from center
+		if w0 < 0.001:
+			var base_pt := Vector3(0.0, y0, z0)
+			var tl := Vector3(-w1, y1, z1)
+			var top_r := Vector3(w1, y1, z1)
+			st.set_uv(Vector2(t0, 0.5))
+			st.add_vertex(base_pt)
+			st.set_uv(Vector2(t1, 1.0))
+			st.add_vertex(top_r)
+			st.set_uv(Vector2(t1, 0.0))
+			st.add_vertex(tl)
+			continue
 		# Last segment: collapse to single triangle (pointed tip)
 		if si == segments - 1:
 			var tip := Vector3(0.0, y1, z1)
