@@ -17,7 +17,7 @@ const EAR_HEIGHT := 0.15
 static func create_plant(
 	growth_progress: float,
 	senescence: float,
-	stress: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	seed_val: int,
 ) -> Node3D:
@@ -44,7 +44,7 @@ static func create_plant(
 	# Leaves
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	if num_leaves > 0:
-		var leaf_mat := CR.create_leaf_material("maize", senescence, stress)
+		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses)
 		_add_leaves(plant, num_leaves, h, growth_progress, senescence, seed_val, leaf_mat)
 
 	# Ear/grain at 2/3 stem height
