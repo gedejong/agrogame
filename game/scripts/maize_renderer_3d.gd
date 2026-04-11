@@ -123,16 +123,16 @@ static func _add_leaves(
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		# Wilting: rotate leaf downward around attachment point.
-		# Loss of turgor → leaf loses rigidity → gravity pulls it down.
-		# Arc length preserved (same mesh, just rotated). Up to ~70° sag.
-		pivot.rotation.x = droop_bonus * 1.2
 		# Base width matches stem radius at this height (leaf wraps around stem)
 		var stem_r_at_y: float = lerpf(r_bot, 0.001, clampf(y_frac, 0.0, 1.0))
 		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs, stem_r_at_y * 2.0)
 		var leaf_inst := MeshInstance3D.new()
 		leaf_inst.mesh = leaf_mesh
 		leaf_inst.material_override = leaf_mat
+		# Wilting: rotate leaf downward around its own base (local origin).
+		# Loss of turgor → gravity pulls leaf down. Positive X rotation
+		# tilts the leaf's Z-axis (outward direction) downward.
+		leaf_inst.rotation.x = droop_bonus * 1.2
 		leaf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		pivot.add_child(leaf_inst)
 		plant.add_child(pivot)

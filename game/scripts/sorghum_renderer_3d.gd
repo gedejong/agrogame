@@ -60,12 +60,12 @@ static func create_plant(
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		pivot.rotation.x = CR.stress_droop_bonus(stresses) * 1.2
 		var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
 		var leaf_mat := CR.create_leaf_material("sorghum", senescence, stresses, leaf_h)
 		var leaf := MeshInstance3D.new()
 		leaf.mesh = leaf_mesh
 		leaf.material_override = leaf_mat
+		leaf.rotation.x = CR.stress_droop_bonus(stresses) * 1.2
 		leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		pivot.add_child(leaf)
 		plant.add_child(pivot)
