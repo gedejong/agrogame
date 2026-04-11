@@ -67,6 +67,7 @@ var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _cutaway := SoilCutawayController.new()
+var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
@@ -272,8 +273,8 @@ func _select_tile(col: int, row: int) -> void:
 		]
 	)
 	var soil_type: String = data.get("soil_type", "")
-	var history: Array = _daily_history.get(soil_type, [])
-	_cutaway.show_tile_info(soil_type, data.get("crop_key", ""), history, $UILayer)
+	# Show Quick Status card instead of full sparkline panel
+	_show_quick_status(data, soil_type)
 
 
 func _deselect() -> void:
@@ -281,7 +282,35 @@ func _deselect() -> void:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		_tile_materials[idx].set_shader_parameter("selected", 0.0)
 	_selected_tile = Vector2i(-1, -1)
+	_hide_quick_status()
 	_cutaway.hide_tile_info()
+
+
+func _show_quick_status(tile_data: Dictionary, soil_type: String) -> void:
+	_hide_quick_status()
+	_quick_status = QuickStatusCard.new()
+	_quick_status.position = Vector2(16, 40)
+	_quick_status.size = Vector2(180, 0)
+	_quick_status.show_status(tile_data, soil_type)
+	_quick_status.history_requested.connect(_on_quick_status_history)
+	_quick_status.soil_view_requested.connect(_on_soil_view)
+	$UILayer.add_child(_quick_status)
+
+
+func _hide_quick_status() -> void:
+	if _quick_status:
+		_quick_status.queue_free()
+		_quick_status = null
+
+
+func _on_quick_status_history() -> void:
+	if _selected_tile.x < 0:
+		return
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var data: Dictionary = _tile_data[idx]
+	var soil_type: String = data.get("soil_type", "")
+	var history: Array = _daily_history.get(soil_type, [])
+	_cutaway.show_tile_info(soil_type, data.get("crop_key", ""), history, $UILayer)
 
 
 func _update_tile_shader(idx: int) -> void:
