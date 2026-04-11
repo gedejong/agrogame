@@ -22,7 +22,8 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
+	# Stem elongation: moderate curve, mostly grown by flowering.
+	var h: float = STEM_HEIGHT * pow(growth_progress, 1.5)
 	var sheath_mat := CR.create_leaf_material("sorghum", senescence, stresses, 0.3)
 	# Leaf sheath: green cylinder (wrapped leaf bases = visible "stem")
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7

@@ -26,7 +26,8 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
+	# Stem elongation: moderate curve, mostly grown by flowering.
+	var h: float = STEM_HEIGHT * pow(growth_progress, 1.3)
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 
 	for ti in range(NUM_TILLERS):
