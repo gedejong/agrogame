@@ -4,7 +4,7 @@ const NutrientPanel = preload("res://scripts/nutrient_panel.gd")
 
 
 func test_nutrient_bars_defined() -> void:
-	for key: String in ["NO₃", "NH₄", "P", "SOM", "Water", "pH", "Microbe"]:
+	for key: String in ["NO₃", "NH₄", "P", "SOM", "Water", "pH", "Microbe", "MWD"]:
 		assert_true(NutrientPanel.NUTRIENT_BARS.has(key), "Bar config for %s" % key)
 
 
@@ -48,3 +48,13 @@ func test_format_acceptor_all_values() -> void:
 
 func test_format_acceptor_unknown() -> void:
 	assert_eq(NutrientPanel._format_acceptor("Mn4+"), "Mn4+", "Unknown returns as-is")
+
+
+func test_mwd_bar_stress_color_good() -> void:
+	var c: Color = NutrientPanel._stress_color("MWD", 1.5, 1.0, 2.5)
+	assert_eq(c, NutrientPanel.BAR_OK, "Good MWD = green")
+
+
+func test_mwd_bar_stress_color_degraded() -> void:
+	var c: Color = NutrientPanel._stress_color("MWD", 0.3, 1.0, 2.5)
+	assert_eq(c, NutrientPanel.BAR_STRESS, "Degraded MWD = red")

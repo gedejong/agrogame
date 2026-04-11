@@ -135,6 +135,23 @@ const NUTRIENT_BARS := {
 			+ "Red (<0): anaerobic, methane risk."
 		),
 	},
+	"MWD":
+	{
+		"color": UiTheme.SUBSTANCE_AGGREGATE,
+		"icon": "",
+		"icon_glyph": "\u2b22",
+		"max": 2.5,
+		"opt_min": 1.0,
+		"opt_max": 2.5,
+		"mass_type": "",
+		"unit": "mm",
+		"tooltip":
+		(
+			"Mean Weight Diameter — aggregate stability indicator.\n"
+			+ "Green (>1.0): good structure. Yellow (0.5-1.0): moderate.\n"
+			+ "Red (<0.5): degraded. Tillage destroys, roots rebuild."
+		),
+	},
 }
 ## Functional accent colors per art guide
 const BAR_STRESS := UiTheme.ACCENT_RED

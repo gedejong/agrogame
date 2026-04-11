@@ -197,6 +197,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var fe: Array = soil_state.get("fe_available", [])
 		var zn: Array = soil_state.get("zn_available", [])
 		var mn: Array = soil_state.get("mn_available", [])
+		var agg_mwd: Array = soil_state.get("agg_mwd", [])
 		var cum_depth := 0
 		for i in range(profile.size()):
 			var layer_depth: int = profile[i].get("depth_cm", 30)
@@ -216,6 +217,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Zn": zn[i] if i < zn.size() else 1.2,
 				"Mn": mn[i] if i < mn.size() else 18.0,
 				"Eh": eh,
+				"MWD": agg_mwd[i] if i < agg_mwd.size() else 0.55,
 			}
 			var lbl := "%d–%dcm" % [top, cum_depth]
 			(

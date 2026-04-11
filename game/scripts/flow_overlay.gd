@@ -205,6 +205,28 @@ const EVENT_CONFIG := {
 		"min_display": 0.0005,
 		"norm_scale": 0.1,
 	},
+	"TillageApplied":
+	{
+		"color": UiTheme.ACCENT_RED,
+		"color_end": UiTheme.SUBSTANCE_AGGREGATE,
+		"substance": "carbon",
+		"direction": "down",
+		"mag_key": "macro_destroyed_frac",
+		"label": "Tillage \u2193",
+		"z_slot": 0.55,
+		"always_show_label": true,
+	},
+	"AggregateStructureUpdated":
+	{
+		"color": UiTheme.SUBSTANCE_AGGREGATE,
+		"substance": "carbon",
+		"direction": "up",
+		"mag_key": "mwd_mm",
+		"label": "Aggregate formation",
+		"z_slot": 0.60,
+		"min_display": 0.01,
+		"norm_scale": 0.5,
+	},
 }
 
 ## Valid cycle filter values.

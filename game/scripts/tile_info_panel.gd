@@ -23,6 +23,8 @@ const GRAPHS := {
 	{"label": "Zn avail", "unit": "ppm", "mass_type": "", "color": Color(0.45, 0.55, 0.70)},
 	"mn_available_surface":
 	{"label": "Mn avail", "unit": "ppm", "mass_type": "", "color": Color(0.50, 0.35, 0.60)},
+	"agg_mwd_surface":
+	{"label": "MWD", "unit": "mm", "mass_type": "", "color": UiTheme.SUBSTANCE_AGGREGATE},
 }
 
 var _sparklines: Dictionary = {}
