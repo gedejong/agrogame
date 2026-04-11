@@ -121,12 +121,14 @@ static func build_curved_leaf(
 	for si in range(segments):
 		var t0: float = float(si) / float(segments)
 		var t1: float = float(si + 1) / float(segments)
-		# Width: parabola 4t(1-t) peaks at midpoint, tapers to point at tip.
+		# Width: parabola 4t(1-t) peaks at midpoint, tapers toward tip.
+		# Small floor (0.02) prevents degenerate zero-width triangles at tip
+		# that cause z-fighting zigzag artifacts.
 		# base_width keeps the base wide (leaf sheath wrapping the stem).
 		var base_fade0: float = maxf(1.0 - t0 * 3.0, 0.0) * bw
 		var base_fade1: float = maxf(1.0 - t1 * 3.0, 0.0) * bw
-		var w0: float = maxf(width * 0.5 * 4.0 * t0 * (1.0 - t0), base_fade0)
-		var w1: float = maxf(width * 0.5 * 4.0 * t1 * (1.0 - t1), base_fade1)
+		var w0: float = maxf(width * 0.5 * maxf(4.0 * t0 * (1.0 - t0), 0.02), base_fade0)
+		var w1: float = maxf(width * 0.5 * maxf(4.0 * t1 * (1.0 - t1), 0.02), base_fade1)
 		var y0: float = rise * 4.0 * t0 * (1.0 - t0) - droop * length * t0 * t0 * t0
 		var y1: float = rise * 4.0 * t1 * (1.0 - t1) - droop * length * t1 * t1 * t1
 		var z0: float = length * t0
