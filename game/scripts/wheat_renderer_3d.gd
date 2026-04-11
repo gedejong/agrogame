@@ -26,7 +26,7 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var leaf_mat := CR.create_leaf_material("wheat", senescence, stresses)
+	# Per-leaf materials created in loop for bottom-up senescence
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 
@@ -39,7 +39,7 @@ static func create_plant(
 		var sheath_top: float = h * lerpf(0.8, 0.7, grain_frac)
 		var sheath_r_bot: float = 0.005 * growth_progress + 0.002
 		var sheath_r_top: float = sheath_r_bot * 0.5
-		var sheath_mat := CR.create_leaf_material("wheat", senescence, stresses)
+		var sheath_mat := CR.create_leaf_material("wheat", senescence, stresses, 0.3)
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r_bot, sheath_r_top)
 		sheath.material_override = sheath_mat
@@ -71,6 +71,8 @@ static func create_plant(
 			var pivot := Node3D.new()
 			pivot.position = Vector3(offset_x, y, offset_z)
 			pivot.rotation.y = azimuth
+			var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
+			var leaf_mat := CR.create_leaf_material("wheat", senescence, stresses, leaf_h)
 			var leaf := MeshInstance3D.new()
 			leaf.mesh = leaf_mesh
 			leaf.material_override = leaf_mat

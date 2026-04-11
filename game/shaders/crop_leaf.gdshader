@@ -5,6 +5,9 @@ render_mode cull_disabled;
 uniform sampler2D alpha_mask : source_color;
 uniform vec3 base_color : source_color = vec3(0.2, 0.55, 0.15);
 uniform float senescence : hint_range(0.0, 1.0) = 0.0;
+// Leaf vertical position: 0.0 = bottom, 1.0 = top of plant.
+// Lower leaves senesce faster (bottom-up yellowing during grain fill).
+uniform float leaf_height : hint_range(0.0, 1.0) = 0.5;
 
 // Per-stress-type uniforms (continuous 0.0-1.0).
 uniform float stress_water : hint_range(0.0, 1.0) = 0.0;
@@ -32,10 +35,14 @@ void fragment() {
 		discard;
 	}
 
+	// Bottom-up senescence: lower leaves (leaf_height~0) senesce faster.
+	// Gradient adds up to 0.4 extra senescence at bottom, 0 at top.
+	float effective_sen = clamp(senescence + (1.0 - leaf_height) * senescence * 0.4, 0.0, 1.0);
+
 	// Base color from senescence
-	vec3 color = mix(YOUNG_GREEN, base_color, smoothstep(0.0, 0.3, senescence + 0.5));
-	color = mix(color, SENESCENT, smoothstep(0.0, 0.7, senescence));
-	color = mix(color, DEAD, smoothstep(0.5, 1.0, senescence));
+	vec3 color = mix(YOUNG_GREEN, base_color, smoothstep(0.0, 0.3, effective_sen + 0.5));
+	color = mix(color, SENESCENT, smoothstep(0.0, 0.7, effective_sen));
+	color = mix(color, DEAD, smoothstep(0.5, 1.0, effective_sen));
 
 	// --- Per-type stress overlays (additive blending, clamped) ---
 
@@ -64,10 +71,10 @@ void fragment() {
 	// Waxy cuticle highlight
 	float ndotv = abs(dot(NORMAL, VIEW));
 	float sheen = pow(1.0 - ndotv, 3.0) * 0.15 + pow(ndotv, 6.0) * 0.1;
-	color += vec3(sheen) * (1.0 - senescence);
+	color += vec3(sheen) * (1.0 - effective_sen);
 
 	ALBEDO = color;
-	ROUGHNESS = mix(0.5, 0.8, senescence);
+	ROUGHNESS = mix(0.5, 0.8, effective_sen);
 	METALLIC = 0.0;
 	ALPHA_SCISSOR_THRESHOLD = 0.3;
 	ALPHA = mask;

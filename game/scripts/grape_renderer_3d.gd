@@ -22,7 +22,7 @@ static func create_plant(
 		return plant
 
 	var h: float = TRUNK_HEIGHT * clampf(growth_progress * 1.5, 0.0, 1.0)
-	var leaf_mat := CR.create_leaf_material("grape", senescence, stresses)
+	# Per-leaf materials created in loop for bottom-up senescence
 	# Short trunk
 	var trunk := MeshInstance3D.new()
 	trunk.mesh = CR.create_stem_mesh(h, 0.004, 0.003)
@@ -49,7 +49,8 @@ static func create_plant(
 				Vector3.ZERO,
 			)
 		)
-		leaf.material_override = leaf_mat
+		var leaf_h: float = clampf(ly / maxf(h, 0.01), 0.0, 1.0)
+		leaf.material_override = CR.create_leaf_material("grape", senescence, stresses, leaf_h)
 		leaf.position = Vector3(lx, ly, lz)
 		leaf.rotation = Vector3(-tilt, angle, 0)
 		plant.add_child(leaf)

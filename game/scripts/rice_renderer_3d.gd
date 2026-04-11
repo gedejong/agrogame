@@ -22,7 +22,7 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var leaf_mat := CR.create_leaf_material("rice", senescence, stresses)
+	# Per-leaf materials created in loop for bottom-up senescence
 	var stem_mat := CR.create_stem_material(senescence)
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
 
@@ -35,7 +35,7 @@ static func create_plant(
 		var sheath_r: float = 0.003 * growth_progress + 0.001
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)
-		sheath.material_override = leaf_mat
+		sheath.material_override = CR.create_leaf_material("rice", senescence, stresses, 0.3)
 		sheath.position = Vector3(ox, sheath_top * 0.5, oz)
 		sheath.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(sheath)
@@ -61,6 +61,8 @@ static func create_plant(
 			var pivot := Node3D.new()
 			pivot.position = Vector3(ox, y, oz)
 			pivot.rotation.y = azimuth
+			var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
+			var leaf_mat := CR.create_leaf_material("rice", senescence, stresses, leaf_h)
 			var leaf := MeshInstance3D.new()
 			leaf.mesh = leaf_mesh
 			leaf.material_override = leaf_mat

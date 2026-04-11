@@ -44,8 +44,7 @@ static func create_plant(
 	# Leaves
 	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
 	if num_leaves > 0:
-		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses)
-		_add_leaves(plant, num_leaves, h, growth_progress, senescence, seed_val, leaf_mat)
+		_add_leaves(plant, num_leaves, h, growth_progress, senescence, seed_val, stresses)
 
 	# Ear/grain at 2/3 stem height
 	if grain_frac > 0.01 and growth_progress > 0.7:
@@ -74,9 +73,9 @@ static func _add_leaves(
 	num_leaves: int,
 	stem_h: float,
 	growth_progress: float,
-	_senescence: float,
+	senescence: float,
 	seed_val: int,
-	leaf_mat: ShaderMaterial,
+	stresses: Dictionary,
 ) -> void:
 	var segs := 5
 	for li in range(num_leaves):
@@ -119,7 +118,9 @@ static func _add_leaves(
 		var droop_potential: float = len_curve * 0.8
 		var droop_var: float = (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.2
 		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var)
-		# Build curved leaf
+		# Build curved leaf with per-leaf height for bottom-up senescence
+		var leaf_h: float = clampf(y / maxf(stem_h, 0.01), 0.0, 1.0)
+		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses, leaf_h)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth

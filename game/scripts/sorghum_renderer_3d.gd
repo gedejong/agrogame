@@ -23,14 +23,14 @@ static func create_plant(
 		return plant
 
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
-	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stresses)
+	var sheath_mat := CR.create_leaf_material("sorghum", senescence, stresses, 0.3)
 	# Leaf sheath: green cylinder (wrapped leaf bases = visible "stem")
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7
 	var sheath_top: float = h * lerpf(0.9, 0.7, grain_frac)
 	var sheath_r: float = 0.008 * growth_progress + 0.003
 	var sheath := MeshInstance3D.new()
 	sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)
-	sheath.material_override = leaf_mat
+	sheath.material_override = sheath_mat
 	sheath.position = Vector3(0, sheath_top * 0.5, 0)
 	sheath.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(sheath)
@@ -59,6 +59,8 @@ static func create_plant(
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
+		var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
+		var leaf_mat := CR.create_leaf_material("sorghum", senescence, stresses, leaf_h)
 		var leaf := MeshInstance3D.new()
 		leaf.mesh = leaf_mesh
 		leaf.material_override = leaf_mat

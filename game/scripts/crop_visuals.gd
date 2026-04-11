@@ -125,6 +125,9 @@ static func _build_individual_plants(
 
 
 static func _build_baked_plants(
+	# MultiMesh uses a single sample plant: per-leaf senescence gradient
+	# is baked into materials at creation time (leaf_height set per leaf).
+	# Per-instance variation is NOT possible — all instances share materials.
 	container: Node3D,
 	crop_key: String,
 	grid: Vector2i,
