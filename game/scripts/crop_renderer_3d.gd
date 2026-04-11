@@ -117,10 +117,7 @@ static func build_curved_leaf(
 	## base_width: minimum half-width at t=0 (leaf base attachment to stem).
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	# Rise decreases with droop: healthy leaf arcs up, wilted leaf hangs.
-	# droop=0 → rise=0.6*length, droop=1 → rise=0.05*length (barely lifts).
-	var clamped_droop: float = clampf(droop, 0.0, 1.0)
-	var rise: float = length * maxf(0.05, 0.6 - clamped_droop * 0.55)
+	var rise: float = length * (0.3 + (1.0 - clampf(droop, 0.0, 1.0)) * 0.3)
 	var bw: float = maxf(base_width * 0.5, 0.0)
 	# Build quad strip as explicit triangles for generate_normals()
 	for si in range(segments):

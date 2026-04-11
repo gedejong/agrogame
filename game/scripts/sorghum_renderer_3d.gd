@@ -54,12 +54,13 @@ static func create_plant(
 		var azimuth: float = (
 			plant_rot + float(li) * TAU / 3.0 + (CR.hash_val(seed_val, li * 3) - 0.5) * 0.7
 		)
-		var droop: float = 0.3 + (1.0 - frac) * 0.5 + CR.stress_droop_bonus(stresses)
+		var droop: float = 0.3 + (1.0 - frac) * 0.5
 		var leaf_l: float = LEAF_LENGTH * growth_progress
 		var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, CR.leaf_segments)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
+		pivot.rotation.x = CR.stress_droop_bonus(stresses) * 1.2
 		var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
 		var leaf_mat := CR.create_leaf_material("sorghum", senescence, stresses, leaf_h)
 		var leaf := MeshInstance3D.new()

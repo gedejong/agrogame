@@ -116,13 +116,17 @@ static func _add_leaves(
 		# leaf_maturity drives actual droop (young leaves still upright).
 		var droop_potential: float = len_curve * 0.8
 		var droop_var: float = (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.2
-		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var) + droop_bonus
+		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var)
 		# Build curved leaf with per-leaf height for bottom-up senescence
 		var leaf_h: float = clampf(y / maxf(stem_h, 0.01), 0.0, 1.0)
 		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses, leaf_h)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
+		# Wilting: rotate leaf downward around attachment point.
+		# Loss of turgor → leaf loses rigidity → gravity pulls it down.
+		# Arc length preserved (same mesh, just rotated). Up to ~70° sag.
+		pivot.rotation.x = droop_bonus * 1.2
 		# Base width matches stem radius at this height (leaf wraps around stem)
 		var stem_r_at_y: float = lerpf(r_bot, 0.001, clampf(y_frac, 0.0, 1.0))
 		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs, stem_r_at_y * 2.0)
