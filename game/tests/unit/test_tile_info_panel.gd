@@ -3,21 +3,24 @@ extends GutTest
 const TileInfoPanel = preload("res://scripts/tile_info_panel.gd")
 
 
-func test_graphs_defined() -> void:
-	assert_eq(TileInfoPanel.GRAPHS.size(), 10, "10 graph configs")
-	for key: String in [
-		"lai",
-		"grain_g_m2",
-		"water_stress",
-		"theta_surface",
-		"n_available",
-		"redox_eh_surface",
-		"fe_available_surface",
-		"zn_available_surface",
-		"mn_available_surface",
-		"agg_mwd_surface",
-	]:
-		assert_true(TileInfoPanel.GRAPHS.has(key), "Graph for %s" % key)
+func test_tabs_defined() -> void:
+	assert_eq(TileInfoPanel.TABS.size(), 4, "4 tabs")
+	for tab_name: String in ["Crop", "Water", "Nutrients", "Soil"]:
+		assert_true(TileInfoPanel.TABS.has(tab_name), "Tab %s exists" % tab_name)
+
+
+func test_max_sparklines_per_tab() -> void:
+	for tab_name: String in TileInfoPanel.TABS:
+		var count: int = TileInfoPanel.TABS[tab_name].size()
+		assert_lte(count, 4, "Tab %s has ≤4 sparklines (has %d)" % [tab_name, count])
+		assert_gt(count, 0, "Tab %s has ≥1 sparkline" % tab_name)
+
+
+func test_graphs_backward_compat() -> void:
+	assert_gt(TileInfoPanel.GRAPHS.size(), 0, "GRAPHS populated")
+	assert_true(TileInfoPanel.GRAPHS.has("lai"), "GRAPHS has lai")
+	assert_true(TileInfoPanel.GRAPHS.has("theta_surface"), "GRAPHS has theta")
+	assert_true(TileInfoPanel.GRAPHS.has("agg_mwd_surface"), "GRAPHS has MWD")
 
 
 func test_extract_series_empty() -> void:
@@ -41,7 +44,7 @@ func test_find_stage_transitions() -> void:
 		{"crop_stage": "flowering"},
 	]
 	var transitions := TileInfoPanel._find_stage_transitions(history)
-	assert_eq(transitions.size(), 2, "Two transitions: planted→veg, veg→flower")
+	assert_eq(transitions.size(), 2, "Two transitions")
 	assert_eq(transitions[0], 2)
 	assert_eq(transitions[1], 4)
 
@@ -51,3 +54,11 @@ func test_extract_series_missing_key() -> void:
 	var data := TileInfoPanel._extract_series(history, "nonexistent")
 	assert_eq(data.size(), 2)
 	assert_eq(data[0], 0.0, "Missing key defaults to 0")
+
+
+func test_total_sparkline_count() -> void:
+	var total := 0
+	for tab_name: String in TileInfoPanel.TABS:
+		total += TileInfoPanel.TABS[tab_name].size()
+	assert_gte(total, 8, "At least 8 sparklines across all tabs")
+	assert_lte(total, 12, "At most 12 sparklines total")
