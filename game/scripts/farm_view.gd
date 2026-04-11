@@ -552,6 +552,25 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 				# Cap history length
 				if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
 					_daily_history[patch_soil].pop_front()
+			# Extract per-nutrient stress from events (#262)
+			var n_stress: float = 0.0
+			var p_stress: float = 0.0
+			var fe_stress: float = 0.0
+			var zn_stress: float = 0.0
+			for evt: Dictionary in patch.get("events", []):
+				if evt.get("event_type") == "NutrientStressComputed":
+					var d: Dictionary = evt.get("data", {})
+					# API: stress=1 healthy, 0=severe. Invert for display.
+					var s: float = clampf(1.0 - d.get("stress", 1.0), 0.0, 1.0)
+					match d.get("nutrient", ""):
+						"N":
+							n_stress = maxf(n_stress, s)
+						"P":
+							p_stress = maxf(p_stress, s)
+						"Fe":
+							fe_stress = maxf(fe_stress, s)
+						"Zn":
+							zn_stress = maxf(zn_stress, s)
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["som_total_c_g_m2"] = som
@@ -561,6 +580,10 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["lai"] = lai
 					_tile_data[i]["water_stress"] = patch.get("water_stress", 1.0)
 					_tile_data[i]["grain_g_m2"] = grain
+					_tile_data[i]["n_stress"] = n_stress
+					_tile_data[i]["p_stress"] = p_stress
+					_tile_data[i]["fe_stress"] = fe_stress
+					_tile_data[i]["zn_stress"] = zn_stress
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
 	# Update stress icons from patch events
