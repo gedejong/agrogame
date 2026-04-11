@@ -35,8 +35,10 @@ static func create_plant(
 		var ox: float = cos(tiller_angle) * splay
 		var oz: float = sin(tiller_angle) * splay
 		var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
-		# Leaf sheath: green cylinder (wrapped leaves form the visible "stem")
-		var sheath_top: float = h * lerpf(0.85, 0.7, grain_frac)
+		# Each tiller slightly different height (±10%)
+		var th: float = h * (0.9 + CR.hash_val(seed_val, ti * 8 + 2) * 0.2)
+		# Leaf sheath: full height when no grain, recedes when peduncle appears
+		var sheath_top: float = th if not has_grain else th * lerpf(0.85, 0.7, grain_frac)
 		var sheath_r: float = 0.004 * growth_progress + 0.002
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)
@@ -45,20 +47,22 @@ static func create_plant(
 		sheath.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(sheath)
 		# Bare peduncle above sheath at grain fill
-		if has_grain:
-			var ped_h: float = h - sheath_top
+		if has_grain and sheath_top < th:
+			var ped_h: float = th - sheath_top
 			var ped := MeshInstance3D.new()
 			ped.mesh = CR.create_stem_mesh(ped_h, sheath_r * 0.4, sheath_r * 0.3)
 			ped.material_override = stem_mat
 			ped.position = Vector3(ox, sheath_top + ped_h * 0.5, oz)
 			ped.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			plant.add_child(ped)
-		# Free leaf blades emerging from the sheath
-		var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
+		# Free leaf blades emerging along full tiller height
+		var plant_rot: float = CR.hash_val(seed_val, ti * 7) * TAU
 		for li in range(3):
-			var y: float = sheath_top * (0.3 + float(li) / 3.0 * 0.7)
+			var y: float = th * (0.2 + float(li) / 3.0 * 0.7)
 			var azimuth: float = (
-				plant_rot + float(li) * PI + (CR.hash_val(seed_val, ti * 8 + 2 + li) - 0.5) * 0.6
+				plant_rot
+				+ float(li) * TAU / 3.0
+				+ (CR.hash_val(seed_val, ti * 8 + 3 + li) - 0.5) * 0.8
 			)
 			var droop: float = 0.05 + CR.hash_val(seed_val, ti * 8 + 5 + li) * 0.12
 			var leaf_l: float = LEAF_LENGTH * growth_progress
@@ -66,7 +70,7 @@ static func create_plant(
 			var pivot := Node3D.new()
 			pivot.position = Vector3(ox, y, oz)
 			pivot.rotation.y = azimuth
-			var leaf_h: float = clampf(y / maxf(h, 0.01), 0.0, 1.0)
+			var leaf_h: float = clampf(y / maxf(th, 0.01), 0.0, 1.0)
 			var leaf_mat := CR.create_leaf_material("rice", senescence, stresses, leaf_h)
 			var leaf := MeshInstance3D.new()
 			leaf.mesh = leaf_mesh
@@ -80,12 +84,12 @@ static func create_plant(
 			var pan := MeshInstance3D.new()
 			var pan_mesh := CylinderMesh.new()
 			pan_mesh.height = PANICLE_HEIGHT * grain_frac
-			pan_mesh.bottom_radius = 0.003
-			pan_mesh.top_radius = 0.001
+			pan_mesh.bottom_radius = 0.003 * grain_frac
+			pan_mesh.top_radius = 0.001 * grain_frac
 			pan_mesh.radial_segments = 5
 			pan.mesh = pan_mesh
 			pan.material_override = CR.create_grain_material(grain_frac)
-			pan.position = Vector3(ox, h + 0.005, oz)
+			pan.position = Vector3(ox, th + 0.005, oz)
 			pan.rotation.x = 0.5 + grain_frac * 0.5
 			pan.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			plant.add_child(pan)
