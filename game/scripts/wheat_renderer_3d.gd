@@ -12,7 +12,7 @@ const LEAF_WIDTH := 0.04
 const LEAF_LENGTH_FRAC := 0.35
 const HEAD_RADIUS := 0.012
 const HEAD_HEIGHT := 0.07
-const NUM_LEAVES := 4
+const NUM_LEAVES := 6
 
 
 static func create_plant(
@@ -60,8 +60,9 @@ static func create_plant(
 		for li in range(NUM_LEAVES):
 			var frac: float = float(li) / float(NUM_LEAVES)
 			var y: float = h * (0.2 + frac * 0.7)
-			var azimuth: float = plant_rot + float(li) * PI
-			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.4
+			# ~137° phyllotaxis (golden angle) + per-leaf variation
+			var azimuth: float = plant_rot + float(li) * TAU / 3.0
+			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.8
 			var droop: float = 0.08 + frac * 0.12
 			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, CR.leaf_segments)
 			var pivot := Node3D.new()
