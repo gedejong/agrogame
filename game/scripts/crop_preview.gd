@@ -20,6 +20,14 @@ const SLIDER_DEFS: Array[Dictionary] = [
 	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "wind", "label": "Wind", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{
+		"key": "wind_angle",
+		"label": "Wind dir °",
+		"min": 0.0,
+		"max": 360.0,
+		"step": 5.0,
+		"default": 45.0,
+	},
 ]
 
 var _container: Node3D = null
@@ -273,9 +281,12 @@ func _rebuild() -> void:
 	# Apply wind to all plants
 	var wind_s: float = _sliders["wind"]["slider"].value
 	if wind_s > 0.01:
+		var angle_deg: float = _sliders["wind_angle"]["slider"].value
+		var angle_rad: float = deg_to_rad(angle_deg)
+		var wind_dir := Vector2(cos(angle_rad), sin(angle_rad))
 		for child in _container.get_children():
 			if child is Node3D:
-				CR.set_wind(child, wind_s, Vector2(1.0, 0.3))
+				CR.set_wind(child, wind_s, wind_dir)
 	# Info text
 	var stage_name: String = STAGE_NAMES[stage] if stage < STAGE_NAMES.size() else "?"
 	var info := "%s — %s\n" % [_current_crop, stage_name]
