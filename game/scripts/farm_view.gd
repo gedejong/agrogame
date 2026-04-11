@@ -323,10 +323,11 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 
 
 func _update_crop_visuals(idx: int) -> void:
-	# LOD: adjust leaf segments based on camera distance
+	# LOD: adjust leaf segments based on camera distance to tile
 	var cam: Camera3D = get_viewport().get_camera_3d()
 	if cam:
-		var cam_dist: float = cam.global_position.length()
+		var tile_pos: Vector3 = _crop_sprites[idx][0].global_position
+		var cam_dist: float = cam.global_position.distance_to(tile_pos)
 		CropRenderer3D.leaf_segments = CropRenderer3D.leaf_segments_for_distance(cam_dist)
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE

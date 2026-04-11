@@ -198,32 +198,29 @@ func _on_capture_grid() -> void:
 		for s: Dictionary in stages:
 			_capture_queue.append({"crop": crop, "stage": s})
 	_label.text = "Capturing %d screenshots..." % _capture_queue.size()
-	_capture_next()
-
-
-func _capture_next() -> void:
-	if _capture_queue.is_empty():
-		_label.text = "Done! Saved to ~/tmp/screenshots/"
-		return
-	var item: Dictionary = _capture_queue[0]
-	var crop: String = item["crop"]
-	var s: Dictionary = item["stage"]
-	# Set sliders to match
-	_current_crop = crop
-	_crop_menu.selected = CROPS.find(crop)
-	_sliders["stage"]["slider"].value = s["stage"]
-	_sliders["lai"]["slider"].value = s["lai"]
-	_sliders["grain"]["slider"].value = s["grain"]
+	# Ensure output directory exists (N9)
+	DirAccess.make_dir_recursive_absolute(OS.get_environment("HOME") + "/tmp/screenshots")
+	# Set up first capture, then let _process drive the sequence
+	var first: Dictionary = _capture_queue[0]
+	_current_crop = first["crop"]
+	_crop_menu.selected = CROPS.find(_current_crop)
+	var fs: Dictionary = first["stage"]
+	_sliders["stage"]["slider"].value = fs["stage"]
+	_sliders["lai"]["slider"].value = fs["lai"]
+	_sliders["grain"]["slider"].value = fs["grain"]
 	_rebuild()
-	# Wait frames for render, then capture
-	_capture_wait = 3
+	_capture_wait = 3  # wait for first render
 
 
 func _process(_delta: float) -> void:
+	if _capture_queue.is_empty() or _capture_wait < 0:
+		return
 	if _capture_wait > 0:
 		_capture_wait -= 1
-		if _capture_wait == 0:
-			_do_capture()
+		return
+	# Frame 0: capture current, then set up next
+	if not _capture_queue.is_empty():
+		_do_capture()
 
 
 func _do_capture() -> void:
@@ -238,7 +235,20 @@ func _do_capture() -> void:
 		img.save_png(path)
 	var remaining: int = _capture_queue.size()
 	_label.text = "Captured %s %s (%d left)" % [crop, s["suffix"], remaining]
-	_capture_next()
+	if _capture_queue.is_empty():
+		_label.text = "Done! Saved to ~/tmp/screenshots/"
+		_capture_wait = -1
+		return
+	# Set up next capture
+	var next_item: Dictionary = _capture_queue[0]
+	_current_crop = next_item["crop"]
+	_crop_menu.selected = CROPS.find(_current_crop)
+	var ns: Dictionary = next_item["stage"]
+	_sliders["stage"]["slider"].value = ns["stage"]
+	_sliders["lai"]["slider"].value = ns["lai"]
+	_sliders["grain"]["slider"].value = ns["grain"]
+	_rebuild()
+	_capture_wait = 3  # wait for render
 
 
 func _on_crop_changed(idx: int) -> void:
@@ -256,7 +266,7 @@ func _rebuild() -> void:
 	var stage: int = int(_sliders["stage"]["slider"].value)
 	var lai: float = _sliders["lai"]["slider"].value
 	var grain_frac: float = _sliders["grain"]["slider"].value
-	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var lai_frac: float = clampf(lai / CropVisuals.MAX_LAI, 0.0, 1.0)
 	# Use the same pipeline as CropVisuals
 	var growth: float = CropVisuals._calc_growth(stage, lai_frac, grain_frac)
 	var sen: float = CropVisuals._calc_senescence(stage, lai, grain_frac)

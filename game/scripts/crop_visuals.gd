@@ -3,6 +3,9 @@ extends RefCounted
 ## 3D crop rendering: growth/senescence calculation, plant instancing,
 ## and MultiMesh baking for high-density crops.
 
+## Maximum LAI for normalizing growth. TODO: source from crop presets.
+const MAX_LAI := 6.0
+
 const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
 const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
 const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
@@ -24,7 +27,7 @@ static func update_crop(
 	var lai: float = tile_data.get("lai", 0.0)
 	var grain: float = tile_data.get("grain_g_m2", 0.0)
 	var plants: Array = crop_sprites
-	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var lai_frac: float = clampf(lai / MAX_LAI, 0.0, 1.0)
 	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
 	var growth: float = _calc_growth(stage, lai_frac, grain_frac)
 	var senescence: float = _calc_senescence(stage, lai, grain_frac)
@@ -77,7 +80,7 @@ static func _calc_growth(stage: int, lai_frac: float, grain_frac: float) -> floa
 		return 0.0
 	var base: float = sqrt(clampf(lai_frac, 0.0, 1.0))
 	# Floor: emerged plants have at least 5% even at LAI~0
-	var floor_val: float = 0.05 if stage >= 1 else 0.0
+	var floor_val: float = 0.05
 	# Grain fill adds a small top-end boost (stem extension)
 	var grain_boost: float = grain_frac * 0.1 if stage >= 3 else 0.0
 	return clampf(maxf(base, floor_val) + grain_boost, 0.0, 1.0)

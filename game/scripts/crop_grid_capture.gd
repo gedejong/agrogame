@@ -68,7 +68,7 @@ func _build_grid() -> void:
 			var stage: int = cfg["stage"]
 			var lai: float = cfg["lai"]
 			var grain: float = cfg["grain"]
-			var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+			var lai_frac: float = clampf(lai / CropVisuals.MAX_LAI, 0.0, 1.0)
 			var growth: float = CropVisuals._calc_growth(stage, lai_frac, grain)
 			var sen: float = CropVisuals._calc_senescence(stage, lai, grain)
 			var stresses := {"water": 0.0, "n": 0.0, "p": 0.0, "fe": 0.0, "zn": 0.0}
