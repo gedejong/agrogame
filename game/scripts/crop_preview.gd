@@ -152,6 +152,11 @@ func _setup_ui() -> void:
 		row.add_child(val_lbl)
 		_sliders[def["key"]] = {"slider": slider, "label": val_lbl}
 		vbox.add_child(row)
+	# Capture grid button
+	var capture_btn := Button.new()
+	capture_btn.text = "Capture Grid (all crops × stages)"
+	capture_btn.pressed.connect(_on_capture_grid)
+	vbox.add_child(capture_btn)
 	# Info label
 	_label = Label.new()
 	_label.add_theme_font_size_override("font_size", 10)
@@ -164,6 +169,10 @@ func _format_slider(key: String, val: float) -> String:
 		var idx: int = int(clampf(val, 0.0, 4.0))
 		return "%d %s" % [idx, STAGE_NAMES[idx]]
 	return "%.2f" % val
+
+
+func _on_capture_grid() -> void:
+	get_tree().change_scene_to_file("res://scenes/crop_grid_capture.tscn")
 
 
 func _on_crop_changed(idx: int) -> void:

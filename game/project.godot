@@ -15,7 +15,7 @@ debug/flow_tubes_test=false
 debug/orbit_camera=true
 debug/skip_menu=true
 debug/stress_events=false
-debug/crop_preview=false
+debug/crop_preview=true
 display/mass_unit="g/m²"
 
 [animation]
