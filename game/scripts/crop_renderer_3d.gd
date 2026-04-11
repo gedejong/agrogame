@@ -82,20 +82,29 @@ static func create_leaf_quad(
 
 
 static func build_curved_leaf(
-	length: float, width: float, droop: float, segments: int = 5
+	length: float,
+	width: float,
+	droop: float,
+	segments: int = 5,
+	base_width: float = 0.0,
 ) -> ArrayMesh:
 	## Curved leaf strip: up from stem, arcs outward, droops at tip.
 	## y = rise * 4t(1-t) - droop * length * t^3
 	## Low droop → leaf mostly goes up. High droop → tip sags down.
+	## base_width: minimum half-width at t=0 (leaf base attachment to stem).
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var rise: float = length * (0.3 + (1.0 - droop) * 0.3)
+	var bw: float = maxf(base_width * 0.5, 0.0)
 	# Build quad strip as explicit triangles for generate_normals()
 	for si in range(segments):
 		var t0: float = float(si) / float(segments)
 		var t1: float = float(si + 1) / float(segments)
-		var w0: float = width * 0.5 * maxf(4.0 * t0 * (1.0 - t0), 0.1)
-		var w1: float = width * 0.5 * maxf(4.0 * t1 * (1.0 - t1), 0.1)
+		# Width: parabola 4t(1-t) peaks at midpoint, plus base_width that fades out
+		var base_fade0: float = maxf(1.0 - t0 * 3.0, 0.0) * bw
+		var base_fade1: float = maxf(1.0 - t1 * 3.0, 0.0) * bw
+		var w0: float = maxf(width * 0.5 * maxf(4.0 * t0 * (1.0 - t0), 0.1), base_fade0)
+		var w1: float = maxf(width * 0.5 * maxf(4.0 * t1 * (1.0 - t1), 0.1), base_fade1)
 		var y0: float = rise * 4.0 * t0 * (1.0 - t0) - droop * length * t0 * t0 * t0
 		var y1: float = rise * 4.0 * t1 * (1.0 - t1) - droop * length * t1 * t1 * t1
 		var z0: float = length * t0

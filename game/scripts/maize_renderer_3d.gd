@@ -42,7 +42,7 @@ static func create_plant(
 
 	# Leaves: iterate all potential leaves; leaf_maturity controls smooth emergence
 	if growth_progress > 0.05:
-		_add_leaves(plant, MAX_LEAVES, h, growth_progress, senescence, seed_val, stresses)
+		_add_leaves(plant, MAX_LEAVES, h, growth_progress, senescence, seed_val, stresses, r_bot)
 
 	# Ear/grain at 2/3 stem height
 	if grain_frac > 0.01 and growth_progress > 0.7:
@@ -74,6 +74,7 @@ static func _add_leaves(
 	senescence: float,
 	seed_val: int,
 	stresses: Dictionary,
+	r_bot: float = 0.01,
 ) -> void:
 	var segs := 5
 	for li in range(num_leaves):
@@ -121,7 +122,9 @@ static func _add_leaves(
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs)
+		# Base width matches stem radius at this height (leaf wraps around stem)
+		var stem_r_at_y: float = lerpf(r_bot, 0.001, clampf(y_frac, 0.0, 1.0))
+		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs, stem_r_at_y * 2.0)
 		var leaf_inst := MeshInstance3D.new()
 		leaf_inst.mesh = leaf_mesh
 		leaf_inst.material_override = leaf_mat
