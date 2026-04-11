@@ -5,7 +5,7 @@ extends PanelContainer
 
 const Sparkline = preload("res://scripts/sparkline.gd")
 
-## Graph configs organized by tab. Max 3 per tab.
+## Graph configs organized by tab. Max 4 per tab.
 const TABS := {
 	"Crop":
 	[
@@ -64,6 +64,13 @@ const TABS := {
 			"mass_type": "",
 			"color": Color(0.45, 0.55, 0.70)
 		},
+		{
+			"key": "mn_available_surface",
+			"label": "Mn avail",
+			"unit": "ppm",
+			"mass_type": "",
+			"color": Color(0.50, 0.35, 0.60)
+		},
 	],
 	"Soil":
 	[
@@ -84,7 +91,7 @@ const TABS := {
 	],
 }
 
-## Flat graph lookup for backward compat.
+## Flat key-existence lookup (for tests). Full config is in TABS.
 const GRAPHS := {
 	"lai": {"label": "LAI"},
 	"grain_g_m2": {"label": "Grain"},
@@ -93,6 +100,7 @@ const GRAPHS := {
 	"n_available": {"label": "N available"},
 	"fe_available_surface": {"label": "Fe avail"},
 	"zn_available_surface": {"label": "Zn avail"},
+	"mn_available_surface": {"label": "Mn avail"},
 	"agg_mwd_surface": {"label": "MWD"},
 	"redox_eh_surface": {"label": "Redox Eh"},
 }
@@ -196,6 +204,7 @@ func _on_tab_changed(tab: int) -> void:
 
 func _clear() -> void:
 	_sparklines.clear()
+	_tab_container = null
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()

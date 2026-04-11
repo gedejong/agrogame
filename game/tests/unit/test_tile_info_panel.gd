@@ -17,9 +17,10 @@ func test_max_sparklines_per_tab() -> void:
 
 
 func test_graphs_backward_compat() -> void:
-	assert_gt(TileInfoPanel.GRAPHS.size(), 0, "GRAPHS populated")
+	assert_eq(TileInfoPanel.GRAPHS.size(), 10, "10 graph keys")
 	assert_true(TileInfoPanel.GRAPHS.has("lai"), "GRAPHS has lai")
 	assert_true(TileInfoPanel.GRAPHS.has("theta_surface"), "GRAPHS has theta")
+	assert_true(TileInfoPanel.GRAPHS.has("mn_available_surface"), "GRAPHS has Mn")
 	assert_true(TileInfoPanel.GRAPHS.has("agg_mwd_surface"), "GRAPHS has MWD")
 
 
@@ -60,5 +61,5 @@ func test_total_sparkline_count() -> void:
 	var total := 0
 	for tab_name: String in TileInfoPanel.TABS:
 		total += TileInfoPanel.TABS[tab_name].size()
-	assert_gte(total, 8, "At least 8 sparklines across all tabs")
-	assert_lte(total, 12, "At most 12 sparklines total")
+	assert_gte(total, 9, "At least 9 sparklines across all tabs")
+	assert_lte(total, 16, "At most 16 sparklines total")
