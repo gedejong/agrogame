@@ -18,6 +18,23 @@ const GAUGE_DEFS: Array[Dictionary] = [
 const GOOD_THRESHOLD := 70.0
 const WARN_THRESHOLD := 40.0
 
+## Soil health reference values.
+## SOM: 2000 gC/m² is a well-managed agricultural soil (Ref: Brady & Weil 2017).
+const SOM_REFERENCE_C_G_M2 := 2000.0
+## Theta: 0.25 m³/m³ is near field capacity for loam (Ref: FAO-56, Table 3).
+const THETA_OPTIMAL := 0.25
+const THETA_RANGE := 0.25
+
+## Expected peak LAI by crop key (Ref: WOFOST crop parameters).
+const CROP_MAX_LAI := {
+	"maize": 6.0,
+	"spring_wheat": 4.0,
+	"winter_wheat": 4.5,
+	"sorghum": 5.0,
+	"rice": 5.0,
+	"grape": 3.0,
+}
+
 var _gauge_labels: Dictionary = {}
 var _recommendation_label: Label = null
 var _tile_label: Label = null
@@ -140,32 +157,36 @@ static func compute_scores(tile_data: Dictionary) -> Dictionary:
 	var zn_s: float = tile_data.get("zn_stress", 0.0)
 	var worst_nutrient: float = maxf(maxf(n_s, p_s), maxf(fe_s, zn_s))
 	var nutrient: float = clampf((1.0 - worst_nutrient) * 100.0, 0.0, 100.0)
-	# Growth: LAI relative to expected (max LAI ~6.0)
+	# Growth: LAI relative to crop-specific expected LAI for this stage
 	var lai: float = tile_data.get("lai", 0.0)
 	var stage: int = tile_data.get("crop_stage", 0)
-	var expected_lai: float = _expected_lai_for_stage(stage)
+	var crop_key: String = tile_data.get("crop_key", "")
+	var expected_lai: float = _expected_lai_for_stage(stage, crop_key)
 	var growth: float = (
 		100.0 if stage == 0 else clampf(lai / maxf(expected_lai, 0.1) * 100.0, 0.0, 100.0)
 	)
 	# Soil: composite of SOM, theta relative to optimal
 	var som: float = tile_data.get("som_total_c_g_m2", 0.0)
 	var theta: float = tile_data.get("theta_surface", 0.0)
-	var som_score: float = clampf(som / 2000.0 * 100.0, 0.0, 100.0)
-	var theta_score: float = clampf((1.0 - absf(theta - 0.25) / 0.25) * 100.0, 0.0, 100.0)
+	var som_score: float = clampf(som / SOM_REFERENCE_C_G_M2 * 100.0, 0.0, 100.0)
+	var theta_score: float = clampf(
+		(1.0 - absf(theta - THETA_OPTIMAL) / THETA_RANGE) * 100.0, 0.0, 100.0
+	)
 	var soil: float = (som_score + theta_score) * 0.5
 	return {"water": water, "nutrient": nutrient, "growth": growth, "soil": soil}
 
 
-static func _expected_lai_for_stage(stage: int) -> float:
+static func _expected_lai_for_stage(stage: int, crop_key: String = "") -> float:
+	var max_lai: float = CROP_MAX_LAI.get(crop_key, 5.0)
 	match stage:
 		1:
-			return 1.0
+			return max_lai * 0.15
 		2:
-			return 4.0
+			return max_lai * 0.7
 		3:
-			return 5.5
+			return max_lai * 0.95
 		4:
-			return 4.0
+			return max_lai * 0.7
 	return 1.0
 
 
@@ -219,5 +240,6 @@ func _add_separator(parent: VBoxContainer) -> void:
 
 func _clear() -> void:
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 	_gauge_labels.clear()
