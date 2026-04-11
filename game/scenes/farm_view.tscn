@@ -171,6 +171,9 @@ icon = ExtResource("6")
 text = "Fertilize (50kg)"
 icon = ExtResource("7")
 
+[node name="TillageButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
+text = "Tillage"
+
 [node name="Sep2" type="VSeparator" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 
 [node name="PlantButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]

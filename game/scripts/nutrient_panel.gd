@@ -135,6 +135,23 @@ const NUTRIENT_BARS := {
 			+ "Red (<0): anaerobic, methane risk."
 		),
 	},
+	"MWD":
+	{
+		"color": UiTheme.SUBSTANCE_AGGREGATE,
+		"icon": "",
+		"icon_glyph": "\u2b22",
+		"max": 2.5,
+		"opt_min": 1.5,
+		"opt_max": 2.5,
+		"mass_type": "",
+		"unit": "mm",
+		"tooltip":
+		(
+			"Mean Weight Diameter — aggregate stability indicator.\n"
+			+ "Green (>1.5): good structure. Yellow (0.5-1.5): moderate.\n"
+			+ "Red (<0.5): degraded. Tillage destroys, roots rebuild."
+		),
+	},
 }
 ## Functional accent colors per art guide
 const BAR_STRESS := UiTheme.ACCENT_RED
@@ -356,6 +373,12 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 		if val < EH_ANOXIC_THRESHOLD:
 			return BAR_STRESS
 		if val < EH_OXIC_THRESHOLD:
+			return BAR_MARGINAL
+		return BAR_OK
+	if key == "MWD":
+		if val < 0.5:
+			return BAR_STRESS
+		if val < 1.5:
 			return BAR_MARGINAL
 		return BAR_OK
 	if val < opt_min * 0.3:

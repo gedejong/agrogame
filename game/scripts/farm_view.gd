@@ -86,6 +86,7 @@ var _daily_history: Dictionary = {}
 @onready var ff_all_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FastForwardAll
 @onready var irrigate_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FertilizeButton
+@onready var tillage_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/TillageButton
 @onready var plant_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/PlantButton
 @onready var soil_view_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
@@ -101,6 +102,7 @@ func _ready() -> void:
 	ff_all_btn.pressed.connect(_on_ff_all)
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
+	tillage_btn.pressed.connect(_on_tillage)
 	plant_btn.pressed.connect(_on_plant_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
@@ -347,6 +349,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	ff_all_btn.disabled = disabled
 	irrigate_btn.disabled = disabled
 	fertilize_btn.disabled = disabled
+	tillage_btn.disabled = disabled
 	plant_btn.disabled = disabled
 
 
@@ -465,6 +468,7 @@ func _apply_daily_snapshots(snapshots: Array) -> void:
 					"fe_available_surface": snap.get("fe_available_surface", 10.0),
 					"zn_available_surface": snap.get("zn_available_surface", 1.2),
 					"mn_available_surface": snap.get("mn_available_surface", 18.0),
+					"agg_mwd_surface": snap.get("agg_mwd_surface", 1.0),
 				}
 			)
 		)
@@ -535,6 +539,12 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 								if soil_state.get("mn_available", [])
 								else 18.0
 							),
+							"agg_mwd_surface":
+							(
+								soil_state.get("agg_mwd", [1.0])[0]
+								if soil_state.get("agg_mwd", [])
+								else 1.0
+							),
 						}
 					)
 				)
@@ -579,6 +589,13 @@ func _on_fertilize() -> void:
 					_on_action_complete,
 				)
 			)
+	)
+
+
+func _on_tillage() -> void:
+	_ensure_game(
+		func() -> void:
+			_api_client.execute_action(_game_id, "tillage", {"intensity": 0.8}, _on_action_complete)
 	)
 
 
