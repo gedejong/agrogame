@@ -42,7 +42,26 @@ static func create_leaf_material(
 	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
 	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
 	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
+	# Wind: phase offset desyncs leaf flutter. Caller can override wind_strength.
+	mat.set_shader_parameter("wind_phase", leaf_height * TAU + randf() * TAU)
 	return mat
+
+
+static func set_wind(plant: Node3D, strength: float, direction: Vector2) -> void:
+	## Set wind on all ShaderMaterial children of a plant node.
+	for child in plant.get_children():
+		_set_wind_recursive(child, strength, direction)
+
+
+static func _set_wind_recursive(node: Node, strength: float, dir: Vector2) -> void:
+	if node is MeshInstance3D:
+		var mi: MeshInstance3D = node as MeshInstance3D
+		if mi.material_override is ShaderMaterial:
+			var sm: ShaderMaterial = mi.material_override as ShaderMaterial
+			sm.set_shader_parameter("wind_strength", strength)
+			sm.set_shader_parameter("wind_direction", dir)
+	for child in node.get_children():
+		_set_wind_recursive(child, strength, dir)
 
 
 static func leaf_segments_for_distance(cam_distance: float) -> int:

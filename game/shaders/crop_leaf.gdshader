@@ -12,6 +12,16 @@ uniform float senescence : hint_range(0.0, 1.0) = 0.0;
 // Leaf vertical position: 0.0 = bottom/older, 1.0 = top/younger.
 uniform float leaf_height : hint_range(0.0, 1.0) = 0.5;
 
+// Wind simulation: bends plant top + flutters leaf tips.
+// wind_strength: 0.0 = calm, 1.0 = strong wind.
+// wind_direction: XZ direction (normalized). Default: +X.
+// leaf_height drives how much bending applies (top bends more).
+// UV.x (along-leaf) drives leaf flutter (tips move more than base).
+uniform float wind_strength : hint_range(0.0, 1.0) = 0.0;
+uniform vec2 wind_direction = vec2(1.0, 0.0);
+// Phase offset per leaf instance — set from GDScript hash to desync flutter.
+uniform float wind_phase : hint_range(0.0, 6.28) = 0.0;
+
 // Per-stress-type uniforms (continuous 0.0-1.0).
 uniform float stress_water : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_n : hint_range(0.0, 1.0) = 0.0;
@@ -33,6 +43,35 @@ const vec3 FE_CHLOROSIS = vec3(0.82, 0.80, 0.45);     // strong yellow — almos
 const vec3 FE_VEIN_COLOR = vec3(0.2, 0.55, 0.15);     // green veins stay green
 const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
 const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
+
+void vertex() {
+	if (wind_strength < 0.001) {
+		return;  // skip all wind math when calm
+	}
+	// Wind bending: top of plant bends more than base.
+	// leaf_height = 0 (bottom) to 1 (top). Quadratic: top bends most.
+	float bend_factor = leaf_height * leaf_height * wind_strength;
+
+	// Stem sway: slow sinusoidal, displaces in wind direction.
+	// All leaves on a plant sway together (same TIME phase, offset by wind_phase).
+	float sway = sin(TIME * 2.0 + wind_phase) * bend_factor * 0.15;
+	VERTEX.x += wind_direction.x * sway;
+	VERTEX.z += wind_direction.y * sway;
+	// Slight downward pull at peak bend (gravity on bent stem)
+	VERTEX.y -= abs(sway) * 0.3;
+
+	// Leaf flutter: faster oscillation, increases toward leaf tip.
+	// UV.x = 0 at base, 1 at tip. Tips flutter more.
+	// Each leaf has unique phase (wind_phase) so they desync.
+	float tip_factor = UV.x * UV.x;  // quadratic: mostly at tip
+	float flutter_freq = 5.0 + wind_phase * 0.5;  // slight freq variation
+	float flutter = sin(TIME * flutter_freq + wind_phase * 3.0 + UV.x * 4.0);
+	float flutter_amount = tip_factor * wind_strength * 0.04;
+	VERTEX.y += flutter * flutter_amount;
+	// Lateral flutter (leaf twists in wind)
+	float twist = cos(TIME * flutter_freq * 0.7 + wind_phase * 2.0) * tip_factor;
+	VERTEX.x += twist * wind_strength * 0.02;
+}
 
 void fragment() {
 	float mask = texture(alpha_mask, UV).r;

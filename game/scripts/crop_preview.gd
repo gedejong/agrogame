@@ -4,6 +4,7 @@ extends Node3D
 ## Uses the same stage→growth/senescence pipeline as the real game.
 
 const CropVisuals = preload("res://scripts/crop_visuals.gd")
+const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
@@ -18,6 +19,7 @@ const SLIDER_DEFS: Array[Dictionary] = [
 	{"key": "p", "label": "P stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "wind", "label": "Wind", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 ]
 
 var _container: Node3D = null
@@ -268,6 +270,12 @@ func _rebuild() -> void:
 		)
 		plant.position = Vector3(float(i - 2) * 0.6, 0, 0)
 		_container.add_child(plant)
+	# Apply wind to all plants
+	var wind_s: float = _sliders["wind"]["slider"].value
+	if wind_s > 0.01:
+		for child in _container.get_children():
+			if child is Node3D:
+				CR.set_wind(child, wind_s, Vector2(1.0, 0.3))
 	# Info text
 	var stage_name: String = STAGE_NAMES[stage] if stage < STAGE_NAMES.size() else "?"
 	var info := "%s — %s\n" % [_current_crop, stage_name]
