@@ -19,9 +19,6 @@ uniform float stress_p : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_fe : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_zn : hint_range(0.0, 1.0) = 0.0;
 
-// Leaf droop/roll strength: driven by drought + N deficiency.
-// UV.x = 0 at leaf base, 1 at tip. Droop increases toward tip.
-uniform float stress_droop : hint_range(0.0, 1.0) = 0.0;
 // Leaf rolling: edges curl inward under drought (UV.y = lateral axis).
 uniform float stress_roll : hint_range(0.0, 1.0) = 0.0;
 
@@ -41,13 +38,8 @@ const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
 const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
 
 void vertex() {
-	// Drought droop: leaf tip sags downward. Quadratic increase toward tip.
-	// UV.x = along-leaf (0=base, 1=tip). Displace Y down.
-	float tip_factor = UV.x * UV.x;  // quadratic: mostly at tip
-	VERTEX.y -= tip_factor * stress_droop * 0.4;
-
 	// Leaf rolling: edges curl inward under drought stress.
-	// UV.y = across-leaf (0=left edge, 1=right edge). Lift edges, lower center.
+	// UV.y = across-leaf (0=left edge, 1=right edge). Lift edges up.
 	float lateral = (UV.y - 0.5) * 2.0;  // -1 to 1
 	VERTEX.y += lateral * lateral * stress_roll * 0.15;
 }

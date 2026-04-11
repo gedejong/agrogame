@@ -62,8 +62,8 @@ static func create_plant(
 			var y: float = h * (0.2 + frac * 0.7)
 			var azimuth: float = plant_rot + float(li) * PI
 			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.4
-			var droop: float = 0.08 + frac * 0.12
-			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 3)
+			var droop: float = 0.08 + frac * 0.12 + CR.stress_droop_bonus(stresses)
+			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 5)
 			var pivot := Node3D.new()
 			pivot.position = Vector3(offset_x, y, offset_z)
 			pivot.rotation.y = azimuth

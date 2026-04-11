@@ -38,13 +38,16 @@ static func create_leaf_material(
 	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
 	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
 	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
-	# Droop: drought causes wilting droop; N deficiency causes limp leaves.
-	# Roll: drought causes leaf rolling (edges curl inward to reduce transpiration).
+	# Leaf rolling: drought causes edges to curl inward (reduce transpiration).
+	mat.set_shader_parameter("stress_roll", stresses.get("water", 0.0) * 0.8)
+	return mat
+
+
+static func stress_droop_bonus(stresses: Dictionary) -> float:
+	## Extra droop from drought (wilting) and N deficiency (limp leaves).
 	var water_s: float = stresses.get("water", 0.0)
 	var n_s: float = stresses.get("n", 0.0)
-	mat.set_shader_parameter("stress_droop", clampf(water_s * 0.8 + n_s * 0.5, 0.0, 1.0))
-	mat.set_shader_parameter("stress_roll", water_s * 0.8)
-	return mat
+	return clampf(water_s * 0.6 + n_s * 0.3, 0.0, 0.8)
 
 
 static func create_stem_mesh(

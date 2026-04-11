@@ -36,16 +36,11 @@ func _ready() -> void:
 
 
 func _setup_camera() -> void:
-	# Grid: X = [0, 2, 4, 6, 8, 10], Z = [0, -2, -4, -6, -8]
-	# Center = (5, 0, -4), tallest plant ~2.5m
-	var center := Vector3(5.0, 0.5, -4.0)
+	# Same camera style as crop_preview (known working).
+	# Position for side view of the full grid width.
 	var cam := Camera3D.new()
-	cam.projection = Camera3D.PROJECTION_PERSPECTIVE
-	cam.fov = 40.0
-	cam.far = 100.0
-	# Perspective: place camera high and back to see the whole grid
-	cam.position = Vector3(5.0, 12.0, 12.0)
-	cam.look_at(center)
+	cam.position = Vector3(5.0, 1.5, 5.0)
+	cam.look_at(Vector3(5.0, 0.8, 0.0))
 	cam.current = true
 	add_child(cam)
 
