@@ -42,10 +42,10 @@ func _setup_camera() -> void:
 	var cz: float = -total_d * 0.5 + CELL_SIZE * 0.5
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = total_w * 0.55
-	# Front-elevated view: slightly above, looking down at ~25°
-	cam.position = Vector3(cx, 3.0, cz + total_d * 0.9)
-	cam.look_at(Vector3(cx, 0.8, cz))
+	cam.size = total_w * 0.6
+	# High oblique: ~45° down so all 5 rows are separated visually
+	cam.position = Vector3(cx, total_d * 1.0, cz + total_d * 1.0)
+	cam.look_at(Vector3(cx, 0.0, cz))
 	cam.current = true
 	add_child(cam)
 
