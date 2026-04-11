@@ -7,6 +7,7 @@ Listens for the "water" phase and delegates to the configured water model's
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -14,6 +15,9 @@ from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
+
+if TYPE_CHECKING:
+    from agrogame.soil.aggregation.state import SoilAggregationState
 
 
 @dataclass
@@ -24,7 +28,7 @@ class WaterRuntime:
     model: CascadingBucketWaterModel
     profile: SoilProfile
     state: SoilWaterState
-    agg_state: object | None = None  # SoilAggregationState (optional)
+    agg_state: SoilAggregationState | None = None
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick events on construction."""
@@ -48,8 +52,8 @@ class WaterRuntime:
             )
 
             n = len(self.profile.layers)
-            macro = getattr(self.agg_state, "macro", None)
-            if macro and len(macro) >= n:
+            macro = self.agg_state.macro
+            if len(macro) >= n:
                 ksat_factors = [effective_ksat_factor(macro[i]) for i in range(n)]
                 porosity_overrides = [
                     effective_porosity(self.profile.layers[i].saturation, macro[i])

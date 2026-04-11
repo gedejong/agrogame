@@ -126,6 +126,26 @@ class CascadingBucketWaterModel(SoilWaterModel):
     ) -> float:
         """Cascade water above field capacity to lower layers or deep drainage."""
         deep_drainage = 0.0
+        # First pass: expel water exceeding adjusted saturation (B1 fix).
+        # When aggregation degrades mid-season, porosity may drop below
+        # current theta — push excess to deep drainage immediately.
+        if porosity_overrides:
+            for i, layer in enumerate(profile.layers):
+                if i >= len(porosity_overrides):
+                    break
+                current = state.layer_storage_mm(profile, i)
+                sat_cap = porosity_overrides[i] * layer.depth_cm * 10.0
+                sat_excess = max(0.0, current - sat_cap)
+                if sat_excess > 1e-9:
+                    state.set_layer_storage_mm(profile, i, sat_cap)
+                    deep_drainage += sat_excess
+                    if self.event_bus:
+                        self.event_bus.emit(
+                            WaterDrained(
+                                from_layer=i, to_layer=-1, amount_mm=sat_excess
+                            )
+                        )
+        # Second pass: drain FC excess.
         for i, layer in enumerate(profile.layers):
             current = state.layer_storage_mm(profile, i)
             fc_storage = layer.field_capacity * layer.depth_cm * 10.0
@@ -134,6 +154,10 @@ class CascadingBucketWaterModel(SoilWaterModel):
                 continue
             # Limit drainage by ksat: poorly aggregated soil drains slower.
             # ksat_factor < 1 retains some excess above FC (waterlogging).
+            # Cap at 1.0: in a daily bucket model, the base case already drains
+            # 100% of FC-excess per day. kf > 1 (well-aggregated) cannot
+            # accelerate beyond instant drainage — benefit manifests as
+            # increased porosity/capacity instead. Ref: Dexter 2004.
             kf = ksat_factors[i] if ksat_factors and i < len(ksat_factors) else 1.0
             drainable = excess * min(1.0, kf)
             retained = excess - drainable

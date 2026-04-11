@@ -8,11 +8,15 @@ the microbial module, and drives N mineralization from SOM quality.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.state import SoilWaterState
+
+if TYPE_CHECKING:
+    from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.chemistry.module import SoilChemistryModule
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.microbes.events import SubstrateAvailable, RhizospherePrimingPulse
@@ -34,7 +38,7 @@ class SOMRuntime:
     water_state: SoilWaterState
     chemistry: SoilChemistryModule
     som: ThreePoolSOM | None = None
-    agg_state: object | None = None  # SoilAggregationState (optional, avoids circular)
+    agg_state: SoilAggregationState | None = None
 
     def __post_init__(self) -> None:
         n_layers = len(self.profile.layers)
@@ -106,11 +110,7 @@ class SOMRuntime:
         )
         priming = 1.0 + rf
         clay_pct = getattr(soil_layer, "clay_pct", 22.0) or 22.0
-        mwd = 0.0
-        if self.agg_state is not None:
-            mwd_fn = getattr(self.agg_state, "mwd", None)
-            if mwd_fn is not None:
-                mwd = mwd_fn(i)
+        mwd = self.agg_state.mwd(i) if self.agg_state is not None else 0.0
         self._check_wet_dry(i, wfps)
 
         fluxes = self.som.daily_step(

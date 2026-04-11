@@ -37,7 +37,7 @@ def effective_porosity(base_saturation: float, macro_frac: float) -> float:
     Returns:
         Adjusted porosity (clamped to physical bounds).
     """
-    # Shift porosity ±0.08 around base depending on aggregation
+    # Shift range: -0.027 (macro=0) to +0.08 (macro=1) around base.
     # At macro=0.25 (default tilled) → no shift; below → decrease; above → increase
     shift = 0.08 * (macro_frac - 0.25) / 0.75
     adjusted = base_saturation + shift
@@ -93,7 +93,7 @@ def som_protection_factor(
         Multiplier in [1 - protection_reduction, 1.0] where lower = more protected.
     """
     # Clay component (original)
-    clay_component = min(1.0, clay_pct / clay_scale)
+    clay_component = min(1.0, max(0.0, clay_pct) / clay_scale)
     # MWD component: well-aggregated soil physically protects SOM
     # Scale: 0 at MWD=0, 1.0 at MWD≥2.0
     mwd_component = min(1.0, max(0.0, mwd_mm) / 2.0)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -8,6 +9,9 @@ from agrogame.soil.models import SoilProfile
 from agrogame.soil.phenology import PhenologyModule
 from .module import RootModule
 from .types import RootState
+
+if TYPE_CHECKING:
+    from agrogame.soil.aggregation.state import SoilAggregationState
 
 
 @dataclass
@@ -17,7 +21,7 @@ class RootsRuntime:
     state: RootState
     profile: SoilProfile
     phenology: PhenologyModule
-    agg_state: object | None = None  # SoilAggregationState (optional)
+    agg_state: SoilAggregationState | None = None
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
@@ -31,11 +35,9 @@ class RootsRuntime:
                 root_penetration_factor,
             )
 
-            mwd_fn = getattr(self.agg_state, "mwd", None)
-            if mwd_fn is not None:
-                # Use surface MWD as representative constraint
-                mwd = mwd_fn(0)
-                constraints = {"agg_penetration": root_penetration_factor(mwd)}
+            # TODO: per-layer MWD constraint for depth-dependent resistance
+            mwd = self.agg_state.mwd(0)
+            constraints = {"agg_penetration": root_penetration_factor(mwd)}
         _ = self.module.daily_step(
             state=self.state,
             profile=self.profile,
