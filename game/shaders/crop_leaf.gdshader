@@ -40,8 +40,11 @@ const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
 void vertex() {
 	// Leaf rolling: edges curl inward under drought stress.
 	// UV.y = across-leaf (0=left edge, 1=right edge). Lift edges up.
+	// UV.x = along-leaf (0=base, 1=tip). Rolling increases toward tip
+	// so the base stays attached to the stem (zero displacement at t=0).
 	float lateral = (UV.y - 0.5) * 2.0;  // -1 to 1
-	VERTEX.y += lateral * lateral * stress_roll * 0.15;
+	float along_leaf = UV.x;  // 0 at base, 1 at tip
+	VERTEX.y += lateral * lateral * along_leaf * stress_roll * 0.15;
 }
 
 void fragment() {
