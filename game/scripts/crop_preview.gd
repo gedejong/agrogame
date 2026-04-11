@@ -33,6 +33,8 @@ var _sliders: Dictionary = {}
 var _crop_menu: OptionButton = null
 var _label: Label = null
 var _current_crop: String = "spring_wheat"
+var _capture_queue: Array[Dictionary] = []
+var _capture_wait: int = 0
 
 
 func _ready() -> void:
@@ -172,7 +174,61 @@ func _format_slider(key: String, val: float) -> String:
 
 
 func _on_capture_grid() -> void:
-	get_tree().change_scene_to_file("res://scenes/crop_grid_capture.tscn")
+	# Build queue of all crop × stage combos to capture
+	_capture_queue.clear()
+	var stages: Array[Dictionary] = [
+		{"stage": 1, "lai": 0.5, "grain": 0.0, "suffix": "1_emerged"},
+		{"stage": 2, "lai": 2.0, "grain": 0.0, "suffix": "2_veg_low"},
+		{"stage": 2, "lai": 4.0, "grain": 0.0, "suffix": "3_veg_high"},
+		{"stage": 3, "lai": 5.5, "grain": 0.3, "suffix": "4_flowering"},
+		{"stage": 4, "lai": 4.0, "grain": 0.8, "suffix": "5_maturity"},
+		{"stage": 4, "lai": 2.0, "grain": 1.0, "suffix": "6_senescent"},
+	]
+	for crop: String in CROPS:
+		for s: Dictionary in stages:
+			_capture_queue.append({"crop": crop, "stage": s})
+	_label.text = "Capturing %d screenshots..." % _capture_queue.size()
+	_capture_next()
+
+
+func _capture_next() -> void:
+	if _capture_queue.is_empty():
+		_label.text = "Done! Saved to ~/tmp/screenshots/"
+		return
+	var item: Dictionary = _capture_queue[0]
+	var crop: String = item["crop"]
+	var s: Dictionary = item["stage"]
+	# Set sliders to match
+	_current_crop = crop
+	_crop_menu.selected = CROPS.find(crop)
+	_sliders["stage"]["slider"].value = s["stage"]
+	_sliders["lai"]["slider"].value = s["lai"]
+	_sliders["grain"]["slider"].value = s["grain"]
+	_rebuild()
+	# Wait frames for render, then capture
+	_capture_wait = 3
+
+
+func _process(_delta: float) -> void:
+	if _capture_wait > 0:
+		_capture_wait -= 1
+		if _capture_wait == 0:
+			_do_capture()
+
+
+func _do_capture() -> void:
+	var item: Dictionary = _capture_queue.pop_front()
+	var crop: String = item["crop"]
+	var s: Dictionary = item["stage"]
+	var path: String = (
+		OS.get_environment("HOME") + "/tmp/screenshots/%s_%s.png" % [crop, s["suffix"]]
+	)
+	var img: Image = get_viewport().get_texture().get_image()
+	if img:
+		img.save_png(path)
+	var remaining: int = _capture_queue.size()
+	_label.text = "Captured %s %s (%d left)" % [crop, s["suffix"], remaining]
+	_capture_next()
 
 
 func _on_crop_changed(idx: int) -> void:
