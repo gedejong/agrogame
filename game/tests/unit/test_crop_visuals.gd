@@ -9,10 +9,10 @@ func test_calc_growth_stage_0() -> void:
 
 
 func test_calc_growth_stage_1_low_lai() -> void:
-	# Emerged with low LAI: at least the floor (0.05)
+	# Emerged with low LAI: sqrt(0.05) ≈ 0.22, at least the floor (0.05)
 	var g: float = VisualsRef._calc_growth(1, 0.05, 0.0)
 	assert_gte(g, 0.05, "Emerged has floor")
-	assert_lt(g, 0.15, "Low LAI = small")
+	assert_lt(g, 0.30, "Low LAI = small (sqrt scaled)")
 
 
 func test_calc_growth_lai_drives_size() -> void:

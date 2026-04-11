@@ -70,12 +70,12 @@ static func update_crop(
 
 
 static func _calc_growth(stage: int, lai_frac: float, grain_frac: float) -> float:
-	# Growth driven by LAI (continuous size). Stage only sets minimum
-	# floor so a just-emerged plant isn't invisible.
-	# LAI is the authoritative size indicator from the simulation.
+	# Height ∝ sqrt(LAI): leaf area scales with height² (more + bigger leaves),
+	# so height = sqrt(lai_frac). This prevents doubling LAI from doubling
+	# visual height — instead it gives ~40% height increase (physically correct).
 	if stage == 0:
 		return 0.0
-	var base: float = clampf(lai_frac, 0.0, 1.0)
+	var base: float = sqrt(clampf(lai_frac, 0.0, 1.0))
 	# Floor: emerged plants have at least 5% even at LAI~0
 	var floor_val: float = 0.05 if stage >= 1 else 0.0
 	# Grain fill adds a small top-end boost (stem extension)
