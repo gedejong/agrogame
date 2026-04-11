@@ -37,17 +37,14 @@ func _ready() -> void:
 
 func _setup_camera() -> void:
 	var total_w: float = COLS.size() * CELL_SIZE
-	var total_h: float = CROPS.size() * CELL_SIZE
+	var total_d: float = CROPS.size() * CELL_SIZE
+	var center := Vector3(total_w * 0.5 - CELL_SIZE * 0.5, 0.0, -total_d * 0.5 + CELL_SIZE * 0.5)
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = maxf(total_w, total_h) * 0.6
-	# Side view: camera looks from +Z toward -Z
-	cam.position = Vector3(
-		total_w * 0.5 - CELL_SIZE * 0.5,
-		total_h * 0.25,
-		total_h * 0.8,
-	)
-	cam.look_at(Vector3(total_w * 0.5 - CELL_SIZE * 0.5, total_h * 0.25, 0))
+	cam.size = maxf(total_w, total_d) * 0.7
+	# Elevated oblique: look down at ~35° from front-right so all rows visible
+	cam.position = center + Vector3(2.0, total_d * 0.6, total_d * 0.8)
+	cam.look_at(center + Vector3(0, 0.5, 0))
 	cam.current = true
 	add_child(cam)
 
