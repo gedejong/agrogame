@@ -26,19 +26,16 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	# Per-leaf materials created in loop for bottom-up senescence
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 
 	for ti in range(NUM_TILLERS):
 		var offset_x: float = (CR.hash_val(seed_val, ti * 10) - 0.5) * 0.08
 		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.08
-		# Leaf sheath "stem": green cylinder formed by wrapped leaves.
-		# Tapers from base to top. Always visible — this IS the plant body.
-		# Sheath covers most of stem; only slight recession at full grain
-		var sheath_top: float = h * lerpf(0.85, 0.75, grain_frac)
 		var sheath_r_bot: float = 0.005 * growth_progress + 0.002
 		var sheath_r_top: float = sheath_r_bot * 0.5
+		# Sheath extends full height when no grain; recedes when peduncle appears
+		var sheath_top: float = h if not has_grain else h * lerpf(0.85, 0.75, grain_frac)
 		var sheath_mat := CR.create_leaf_material("wheat", senescence, stresses, 0.3)
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r_bot, sheath_r_top)
@@ -46,8 +43,8 @@ static func create_plant(
 		sheath.position = Vector3(offset_x, sheath_top * 0.5, offset_z)
 		sheath.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(sheath)
-		# Bare peduncle above sheaths — only at flowering
-		if has_grain:
+		# Bare peduncle above sheaths — only when grain is developing
+		if has_grain and sheath_top < h:
 			var ped_h: float = h - sheath_top
 			var stem_mat := CR.create_stem_material(senescence)
 			var ped := MeshInstance3D.new()
@@ -56,16 +53,14 @@ static func create_plant(
 			ped.position = Vector3(offset_x, sheath_top + ped_h * 0.5, offset_z)
 			ped.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			plant.add_child(ped)
-		# Free leaf blades emerge from the sheath at intervals
+		# Free leaf blades emerge along the full stem height
 		var leaf_l: float = h * LEAF_LENGTH_FRAC * growth_progress
 		var plant_rot: float = CR.hash_val(seed_val, 0) * TAU
 		for li in range(NUM_LEAVES):
 			var frac: float = float(li) / float(NUM_LEAVES)
-			# Leaves emerge from sheath at different heights
-			var y: float = sheath_top * (0.3 + frac * 0.7)
+			var y: float = h * (0.2 + frac * 0.7)
 			var azimuth: float = plant_rot + float(li) * PI
 			azimuth += (CR.hash_val(seed_val, ti * 10 + 3 + li) - 0.5) * 0.4
-			# Leaves are mostly upright near the sheath, tips curve out
 			var droop: float = 0.08 + frac * 0.12
 			var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 3)
 			var pivot := Node3D.new()
@@ -79,7 +74,7 @@ static func create_plant(
 			leaf.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			pivot.add_child(leaf)
 			plant.add_child(pivot)
-		# Grain head
+		# Grain head sits at stem top
 		if has_grain:
 			var head := MeshInstance3D.new()
 			var head_mesh := CylinderMesh.new()
@@ -89,7 +84,7 @@ static func create_plant(
 			head_mesh.radial_segments = 5
 			head.mesh = head_mesh
 			head.material_override = CR.create_grain_material(grain_frac)
-			head.position = Vector3(offset_x, h - HEAD_HEIGHT * 0.2, offset_z)
+			head.position = Vector3(offset_x, h, offset_z)
 			head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 			plant.add_child(head)
 
