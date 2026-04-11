@@ -51,10 +51,15 @@ func test_format_acceptor_unknown() -> void:
 
 
 func test_mwd_bar_stress_color_good() -> void:
-	var c: Color = NutrientPanel._stress_color("MWD", 1.5, 1.0, 2.5)
-	assert_eq(c, NutrientPanel.BAR_OK, "Good MWD = green")
+	var c: Color = NutrientPanel._stress_color("MWD", 1.8, 1.5, 2.5)
+	assert_eq(c, NutrientPanel.BAR_OK, "Good MWD >1.5 = green")
+
+
+func test_mwd_bar_stress_color_marginal() -> void:
+	var c: Color = NutrientPanel._stress_color("MWD", 0.8, 1.5, 2.5)
+	assert_eq(c, NutrientPanel.BAR_MARGINAL, "Moderate MWD 0.5-1.5 = yellow")
 
 
 func test_mwd_bar_stress_color_degraded() -> void:
-	var c: Color = NutrientPanel._stress_color("MWD", 0.3, 1.0, 2.5)
-	assert_eq(c, NutrientPanel.BAR_STRESS, "Degraded MWD = red")
+	var c: Color = NutrientPanel._stress_color("MWD", 0.3, 1.5, 2.5)
+	assert_eq(c, NutrientPanel.BAR_STRESS, "Degraded MWD <0.5 = red")

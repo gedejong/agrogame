@@ -217,7 +217,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Zn": zn[i] if i < zn.size() else 1.2,
 				"Mn": mn[i] if i < mn.size() else 18.0,
 				"Eh": eh,
-				"MWD": agg_mwd[i] if i < agg_mwd.size() else 0.55,
+				"MWD": agg_mwd[i] if i < agg_mwd.size() else 1.0,
 			}
 			var lbl := "%d–%dcm" % [top, cum_depth]
 			(

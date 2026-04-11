@@ -205,6 +205,7 @@ const EVENT_CONFIG := {
 		"min_display": 0.0005,
 		"norm_scale": 0.1,
 	},
+	# Aggregation tubes use "carbon" substance for cycle filter (no aggregation filter yet).
 	"TillageApplied":
 	{
 		"color": UiTheme.ACCENT_RED,

@@ -349,6 +349,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	ff_all_btn.disabled = disabled
 	irrigate_btn.disabled = disabled
 	fertilize_btn.disabled = disabled
+	tillage_btn.disabled = disabled
 	plant_btn.disabled = disabled
 
 
@@ -467,7 +468,7 @@ func _apply_daily_snapshots(snapshots: Array) -> void:
 					"fe_available_surface": snap.get("fe_available_surface", 10.0),
 					"zn_available_surface": snap.get("zn_available_surface", 1.2),
 					"mn_available_surface": snap.get("mn_available_surface", 18.0),
-					"agg_mwd_surface": snap.get("agg_mwd_surface", 0.55),
+					"agg_mwd_surface": snap.get("agg_mwd_surface", 1.0),
 				}
 			)
 		)
@@ -540,9 +541,9 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 							),
 							"agg_mwd_surface":
 							(
-								soil_state.get("agg_mwd", [0.55])[0]
+								soil_state.get("agg_mwd", [1.0])[0]
 								if soil_state.get("agg_mwd", [])
-								else 0.55
+								else 1.0
 							),
 						}
 					)

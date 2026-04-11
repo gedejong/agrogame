@@ -353,3 +353,20 @@ func test_weather_events_ignored_by_flow_overlay() -> void:
 	]
 	overlay2.update_from_events(ch4ox, TEST_PROFILE, Vector3.ZERO)
 	assert_gt(overlay2._tubes.size(), 0, "CH4Oxidized should create a tube")
+	# Aggregation events: TillageApplied + AggregateStructureUpdated (#249)
+	var overlay3 := FlowOverlayRef.new()
+	add_child_autofree(overlay3)
+	var agg_events: Array = [
+		{
+			"event_type": "TillageApplied",
+			"module": "agrogame.soil.aggregation.events",
+			"data": {"intensity": 1.0, "macro_destroyed_frac": 0.7},
+		},
+		{
+			"event_type": "AggregateStructureUpdated",
+			"module": "agrogame.soil.aggregation.events",
+			"data": {"layer": 0, "micro": 0.35, "meso": 0.30, "macro": 0.35, "mwd_mm": 1.2},
+		},
+	]
+	overlay3.update_from_events(agg_events, TEST_PROFILE, Vector3.ZERO)
+	assert_gt(overlay3._tubes.size(), 0, "Aggregation events should create tubes")
