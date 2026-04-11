@@ -4,10 +4,10 @@ extends RefCounted
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
-const NUM_TILLERS := 1
+const NUM_TILLERS := 4
 const STEM_HEIGHT := 1.0
-const LEAF_WIDTH := 0.025
-const LEAF_LENGTH := 0.4
+const LEAF_WIDTH := 0.035
+const LEAF_LENGTH := 0.45
 const PANICLE_HEIGHT := 0.06
 
 
@@ -28,12 +28,12 @@ static func create_plant(
 	var h: float = STEM_HEIGHT * pow(growth_progress, 1.3)
 
 	for ti in range(NUM_TILLERS):
-		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.06
-		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.06
+		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.10
+		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.10
 		var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 		# Leaf sheath: green cylinder (wrapped leaves form the visible "stem")
 		var sheath_top: float = h * lerpf(0.85, 0.7, grain_frac)
-		var sheath_r: float = 0.003 * growth_progress + 0.001
+		var sheath_r: float = 0.004 * growth_progress + 0.002
 		var sheath := MeshInstance3D.new()
 		sheath.mesh = CR.create_stem_mesh(sheath_top, sheath_r, sheath_r * 0.5)
 		sheath.material_override = CR.create_leaf_material("rice", senescence, stresses, 0.3)

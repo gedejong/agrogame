@@ -6,12 +6,12 @@ extends RefCounted
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
-const NUM_TILLERS := 1
+const NUM_TILLERS := 3
 const STEM_HEIGHT := 0.9
-const LEAF_WIDTH := 0.03
-const LEAF_LENGTH_FRAC := 0.25
-const HEAD_RADIUS := 0.015
-const HEAD_HEIGHT := 0.08
+const LEAF_WIDTH := 0.04
+const LEAF_LENGTH_FRAC := 0.35
+const HEAD_RADIUS := 0.012
+const HEAD_HEIGHT := 0.07
 const NUM_LEAVES := 4
 
 
@@ -31,8 +31,8 @@ static func create_plant(
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 
 	for ti in range(NUM_TILLERS):
-		var offset_x: float = (CR.hash_val(seed_val, ti * 10) - 0.5) * 0.08
-		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.08
+		var offset_x: float = (CR.hash_val(seed_val, ti * 10) - 0.5) * 0.12
+		var offset_z: float = (CR.hash_val(seed_val, ti * 10 + 1) - 0.5) * 0.12
 		var sheath_r_bot: float = 0.005 * growth_progress + 0.002
 		var sheath_r_top: float = sheath_r_bot * 0.5
 		# Sheath extends full height when no grain; recedes when peduncle appears
