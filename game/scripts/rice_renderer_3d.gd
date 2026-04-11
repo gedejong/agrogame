@@ -28,8 +28,12 @@ static func create_plant(
 	var h: float = STEM_HEIGHT * pow(growth_progress, 1.3)
 
 	for ti in range(NUM_TILLERS):
-		var ox: float = (CR.hash_val(seed_val, ti * 8) - 0.5) * 0.10
-		var oz: float = (CR.hash_val(seed_val, ti * 8 + 1) - 0.5) * 0.10
+		# Tillers splay outward from shared base
+		var tiller_angle: float = float(ti) * TAU / float(NUM_TILLERS)
+		tiller_angle += CR.hash_val(seed_val, ti * 8) * 0.5
+		var splay: float = 0.03 + CR.hash_val(seed_val, ti * 8 + 1) * 0.03
+		var ox: float = cos(tiller_angle) * splay
+		var oz: float = sin(tiller_angle) * splay
 		var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.6
 		# Leaf sheath: green cylinder (wrapped leaves form the visible "stem")
 		var sheath_top: float = h * lerpf(0.85, 0.7, grain_frac)
