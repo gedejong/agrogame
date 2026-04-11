@@ -45,21 +45,22 @@ const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
 const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
 
 void vertex() {
-	// Wind: bend stem top + flutter leaf tips. All in MODEL space.
-	// Early exit when calm — zero GPU cost.
+	// Wind: leaf bends from base (fixed) toward tip (moving).
+	// UV.x = 0 at base (attached to stem), 1 at tip.
+	// ALL displacement scaled by UV.x so base stays at origin.
 	if (wind_strength > 0.001) {
-		// Stem sway: top bends more (leaf_height²). Slow oscillation.
-		float bend = leaf_height * leaf_height * wind_strength;
+		float along = UV.x;  // 0 at base, 1 at tip
 		float phase = TIME * 2.0 + wind_phase;
-		float sway_x = sin(phase) * bend * 0.1;
-		float sway_z = cos(phase * 0.7) * bend * 0.05;
-		VERTEX.x += wind_direction.x * sway_x + wind_direction.y * sway_z;
-		VERTEX.z += wind_direction.y * sway_x - wind_direction.x * sway_z;
-		VERTEX.y -= bend * abs(sin(phase)) * 0.02;
-		// Leaf flutter: tip moves more (UV.x²). Faster oscillation.
-		float tip = UV.x * UV.x;
-		float flut = sin(TIME * 5.0 + wind_phase * 3.0 + UV.x * 4.0);
-		VERTEX.y += flut * tip * wind_strength * 0.02;
+		// Slow sway: entire leaf curves in wind direction.
+		// Stronger for higher leaves (leaf_height), more at tip (along²).
+		float sway_amount = along * along * leaf_height * wind_strength * 0.12;
+		float sway = sin(phase) * sway_amount;
+		VERTEX.x += wind_direction.x * sway;
+		VERTEX.z += wind_direction.y * sway;
+		VERTEX.y -= along * sway_amount * 0.3;  // gravity sag at tip
+		// Fast flutter: tip oscillation, unique per leaf.
+		float flut = sin(TIME * 5.0 + wind_phase * 3.0 + along * 4.0);
+		VERTEX.y += flut * along * along * wind_strength * 0.015;
 	}
 }
 
