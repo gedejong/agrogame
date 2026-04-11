@@ -45,32 +45,22 @@ const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
 const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
 
 void vertex() {
-	if (wind_strength < 0.001) {
-		return;  // skip all wind math when calm
+	// Wind: bend stem top + flutter leaf tips. All in MODEL space.
+	// Early exit when calm — zero GPU cost.
+	if (wind_strength > 0.001) {
+		// Stem sway: top bends more (leaf_height²). Slow oscillation.
+		float bend = leaf_height * leaf_height * wind_strength;
+		float phase = TIME * 2.0 + wind_phase;
+		float sway_x = sin(phase) * bend * 0.1;
+		float sway_z = cos(phase * 0.7) * bend * 0.05;
+		VERTEX.x += wind_direction.x * sway_x + wind_direction.y * sway_z;
+		VERTEX.z += wind_direction.y * sway_x - wind_direction.x * sway_z;
+		VERTEX.y -= bend * abs(sin(phase)) * 0.02;
+		// Leaf flutter: tip moves more (UV.x²). Faster oscillation.
+		float tip = UV.x * UV.x;
+		float flut = sin(TIME * 5.0 + wind_phase * 3.0 + UV.x * 4.0);
+		VERTEX.y += flut * tip * wind_strength * 0.02;
 	}
-	// Wind bending: top of plant bends more than base.
-	// leaf_height = 0 (bottom) to 1 (top). Quadratic: top bends most.
-	float bend_factor = leaf_height * leaf_height * wind_strength;
-
-	// Stem sway: slow sinusoidal, displaces in wind direction.
-	// All leaves on a plant sway together (same TIME phase, offset by wind_phase).
-	float sway = sin(TIME * 2.0 + wind_phase) * bend_factor * 0.15;
-	VERTEX.x += wind_direction.x * sway;
-	VERTEX.z += wind_direction.y * sway;
-	// Slight downward pull at peak bend (gravity on bent stem)
-	VERTEX.y -= abs(sway) * 0.3;
-
-	// Leaf flutter: faster oscillation, increases toward leaf tip.
-	// UV.x = 0 at base, 1 at tip. Tips flutter more.
-	// Each leaf has unique phase (wind_phase) so they desync.
-	float tip_factor = UV.x * UV.x;  // quadratic: mostly at tip
-	float flutter_freq = 5.0 + wind_phase * 0.5;  // slight freq variation
-	float flutter = sin(TIME * flutter_freq + wind_phase * 3.0 + UV.x * 4.0);
-	float flutter_amount = tip_factor * wind_strength * 0.04;
-	VERTEX.y += flutter * flutter_amount;
-	// Lateral flutter (leaf twists in wind)
-	float twist = cos(TIME * flutter_freq * 0.7 + wind_phase * 2.0) * tip_factor;
-	VERTEX.x += twist * wind_strength * 0.02;
 }
 
 void fragment() {

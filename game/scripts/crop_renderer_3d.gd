@@ -42,8 +42,8 @@ static func create_leaf_material(
 	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
 	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
 	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
-	# Wind: phase offset desyncs leaf flutter. Caller can override wind_strength.
-	mat.set_shader_parameter("wind_phase", leaf_height * TAU + randf() * TAU)
+	# Wind: phase offset desyncs leaf flutter between leaves.
+	mat.set_shader_parameter("wind_phase", leaf_height * 4.17)
 	return mat
 
 
