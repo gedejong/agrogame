@@ -41,10 +41,9 @@ static func create_plant(
 	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(stem)
 
-	# Leaves
-	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
-	if num_leaves > 0:
-		_add_leaves(plant, num_leaves, h, growth_progress, senescence, seed_val, stresses)
+	# Leaves: iterate all potential leaves; leaf_maturity controls smooth emergence
+	if growth_progress > 0.05:
+		_add_leaves(plant, MAX_LEAVES, h, growth_progress, senescence, seed_val, stresses)
 
 	# Ear/grain at 2/3 stem height
 	if grain_frac > 0.01 and growth_progress > 0.7:
@@ -93,13 +92,12 @@ static func _add_leaves(
 		var len_var: float = (CR.hash_val(seed_val, hi) - 0.5) * 0.2
 		# Base length from position on stem (short→long→short)
 		var base_len: float = LEAF_LENGTH * (0.3 + len_curve * 0.7) * (1.0 + len_var)
-		# Leaf maturity: each leaf matures as overall plant grows.
-		# Bottom leaves mature first, top leaves last.
-		# leaf_maturity=0 (just emerging) → 1 (fully grown)
-		var leaf_appear: float = frac * 0.8
-		var leaf_maturity: float = clampf(
-			(growth_progress - leaf_appear) / maxf(1.0 - leaf_appear, 0.01), 0.0, 1.0
-		)
+		# Leaf maturity: each leaf emerges and grows over a window.
+		# Bottom leaves appear first, top leaves last.
+		# Each leaf takes ~20% of growth range to go from 0→full.
+		var leaf_appear: float = frac * 0.85
+		var grow_window: float = 0.2
+		var leaf_maturity: float = clampf((growth_progress - leaf_appear) / grow_window, 0.0, 1.0)
 		var leaf_len: float = base_len * leaf_maturity
 		# Width: middle leaves widest, scales with overall growth
 		var w_pos: float = 0.4 + len_curve * 0.6
