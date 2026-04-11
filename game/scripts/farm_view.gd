@@ -34,6 +34,10 @@ const SOIL_TEXTURES := {
 	},
 }
 
+## Default wind: gentle breeze from southwest. TODO: modulate by weather API.
+const DEFAULT_WIND_STRENGTH := 0.2
+const DEFAULT_WIND_DIR := Vector2(0.7, 0.7)
+
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
@@ -327,6 +331,9 @@ func _update_crop_visuals(idx: int) -> void:
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)
+	# Apply default wind to crop plants
+	var container: Node3D = _crop_sprites[idx][0]
+	CropRenderer3D.set_wind(container, DEFAULT_WIND_STRENGTH, DEFAULT_WIND_DIR)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
