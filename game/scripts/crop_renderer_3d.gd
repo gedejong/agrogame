@@ -25,14 +25,18 @@ static func hash_val(seed_val: int, idx: int) -> float:
 
 
 static func create_leaf_material(
-	crop_key: String, senescence: float, stress: float
+	crop_key: String, senescence: float, stresses: Dictionary
 ) -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = LEAF_SHADER
 	var mask: Texture2D = LEAF_MASKS.get(crop_key, LEAF_MASKS["maize"])
 	mat.set_shader_parameter("alpha_mask", mask)
 	mat.set_shader_parameter("senescence", senescence)
-	mat.set_shader_parameter("stress", stress)
+	mat.set_shader_parameter("stress_water", stresses.get("water", 0.0))
+	mat.set_shader_parameter("stress_n", stresses.get("n", 0.0))
+	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
+	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
+	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
 	return mat
 
 

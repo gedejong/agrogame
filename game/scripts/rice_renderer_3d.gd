@@ -14,7 +14,7 @@ const PANICLE_HEIGHT := 0.06
 static func create_plant(
 	growth_progress: float,
 	senescence: float,
-	stress: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	seed_val: int,
 ) -> Node3D:
@@ -22,7 +22,7 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	var leaf_mat := CR.create_leaf_material("rice", senescence, stress)
+	var leaf_mat := CR.create_leaf_material("rice", senescence, stresses)
 	var stem_mat := CR.create_stem_material(senescence)
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.0)
 

@@ -22,18 +22,13 @@ static func update_crop(
 	var crop_key: String = tile_data.get("crop_key", "")
 	var stage: int = tile_data.get("crop_stage", 0)
 	var lai: float = tile_data.get("lai", 0.0)
-	var stress: int = tile_data.get("stress", 0)
 	var grain: float = tile_data.get("grain_g_m2", 0.0)
 	var plants: Array = crop_sprites
 	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
 	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
 	var growth: float = _calc_growth(stage, lai_frac, grain_frac)
 	var senescence: float = _calc_senescence(stage, lai, grain_frac)
-	var stress_f: float = 0.0
-	if stress == 1:
-		stress_f = 0.5
-	elif stress == 2:
-		stress_f = 0.3
+	var stresses: Dictionary = StressUtils.parse_stress_data(tile_data)
 	var container: Node3D = plants[0]
 	for child in container.get_children():
 		child.queue_free()
@@ -54,7 +49,7 @@ static func update_crop(
 			s,
 			growth,
 			senescence,
-			stress_f,
+			stresses,
 			grain_frac,
 			tile_size,
 		)
@@ -68,7 +63,7 @@ static func update_crop(
 			s,
 			growth,
 			senescence,
-			stress_f,
+			stresses,
 			grain_frac,
 			tile_size,
 		)
@@ -109,7 +104,7 @@ static func _build_individual_plants(
 	s: float,
 	growth: float,
 	senescence: float,
-	stress_f: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	tile_size: float,
 ) -> void:
@@ -123,7 +118,7 @@ static func _build_individual_plants(
 			var jm: float = tile_size / float(grid.x) * 0.1
 			var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
 			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-			var new_plant := create_3d_plant(crop_key, growth, senescence, stress_f, grain_frac, sv)
+			var new_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv)
 			new_plant.scale = Vector3(s, s, s)
 			new_plant.position = Vector3(lx + jx, 0, lz + jz)
 			container.add_child(new_plant)
@@ -138,12 +133,12 @@ static func _build_baked_plants(
 	s: float,
 	growth: float,
 	senescence: float,
-	stress_f: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	tile_size: float,
 ) -> void:
 	var sv_base: int = col * 7 + row * 13
-	var sample_plant := create_3d_plant(crop_key, growth, senescence, stress_f, grain_frac, sv_base)
+	var sample_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv_base)
 	var meshes: Array[Dictionary] = []
 	collect_meshes(sample_plant, Transform3D(), meshes)
 	sample_plant.queue_free()
@@ -198,20 +193,22 @@ static func create_3d_plant(
 	crop_key: String,
 	growth: float,
 	senescence: float,
-	stress: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	seed_val: int,
 ) -> Node3D:
 	match crop_key:
 		"maize":
-			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return MaizeRenderer3D.create_plant(growth, senescence, stresses, grain_frac, seed_val)
 		"spring_wheat", "winter_wheat":
-			return WheatRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return WheatRenderer3D.create_plant(growth, senescence, stresses, grain_frac, seed_val)
 		"sorghum":
-			return SorghumRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return SorghumRenderer3D.create_plant(
+				growth, senescence, stresses, grain_frac, seed_val
+			)
 		"rice":
-			return RiceRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return RiceRenderer3D.create_plant(growth, senescence, stresses, grain_frac, seed_val)
 		"grape":
-			return GrapeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return GrapeRenderer3D.create_plant(growth, senescence, stresses, grain_frac, seed_val)
 		_:
-			return MaizeRenderer3D.create_plant(growth, senescence, stress, grain_frac, seed_val)
+			return MaizeRenderer3D.create_plant(growth, senescence, stresses, grain_frac, seed_val)

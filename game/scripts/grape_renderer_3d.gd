@@ -13,7 +13,7 @@ const BERRY_RADIUS := 0.03
 static func create_plant(
 	growth_progress: float,
 	senescence: float,
-	stress: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	seed_val: int,
 ) -> Node3D:
@@ -22,7 +22,7 @@ static func create_plant(
 		return plant
 
 	var h: float = TRUNK_HEIGHT * clampf(growth_progress * 1.5, 0.0, 1.0)
-	var leaf_mat := CR.create_leaf_material("grape", senescence, stress)
+	var leaf_mat := CR.create_leaf_material("grape", senescence, stresses)
 	# Short trunk
 	var trunk := MeshInstance3D.new()
 	trunk.mesh = CR.create_stem_mesh(h, 0.004, 0.003)

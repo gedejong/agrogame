@@ -14,7 +14,7 @@ const HEAD_RADIUS := 0.06
 static func create_plant(
 	growth_progress: float,
 	senescence: float,
-	stress: float,
+	stresses: Dictionary,
 	grain_frac: float,
 	seed_val: int,
 ) -> Node3D:
@@ -23,7 +23,7 @@ static func create_plant(
 		return plant
 
 	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
-	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stress)
+	var leaf_mat := CR.create_leaf_material("sorghum", senescence, stresses)
 	# Leaf sheath: green cylinder (wrapped leaf bases = visible "stem")
 	var has_grain: bool = grain_frac > 0.01 and growth_progress > 0.7
 	var sheath_top: float = h * lerpf(0.9, 0.7, grain_frac)

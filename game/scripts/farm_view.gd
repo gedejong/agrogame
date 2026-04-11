@@ -199,7 +199,8 @@ func _build_tile_grid() -> void:
 						"crop_key": "",
 						"crop_stage": 0,
 						"lai": 0.0,
-						"stress": 0,
+						"water_stress": 1.0,
+						"grain_g_m2": 0.0,
 						"som_total_c_g_m2": 0.0,
 						"theta_surface": 0.0,
 					}
@@ -558,6 +559,8 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["crop_key"] = crop_key
 					_tile_data[i]["crop_stage"] = stage
 					_tile_data[i]["lai"] = lai
+					_tile_data[i]["water_stress"] = patch.get("water_stress", 1.0)
+					_tile_data[i]["grain_g_m2"] = grain
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
 	# Update stress icons from patch events
