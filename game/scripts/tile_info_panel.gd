@@ -1,33 +1,113 @@
 extends PanelContainer
-## Tile info popup showing historical sparkline graphs.
-## Displayed on CanvasLayer when a tile is selected.
+## Tile info popup: tabbed sparkline history.
+## 4 tabs (Crop/Water/Nutrients/Soil) with 2-3 sparklines each.
+## Ref: Shneiderman 1996 — progressive disclosure.
 
 const Sparkline = preload("res://scripts/sparkline.gd")
 
-## Graph configs: key matches _daily_history fields.
-## "mass_type": "mass" for g/m²↔kg/ha conversion, "" for no conversion.
+## Graph configs organized by tab. Max 4 per tab.
+const TABS := {
+	"Crop":
+	[
+		{
+			"key": "lai",
+			"label": "LAI",
+			"unit": "m²/m²",
+			"mass_type": "",
+			"color": UiTheme.ACCENT_GREEN
+		},
+		{
+			"key": "grain_g_m2",
+			"label": "Grain",
+			"unit": "",
+			"mass_type": "mass",
+			"color": UiTheme.ACCENT_GOLD
+		},
+	],
+	"Water":
+	[
+		{
+			"key": "theta_surface",
+			"label": "Soil water",
+			"unit": "m³/m³",
+			"mass_type": "",
+			"color": UiTheme.SUBSTANCE_WATER
+		},
+		{
+			"key": "water_stress",
+			"label": "Water stress",
+			"unit": "",
+			"mass_type": "",
+			"color": UiTheme.ACCENT_RED
+		},
+	],
+	"Nutrients":
+	[
+		{
+			"key": "n_available",
+			"label": "N available",
+			"unit": "",
+			"mass_type": "mass",
+			"color": UiTheme.SUBSTANCE_NO3
+		},
+		{
+			"key": "fe_available_surface",
+			"label": "Fe avail",
+			"unit": "ppm",
+			"mass_type": "",
+			"color": Color(0.75, 0.45, 0.20)
+		},
+		{
+			"key": "zn_available_surface",
+			"label": "Zn avail",
+			"unit": "ppm",
+			"mass_type": "",
+			"color": Color(0.45, 0.55, 0.70)
+		},
+		{
+			"key": "mn_available_surface",
+			"label": "Mn avail",
+			"unit": "ppm",
+			"mass_type": "",
+			"color": Color(0.50, 0.35, 0.60)
+		},
+	],
+	"Soil":
+	[
+		{
+			"key": "agg_mwd_surface",
+			"label": "MWD",
+			"unit": "mm",
+			"mass_type": "",
+			"color": UiTheme.SUBSTANCE_AGGREGATE
+		},
+		{
+			"key": "redox_eh_surface",
+			"label": "Redox Eh",
+			"unit": "mV",
+			"mass_type": "",
+			"color": UiTheme.SUBSTANCE_REDOX
+		},
+	],
+}
+
+## Flat key-existence lookup (for tests). Full config is in TABS.
 const GRAPHS := {
-	"lai": {"label": "LAI", "unit": "m²/m²", "mass_type": "", "color": UiTheme.ACCENT_GREEN},
-	"grain_g_m2": {"label": "Grain", "unit": "", "mass_type": "mass", "color": UiTheme.ACCENT_GOLD},
-	"water_stress":
-	{"label": "Water stress", "unit": "", "mass_type": "", "color": UiTheme.ACCENT_RED},
-	"theta_surface":
-	{"label": "Soil water", "unit": "m³/m³", "mass_type": "", "color": UiTheme.SUBSTANCE_WATER},
-	"n_available":
-	{"label": "N available", "unit": "", "mass_type": "mass", "color": UiTheme.SUBSTANCE_NO3},
-	"redox_eh_surface":
-	{"label": "Redox Eh", "unit": "mV", "mass_type": "", "color": UiTheme.SUBSTANCE_REDOX},
-	"fe_available_surface":
-	{"label": "Fe avail", "unit": "ppm", "mass_type": "", "color": Color(0.75, 0.45, 0.20)},
-	"zn_available_surface":
-	{"label": "Zn avail", "unit": "ppm", "mass_type": "", "color": Color(0.45, 0.55, 0.70)},
-	"mn_available_surface":
-	{"label": "Mn avail", "unit": "ppm", "mass_type": "", "color": Color(0.50, 0.35, 0.60)},
-	"agg_mwd_surface":
-	{"label": "MWD", "unit": "mm", "mass_type": "", "color": UiTheme.SUBSTANCE_AGGREGATE},
+	"lai": {"label": "LAI"},
+	"grain_g_m2": {"label": "Grain"},
+	"theta_surface": {"label": "Soil water"},
+	"water_stress": {"label": "Water stress"},
+	"n_available": {"label": "N available"},
+	"fe_available_surface": {"label": "Fe avail"},
+	"zn_available_surface": {"label": "Zn avail"},
+	"mn_available_surface": {"label": "Mn avail"},
+	"agg_mwd_surface": {"label": "MWD"},
+	"redox_eh_surface": {"label": "Redox Eh"},
 }
 
 var _sparklines: Dictionary = {}
+var _tab_container: TabContainer = null
+var _last_tab: int = 0
 
 
 func show_history(history: Array, soil_type: String, crop_key: String) -> void:
@@ -54,7 +134,7 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
-	# Day count or no-data message
+	# Day count
 	var days_label := Label.new()
 	if history.is_empty():
 		days_label.text = "Step days to see history"
@@ -69,36 +149,48 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 		visible = true
 		return
 
-	# Collect stage transition days for markers
 	var stage_days := _find_stage_transitions(history)
 
-	# Build sparklines
+	# Tabbed sparklines
+	_tab_container = TabContainer.new()
+	_tab_container.custom_minimum_size = Vector2(220, 0)
+	_tab_container.add_theme_font_size_override("font_size", 10)
 	_sparklines.clear()
-	for key: String in GRAPHS:
-		var cfg: Dictionary = GRAPHS[key]
-		var spark := Control.new()
-		spark.set_script(Sparkline)
-		var display_unit: String = cfg.get("unit", "")
-		if cfg.get("mass_type", "") == "mass":
-			display_unit = UiTheme.mass_label()
-		spark.setup(cfg["label"], display_unit, cfg["color"], 36.0)
-		var data := _extract_series(history, key)
-		spark.set_data(data, stage_days)
-		_sparklines[key] = spark
-		vbox.add_child(spark)
 
+	for tab_name: String in TABS:
+		var tab_vbox := VBoxContainer.new()
+		tab_vbox.name = tab_name
+		tab_vbox.add_theme_constant_override("separation", 2)
+		for cfg: Dictionary in TABS[tab_name]:
+			var spark := Control.new()
+			spark.set_script(Sparkline)
+			var display_unit: String = cfg.get("unit", "")
+			if cfg.get("mass_type", "") == "mass":
+				display_unit = UiTheme.mass_label()
+			spark.setup(cfg["label"], display_unit, cfg["color"], 36.0)
+			var data := _extract_series(history, cfg["key"])
+			spark.set_data(data, stage_days)
+			_sparklines[cfg["key"]] = spark
+			tab_vbox.add_child(spark)
+		_tab_container.add_child(tab_vbox)
+
+	# Restore last selected tab
+	_tab_container.current_tab = clampi(_last_tab, 0, _tab_container.get_tab_count() - 1)
+	_tab_container.tab_changed.connect(_on_tab_changed)
+	vbox.add_child(_tab_container)
 	visible = true
 
 
 func update_history(history: Array) -> void:
-	## Update existing sparklines with new data (avoids full rebuild).
 	if _sparklines.is_empty():
 		return
 	var stage_days := _find_stage_transitions(history)
-	for key: String in GRAPHS:
-		if _sparklines.has(key):
-			var data := _extract_series(history, key)
-			_sparklines[key].set_data(data, stage_days)
+	for tab_name: String in TABS:
+		for cfg: Dictionary in TABS[tab_name]:
+			var key: String = cfg["key"]
+			if _sparklines.has(key):
+				var data := _extract_series(history, key)
+				_sparklines[key].set_data(data, stage_days)
 
 
 func hide_panel() -> void:
@@ -106,9 +198,15 @@ func hide_panel() -> void:
 	visible = false
 
 
+func _on_tab_changed(tab: int) -> void:
+	_last_tab = tab
+
+
 func _clear() -> void:
 	_sparklines.clear()
+	_tab_container = null
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 
 
