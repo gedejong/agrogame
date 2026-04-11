@@ -29,13 +29,24 @@ class RootModule:
 
     @staticmethod
     def _constraint_factor(
-        hardpan_cm: float | None, water_table_cm: float | None, depth_cm: float
+        hardpan_cm: float | None,
+        water_table_cm: float | None,
+        depth_cm: float,
+        agg_penetration: float = 1.0,
     ) -> float:
+        """Compute root elongation constraint factor.
+
+        Args:
+            agg_penetration: Aggregation-based penetration factor (0.3–1.0).
+                From dynamic_state.root_penetration_factor(mwd).
+                Ref: Bengough et al. 2011, J Exp Bot.
+        """
         f = 1.0
         if hardpan_cm is not None and depth_cm >= hardpan_cm:
             f *= 0.2
         if water_table_cm is not None and depth_cm >= water_table_cm:
             f *= 0.5
+        f *= max(0.0, min(1.0, agg_penetration))
         return max(0.0, min(1.0, f))
 
     def _update_depth(
@@ -44,8 +55,9 @@ class RootModule:
         prev = state.current_depth_cm
         hardpan = (constraints or {}).get("hardpan_cm")
         water_table = (constraints or {}).get("water_table_cm")
+        agg_pen = (constraints or {}).get("agg_penetration", 1.0)
         mult = self._stage_multiplier(stage)
-        cf = self._constraint_factor(hardpan, water_table, prev)
+        cf = self._constraint_factor(hardpan, water_table, prev, agg_pen)
         inc = self.params.growth_rate_cm_per_day * mult * cf
         new = min(self.params.max_depth_cm, prev + max(0.0, inc))
         if new > prev and self.event_bus:

@@ -7,6 +7,7 @@ Listens for the "water" phase and delegates to the configured water model's
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -14,6 +15,9 @@ from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
+
+if TYPE_CHECKING:
+    from agrogame.soil.aggregation.state import SoilAggregationState
 
 
 @dataclass
@@ -24,6 +28,7 @@ class WaterRuntime:
     model: CascadingBucketWaterModel
     profile: SoilProfile
     state: SoilWaterState
+    agg_state: SoilAggregationState | None = None
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick events on construction."""
@@ -38,7 +43,29 @@ class WaterRuntime:
         drivers = ev.drivers or DailyDrivers(
             rainfall_mm=0.0, irrigation_mm=0.0, evaporation_mm=0.0
         )
-        _ = self.model.update_daily(self.profile, self.state, drivers)
+        ksat_factors = None
+        porosity_overrides = None
+        if self.agg_state is not None:
+            from agrogame.soil.aggregation.dynamic_state import (
+                effective_ksat_factor,
+                effective_porosity,
+            )
+
+            n = len(self.profile.layers)
+            macro = self.agg_state.macro
+            if len(macro) >= n:
+                ksat_factors = [effective_ksat_factor(macro[i]) for i in range(n)]
+                porosity_overrides = [
+                    effective_porosity(self.profile.layers[i].saturation, macro[i])
+                    for i in range(n)
+                ]
+        _ = self.model.update_daily(
+            self.profile,
+            self.state,
+            drivers,
+            ksat_factors=ksat_factors,
+            porosity_overrides=porosity_overrides,
+        )
 
     def _check_waterlogging(self) -> None:
         """Emit WaterloggingDetected if top-layer theta >= saturation."""
