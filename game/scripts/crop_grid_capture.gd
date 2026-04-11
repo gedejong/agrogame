@@ -36,16 +36,18 @@ func _ready() -> void:
 
 
 func _setup_camera() -> void:
-	var total_w: float = COLS.size() * CELL_SIZE
-	var total_d: float = CROPS.size() * CELL_SIZE
-	var cx: float = total_w * 0.5 - CELL_SIZE * 0.5
-	var cz: float = -total_d * 0.5 + CELL_SIZE * 0.5
+	# Grid spans: X = [0 .. (COLS-1)*CELL_SIZE], Z = [0 .. -(CROPS-1)*CELL_SIZE]
+	var max_x: float = (COLS.size() - 1) * CELL_SIZE  # 10.0
+	var min_z: float = -(CROPS.size() - 1) * CELL_SIZE  # -8.0
+	var center := Vector3(max_x * 0.5, 1.0, min_z * 0.5)  # (5, 1, -4)
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = total_w * 0.6
-	# High oblique: ~45° down so all 5 rows are separated visually
-	cam.position = Vector3(cx, total_d * 1.0, cz + total_d * 1.0)
-	cam.look_at(Vector3(cx, 0.0, cz))
+	# At 45° elevation, projected height ≈ depth*sin45 + plant_height ≈ 10
+	cam.size = 12.0
+	# Position: same X as center, elevated, offset +Z to look down at 45°
+	var dist: float = 15.0
+	cam.position = center + Vector3(0, dist * 0.7, dist * 0.7)
+	cam.look_at(center)
 	cam.current = true
 	add_child(cam)
 
