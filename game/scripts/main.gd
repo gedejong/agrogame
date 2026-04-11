@@ -13,6 +13,9 @@ func _ready() -> void:
 	add_child(api_client)
 	new_game_button.pressed.connect(_on_new_game_pressed)
 	status_label.text = "Ready — backend at localhost:8000"
+	if ProjectSettings.get_setting("agrogame/debug/crop_preview", false):
+		get_tree().change_scene_to_file("res://scenes/crop_preview.tscn")
+		return
 	var skip_menu: bool = ProjectSettings.get_setting("agrogame/debug/skip_menu", false)
 	if skip_menu:
 		_on_new_game_pressed()

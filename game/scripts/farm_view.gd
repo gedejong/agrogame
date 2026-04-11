@@ -4,6 +4,8 @@ extends Node3D
 ## Crop billboard sprites (Sprite3D) per tile.
 ## Raycast click detection, SOM/moisture shader updates from API.
 
+const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
+
 const GRID_COLS := 6
 const GRID_ROWS := 6
 const TILE_SIZE := 1.0
@@ -31,6 +33,10 @@ const SOIL_TEXTURES := {
 		"normal": "res://assets/textures/soil_clay_normal.png",
 	},
 }
+
+## Default wind: gentle breeze from southwest. TODO: modulate by weather API.
+const DEFAULT_WIND_STRENGTH := 0.2
+const DEFAULT_WIND_DIR := Vector2(0.7, 0.7)
 
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
@@ -317,9 +323,18 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 
 
 func _update_crop_visuals(idx: int) -> void:
+	# LOD: adjust leaf segments based on camera distance to tile
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam:
+		var tile_pos: Vector3 = _crop_sprites[idx][0].global_position
+		var cam_dist: float = cam.global_position.distance_to(tile_pos)
+		CropRenderer3D.leaf_segments = CropRenderer3D.leaf_segments_for_distance(cam_dist)
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)
+	# Apply default wind to crop plants
+	var container: Node3D = _crop_sprites[idx][0]
+	CropRenderer3D.set_wind(container, DEFAULT_WIND_STRENGTH, DEFAULT_WIND_DIR)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---

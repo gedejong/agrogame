@@ -3,6 +3,9 @@ extends RefCounted
 ## 3D crop rendering: growth/senescence calculation, plant instancing,
 ## and MultiMesh baking for high-density crops.
 
+## Maximum LAI for normalizing growth. TODO: source from crop presets.
+const MAX_LAI := 6.0
+
 const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
 const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
 const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
@@ -24,7 +27,7 @@ static func update_crop(
 	var lai: float = tile_data.get("lai", 0.0)
 	var grain: float = tile_data.get("grain_g_m2", 0.0)
 	var plants: Array = crop_sprites
-	var lai_frac: float = clampf(lai / 6.0, 0.0, 1.0)
+	var lai_frac: float = clampf(lai / MAX_LAI, 0.0, 1.0)
 	var grain_frac: float = clampf(grain / 800.0, 0.0, 1.0)
 	var growth: float = _calc_growth(stage, lai_frac, grain_frac)
 	var senescence: float = _calc_senescence(stage, lai, grain_frac)
@@ -70,18 +73,17 @@ static func update_crop(
 
 
 static func _calc_growth(stage: int, lai_frac: float, grain_frac: float) -> float:
-	# Growth progress: continuous ramp driven by LAI, not stage jumps.
-	# Stages set the range; LAI fills it in smoothly.
-	match stage:
-		1:
-			return clampf(0.05 + lai_frac * 0.2, 0.05, 0.25)
-		2:
-			return clampf(0.25 + lai_frac * 0.55, 0.25, 0.8)
-		3:
-			return clampf(0.8 + grain_frac * 0.1, 0.8, 0.9)
-		4:
-			return clampf(0.9 + grain_frac * 0.1, 0.9, 1.0)
-	return 0.0
+	# Height ∝ sqrt(LAI): leaf area scales with height² (more + bigger leaves),
+	# so height = sqrt(lai_frac). This prevents doubling LAI from doubling
+	# visual height — instead it gives ~40% height increase (physically correct).
+	if stage == 0:
+		return 0.0
+	var base: float = sqrt(clampf(lai_frac, 0.0, 1.0))
+	# Floor: emerged plants have at least 5% even at LAI~0
+	var floor_val: float = 0.05
+	# Grain fill adds a small top-end boost (stem extension)
+	var grain_boost: float = grain_frac * 0.1 if stage >= 3 else 0.0
+	return clampf(maxf(base, floor_val) + grain_boost, 0.0, 1.0)
 
 
 static func _calc_senescence(stage: int, lai: float, grain_frac: float) -> float:
@@ -125,6 +127,9 @@ static func _build_individual_plants(
 
 
 static func _build_baked_plants(
+	# MultiMesh uses a single sample plant: per-leaf senescence gradient
+	# is baked into materials at creation time (leaf_height set per leaf).
+	# Per-instance variation is NOT possible — all instances share materials.
 	container: Node3D,
 	crop_key: String,
 	grid: Vector2i,

@@ -25,13 +25,12 @@ static func create_plant(
 	if growth_progress < 0.05:
 		return plant
 
-	# Stem elongation is nonlinear: stays short during vegetative phase,
-	# then elongates rapidly during stem extension (~growth 0.5-0.8).
-	# h = STEM_HEIGHT * growth^2.5 — at growth 0.25: h=3cm, at 0.5: h=44cm
-	var h: float = STEM_HEIGHT * pow(growth_progress, 2.5)
+	# Stem elongation: moderately nonlinear. At growth 0.33: ~19% height.
+	# Stem is mostly grown by flowering (growth ~0.8).
+	var h: float = STEM_HEIGHT * pow(growth_progress, 1.5)
 	# Stem tapers: bottom thicker than top, both scale with growth
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
-	var r_top: float = r_bot * 0.5
+	var r_top: float = r_bot * 0.15  # taper toward top, not zero (avoid z-fighting)
 	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
 	var stem_mat := CR.create_stem_material(senescence)
 	var stem := MeshInstance3D.new()
@@ -41,11 +40,9 @@ static func create_plant(
 	stem.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(stem)
 
-	# Leaves
-	var num_leaves: int = int(clampf(growth_progress, 0.0, 1.0) * MAX_LEAVES)
-	if num_leaves > 0:
-		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses)
-		_add_leaves(plant, num_leaves, h, growth_progress, senescence, seed_val, leaf_mat)
+	# Leaves: iterate all potential leaves; leaf_maturity controls smooth emergence
+	if growth_progress > 0.05:
+		_add_leaves(plant, MAX_LEAVES, h, growth_progress, senescence, seed_val, stresses, r_bot)
 
 	# Ear/grain at 2/3 stem height
 	if grain_frac > 0.01 and growth_progress > 0.7:
@@ -74,11 +71,13 @@ static func _add_leaves(
 	num_leaves: int,
 	stem_h: float,
 	growth_progress: float,
-	_senescence: float,
+	senescence: float,
 	seed_val: int,
-	leaf_mat: ShaderMaterial,
+	stresses: Dictionary,
+	r_bot: float = 0.01,
 ) -> void:
-	var segs := 5
+	var segs: int = CR.leaf_segments
+	var droop_bonus: float = CR.stress_droop_bonus(stresses)
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)
 		var hi := li * 7
@@ -94,13 +93,12 @@ static func _add_leaves(
 		var len_var: float = (CR.hash_val(seed_val, hi) - 0.5) * 0.2
 		# Base length from position on stem (short→long→short)
 		var base_len: float = LEAF_LENGTH * (0.3 + len_curve * 0.7) * (1.0 + len_var)
-		# Leaf maturity: each leaf matures as overall plant grows.
-		# Bottom leaves mature first, top leaves last.
-		# leaf_maturity=0 (just emerging) → 1 (fully grown)
-		var leaf_appear: float = frac * 0.8
-		var leaf_maturity: float = clampf(
-			(growth_progress - leaf_appear) / maxf(1.0 - leaf_appear, 0.01), 0.0, 1.0
-		)
+		# Leaf maturity: each leaf emerges and grows over a window.
+		# Bottom leaves appear first, top leaves last.
+		# Each leaf takes ~20% of growth range to go from 0→full.
+		var leaf_appear: float = frac * 0.85
+		var grow_window: float = 0.2
+		var leaf_maturity: float = clampf((growth_progress - leaf_appear) / grow_window, 0.0, 1.0)
 		var leaf_len: float = base_len * leaf_maturity
 		# Width: middle leaves widest, scales with overall growth
 		var w_pos: float = 0.4 + len_curve * 0.6
@@ -119,14 +117,22 @@ static func _add_leaves(
 		var droop_potential: float = len_curve * 0.8
 		var droop_var: float = (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.2
 		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var)
-		# Build curved leaf
+		# Build curved leaf with per-leaf height for bottom-up senescence
+		var leaf_h: float = clampf(y / maxf(stem_h, 0.01), 0.0, 1.0)
+		var leaf_mat := CR.create_leaf_material("maize", senescence, stresses, leaf_h)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth
-		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs)
+		# Base width matches stem radius at this height (leaf wraps around stem)
+		var stem_r_at_y: float = lerpf(r_bot, 0.001, clampf(y_frac, 0.0, 1.0))
+		var leaf_mesh := CR.build_curved_leaf(leaf_len, leaf_w, droop, segs, stem_r_at_y * 2.0)
 		var leaf_inst := MeshInstance3D.new()
 		leaf_inst.mesh = leaf_mesh
 		leaf_inst.material_override = leaf_mat
+		# Wilting: rotate leaf downward around its own base (local origin).
+		# Loss of turgor → gravity pulls leaf down. Positive X rotation
+		# tilts the leaf's Z-axis (outward direction) downward.
+		leaf_inst.rotation.x = droop_bonus * 1.2
 		leaf_inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		pivot.add_child(leaf_inst)
 		plant.add_child(pivot)
