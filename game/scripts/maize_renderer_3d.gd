@@ -76,7 +76,7 @@ static func _add_leaves(
 	stresses: Dictionary,
 	r_bot: float = 0.01,
 ) -> void:
-	var segs := 7
+	var segs: int = CR.leaf_segments
 	var droop_bonus: float = CR.stress_droop_bonus(stresses)
 	for li in range(num_leaves):
 		var frac: float = float(li) / float(MAX_LEAVES)

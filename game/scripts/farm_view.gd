@@ -4,6 +4,8 @@ extends Node3D
 ## Crop billboard sprites (Sprite3D) per tile.
 ## Raycast click detection, SOM/moisture shader updates from API.
 
+const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
+
 const GRID_COLS := 6
 const GRID_ROWS := 6
 const TILE_SIZE := 1.0
@@ -317,6 +319,11 @@ func _update_weather_lighting(weather: Dictionary) -> void:
 
 
 func _update_crop_visuals(idx: int) -> void:
+	# LOD: adjust leaf segments based on camera distance
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam:
+		var cam_dist: float = cam.global_position.length()
+		CropRenderer3D.leaf_segments = CropRenderer3D.leaf_segments_for_distance(cam_dist)
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)

@@ -56,7 +56,7 @@ static func create_plant(
 		)
 		var droop: float = 0.3 + (1.0 - frac) * 0.5 + CR.stress_droop_bonus(stresses)
 		var leaf_l: float = LEAF_LENGTH * growth_progress
-		var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, 7)
+		var leaf_mesh := CR.build_curved_leaf(leaf_l, LEAF_WIDTH, droop, CR.leaf_segments)
 		var pivot := Node3D.new()
 		pivot.position = Vector3(0, y, 0)
 		pivot.rotation.y = azimuth

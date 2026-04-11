@@ -17,6 +17,10 @@ const STEM_COLOR := Color(0.3, 0.5, 0.2)
 const STEM_SENESCENT := Color(0.55, 0.45, 0.25)
 const GRAIN_COLOR := Color(0.85, 0.75, 0.35)
 
+## Leaf segment LOD: set by farm_view based on camera distance.
+## Renderers read this to decide segment count.
+static var leaf_segments: int = 5
+
 
 static func hash_val(seed_val: int, idx: int) -> float:
 	## Deterministic pseudo-random float in [0, 1).
@@ -41,6 +45,16 @@ static func create_leaf_material(
 	# Leaf rolling: drought causes edges to curl inward (reduce transpiration).
 	mat.set_shader_parameter("stress_roll", stresses.get("water", 0.0) * 0.8)
 	return mat
+
+
+static func leaf_segments_for_distance(cam_distance: float) -> int:
+	## Return leaf segment count based on camera distance.
+	## Close: 7 segments (smooth curves). Far: 3 segments (perf).
+	if cam_distance < 3.0:
+		return 7
+	if cam_distance < 6.0:
+		return 5
+	return 3
 
 
 static func stress_droop_bonus(stresses: Dictionary) -> float:
@@ -103,7 +117,10 @@ static func build_curved_leaf(
 	## base_width: minimum half-width at t=0 (leaf base attachment to stem).
 	var st := SurfaceTool.new()
 	st.begin(Mesh.PRIMITIVE_TRIANGLES)
-	var rise: float = length * (0.3 + (1.0 - droop) * 0.3)
+	# Rise decreases with droop: healthy leaf arcs up, wilted leaf hangs.
+	# droop=0 → rise=0.6*length, droop=1 → rise=0.05*length (barely lifts).
+	var clamped_droop: float = clampf(droop, 0.0, 1.0)
+	var rise: float = length * maxf(0.05, 0.6 - clamped_droop * 0.55)
 	var bw: float = maxf(base_width * 0.5, 0.0)
 	# Build quad strip as explicit triangles for generate_normals()
 	for si in range(segments):
