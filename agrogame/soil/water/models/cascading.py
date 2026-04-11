@@ -82,7 +82,11 @@ class CascadingBucketWaterModel(SoilWaterModel):
         return evap_taken
 
     def _infiltrate_layers(
-        self, profile: SoilProfile, state: SoilWaterState, infiltrated_mm: float
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        infiltrated_mm: float,
+        porosity_overrides: list[float] | None = None,
     ) -> float:
         """Fill layers up to saturation with infiltrated water, top to bottom."""
         remaining = infiltrated_mm
@@ -90,7 +94,12 @@ class CascadingBucketWaterModel(SoilWaterModel):
         infil_amounts: list[float] = []
         for i, layer in enumerate(profile.layers):
             current = state.layer_storage_mm(profile, i)
-            capacity = layer.saturation * layer.depth_cm * 10.0
+            sat = (
+                porosity_overrides[i]
+                if porosity_overrides and i < len(porosity_overrides)
+                else layer.saturation
+            )
+            capacity = sat * layer.depth_cm * 10.0
             room = max(0.0, capacity - current)
             added = min(room, remaining)
             if added > 0:
@@ -108,7 +117,13 @@ class CascadingBucketWaterModel(SoilWaterModel):
             )
         return remaining
 
-    def _cascade_excess(self, profile: SoilProfile, state: SoilWaterState) -> float:
+    def _cascade_excess(
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        ksat_factors: list[float] | None = None,
+        porosity_overrides: list[float] | None = None,
+    ) -> float:
         """Cascade water above field capacity to lower layers or deep drainage."""
         deep_drainage = 0.0
         for i, layer in enumerate(profile.layers):
@@ -117,20 +132,30 @@ class CascadingBucketWaterModel(SoilWaterModel):
             excess = max(0.0, current - fc_storage)
             if excess <= 1e-9:
                 continue
-            state.set_layer_storage_mm(profile, i, current - excess)
+            # Limit drainage by ksat: poorly aggregated soil drains slower.
+            # ksat_factor < 1 retains some excess above FC (waterlogging).
+            kf = ksat_factors[i] if ksat_factors and i < len(ksat_factors) else 1.0
+            drainable = excess * min(1.0, kf)
+            retained = excess - drainable
+            state.set_layer_storage_mm(profile, i, fc_storage + retained)
             if i + 1 < len(profile.layers):
                 nxt = state.layer_storage_mm(profile, i + 1)
                 nxt_layer = profile.layers[i + 1]
-                nxt_capacity = nxt_layer.saturation * nxt_layer.depth_cm * 10.0
+                sat = (
+                    porosity_overrides[i + 1]
+                    if porosity_overrides and i + 1 < len(porosity_overrides)
+                    else nxt_layer.saturation
+                )
+                nxt_capacity = sat * nxt_layer.depth_cm * 10.0
                 nxt_room = max(0.0, nxt_capacity - nxt)
-                moved = min(nxt_room, excess)
+                moved = min(nxt_room, drainable)
                 if moved > 0:
                     state.set_layer_storage_mm(profile, i + 1, nxt + moved)
                     if self.event_bus and moved > 0:
                         self.event_bus.emit(
                             WaterDrained(from_layer=i, to_layer=i + 1, amount_mm=moved)
                         )
-                leftover = excess - moved
+                leftover = drainable - moved
                 if leftover > 0:
                     deep_drainage += leftover
                     if self.event_bus and leftover > 0:
@@ -138,15 +163,20 @@ class CascadingBucketWaterModel(SoilWaterModel):
                             WaterDrained(from_layer=i, to_layer=-1, amount_mm=leftover)
                         )
             else:
-                deep_drainage += excess
-                if self.event_bus and excess > 0:
+                deep_drainage += drainable
+                if self.event_bus and drainable > 0:
                     self.event_bus.emit(
-                        WaterDrained(from_layer=i, to_layer=-1, amount_mm=excess)
+                        WaterDrained(from_layer=i, to_layer=-1, amount_mm=drainable)
                     )
         return deep_drainage
 
     def update_daily(
-        self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        drivers: DailyDrivers,
+        ksat_factors: list[float] | None = None,
+        porosity_overrides: list[float] | None = None,
     ) -> WaterFluxes:
         """Run one daily step and return flux diagnostics."""
         incoming = drivers.rainfall_mm + drivers.irrigation_mm
@@ -158,13 +188,17 @@ class CascadingBucketWaterModel(SoilWaterModel):
         )
 
         evap_taken = self.apply_evaporation(profile, state, drivers.evaporation_mm)
-        remaining = self._infiltrate_layers(profile, state, infiltrated)
+        remaining = self._infiltrate_layers(
+            profile, state, infiltrated, porosity_overrides
+        )
 
         deep_drainage = 0.0
         if remaining > 0:
             deep_drainage += remaining
 
-        deep_drainage += self._cascade_excess(profile, state)
+        deep_drainage += self._cascade_excess(
+            profile, state, ksat_factors, porosity_overrides
+        )
 
         storage_after = sum(
             state.layer_storage_mm(profile, i) for i in range(len(profile.layers))

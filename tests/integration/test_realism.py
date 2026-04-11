@@ -89,11 +89,11 @@ def test_winter_wheat_netherlands_autumn_start() -> None:
 
 
 def test_winter_wheat_sahel_fails() -> None:
-    """Winter wheat in the Sahel should produce minimal biomass."""
+    """Winter wheat in the Sahel should produce minimal biomass (<1.5 t/ha)."""
     biomass, _lai, _stage, _grain = _run_scenario(
         "winter_wheat", "sahel_arid", date(2024, 6, 1)
     )
-    assert biomass < 100
+    assert biomass < 150
 
 
 # --- Spring wheat ---

@@ -334,7 +334,11 @@ class FullSimulationOrchestrator:
     def _wire_runtimes(self) -> None:
         """Subscribe all runtime listeners to the event bus."""
         _ = WaterRuntime(
-            self.event_bus, self.water_model, self.profile, self.water_state
+            self.event_bus,
+            self.water_model,
+            self.profile,
+            self.water_state,
+            agg_state=self.agg_state,
         )
         _ = PhenologyRuntime(
             self.event_bus, self.phenology, latitude_deg=self.latitude_deg
@@ -345,6 +349,7 @@ class FullSimulationOrchestrator:
             self.root_state,
             self.profile,
             self.phenology,
+            agg_state=self.agg_state,
         )
         _ = ETRuntime(
             event_bus=self.event_bus,
@@ -362,7 +367,11 @@ class FullSimulationOrchestrator:
         _ = MicronutrientRuntime(self.event_bus, self.micro_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
         self._som_runtime = SOMRuntime(
-            self.event_bus, self.profile, self.water_state, self.chem
+            self.event_bus,
+            self.profile,
+            self.water_state,
+            self.chem,
+            agg_state=self.agg_state,
         )
         _ = MicrobesRuntime(
             self.event_bus,

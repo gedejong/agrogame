@@ -59,11 +59,12 @@ class TestClayScaling:
         assert pf == pytest.approx(1.0)
 
     def test_protection_factor_at_full_clay(self) -> None:
-        """At 40% clay (scale point), protection is at full base fraction."""
+        """At 40% clay (scale point) with no aggregation, half protection."""
         som = ThreePoolSOM(SOMPoolParams(), 1)
         pf = som._protection_factor(0.4, clay_pct=40.0, layer_idx=0)
-        # 1.0 - 0.4 * 0.70 = 0.72
-        assert pf == pytest.approx(0.72, abs=0.01)
+        # With MWD=0 (default): combined = 0.5*1.0 + 0.5*0.0 = 0.5
+        # 1.0 - 0.4 * 0.5 * 0.70 = 0.86
+        assert pf == pytest.approx(0.86, abs=0.01)
 
     def test_disruption_disables_protection(self) -> None:
         """During disruption window, protection factor should be 1.0."""

@@ -34,6 +34,7 @@ class SOMRuntime:
     water_state: SoilWaterState
     chemistry: SoilChemistryModule
     som: ThreePoolSOM | None = None
+    agg_state: object | None = None  # SoilAggregationState (optional, avoids circular)
 
     def __post_init__(self) -> None:
         n_layers = len(self.profile.layers)
@@ -105,6 +106,11 @@ class SOMRuntime:
         )
         priming = 1.0 + rf
         clay_pct = getattr(soil_layer, "clay_pct", 22.0) or 22.0
+        mwd = 0.0
+        if self.agg_state is not None:
+            mwd_fn = getattr(self.agg_state, "mwd", None)
+            if mwd_fn is not None:
+                mwd = mwd_fn(i)
         self._check_wet_dry(i, wfps)
 
         fluxes = self.som.daily_step(
@@ -113,6 +119,7 @@ class SOMRuntime:
             wfps=wfps,
             priming_multiplier=priming,
             clay_pct=clay_pct,
+            mwd_mm=mwd,
         )
 
         if fluxes.microbial_c_kg_ha > 0:

@@ -280,20 +280,35 @@ class ThreePoolSOM:
     # ------------------------------------------------------------------
 
     def _protection_factor(
-        self, base_frac: float, clay_pct: float, layer_idx: int
+        self,
+        base_frac: float,
+        clay_pct: float,
+        layer_idx: int,
+        mwd_mm: float = 0.0,
     ) -> float:
         """Compute effective protection rate reduction for a pool.
 
         Returns a multiplier in [1 - protection_reduction, 1.0] where
         1.0 = no protection (sand/disrupted) and lower = more protection.
-        Ref: Six et al. (2002) — aggregate stabilization and clay content.
+
+        Combines clay-based chemical protection with MWD-based physical
+        protection from aggregation.
+
+        Ref: Six et al. (2002) — aggregate stabilization and clay content;
+             Tisdall & Oades 1982 — aggregate hierarchy.
         """
         # During disruption, protection is disabled (Birch effect)
         if self._disruption_days[layer_idx] > 0:
             return 1.0
-        scale = min(1.0, clay_pct / self.params.clay_protection_scale)
-        protected = base_frac * scale
-        return 1.0 - protected * self.params.protection_reduction
+        from agrogame.soil.aggregation.dynamic_state import som_protection_factor
+
+        return som_protection_factor(
+            base_frac,
+            clay_pct,
+            mwd_mm,
+            clay_scale=self.params.clay_protection_scale,
+            protection_reduction=self.params.protection_reduction,
+        )
 
     def daily_step(
         self,
@@ -304,6 +319,7 @@ class ThreePoolSOM:
         fresh_c_input: float = 0.0,
         fresh_n_input: float = 0.0,
         clay_pct: float = 22.0,
+        mwd_mm: float = 0.0,
     ) -> SOMDailyFluxes:
         """Process one layer for one day.
 
@@ -315,6 +331,7 @@ class ThreePoolSOM:
             fresh_c_input: Fresh organic C added to labile pool (kg C/ha).
             fresh_n_input: Fresh organic N added to labile pool (kg N/ha).
             clay_pct: Clay content (%) for aggregate protection scaling.
+            mwd_mm: Mean weight diameter (mm) for physical SOM protection.
 
         Returns:
             :class:`SOMDailyFluxes` with decomposition, respiration, and N fluxes.
@@ -342,13 +359,13 @@ class ThreePoolSOM:
 
         # --- Aggregate protection rate multipliers (AGRO-104) ---
         pf_lab = self._protection_factor(
-            params.protection_frac_labile, clay_pct, layer_idx
+            params.protection_frac_labile, clay_pct, layer_idx, mwd_mm
         )
         pf_int = self._protection_factor(
-            params.protection_frac_intermediate, clay_pct, layer_idx
+            params.protection_frac_intermediate, clay_pct, layer_idx, mwd_mm
         )
         pf_stb = self._protection_factor(
-            params.protection_frac_stable, clay_pct, layer_idx
+            params.protection_frac_stable, clay_pct, layer_idx, mwd_mm
         )
 
         # Decrement disruption counter
