@@ -127,7 +127,10 @@ func _ready() -> void:
 	_debug_console.size = Vector2(250, 0)
 	_debug_console.wind_changed.connect(_on_debug_wind)
 	_debug_console.rain_changed.connect(_on_debug_rain)
-	$UILayer.add_child(_debug_console)
+	var debug_layer := CanvasLayer.new()
+	debug_layer.layer = 100  # always on top
+	add_child(debug_layer)
+	debug_layer.add_child(_debug_console)
 	status_label.text = "3D view \u2014 click tile to select"
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
