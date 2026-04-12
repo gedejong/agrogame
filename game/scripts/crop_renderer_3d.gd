@@ -56,10 +56,10 @@ static func set_wind(plant: Node3D, strength: float, direction: Vector2) -> void
 
 
 static func _set_wind_recursive(node: Node, strength: float, dir: Vector2) -> void:
-	if node is MeshInstance3D:
-		var mi: MeshInstance3D = node as MeshInstance3D
-		if mi.material_override is ShaderMaterial:
-			var sm: ShaderMaterial = mi.material_override as ShaderMaterial
+	if node is GeometryInstance3D:
+		var gi: GeometryInstance3D = node as GeometryInstance3D
+		if gi.material_override is ShaderMaterial:
+			var sm: ShaderMaterial = gi.material_override as ShaderMaterial
 			sm.set_shader_parameter("wind_strength", strength)
 			sm.set_shader_parameter("wind_direction", dir)
 	for child in node.get_children():
