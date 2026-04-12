@@ -63,3 +63,52 @@ func test_mwd_bar_stress_color_marginal() -> void:
 func test_mwd_bar_stress_color_degraded() -> void:
 	var c: Color = NutrientPanel._stress_color("MWD", 0.3, 1.5, 2.5)
 	assert_eq(c, NutrientPanel.BAR_STRESS, "Degraded MWD <0.5 = red")
+
+
+func test_accordion_only_first_layer_expanded() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-20cm", "values": {}, "dominant_acceptor": "O2"},
+		{"depth_label": "20-40cm", "values": {}, "dominant_acceptor": "O2"},
+		{"depth_label": "40-60cm", "values": {}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers)
+	assert_eq(panel._layer_bodies.size(), 3, "3 layer bodies")
+	assert_true(panel._layer_bodies[0].visible, "Layer 0 expanded")
+	assert_false(panel._layer_bodies[1].visible, "Layer 1 collapsed")
+	assert_false(panel._layer_bodies[2].visible, "Layer 2 collapsed")
+
+
+func test_accordion_expand_all() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-20cm", "values": {}, "dominant_acceptor": "O2"},
+		{"depth_label": "20-40cm", "values": {}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers)
+	panel._on_expand_all()
+	assert_true(panel._layer_bodies[0].visible, "All expanded")
+	assert_true(panel._layer_bodies[1].visible, "All expanded")
+	panel._on_expand_all()
+	assert_false(panel._layer_bodies[0].visible, "All collapsed")
+	assert_false(panel._layer_bodies[1].visible, "All collapsed")
+
+
+func test_accordion_toggle_layer() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-20cm", "values": {}, "dominant_acceptor": "O2"},
+		{"depth_label": "20-40cm", "values": {}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers)
+	assert_false(panel._layer_bodies[1].visible, "Layer 1 starts collapsed")
+	panel._on_layer_header(1)
+	assert_true(panel._layer_bodies[1].visible, "Layer 1 expanded after click")
+	panel._on_layer_header(1)
+	assert_false(panel._layer_bodies[1].visible, "Layer 1 collapsed after 2nd click")

@@ -233,8 +233,14 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel.show_layers(layers_data)
 	_nutrient_panel.flow_filter_changed.connect(_on_flow_filter)
 	_nutrient_panel.flow_toggle_changed.connect(_on_flow_toggle)
+	_nutrient_panel.layer_selected.connect(_on_layer_selected)
 	_nutrient_panel.visible = true
 	ui_layer.add_child(_nutrient_panel)
+
+
+func _on_layer_selected(_layer_idx: int) -> void:
+	# Layer selection from accordion — could highlight in cutaway in future.
+	pass
 
 
 func _on_flow_filter(filter_name: String) -> void:
