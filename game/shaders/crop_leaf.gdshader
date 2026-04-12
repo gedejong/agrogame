@@ -52,7 +52,11 @@ void vertex() {
 		float along = UV.x;
 		// Sway frequency increases with wind (calm=2Hz, gale=4Hz)
 		float freq = 2.0 + wind_strength * 2.0;
-		float phase = TIME * freq + wind_phase;
+		// Spatial phase offset: plants at different positions sway out of sync.
+		// Wind wave propagates across the field in wind_direction.
+		vec3 world_pos = MODEL_MATRIX[3].xyz;
+		float spatial_offset = dot(vec2(world_pos.x, world_pos.z), wind_direction) * 2.0;
+		float phase = TIME * freq + wind_phase + spatial_offset;
 		// Sway amplitude: stronger at tip (along²) and top of plant (leaf_height).
 		float sway_amount = along * along * leaf_height * wind_strength * 0.25;
 		float sway = sin(phase) * sway_amount;
@@ -63,7 +67,7 @@ void vertex() {
 		VERTEX.y -= along * sway_amount * 0.4;
 		// Fast flutter: tip oscillation, frequency rises in gusts.
 		float flut_freq = 6.0 + wind_strength * 4.0;
-		float flut = sin(TIME * flut_freq + wind_phase * 3.0 + along * 4.0);
+		float flut = sin(TIME * flut_freq + wind_phase * 3.0 + along * 4.0 + spatial_offset * 1.3);
 		VERTEX.y += flut * along * along * wind_strength * 0.03;
 		// Lateral flutter (leaf twists slightly)
 		VERTEX.x += cos(TIME * flut_freq * 0.7 + wind_phase) * along * wind_strength * 0.01;
