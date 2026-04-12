@@ -185,19 +185,12 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	add_theme_stylebox_override("panel", style)
 	UiTheme.add_blur_bg(self)
 
-	# ScrollContainer for overflow
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.custom_minimum_size = Vector2(260, 0)
-	add_child(scroll)
-
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_right", 10)
 	margin.add_theme_constant_override("margin_top", 8)
 	margin.add_theme_constant_override("margin_bottom", 8)
-	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(margin)
+	add_child(margin)
 
 	var vbox := VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 6)
