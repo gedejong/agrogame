@@ -49,18 +49,24 @@ void vertex() {
 	// UV.x = 0 at base (attached to stem), 1 at tip.
 	// ALL displacement scaled by UV.x so base stays at origin.
 	if (wind_strength > 0.001) {
-		float along = UV.x;  // 0 at base, 1 at tip
-		float phase = TIME * 2.0 + wind_phase;
-		// Slow sway: entire leaf curves in wind direction.
-		// Stronger for higher leaves (leaf_height), more at tip (along²).
-		float sway_amount = along * along * leaf_height * wind_strength * 0.12;
+		float along = UV.x;
+		// Sway frequency increases with wind (calm=2Hz, gale=4Hz)
+		float freq = 2.0 + wind_strength * 2.0;
+		float phase = TIME * freq + wind_phase;
+		// Sway amplitude: stronger at tip (along²) and top of plant (leaf_height).
+		float sway_amount = along * along * leaf_height * wind_strength * 0.25;
 		float sway = sin(phase) * sway_amount;
+		// Secondary harmonic for organic feel (avoids robotic oscillation)
+		sway += sin(phase * 1.7 + 0.5) * sway_amount * 0.3;
 		VERTEX.x += wind_direction.x * sway;
 		VERTEX.z += wind_direction.y * sway;
-		VERTEX.y -= along * sway_amount * 0.3;  // gravity sag at tip
-		// Fast flutter: tip oscillation, unique per leaf.
-		float flut = sin(TIME * 5.0 + wind_phase * 3.0 + along * 4.0);
-		VERTEX.y += flut * along * along * wind_strength * 0.015;
+		VERTEX.y -= along * sway_amount * 0.4;
+		// Fast flutter: tip oscillation, frequency rises in gusts.
+		float flut_freq = 6.0 + wind_strength * 4.0;
+		float flut = sin(TIME * flut_freq + wind_phase * 3.0 + along * 4.0);
+		VERTEX.y += flut * along * along * wind_strength * 0.03;
+		// Lateral flutter (leaf twists slightly)
+		VERTEX.x += cos(TIME * flut_freq * 0.7 + wind_phase) * along * wind_strength * 0.01;
 	}
 }
 

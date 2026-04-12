@@ -74,6 +74,7 @@ var _api_client: Node
 var _last_step_data: Dictionary = {}
 var _wind_strength: float = 0.15
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
+var _debug_console: DebugConsole = null
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
 ## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
@@ -120,6 +121,13 @@ func _ready() -> void:
 	_build_tile_grid()
 	_stress_icons = StressIcons.new()
 	add_child(_stress_icons)
+	# Debug console: toggle with backtick (`)
+	_debug_console = DebugConsole.new()
+	_debug_console.position = Vector2(10, 80)
+	_debug_console.size = Vector2(250, 0)
+	_debug_console.wind_changed.connect(_on_debug_wind)
+	_debug_console.rain_changed.connect(_on_debug_rain)
+	$UILayer.add_child(_debug_console)
 	status_label.text = "3D view \u2014 click tile to select"
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
@@ -236,6 +244,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
 			_cutaway.hide_cutaway(_tile_meshes, _crop_sprites, _update_crop_visuals)
 			_deselect()
+		elif ke.pressed and ke.keycode == KEY_QUOTELEFT:
+			_debug_console.toggle()
 
 
 func _handle_click(screen_pos: Vector2) -> void:
@@ -367,6 +377,17 @@ func _update_crop_visuals(idx: int) -> void:
 	# Apply current wind to crop plants
 	var container: Node3D = _crop_sprites[idx][0]
 	CropRenderer3D.set_wind(container, _wind_strength, _wind_dir)
+
+
+func _on_debug_wind(strength: float, direction: Vector2) -> void:
+	_wind_strength = strength
+	_wind_dir = direction
+	_apply_wind_to_all_crops()
+
+
+func _on_debug_rain(raining: bool, intensity: float) -> void:
+	rain.set_raining(raining, intensity)
+	rain.set_wind(_wind_strength * 8.0, _wind_dir)
 
 
 func _apply_wind_to_all_crops() -> void:
