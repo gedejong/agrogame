@@ -14,6 +14,8 @@ const GUST_STRENGTH := 0.3
 var _is_raining := false
 var _base_amount: int = 0
 var _time := 0.0
+var _wind_ms: float = 2.0
+var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 
 
 func _ready() -> void:
@@ -54,9 +56,12 @@ func _process(delta: float) -> void:
 	var mat: ParticleProcessMaterial = process_material as ParticleProcessMaterial
 	if not mat:
 		return
-	# Wind direction shifts with gusts
-	var wind_x: float = 0.05 + gust * GUST_STRENGTH
-	var wind_z: float = 0.05 + gust2 * GUST_STRENGTH * 0.6
+	# Rain angle driven by wind speed + gust oscillation.
+	# Stronger wind → more angled rain (x_component = wind_m_s * 0.1).
+	var wind_factor: float = _wind_ms * 0.1
+	var gust_factor: float = GUST_STRENGTH * clampf(_wind_ms / 5.0, 0.5, 2.0)
+	var wind_x: float = _wind_dir.x * wind_factor + gust * gust_factor
+	var wind_z: float = _wind_dir.y * wind_factor + gust2 * gust_factor * 0.6
 	mat.direction = Vector3(wind_x, -1, wind_z)
 	mat.spread = 3.0 + absf(gust) * 5.0
 
@@ -70,6 +75,11 @@ func set_raining(raining: bool, intensity_mm: float = 5.0) -> void:
 		emitting = true
 	else:
 		emitting = false
+
+
+func set_wind(wind_ms: float, wind_dir: Vector2) -> void:
+	_wind_ms = wind_ms
+	_wind_dir = wind_dir
 
 
 func is_raining() -> bool:

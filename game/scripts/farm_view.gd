@@ -34,9 +34,10 @@ const SOIL_TEXTURES := {
 	},
 }
 
-## Default wind: gentle breeze from southwest. TODO: modulate by weather API.
-const DEFAULT_WIND_STRENGTH := 0.2
-const DEFAULT_WIND_DIR := Vector2(0.7, 0.7)
+## Wind: mapped from weather API wind_m_s. Calm=0.05, gale=1.0.
+## Ref: Beaufort scale — 0-2 m/s calm, 2-5 breeze, 5-10 strong, >10 gale.
+const WIND_SCALE_MAX_MS := 8.0
+const WIND_MIN_STRENGTH := 0.05
 
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
@@ -71,6 +72,8 @@ var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
+var _wind_strength: float = 0.15
+var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
 ## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
@@ -361,9 +364,15 @@ func _update_crop_visuals(idx: int) -> void:
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)
-	# Apply default wind to crop plants
+	# Apply current wind to crop plants
 	var container: Node3D = _crop_sprites[idx][0]
-	CropRenderer3D.set_wind(container, DEFAULT_WIND_STRENGTH, DEFAULT_WIND_DIR)
+	CropRenderer3D.set_wind(container, _wind_strength, _wind_dir)
+
+
+func _apply_wind_to_all_crops() -> void:
+	for sprites: Array in _crop_sprites:
+		if sprites.size() > 0:
+			CropRenderer3D.set_wind(sprites[0], _wind_strength, _wind_dir)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -476,8 +485,17 @@ func _apply_day_result(data: Dictionary) -> void:
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
+	# Wind from weather data — drive crop sway + rain angle
+	var wind_ms: float = w.get("wind_m_s", 2.0)
+	_wind_strength = clampf(wind_ms / WIND_SCALE_MAX_MS, WIND_MIN_STRENGTH, 1.0)
+	# Random wind direction per day (seeded by day number for consistency)
+	var day_seed: float = fmod(float(day_num) * 2.399, TAU)
+	_wind_dir = Vector2(cos(day_seed), sin(day_seed))
 	rain.set_raining(rain_mm > 1.0, rain_mm)
+	rain.set_wind(wind_ms, _wind_dir)
 	_update_weather_lighting(w)
+	# Update all crop plants with current wind
+	_apply_wind_to_all_crops()
 
 	var snapshots: Array = data.get("daily_snapshots", [])
 	_apply_daily_snapshots(snapshots)
