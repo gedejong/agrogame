@@ -54,7 +54,7 @@ static func create_plant(
 		# Bare peduncle above sheaths — only when grain is developing
 		if has_grain and sheath_top < th:
 			var ped_h: float = th - sheath_top
-			var stem_mat := CR.create_stem_material(senescence)
+			var stem_mat := CR.create_stem_material(senescence, 1.0)
 			var ped := MeshInstance3D.new()
 			ped.mesh = CR.create_stem_mesh(ped_h, sheath_r_top, sheath_r_top * 0.6)
 			ped.material_override = stem_mat

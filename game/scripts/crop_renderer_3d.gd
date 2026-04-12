@@ -4,6 +4,7 @@ extends RefCounted
 ## material cache, hash-based randomness, and growth-to-color mapping.
 
 const LEAF_SHADER = preload("res://shaders/crop_leaf.gdshader")
+const STEM_SHADER = preload("res://shaders/crop_stem.gdshader")
 
 const LEAF_MASKS := {
 	"maize": preload("res://assets/textures/leaf_maize_alpha.png"),
@@ -95,10 +96,12 @@ static func create_stem_mesh(
 	return cyl
 
 
-static func create_stem_material(senescence: float) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = STEM_COLOR.lerp(STEM_SENESCENT, senescence)
-	mat.roughness = 0.8
+static func create_stem_material(senescence: float, flexibility: float = 0.5) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = STEM_SHADER
+	var color: Color = STEM_COLOR.lerp(STEM_SENESCENT, senescence)
+	mat.set_shader_parameter("stem_color", Vector3(color.r, color.g, color.b))
+	mat.set_shader_parameter("flexibility", flexibility)
 	return mat
 
 
