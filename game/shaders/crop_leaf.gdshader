@@ -69,8 +69,8 @@ void vertex() {
 		float flut_freq = 6.0 + wind_strength * 4.0;
 		float flut = sin(TIME * flut_freq + wind_phase * 3.0 + along * 4.0 + spatial_offset * 1.3);
 		VERTEX.y += flut * along * along * wind_strength * 0.03;
-		// Lateral flutter (leaf twists slightly)
-		VERTEX.x += cos(TIME * flut_freq * 0.7 + wind_phase) * along * wind_strength * 0.01;
+		// Lateral flutter (leaf twists slightly) — spatial offset desyncs
+		VERTEX.x += cos(TIME * flut_freq * 0.7 + wind_phase + spatial_offset * 0.9) * along * wind_strength * 0.01;
 	}
 }
 

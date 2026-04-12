@@ -73,6 +73,7 @@ var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
 var _wind_strength: float = 0.15
+var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 var _debug_console: DebugConsole = null
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
@@ -384,13 +385,14 @@ func _update_crop_visuals(idx: int) -> void:
 
 func _on_debug_wind(strength: float, direction: Vector2) -> void:
 	_wind_strength = strength
+	_wind_ms = strength * WIND_SCALE_MAX_MS
 	_wind_dir = direction
 	_apply_wind_to_all_crops()
+	rain.set_wind(_wind_ms, _wind_dir)
 
 
 func _on_debug_rain(raining: bool, intensity: float) -> void:
 	rain.set_raining(raining, intensity)
-	rain.set_wind(_wind_strength * 8.0, _wind_dir)
 
 
 func _apply_wind_to_all_crops() -> void:
@@ -510,13 +512,13 @@ func _apply_day_result(data: Dictionary) -> void:
 	if icon_tex:
 		weather_icon.texture = icon_tex
 	# Wind from weather data — drive crop sway + rain angle
-	var wind_ms: float = w.get("wind_m_s", 2.0)
-	_wind_strength = clampf(wind_ms / WIND_SCALE_MAX_MS, WIND_MIN_STRENGTH, 1.0)
+	_wind_ms = w.get("wind_m_s", 2.0)
+	_wind_strength = clampf(_wind_ms / WIND_SCALE_MAX_MS, WIND_MIN_STRENGTH, 1.0)
 	# Random wind direction per day (seeded by day number for consistency)
 	var day_seed: float = fmod(float(day_num) * 2.399, TAU)
 	_wind_dir = Vector2(cos(day_seed), sin(day_seed))
 	rain.set_raining(rain_mm > 1.0, rain_mm)
-	rain.set_wind(wind_ms, _wind_dir)
+	rain.set_wind(_wind_ms, _wind_dir)
 	_update_weather_lighting(w)
 	# Update all crop plants with current wind
 	_apply_wind_to_all_crops()

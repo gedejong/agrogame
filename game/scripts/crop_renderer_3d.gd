@@ -92,7 +92,7 @@ static func create_stem_mesh(
 	cyl.bottom_radius = radius_bottom
 	cyl.top_radius = radius_top
 	cyl.radial_segments = 6
-	cyl.rings = 1
+	cyl.rings = 4  # enough intermediate vertices for shader bend curve
 	return cyl
 
 
