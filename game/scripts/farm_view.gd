@@ -601,8 +601,12 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 			var p_stress: float = 0.0
 			var fe_stress: float = 0.0
 			var zn_stress: float = 0.0
+			# Transient morphological damage (#259).
+			var frost_dmg: float = 0.0
+			var heat_dmg: float = 0.0
 			for evt: Dictionary in patch.get("events", []):
-				if evt.get("event_type") == "NutrientStressComputed":
+				var et: String = evt.get("event_type", "")
+				if et == "NutrientStressComputed":
 					var d: Dictionary = evt.get("data", {})
 					# API: stress=1 healthy, 0=severe. Invert for display.
 					var s: float = clampf(1.0 - d.get("stress", 1.0), 0.0, 1.0)
@@ -615,6 +619,16 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 							fe_stress = maxf(fe_stress, s)
 						"Zn":
 							zn_stress = maxf(zn_stress, s)
+				elif et == "FrostDamageApplied":
+					var fs: float = clampf(
+						float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0
+					)
+					frost_dmg = maxf(frost_dmg, fs)
+				elif et == "HeatDamageApplied":
+					var hs: float = clampf(
+						float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0
+					)
+					heat_dmg = maxf(heat_dmg, hs)
 			for i in range(_tile_data.size()):
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["som_total_c_g_m2"] = som
@@ -628,6 +642,8 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_tile_data[i]["p_stress"] = p_stress
 					_tile_data[i]["fe_stress"] = fe_stress
 					_tile_data[i]["zn_stress"] = zn_stress
+					_tile_data[i]["frost_damage"] = frost_dmg
+					_tile_data[i]["heat_damage"] = heat_dmg
 					_update_tile_shader(i)
 					_update_crop_visuals(i)
 	# Update stress icons from patch events

@@ -28,6 +28,9 @@ uniform float stress_n : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_p : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_fe : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_zn : hint_range(0.0, 1.0) = 0.0;
+// Transient damage from FrostDamageApplied / HeatDamageApplied events.
+uniform float stress_frost : hint_range(0.0, 1.0) = 0.0;
+uniform float stress_heat : hint_range(0.0, 1.0) = 0.0;
 
 const vec3 GREEN = vec3(0.2, 0.55, 0.15);
 const vec3 YOUNG_GREEN = vec3(0.35, 0.65, 0.25);
@@ -43,6 +46,8 @@ const vec3 FE_CHLOROSIS = vec3(0.82, 0.80, 0.45);     // strong yellow — almos
 const vec3 FE_VEIN_COLOR = vec3(0.2, 0.55, 0.15);     // green veins stay green
 const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
 const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
+const vec3 FROST_NECROSIS = vec3(0.10, 0.08, 0.06);   // near-black, water-soaked tissue
+const vec3 HEAT_BURN = vec3(0.55, 0.30, 0.10);        // brown scorch — leaf tip burn
 
 void vertex() {
 	// Wind: leaf bends from base (fixed) toward tip (moving).
@@ -115,6 +120,21 @@ void fragment() {
 	vec3 zn_color = mix(ZN_BRONZE, ZN_PALE, is_pale_band);
 	float zn_f = stress_zn * (0.3 + young_leaf * 0.7);  // top leaves first
 	color = mix(color, zn_color, zn_f * 0.55);
+
+	// FROST: patchy near-black necrosis. Sudden — affects all leaves.
+	// Ref: ice crystal damage causes water-soaked, then blackened tissue.
+	// Procedural noise via UV gives irregular patches.
+	float frost_noise = sin(UV.x * 17.3 + UV.y * 23.1) * sin(UV.x * 9.7 - UV.y * 13.5);
+	float frost_patch = smoothstep(-0.2, 0.6, frost_noise);
+	float frost_f = stress_frost * (0.4 + frost_patch * 0.6);
+	color = mix(color, FROST_NECROSIS, frost_f * 0.85);
+
+	// HEAT: leaf tip burn — brown scorch on outer 30% of leaf.
+	// Ref: high transpiration + low water → tip desiccation first.
+	// Stronger on younger/upper leaves (higher VPD exposure at canopy top).
+	float heat_tip = smoothstep(0.65, 1.0, UV.x);
+	float heat_f = stress_heat * heat_tip * (0.5 + young_leaf * 0.5);
+	color = mix(color, HEAT_BURN, heat_f * 0.8);
 
 	// Waxy cuticle highlight
 	float ndotv = abs(dot(NORMAL, VIEW));

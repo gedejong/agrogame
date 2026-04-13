@@ -42,6 +42,8 @@ static func create_leaf_material(
 	mat.set_shader_parameter("stress_p", stresses.get("p", 0.0))
 	mat.set_shader_parameter("stress_fe", stresses.get("fe", 0.0))
 	mat.set_shader_parameter("stress_zn", stresses.get("zn", 0.0))
+	mat.set_shader_parameter("stress_frost", stresses.get("frost", 0.0))
+	mat.set_shader_parameter("stress_heat", stresses.get("heat", 0.0))
 	# Wind: phase offset desyncs leaf flutter. Use golden ratio for spread.
 	# TODO: per-leaf materials are expensive (~500 at 36 tiles). Consider
 	# shared materials with per-instance data for LOD at scale.
