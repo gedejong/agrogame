@@ -40,7 +40,7 @@ static func parse_stress_data(tile_data: Dictionary) -> Dictionary:
 
 
 static func calc_stunt_factor(stresses: Dictionary) -> float:
-	"""Geometry scale multiplier from Zn deficiency (and severe N).
+	"""Geometry scale multiplier from Zn deficiency.
 	1.0 = full size, 0.7 = 30% reduction.
 	Ref: Zn-deficient cereals show ~25-30% height reduction (Marschner 2012)."""
 	var zn: float = stresses.get("zn", 0.0)

@@ -123,13 +123,14 @@ void fragment() {
 
 	// FROST: patchy near-black necrosis. Sudden — affects all leaves.
 	// Ref: ice crystal damage causes water-soaked, then blackened tissue.
-	// Procedural noise via UV gives irregular patches.
-	float frost_noise = sin(UV.x * 17.3 + UV.y * 23.1) * sin(UV.x * 9.7 - UV.y * 13.5);
+	// Procedural noise via UV + wind_phase gives per-leaf pattern variation.
+	float frost_noise = sin(UV.x * 17.3 + UV.y * 23.1 + wind_phase) *
+	                    sin(UV.x * 9.7 - UV.y * 13.5 + wind_phase * 1.7);
 	float frost_patch = smoothstep(-0.2, 0.6, frost_noise);
 	float frost_f = stress_frost * (0.4 + frost_patch * 0.6);
 	color = mix(color, FROST_NECROSIS, frost_f * 0.85);
 
-	// HEAT: leaf tip burn — brown scorch on outer 30% of leaf.
+	// HEAT: leaf tip burn — brown scorch on outer 35% of leaf.
 	// Ref: high transpiration + low water → tip desiccation first.
 	// Stronger on younger/upper leaves (higher VPD exposure at canopy top).
 	float heat_tip = smoothstep(0.65, 1.0, UV.x);

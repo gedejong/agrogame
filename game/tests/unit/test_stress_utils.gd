@@ -99,3 +99,29 @@ func test_calc_collapse_factor_dead() -> void:
 func test_calc_collapse_factor_partial() -> void:
 	# At sen=0.925 (midway between 0.85 and 1.0), Y scale = lerp(1.0, 0.4, 0.5) = 0.7
 	assert_almost_eq(SU.calc_collapse_factor(0.925), 0.7, 0.01, "Half collapse at sen 0.925")
+
+
+func test_dominant_stress_includes_frost() -> void:
+	var stresses := {
+		"water": 0.2,
+		"n": 0.5,
+		"p": 0.1,
+		"fe": 0.3,
+		"zn": 0.0,
+		"frost": 0.9,
+		"heat": 0.1,
+	}
+	assert_eq(SU.dominant_stress(stresses), "frost", "Frost wins when highest")
+
+
+func test_dominant_stress_includes_heat() -> void:
+	var stresses := {
+		"water": 0.0,
+		"n": 0.0,
+		"p": 0.0,
+		"fe": 0.0,
+		"zn": 0.0,
+		"frost": 0.2,
+		"heat": 0.8,
+	}
+	assert_eq(SU.dominant_stress(stresses), "heat", "Heat wins when highest")

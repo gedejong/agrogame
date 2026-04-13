@@ -157,11 +157,12 @@ func test_zn_stunting_reduces_plant_scale() -> void:
 
 
 func test_dead_plant_collapses_vertically() -> void:
-	# Senescence override → fully collapsed Y scale
+	# Stage 4 with LAI=0 and full grain → _calc_senescence returns 1.0
+	# (1 - 0/3.0) * clamp(2.0) = 1.0, triggering full collapse to Y=0.4.
 	var tile_data := {
 		"crop_key": "maize",
 		"crop_stage": 4,
-		"lai": 0.5,
+		"lai": 0.0,
 		"grain_g_m2": 1000.0,
 		"col": 0,
 		"row": 0,
@@ -174,9 +175,11 @@ func test_dead_plant_collapses_vertically() -> void:
 		if child is Node3D and not (child is MultiMeshInstance3D):
 			found_plant = child as Node3D
 			break
+	assert_not_null(found_plant, "Should have at least one plant")
 	if found_plant != null:
 		# At stage 4 with low LAI / max grain, sen ≈ 1 → Y scale collapses to 0.4.
-		assert_lt(found_plant.scale.y, found_plant.scale.x + 0.01, "Y collapsed vs X/Z")
+		var ratio: float = found_plant.scale.y / found_plant.scale.x
+		assert_almost_eq(ratio, 0.4, 0.1, "Y/X ≈ 0.4 (collapse to 40% height)")
 
 
 func test_multimesh_uses_uniform_senescence() -> void:
