@@ -42,6 +42,11 @@ static func update_crop(
 	var col: int = tile_data["col"]
 	var row: int = tile_data["row"]
 	var s: float = 1.0 / meters_per_tile
+	# Morphological stress effects (#259):
+	#   Zn deficiency → uniform stunting (smaller plants)
+	#   Senescence ≥ 0.85 → vertical collapse (dead plants fall)
+	var stunt: float = StressUtils.calc_stunt_factor(stresses)
+	var collapse_y: float = StressUtils.calc_collapse_factor(senescence)
 	if total_plants > 50:
 		_build_baked_plants(
 			container,
@@ -55,6 +60,8 @@ static func update_crop(
 			stresses,
 			grain_frac,
 			tile_size,
+			stunt,
+			collapse_y,
 		)
 	else:
 		_build_individual_plants(
@@ -69,6 +76,8 @@ static func update_crop(
 			stresses,
 			grain_frac,
 			tile_size,
+			stunt,
+			collapse_y,
 		)
 
 
@@ -109,6 +118,8 @@ static func _build_individual_plants(
 	stresses: Dictionary,
 	grain_frac: float,
 	tile_size: float,
+	stunt: float = 1.0,
+	collapse_y: float = 1.0,
 ) -> void:
 	for hi in range(grid.x):
 		var u: float = (float(hi) + 0.5) / float(grid.x)
@@ -121,7 +132,8 @@ static func _build_individual_plants(
 			var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
 			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
 			var new_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv)
-			new_plant.scale = Vector3(s, s, s)
+			# Stunt scales XYZ uniformly; collapse only flattens Y.
+			new_plant.scale = Vector3(s * stunt, s * stunt * collapse_y, s * stunt)
 			new_plant.position = Vector3(lx + jx, 0, lz + jz)
 			container.add_child(new_plant)
 
@@ -141,6 +153,8 @@ static func _build_baked_plants(
 	stresses: Dictionary,
 	grain_frac: float,
 	tile_size: float,
+	stunt: float = 1.0,
+	collapse_y: float = 1.0,
 ) -> void:
 	var sv_base: int = col * 7 + row * 13
 	var sample_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv_base)
@@ -169,7 +183,7 @@ static func _build_baked_plants(
 				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
 				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
 				var plant_t := Transform3D()
-				plant_t = plant_t.scaled(Vector3(s, s, s))
+				plant_t = plant_t.scaled(Vector3(s * stunt, s * stunt * collapse_y, s * stunt))
 				plant_t = plant_t.rotated(Vector3.UP, rot_y)
 				plant_t.origin = Vector3(lx + jx, 0, lz + jz)
 				layer_mm.set_instance_transform(i, plant_t * local_t)

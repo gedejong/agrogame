@@ -49,9 +49,79 @@ func test_parse_clamps_values() -> void:
 
 
 func test_stress_keys_constant() -> void:
-	assert_eq(SU.STRESS_KEYS.size(), 5, "5 stress types defined")
+	assert_eq(SU.STRESS_KEYS.size(), 7, "7 stress types defined")
 	assert_has(SU.STRESS_KEYS, "water")
 	assert_has(SU.STRESS_KEYS, "n")
 	assert_has(SU.STRESS_KEYS, "p")
 	assert_has(SU.STRESS_KEYS, "fe")
 	assert_has(SU.STRESS_KEYS, "zn")
+	assert_has(SU.STRESS_KEYS, "frost")
+	assert_has(SU.STRESS_KEYS, "heat")
+
+
+func test_parse_frost_and_heat() -> void:
+	var data := {"frost_damage": 0.6, "heat_damage": 0.4}
+	var result: Dictionary = SU.parse_stress_data(data)
+	assert_almost_eq(result["frost"], 0.6, 0.01, "Frost damage parsed")
+	assert_almost_eq(result["heat"], 0.4, 0.01, "Heat damage parsed")
+
+
+func test_parse_frost_heat_default_zero() -> void:
+	var result: Dictionary = SU.parse_stress_data({})
+	assert_eq(result["frost"], 0.0, "Frost defaults to 0")
+	assert_eq(result["heat"], 0.0, "Heat defaults to 0")
+
+
+func test_calc_stunt_factor_no_stress() -> void:
+	var s: float = SU.calc_stunt_factor({"zn": 0.0})
+	assert_eq(s, 1.0, "No Zn stress = full size")
+
+
+func test_calc_stunt_factor_severe_zn() -> void:
+	var s: float = SU.calc_stunt_factor({"zn": 1.0})
+	assert_almost_eq(s, 0.7, 0.01, "Severe Zn = 30% reduction")
+
+
+func test_calc_stunt_factor_partial_zn() -> void:
+	var s: float = SU.calc_stunt_factor({"zn": 0.5})
+	assert_almost_eq(s, 0.85, 0.01, "Half Zn = 15% reduction")
+
+
+func test_calc_collapse_factor_healthy() -> void:
+	assert_eq(SU.calc_collapse_factor(0.0), 1.0, "No senescence = full height")
+	assert_eq(SU.calc_collapse_factor(0.84), 1.0, "Below collapse threshold = full height")
+
+
+func test_calc_collapse_factor_dead() -> void:
+	assert_almost_eq(SU.calc_collapse_factor(1.0), 0.4, 0.01, "Fully senesced = collapsed")
+
+
+func test_calc_collapse_factor_partial() -> void:
+	# At sen=0.925 (midway between 0.85 and 1.0), Y scale = lerp(1.0, 0.4, 0.5) = 0.7
+	assert_almost_eq(SU.calc_collapse_factor(0.925), 0.7, 0.01, "Half collapse at sen 0.925")
+
+
+func test_dominant_stress_includes_frost() -> void:
+	var stresses := {
+		"water": 0.2,
+		"n": 0.5,
+		"p": 0.1,
+		"fe": 0.3,
+		"zn": 0.0,
+		"frost": 0.9,
+		"heat": 0.1,
+	}
+	assert_eq(SU.dominant_stress(stresses), "frost", "Frost wins when highest")
+
+
+func test_dominant_stress_includes_heat() -> void:
+	var stresses := {
+		"water": 0.0,
+		"n": 0.0,
+		"p": 0.0,
+		"fe": 0.0,
+		"zn": 0.0,
+		"frost": 0.2,
+		"heat": 0.8,
+	}
+	assert_eq(SU.dominant_stress(stresses), "heat", "Heat wins when highest")

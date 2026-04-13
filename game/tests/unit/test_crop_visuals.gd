@@ -130,6 +130,58 @@ func test_senescence_gradient_increases_with_maturity() -> void:
 	assert_gt(sen2, sen, "More grain → more senescence")
 
 
+func test_zn_stunting_reduces_plant_scale() -> void:
+	# Zn stress should make plants ~30% smaller (uniform XYZ scale).
+	var tile_data := {
+		"crop_key": "maize",
+		"crop_stage": 3,
+		"lai": 4.0,
+		"grain_g_m2": 100.0,
+		"col": 0,
+		"row": 0,
+		"zn_stress": 1.0,
+	}
+	var container := Node3D.new()
+	add_child_autofree(container)
+	VisualsRef.update_crop(tile_data, [container], {"maize": Vector2i(2, 2)}, 1.0, 1.0)
+	var found_plant: Node3D = null
+	for child: Node in container.get_children():
+		if child is Node3D and not (child is MultiMeshInstance3D):
+			found_plant = child as Node3D
+			break
+	assert_not_null(found_plant, "Should have at least one plant")
+	if found_plant != null:
+		# Stunt = 0.7, collapse_y = 1.0 (no senescence) → scale (0.7, 0.7, 0.7)
+		assert_almost_eq(found_plant.scale.x, 0.7, 0.02, "Zn stunting reduces X scale")
+		assert_almost_eq(found_plant.scale.z, 0.7, 0.02, "Zn stunting reduces Z scale")
+
+
+func test_dead_plant_collapses_vertically() -> void:
+	# Stage 4 with LAI=0 and full grain → _calc_senescence returns 1.0
+	# (1 - 0/3.0) * clamp(2.0) = 1.0, triggering full collapse to Y=0.4.
+	var tile_data := {
+		"crop_key": "maize",
+		"crop_stage": 4,
+		"lai": 0.0,
+		"grain_g_m2": 1000.0,
+		"col": 0,
+		"row": 0,
+	}
+	var container := Node3D.new()
+	add_child_autofree(container)
+	VisualsRef.update_crop(tile_data, [container], {"maize": Vector2i(2, 2)}, 1.0, 1.0)
+	var found_plant: Node3D = null
+	for child: Node in container.get_children():
+		if child is Node3D and not (child is MultiMeshInstance3D):
+			found_plant = child as Node3D
+			break
+	assert_not_null(found_plant, "Should have at least one plant")
+	if found_plant != null:
+		# At stage 4 with low LAI / max grain, sen ≈ 1 → Y scale collapses to 0.4.
+		var ratio: float = found_plant.scale.y / found_plant.scale.x
+		assert_almost_eq(ratio, 0.4, 0.1, "Y/X ≈ 0.4 (collapse to 40% height)")
+
+
 func test_multimesh_uses_uniform_senescence() -> void:
 	# MultiMesh mode: all instances share materials from sample plant.
 	# Verify the sample plant has leaf_height values set (not all 0.5).

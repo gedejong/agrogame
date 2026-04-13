@@ -19,6 +19,16 @@ const SLIDER_DEFS: Array[Dictionary] = [
 	{"key": "p", "label": "P stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "frost", "label": "Frost dmg", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "heat", "label": "Heat dmg", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{
+		"key": "sen_override",
+		"label": "Senescence",
+		"min": -0.01,
+		"max": 1.0,
+		"step": 0.01,
+		"default": -0.01,
+	},
 	{"key": "wind", "label": "Wind", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{
 		"key": "wind_angle",
@@ -180,6 +190,8 @@ func _format_slider(key: String, val: float) -> String:
 	if key == "stage":
 		var idx: int = int(clampf(val, 0.0, 4.0))
 		return "%d %s" % [idx, STAGE_NAMES[idx]]
+	if key == "sen_override" and val < 0.0:
+		return "auto"
 	return "%.2f" % val
 
 
@@ -269,23 +281,34 @@ func _rebuild() -> void:
 	var lai_frac: float = clampf(lai / CropVisuals.MAX_LAI, 0.0, 1.0)
 	# Use the same pipeline as CropVisuals
 	var growth: float = CropVisuals._calc_growth(stage, lai_frac, grain_frac)
-	var sen: float = CropVisuals._calc_senescence(stage, lai, grain_frac)
+	var sen_override: float = _sliders["sen_override"]["slider"].value
+	var sen: float = (
+		sen_override
+		if sen_override >= 0.0
+		else CropVisuals._calc_senescence(stage, lai, grain_frac)
+	)
 	var stresses := {
 		"water": _sliders["water"]["slider"].value,
 		"n": _sliders["n"]["slider"].value,
 		"p": _sliders["p"]["slider"].value,
 		"fe": _sliders["fe"]["slider"].value,
 		"zn": _sliders["zn"]["slider"].value,
+		"frost": _sliders["frost"]["slider"].value,
+		"heat": _sliders["heat"]["slider"].value,
 	}
 	# Update value labels
 	for key: String in _sliders:
 		var s: Dictionary = _sliders[key]
 		s["label"].text = _format_slider(key, s["slider"].value)
-	# Create 5 plants at same stage but different seeds
+	# Create 5 plants at same stage but different seeds.
+	# Apply morphological effects (#259): Zn stunting + senescence collapse.
+	var stunt: float = StressUtils.calc_stunt_factor(stresses)
+	var collapse_y: float = StressUtils.calc_collapse_factor(sen)
 	for i in range(5):
 		var plant := CropVisuals.create_3d_plant(
 			_current_crop, growth, sen, stresses, grain_frac, i * 17 + 42
 		)
+		plant.scale = Vector3(stunt, stunt * collapse_y, stunt)
 		plant.position = Vector3(float(i - 2) * 0.6, 0, 0)
 		_container.add_child(plant)
 	# Apply wind to all plants
