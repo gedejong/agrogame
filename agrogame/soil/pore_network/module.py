@@ -6,18 +6,17 @@ partition (Rawls et al. 1982/1983) and aggregation MWD adjustment
 
 Note: ``effective_porosity()`` in ``dynamic_state.py`` currently
 approximates macro-derived porosity with a single scalar. Once the
-pore network module is integrated into the orchestrator, that
-function should delegate to the pore network's detailed breakdown.
-This refactor is planned for a follow-up issue.
+pore network module is integrated into the orchestrator (planned
+follow-up), that function should delegate to the pore network's
+detailed breakdown. Orchestrator wiring and ``SoilSnapshot``
+persistence are also deferred to that follow-up.
 """
 
 from __future__ import annotations
 
 from agrogame.events import EventBus
 from agrogame.soil.aggregation.state import SoilAggregationState
-from agrogame.soil.models import (
-    SoilProfile,
-)
+from agrogame.soil.models import SoilProfile
 from agrogame.soil.pore_network.events import PoreNetworkComputed
 from agrogame.soil.pore_network.params import PoreNetworkParams
 from agrogame.soil.pore_network.state import PoreNetworkState
@@ -50,8 +49,8 @@ class PoreNetworkModule:
         - Cryptoporosity = residual (total_porosity - macro - meso - micro)
 
         Aggregation MWD bonus shifts macroporosity up (well-aggregated)
-        or leaves it at baseline (degraded). The shift is compensated
-        by reducing cryptoporosity so total remains at saturation.
+        or leaves it at baseline (degraded). Budget is enforced by
+        capping macro so macro + meso + micro <= total_porosity.
 
         Refs:
             Rawls et al. 1982, Trans. ASAE — water retention from texture.
@@ -59,6 +58,13 @@ class PoreNetworkModule:
             Dexter 2004, Geoderma — macropore structure and aggregation.
             Bronick & Lal 2005, Geoderma — aggregation effects on porosity.
         """
+        n_layers = len(profile.layers)
+        if len(self._state.macro) < n_layers:
+            raise ValueError(
+                f"PoreNetworkState has {len(self._state.macro)} layers "
+                f"but profile has {n_layers}"
+            )
+
         p = self._params
         for i, layer in enumerate(profile.layers):
             total_porosity = layer.saturation
@@ -68,15 +74,15 @@ class PoreNetworkModule:
             base_macro = max(0.0, total_porosity - layer.field_capacity)
 
             # Meso: pores holding plant-available water (FC to WP)
-            base_meso = max(0.0, layer.field_capacity - layer.wilting_point)
+            meso = max(0.0, layer.field_capacity - layer.wilting_point)
 
             # Residual water: texture-dependent tightly bound water
-            # Ref: Rawls 1982 Table 2 — residual increases with clay
+            # Ref: Rawls 1982 Table 2 — linear fit to θ_r vs clay%
             clay = layer.clay_pct if layer.clay_pct is not None else 22.0
-            residual = p.residual_water_fraction + 0.001 * clay
+            residual = p.residual_water_intercept + p.residual_water_slope * clay
 
             # Micro: WP down to residual
-            base_micro = max(0.0, layer.wilting_point - residual)
+            micro = max(0.0, layer.wilting_point - residual)
 
             # --- Aggregation MWD adjustment ---
             # Well-aggregated soil → more inter-aggregate macropores
@@ -86,16 +92,16 @@ class PoreNetworkModule:
                 mwd_bonus = p.mwd_macro_coeff * max(0.0, mwd - p.mwd_baseline)
 
             macro = max(p.min_macro_frac, min(p.max_macro_frac, base_macro + mwd_bonus))
-            meso = base_meso
-            micro = base_micro
 
-            # Crypto = residual: total - (macro + meso + micro)
+            # --- Budget enforcement ---
+            # Cap macro so macro + meso + micro <= total_porosity.
+            # This prevents conservation violation when MWD bonus
+            # pushes macro beyond what the residual can absorb.
+            budget_cap = max(0.0, total_porosity - meso - micro)
+            macro = min(macro, budget_cap)
+
+            # Crypto = residual: whatever budget remains
             crypto = max(0.0, total_porosity - macro - meso - micro)
-
-            # Ensure sum == total_porosity: adjust crypto as absorber
-            allocated = macro + meso + micro + crypto
-            if abs(allocated - total_porosity) > 1e-9:
-                crypto = max(0.0, total_porosity - macro - meso - micro)
 
             self._state.macro[i] = macro
             self._state.meso[i] = meso

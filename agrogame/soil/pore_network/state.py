@@ -57,10 +57,15 @@ class PoreNetworkState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> PoreNetworkState:
+        for key in ("macro", "meso", "micro", "crypto", "connectivity"):
+            if key not in data or not data[key]:
+                raise ValueError(
+                    f"PoreNetworkState.from_dict: missing or empty '{key}'"
+                )
         return cls(
-            macro=list(data.get("macro", [])),
-            meso=list(data.get("meso", [])),
-            micro=list(data.get("micro", [])),
-            crypto=list(data.get("crypto", [])),
-            connectivity=list(data.get("connectivity", [])),
+            macro=list(data["macro"]),
+            meso=list(data["meso"]),
+            micro=list(data["micro"]),
+            crypto=list(data["crypto"]),
+            connectivity=list(data["connectivity"]),
         )

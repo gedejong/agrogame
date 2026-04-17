@@ -34,15 +34,17 @@ class PoreNetworkParams:
         mwd_macro_coeff: Macroporosity bonus per unit MWD above baseline.
             Ref: Bronick & Lal 2005 — 2-5% macroporosity increase per
             mm MWD improvement.
-        residual_water_fraction: Fraction of total porosity that is
-            tightly bound residual water (basis for micropore lower bound).
-            Ref: Rawls et al. 1982, Table 2.
+        residual_water_intercept: Intercept for residual water PTF.
+            Linear fit to Rawls et al. 1982 Table 2 theta_r vs clay%:
+            theta_r = 0.0096 + 0.00163 * clay%.
+        residual_water_slope: Slope for residual water PTF (per clay%).
         min_macro_frac: Minimum macropore fraction (severely degraded).
         max_macro_frac: Maximum macropore fraction (coarse sand).
     """
 
     mwd_baseline: float = 0.5
     mwd_macro_coeff: float = 0.025
-    residual_water_fraction: float = 0.03
+    residual_water_intercept: float = 0.0096
+    residual_water_slope: float = 0.00163
     min_macro_frac: float = 0.01
     max_macro_frac: float = 0.30

@@ -6,6 +6,8 @@ state via retention-curve PTFs (Rawls et al. 1982/1983).
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from agrogame.events import EventBus
@@ -64,6 +66,13 @@ TEXTURE_PROFILES: dict[str, dict[str, float]] = {
         "bulk_density": 1.15,
         "om_pct": 3.0,
     },
+    "peat": {
+        "saturation": 0.630,
+        "field_capacity": 0.45,
+        "wilting_point": 0.20,
+        "bulk_density": 0.50,
+        "om_pct": 60.0,
+    },
 }
 
 
@@ -117,6 +126,12 @@ def test_state_round_trip() -> None:
     assert restored.connectivity == state.connectivity
 
 
+def test_state_from_dict_missing_key_raises() -> None:
+    """from_dict must raise ValueError on missing pore class keys."""
+    with pytest.raises(ValueError, match="missing or empty 'macro'"):
+        PoreNetworkState.from_dict({"meso": [0.1], "micro": [0.1]})
+
+
 # ---------- AC: PoreNetworkParams frozen ----------
 
 
@@ -159,6 +174,7 @@ def test_texture_sand_silt_clay_sum_reasonable() -> None:
         ("loam", 0.05, 0.25, 0.03, 0.20),
         ("clay_loam", 0.03, 0.20, 0.05, 0.25),
         ("clay", 0.02, 0.20, 0.10, 0.35),
+        ("peat", 0.05, 0.25, 0.05, 0.25),
     ],
 )
 def test_texture_pore_distribution(
@@ -175,18 +191,22 @@ def test_texture_pore_distribution(
 
     macro = state.macro[0]
     micro = state.micro[0]
-    assert (
-        expected_macro_lo <= macro <= expected_macro_hi
-    ), f"{texture}: macro={macro:.3f} not in [{expected_macro_lo}, {expected_macro_hi}]"
-    assert (
-        expected_micro_lo <= micro <= expected_micro_hi
-    ), f"{texture}: micro={micro:.3f} not in [{expected_micro_lo}, {expected_micro_hi}]"
+    assert expected_macro_lo <= macro <= expected_macro_hi, (
+        f"{texture}: macro={macro:.3f} not in "
+        f"[{expected_macro_lo}, {expected_macro_hi}]"
+    )
+    assert expected_micro_lo <= micro <= expected_micro_hi, (
+        f"{texture}: micro={micro:.3f} not in "
+        f"[{expected_micro_lo}, {expected_micro_hi}]"
+    )
 
 
 # ---------- AC: Total porosity constraint ----------
 
 
-@pytest.mark.parametrize("texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay"])
+@pytest.mark.parametrize(
+    "texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay", "peat"]
+)
 def test_porosity_sum_equals_saturation(texture: str) -> None:
     """Macro + meso + micro + crypto must equal layer saturation."""
     profile = _make_profile(texture)
@@ -197,15 +217,76 @@ def test_porosity_sum_equals_saturation(texture: str) -> None:
     for i in range(3):
         total = state.total_porosity(i)
         expected = profile.layers[i].saturation
+        assert abs(total - expected) < 1e-6, (
+            f"Layer {i}: total porosity {total:.6f} != " f"saturation {expected:.6f}"
+        )
+
+
+def test_conservation_extreme_mwd_sand() -> None:
+    """Mass conservation must hold even with extreme MWD on sand.
+
+    This is the edge case where MWD bonus pushes macro beyond what
+    the crypto residual can absorb. Budget enforcement must cap macro.
+    """
+    profile = _make_profile("sand")
+    n = len(profile.layers)
+
+    # Extreme aggregation: 95% macroaggregates → MWD ≈ 1.94
+    agg = SoilAggregationState(micro=[0.02] * n, meso=[0.03] * n, macro=[0.95] * n)
+    state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), state).compute(profile, agg)
+
+    for i in range(n):
+        total = state.total_porosity(i)
+        expected = profile.layers[i].saturation
+        assert abs(total - expected) < 1e-6, (
+            f"Layer {i}: sum {total:.6f} != sat {expected:.6f} "
+            f"(conservation violation)"
+        )
+        assert state.crypto[i] >= 0.0, "Crypto must be non-negative"
+
+
+def test_conservation_custom_layer_extreme_mwd() -> None:
+    """Conservation with custom low-saturation sand and extreme MWD.
+
+    Reproduces the exact scenario from the tech review:
+    sat=0.40, FC=0.30, WP=0.20, clay=5%, MWD=2.0.
+    """
+    layer = SoilLayer(
+        depth_cm=40.0,
+        texture="sand",
+        field_capacity=0.30,
+        wilting_point=0.20,
+        saturation=0.40,
+        bulk_density_g_cm3=1.55,
+        ksat_mm_per_hour=50.0,
+        organic_matter_pct=0.5,
+        initial_no3_kg_ha=10.0,
+        initial_nh4_kg_ha=2.0,
+        initial_p_kg_ha=5.0,
+        clay_pct=5.0,
+    )
+    profile = SoilProfile(name="test_extreme", layers=[layer, layer, layer])
+    n = 3
+
+    # MWD ≈ 2.0 via extreme macroaggregates
+    agg = SoilAggregationState(micro=[0.01] * n, meso=[0.02] * n, macro=[0.97] * n)
+    state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), state).compute(profile, agg)
+
+    for i in range(n):
+        total = state.total_porosity(i)
         assert (
-            abs(total - expected) < 1e-6
-        ), f"Layer {i}: total porosity {total:.6f} != saturation {expected:.6f}"
+            abs(total - 0.40) < 1e-6
+        ), f"Layer {i}: sum {total:.6f} != 0.40 (budget violation)"
 
 
 # ---------- AC: Connectivity in [0, 1] ----------
 
 
-@pytest.mark.parametrize("texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay"])
+@pytest.mark.parametrize(
+    "texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay", "peat"]
+)
 def test_connectivity_range(texture: str) -> None:
     profile = _make_profile(texture)
     state = PoreNetworkState.empty(3)
@@ -283,7 +364,9 @@ def test_compute_without_event_bus() -> None:
 # ---------- AC: All fractions non-negative ----------
 
 
-@pytest.mark.parametrize("texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay"])
+@pytest.mark.parametrize(
+    "texture", ["sand", "sandy_loam", "loam", "clay_loam", "clay", "peat"]
+)
 def test_all_fractions_non_negative(texture: str) -> None:
     profile = _make_profile(texture)
     state = PoreNetworkState.empty(3)
@@ -296,14 +379,39 @@ def test_all_fractions_non_negative(texture: str) -> None:
         assert state.crypto[i] >= 0.0
 
 
+# ---------- Bounds check ----------
+
+
+def test_state_too_small_raises() -> None:
+    """ValueError if state has fewer layers than profile."""
+    profile = _make_profile("sand")
+    state = PoreNetworkState.empty(1)  # only 1 layer, profile has 3
+    with pytest.raises(ValueError, match="PoreNetworkState has 1 layers"):
+        PoreNetworkModule(PoreNetworkParams(), state).compute(profile)
+
+
+# ---------- Point estimate: sand macroporosity ----------
+
+
+def test_sand_macro_point_estimate() -> None:
+    """Sand macroporosity should be close to sat - FC = 0.275 ± 0.02.
+
+    Rawls 1982 sand: sat=0.395, FC=0.12 → macro ≈ 0.275.
+    """
+    profile = _make_profile("sand")
+    state = PoreNetworkState.empty(3)
+    PoreNetworkModule(PoreNetworkParams(), state).compute(profile)
+    assert (
+        abs(state.macro[0] - 0.275) < 0.02
+    ), f"Sand macro {state.macro[0]:.4f} far from expected 0.275"
+
+
 # ---------- Integration: pore distribution with real presets ----------
 
 
 def test_pore_fractions_with_loaded_presets() -> None:
     """Run pore computation on every soil profile in presets."""
-    from pathlib import Path
-
-    presets_path = Path("data/soils/presets.yaml")
+    presets_path = Path("soils/presets.yaml")
     if not presets_path.exists():
         pytest.skip("Soil presets not found")
     lib = load_soil_presets(presets_path)
@@ -317,7 +425,7 @@ def test_pore_fractions_with_loaded_presets() -> None:
 
         for i, layer in enumerate(profile.layers):
             total = state.total_porosity(i)
-            assert (
-                abs(total - layer.saturation) < 1e-6
-            ), f"{name} layer {i}: pore sum {total:.4f} != sat {layer.saturation}"
+            assert abs(total - layer.saturation) < 1e-6, (
+                f"{name} layer {i}: pore sum {total:.4f} " f"!= sat {layer.saturation}"
+            )
             assert 0.0 <= state.connectivity[i] <= 1.0
