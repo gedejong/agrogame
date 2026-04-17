@@ -23,6 +23,26 @@ TEXTURE_TO_CLAY: Dict[str, float] = {
     "peat": 15.0,
 }
 
+# Sand and silt percentages by texture class.
+# Ref: Rawls et al. 1982, Trans. ASAE, Table 2 — class midpoints.
+TEXTURE_TO_SAND: Dict[str, float] = {
+    "sand": 90.0,
+    "sandy_loam": 60.0,
+    "loam": 40.0,
+    "clay_loam": 30.0,
+    "clay": 15.0,
+    "peat": 35.0,
+}
+
+TEXTURE_TO_SILT: Dict[str, float] = {
+    "sand": 5.0,
+    "sandy_loam": 28.0,
+    "loam": 38.0,
+    "clay_loam": 37.0,
+    "clay": 35.0,
+    "peat": 50.0,
+}
+
 
 class SoilLayer(BaseModel):
     depth_cm: PositiveFloat = Field(..., description="Layer thickness in cm")
