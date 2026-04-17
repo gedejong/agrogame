@@ -340,3 +340,37 @@ def test_p_availability_through_280d_winter_wheat() -> None:
         f"Available P dropped to {p_avail_total:.1f} kg/ha — "
         f"below physiological minimum"
     )
+
+
+# --- Pore network distribution (#211) ---
+
+
+def test_pore_distribution_loam_temperate() -> None:
+    """Loam soil should have physically realistic pore distribution.
+
+    Ref: Rawls et al. 1982 Table 2 — loam: total porosity 45-55%,
+    macropores 5-25%, micropores 5-25%.
+    """
+    from agrogame.soil.aggregation.state import SoilAggregationState
+    from agrogame.soil.pore_network import (
+        PoreNetworkModule,
+        PoreNetworkParams,
+        PoreNetworkState,
+    )
+
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    n = len(profile.layers)
+    agg = SoilAggregationState.from_layers(n)
+    state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), state).compute(profile, agg)
+
+    for i, layer in enumerate(profile.layers):
+        total = state.total_porosity(i)
+        assert (
+            abs(total - layer.saturation) < 1e-6
+        ), f"Layer {i}: sum {total:.4f} != sat {layer.saturation}"
+        assert (
+            0.03 <= state.macro[i] <= 0.30
+        ), f"Layer {i}: macro {state.macro[i]:.3f} outside [0.03, 0.30]"
+        assert 0.0 <= state.connectivity[i] <= 1.0
