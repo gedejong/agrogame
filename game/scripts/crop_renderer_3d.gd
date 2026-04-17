@@ -4,6 +4,7 @@ extends RefCounted
 ## material cache, hash-based randomness, and growth-to-color mapping.
 
 const LEAF_SHADER = preload("res://shaders/crop_leaf.gdshader")
+const STEM_SHADER = preload("res://shaders/crop_stem.gdshader")
 
 const LEAF_MASKS := {
 	"maize": preload("res://assets/textures/leaf_maize_alpha.png"),
@@ -58,10 +59,10 @@ static func set_wind(plant: Node3D, strength: float, direction: Vector2) -> void
 
 
 static func _set_wind_recursive(node: Node, strength: float, dir: Vector2) -> void:
-	if node is MeshInstance3D:
-		var mi: MeshInstance3D = node as MeshInstance3D
-		if mi.material_override is ShaderMaterial:
-			var sm: ShaderMaterial = mi.material_override as ShaderMaterial
+	if node is GeometryInstance3D:
+		var gi: GeometryInstance3D = node as GeometryInstance3D
+		if gi.material_override is ShaderMaterial:
+			var sm: ShaderMaterial = gi.material_override as ShaderMaterial
 			sm.set_shader_parameter("wind_strength", strength)
 			sm.set_shader_parameter("wind_direction", dir)
 	for child in node.get_children():
@@ -93,14 +94,16 @@ static func create_stem_mesh(
 	cyl.bottom_radius = radius_bottom
 	cyl.top_radius = radius_top
 	cyl.radial_segments = 6
-	cyl.rings = 1
+	cyl.rings = 4  # enough intermediate vertices for shader bend curve
 	return cyl
 
 
-static func create_stem_material(senescence: float) -> StandardMaterial3D:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = STEM_COLOR.lerp(STEM_SENESCENT, senescence)
-	mat.roughness = 0.8
+static func create_stem_material(senescence: float, flexibility: float = 0.5) -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = STEM_SHADER
+	var color: Color = STEM_COLOR.lerp(STEM_SENESCENT, senescence)
+	mat.set_shader_parameter("stem_color", Vector3(color.r, color.g, color.b))
+	mat.set_shader_parameter("flexibility", flexibility)
 	return mat
 
 

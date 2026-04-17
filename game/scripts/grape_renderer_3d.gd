@@ -26,7 +26,7 @@ static func create_plant(
 	# Short trunk
 	var trunk := MeshInstance3D.new()
 	trunk.mesh = CR.create_stem_mesh(h, 0.004, 0.003)
-	trunk.material_override = CR.create_stem_material(senescence)
+	trunk.material_override = CR.create_stem_material(senescence, 0.1)
 	trunk.position = Vector3(0, h * 0.5, 0)
 	trunk.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	plant.add_child(trunk)

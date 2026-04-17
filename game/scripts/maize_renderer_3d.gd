@@ -32,7 +32,7 @@ static func create_plant(
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
 	var r_top: float = r_bot * 0.15  # taper toward top, not zero (avoid z-fighting)
 	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
-	var stem_mat := CR.create_stem_material(senescence)
+	var stem_mat := CR.create_stem_material(senescence, 0.2)
 	var stem := MeshInstance3D.new()
 	stem.mesh = stem_mesh
 	stem.material_override = stem_mat

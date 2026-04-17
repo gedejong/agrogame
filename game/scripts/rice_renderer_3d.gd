@@ -23,7 +23,7 @@ static func create_plant(
 		return plant
 
 	# Per-leaf materials created in loop for bottom-up senescence
-	var stem_mat := CR.create_stem_material(senescence)
+	var stem_mat := CR.create_stem_material(senescence, 0.9)
 	# Stem elongation: moderate curve, mostly grown by flowering.
 	var h: float = STEM_HEIGHT * pow(growth_progress, 1.3)
 

@@ -40,7 +40,7 @@ static func create_plant(
 		var ped_h: float = h - sheath_top
 		var ped := MeshInstance3D.new()
 		ped.mesh = CR.create_stem_mesh(ped_h, sheath_r * 0.4, sheath_r * 0.3)
-		ped.material_override = CR.create_stem_material(senescence)
+		ped.material_override = CR.create_stem_material(senescence, 0.3)
 		ped.position = Vector3(0, sheath_top + ped_h * 0.5, 0)
 		ped.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(ped)

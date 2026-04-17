@@ -34,9 +34,10 @@ const SOIL_TEXTURES := {
 	},
 }
 
-## Default wind: gentle breeze from southwest. TODO: modulate by weather API.
-const DEFAULT_WIND_STRENGTH := 0.2
-const DEFAULT_WIND_DIR := Vector2(0.7, 0.7)
+## Wind: mapped from weather API wind_m_s. Calm=0.05, gale=1.0.
+## Ref: Beaufort scale — 0-2 m/s calm, 2-5 breeze, 5-10 strong, >10 gale.
+const WIND_SCALE_MAX_MS := 8.0
+const WIND_MIN_STRENGTH := 0.05
 
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
@@ -71,6 +72,10 @@ var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
+var _wind_strength: float = 0.15
+var _wind_ms: float = 2.0
+var _wind_dir: Vector2 = Vector2(0.7, 0.7)
+var _debug_console: DebugConsole = null
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
 ## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
@@ -117,6 +122,16 @@ func _ready() -> void:
 	_build_tile_grid()
 	_stress_icons = StressIcons.new()
 	add_child(_stress_icons)
+	# Debug console: toggle with backtick (`)
+	_debug_console = DebugConsole.new()
+	_debug_console.position = Vector2(10, 80)
+	_debug_console.size = Vector2(250, 0)
+	_debug_console.wind_changed.connect(_on_debug_wind)
+	_debug_console.rain_changed.connect(_on_debug_rain)
+	var debug_layer := CanvasLayer.new()
+	debug_layer.layer = 100  # always on top
+	add_child(debug_layer)
+	debug_layer.add_child(_debug_console)
 	status_label.text = "3D view \u2014 click tile to select"
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
@@ -233,6 +248,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
 			_cutaway.hide_cutaway(_tile_meshes, _crop_sprites, _update_crop_visuals)
 			_deselect()
+		elif ke.pressed and ke.keycode == KEY_QUOTELEFT:
+			_debug_console.toggle()
 
 
 func _handle_click(screen_pos: Vector2) -> void:
@@ -361,9 +378,27 @@ func _update_crop_visuals(idx: int) -> void:
 	CropVisuals.update_crop(
 		_tile_data[idx], _crop_sprites[idx], CROP_GRID, TILE_SIZE, METERS_PER_TILE
 	)
-	# Apply default wind to crop plants
+	# Apply current wind to crop plants
 	var container: Node3D = _crop_sprites[idx][0]
-	CropRenderer3D.set_wind(container, DEFAULT_WIND_STRENGTH, DEFAULT_WIND_DIR)
+	CropRenderer3D.set_wind(container, _wind_strength, _wind_dir)
+
+
+func _on_debug_wind(strength: float, direction: Vector2) -> void:
+	_wind_strength = strength
+	_wind_ms = strength * WIND_SCALE_MAX_MS
+	_wind_dir = direction
+	_apply_wind_to_all_crops()
+	rain.set_wind(_wind_ms, _wind_dir)
+
+
+func _on_debug_rain(raining: bool, intensity: float) -> void:
+	rain.set_raining(raining, intensity)
+
+
+func _apply_wind_to_all_crops() -> void:
+	for sprites: Array in _crop_sprites:
+		if sprites.size() > 0:
+			CropRenderer3D.set_wind(sprites[0], _wind_strength, _wind_dir)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -476,8 +511,17 @@ func _apply_day_result(data: Dictionary) -> void:
 	var icon_tex: Texture2D = load(icon_path)
 	if icon_tex:
 		weather_icon.texture = icon_tex
+	# Wind from weather data — drive crop sway + rain angle
+	_wind_ms = w.get("wind_m_s", 2.0)
+	_wind_strength = clampf(_wind_ms / WIND_SCALE_MAX_MS, WIND_MIN_STRENGTH, 1.0)
+	# Random wind direction per day (seeded by day number for consistency)
+	var day_seed: float = fmod(float(day_num) * 2.399, TAU)
+	_wind_dir = Vector2(cos(day_seed), sin(day_seed))
 	rain.set_raining(rain_mm > 1.0, rain_mm)
+	rain.set_wind(_wind_ms, _wind_dir)
 	_update_weather_lighting(w)
+	# Update all crop plants with current wind
+	_apply_wind_to_all_crops()
 
 	var snapshots: Array = data.get("daily_snapshots", [])
 	_apply_daily_snapshots(snapshots)
