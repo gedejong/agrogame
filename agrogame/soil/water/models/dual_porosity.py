@@ -81,8 +81,10 @@ def partition_flow(
     if macro_frac < params.min_macro_frac_for_activation:
         return rainfall_mm, 0.0
     if matrix_ksat_mm_hr <= 0.0:
-        # Degenerate soil (e.g., impervious): everything goes to bypass.
-        return 0.0, rainfall_mm * params.max_bypass_fraction
+        # Degenerate (impervious) matrix: most routes through macropores;
+        # residual goes to matrix (will runoff via SCS). Sum = rainfall_mm.
+        bypass_mm = rainfall_mm * params.max_bypass_fraction
+        return rainfall_mm - bypass_mm, bypass_mm
     threshold = matrix_ksat_mm_hr * params.bypass_threshold_factor
     if rainfall_intensity_mm_hr <= threshold:
         return rainfall_mm, 0.0
@@ -162,28 +164,40 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         )
         macro_before = self._macro_storage_mm(profile, state)
 
-        # --- 1. Partition incoming rainfall ---
-        incoming = drivers.rainfall_mm + drivers.irrigation_mm
+        # --- 1. Partition rainfall only (irrigation is low-intensity) ---
+        # Irrigation is applied at controlled drip/sprinkler rates, well
+        # below macropore bypass thresholds — treat as matrix-only input.
         intensity = (
             drivers.rainfall_intensity_mm_hr
             if drivers.rainfall_intensity_mm_hr is not None
-            else incoming / 24.0
+            else drivers.rainfall_mm / 24.0
         )
         top_ksat = profile.layers[0].ksat_mm_per_hour
         top_macro_frac = self._pore_state.macro[0] if self._pore_state.macro else 0.0
-        matrix_mm, bypass_mm = partition_flow(
-            incoming, intensity, top_ksat, top_macro_frac, self._params
+        rain_matrix_mm, bypass_mm = partition_flow(
+            drivers.rainfall_mm,
+            intensity,
+            top_ksat,
+            top_macro_frac,
+            self._params,
         )
+        incoming = drivers.rainfall_mm + drivers.irrigation_mm
 
         # --- 2. Matrix flow via inherited cascade ---
+        # Matrix capacity is reduced by macropore volume fraction to
+        # avoid double-counting: pore network state already allocates
+        # ``macro_frac`` of bulk volume to the macropore domain.
+        effective_overrides = self._build_matrix_porosity_overrides(
+            profile, porosity_overrides
+        )
         matrix_drivers = DailyDrivers(
-            rainfall_mm=matrix_mm,
-            irrigation_mm=0.0,
+            rainfall_mm=rain_matrix_mm,
+            irrigation_mm=drivers.irrigation_mm,
             evaporation_mm=drivers.evaporation_mm,
             rainfall_intensity_mm_hr=intensity,
         )
         matrix_fluxes = super().update_daily(
-            profile, state, matrix_drivers, ksat_factors, porosity_overrides
+            profile, state, matrix_drivers, ksat_factors, effective_overrides
         )
 
         # --- 3. Macropore bypass routing ---
@@ -274,8 +288,39 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         # deep drainage — macropores vent rapidly to below the profile.
         return remaining, filled
 
+    def _build_matrix_porosity_overrides(
+        self,
+        profile: SoilProfile,
+        porosity_overrides: Optional[List[float]],
+    ) -> List[float]:
+        """Per-layer effective matrix porosity = saturation - macro_frac.
+
+        Prevents double-counting: pore network already reserves
+        ``macro_frac`` of bulk soil volume for the macropore domain, so
+        the matrix domain cascading bucket must cap at the remainder.
+        """
+        n = len(profile.layers)
+        overrides: List[float] = []
+        for i, layer in enumerate(profile.layers):
+            base = (
+                porosity_overrides[i]
+                if porosity_overrides is not None and i < len(porosity_overrides)
+                else layer.saturation
+            )
+            macro = (
+                self._pore_state.macro[i] if i < len(self._pore_state.macro) else 0.0
+            )
+            overrides.append(max(0.0, base - macro))
+        assert len(overrides) == n
+        return overrides
+
     def _apply_exchange(self, profile: SoilProfile, state: SoilWaterState) -> None:
-        """Apply first-order macropore-matrix exchange per layer."""
+        """Apply first-order macropore-matrix exchange per layer.
+
+        Uses actual transferable amount (min of requested and available
+        in source/sink) to avoid floating-point drift creating or
+        destroying water via independent clamps in the setters.
+        """
         if state.theta_macro is None:
             return
         n = min(
@@ -293,9 +338,27 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         for i, q_ex_mm in enumerate(exchanges):
             if abs(q_ex_mm) < 1e-12:
                 continue
-            depth_mm = profile.layers[i].depth_cm * 10.0
-            # q_ex > 0: macro loses, matrix gains.
-            macro_new_mm = state.theta_macro[i] * depth_mm - q_ex_mm
-            matrix_new_mm = state.layer_storage_mm(profile, i) + q_ex_mm
+            layer = profile.layers[i]
+            depth_mm = layer.depth_cm * 10.0
+            macro_stored_mm = state.theta_macro[i] * depth_mm
+            matrix_stored_mm = state.layer_storage_mm(profile, i)
+            # Matrix cap = saturation - macro_frac (double-count guard).
+            macro_frac = self._pore_state.macro[i]
+            matrix_cap_mm = max(0.0, (layer.saturation - macro_frac) * depth_mm)
+            matrix_room_mm = max(0.0, matrix_cap_mm - matrix_stored_mm)
+            if q_ex_mm > 0.0:
+                # Macro → matrix; actual = min(requested, source, sink-room).
+                actual = min(q_ex_mm, macro_stored_mm, matrix_room_mm)
+            else:
+                # Matrix → macro; actual = -min(requested, matrix-above-wp, macro-room).
+                matrix_above_wp = max(
+                    0.0, matrix_stored_mm - layer.wilting_point * depth_mm
+                )
+                macro_room = max(0.0, macro_frac * depth_mm - macro_stored_mm)
+                actual = -min(-q_ex_mm, matrix_above_wp, macro_room)
+            if actual == 0.0:
+                continue
+            macro_new_mm = macro_stored_mm - actual
+            matrix_new_mm = matrix_stored_mm + actual
             state.theta_macro[i] = max(0.0, macro_new_mm / depth_mm)
             state.set_layer_storage_mm(profile, i, matrix_new_mm)

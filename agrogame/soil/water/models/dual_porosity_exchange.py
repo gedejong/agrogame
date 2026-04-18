@@ -64,17 +64,18 @@ def compute_exchange_mm(
         layer = profile.layers[i]
         depth_mm = layer.depth_cm * 10.0
 
+        # Matrix cap excludes macropore volume to avoid double-counting.
+        matrix_cap = max(0.0, layer.saturation - macro_frac[i])
+
         # Normalized saturation in each domain (0..1).
         macro_rel = theta_macro[i] / macro_frac[i] if macro_frac[i] > _EPS else 0.0
-        matrix_rel = (
-            theta_matrix[i] / layer.saturation if layer.saturation > _EPS else 0.0
-        )
+        matrix_rel = theta_matrix[i] / matrix_cap if matrix_cap > _EPS else 0.0
         driver = macro_rel - matrix_rel
         # Gerke & van Genuchten Eq. 7 with normalized saturations.
         raw_mm = alpha_w_per_day * driver * depth_mm
 
         macro_stored_mm = theta_macro[i] * depth_mm
-        matrix_room_mm = max(0.0, (layer.saturation - theta_matrix[i]) * depth_mm)
+        matrix_room_mm = max(0.0, (matrix_cap - theta_matrix[i]) * depth_mm)
 
         if raw_mm > 0.0:
             # Macro → matrix. Cap by source stored and sink room.
