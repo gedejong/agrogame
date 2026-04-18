@@ -242,7 +242,7 @@ class GasDiffusionModule:
         source = rate. Scaled by ``1 / theta_a`` (per unit air volume).
         """
         secs_per_day = 86400.0
-        mm_per_ha = 1e4  # m2 per ha
+        m2_per_ha = 1e4
         c_g_per_mol = 12.0
         rates: List[float] = []
         for i in range(n):
@@ -253,8 +253,8 @@ class GasDiffusionModule:
             if theta_a[i] <= _EPS or layer_depth_m <= 0.0:
                 rates.append(0.0)
                 continue
-            # kg C / (ha * day) → g / (m2 * day) via /ha×10000=g/m²  (1000/10000)
-            g_c_per_m2_per_day = rate_kg_c_per_ha_per_day * 1000.0 / mm_per_ha
+            # kg C / (ha · day) → g / (m² · day) via ×1000 / (m²/ha)
+            g_c_per_m2_per_day = rate_kg_c_per_ha_per_day * 1000.0 / m2_per_ha
             mol_c_per_m2_per_s = g_c_per_m2_per_day / c_g_per_mol / secs_per_day
             # Distributed uniformly through air-filled pore volume of the layer:
             # air volume per m2 soil = theta_a * depth_m
@@ -285,7 +285,13 @@ class GasDiffusionModule:
         boundary = ``top_boundary``; bottom zero-flux (Neumann).
         """
         if n == 1:
-            return [top_boundary]
+            # Single-layer profile: solve the Dirichlet-top/zero-flux-bottom
+            # balance analytically. Flux at top = source_sign · rate · dz.
+            # Center concentration = top + 0.5 · source_sign · rate · dz² / D.
+            dz0 = profile.layers[0].depth_cm / 100.0
+            d0 = max(d_eff[0], _EPS)
+            raw = top_boundary + 0.5 * source_sign * source_rate[0] * dz0 * dz0 / d0
+            return [max(0.0, min(1.0, raw))]
         # Layer half-thicknesses in meters (centers)
         dz = [profile.layers[i].depth_cm / 100.0 for i in range(n)]
         # Face distances (between cell centers i and i+1)
@@ -334,18 +340,20 @@ class GasDiffusionModule:
     def _microsite_fraction(self, o2_frac: float) -> float:
         """Estimate anaerobic microsite fraction from mean O2.
 
-        Smooth sigmoid: 1.0 at O2=0, 0.0 at O2 >= 2 × threshold.
-        Linear-in-log approximation of within-layer O2 heterogeneity
-        (cf. Arah & Smith 1989).
+        Piecewise linear ramp: 1.0 at O2 <= thr/2, linear decrease to
+        0.0 at O2 >= 2 × thr. Return value is always clamped to [0, 1]
+        to guarantee a physically meaningful fraction even for unusual
+        param combinations. Ref: Arah & Smith 1989 heterogeneity model.
         """
         thr = self._params.anaerobic_o2_threshold_frac
         if o2_frac <= 0.0:
             return 1.0
         if o2_frac >= 2.0 * thr:
             return 0.0
-        # Linear ramp between thr/2 and 2*thr for smoothness.
         lo = 0.5 * thr
         hi = 2.0 * thr
         if o2_frac <= lo:
             return 1.0
-        return (hi - o2_frac) / (hi - lo)
+        # Clamp defensively: formula is bounded by the above guards,
+        # but the clamp guarantees [0, 1] under any parameter overrides.
+        return max(0.0, min(1.0, (hi - o2_frac) / (hi - lo)))

@@ -159,11 +159,11 @@ def test_saturated_soil_low_oxygen() -> None:
         temperature_c=20.0,
         co2_respiration_kg_c_ha=[50.0] * n,
     )
-    # Surface may remain atmospheric (Dirichlet), but deeper layers drop.
+    # Matches AC "< 1%" from validation plan.
     deepest = state.o2_frac[-1]
     assert (
-        deepest < 0.05
-    ), f"Expected low O2 at depth in saturated soil, got {deepest:.4f}"
+        deepest < 0.01
+    ), f"Expected O2 < 1% at depth in saturated soil, got {deepest:.4f}"
     assert state.anaerobic[-1], "Deepest layer should be flagged anaerobic"
 
 
@@ -198,6 +198,21 @@ def test_microsite_fraction_monotonic_in_o2() -> None:
     assert hi == 0.0
     assert lo == 1.0
     assert 0.0 < mid < 1.0
+
+
+def test_microsite_fraction_bounded_over_full_range() -> None:
+    """``_microsite_fraction`` must return values in [0, 1] for any O2."""
+    params = GasDiffusionParams()
+    module = GasDiffusionModule(params, GasDiffusionState.from_layers(1))
+    # Sweep 0 to atmospheric with a fine grid covering the transition
+    # zone where an unguarded linear ramp could overshoot.
+    for i in range(201):
+        o2 = i * 0.2095 / 200.0
+        val = module._microsite_fraction(o2)
+        assert 0.0 <= val <= 1.0, f"O2={o2:.4f} → microsite_fraction={val}"
+    # Values slightly below the (lo, hi) band also clamped.
+    assert module._microsite_fraction(0.005) == 1.0
+    assert module._microsite_fraction(0.001) == 1.0
 
 
 # ---------- Pore-state input overrides porosity ----------
@@ -401,3 +416,68 @@ def test_nitrogen_cycle_aerobic_override_supersedes_wfps() -> None:
     cycle.set_aerobic_fraction_override(None)
     _, ana_reset, _, _, _ = cycle._environment_factors(0, 7.0)
     assert ana_reset == pytest.approx(wfps_based_anaerobic)
+
+
+# ---------- Moldrup 2000 Table 2 validation ----------
+
+
+def test_d_eff_sandy_soil_matches_moldrup_range() -> None:
+    """D_eff for dry sandy soil matches Moldrup 2000 Table 2 range.
+
+    Ref: Moldrup et al. 2000, SSSAJ 64 — dry sandy loam with φ≈0.40
+    and θ_a≈0.30 shows D_eff/D_air ≈ 0.10-0.20, i.e. D_eff in the
+    range 1e-6 to 5e-6 m²/s at 20 °C.
+    """
+    phi = 0.40
+    theta_a = 0.30
+    tau = millington_quirk_tau(theta_a, phi)
+    d_air = temperature_corrected_d(2.0e-5, 20.0, 293.15, 1.75)
+    d_eff = d_air * tau
+    assert (
+        1.0e-6 <= d_eff <= 5.0e-6
+    ), f"Sandy-soil D_eff {d_eff:.3e} m²/s outside Moldrup 2000 range"
+
+
+def test_d_eff_dry_saturated_ratio() -> None:
+    """Dry vs saturated D_eff ratio ≈ 10,000× per water-vs-air diffusion."""
+    phi = 0.50
+    d_air = 2.0e-5
+    tau_dry = millington_quirk_tau(0.40, phi)  # θ_a=0.40
+    tau_wet = millington_quirk_tau(0.001, phi)  # near saturation
+    # Dry D_eff / floored (wet) D_eff.
+    floor = d_air * 1e-5
+    d_dry = d_air * tau_dry
+    d_wet = max(floor, d_air * tau_wet)
+    ratio = d_dry / d_wet
+    assert ratio > 1000.0, f"Dry/wet D_eff ratio {ratio:.1f} too low"
+
+
+# ---------- Single-layer profile honors respiration ----------
+
+
+def test_single_layer_respiration_drops_o2() -> None:
+    """1-layer profile with active respiration → O2 < atmospheric."""
+    # Build a 1-layer profile.
+    layer = type(
+        "Layer",
+        (),
+        {
+            "depth_cm": 30.0,
+            "saturation": 0.50,
+            "field_capacity": 0.30,
+            "wilting_point": 0.10,
+        },
+    )()
+    profile = type("Profile", (), {"layers": [layer]})()
+
+    state = GasDiffusionState.from_layers(1)
+    module = GasDiffusionModule(GasDiffusionParams(), state)
+    module.daily_step(
+        profile=profile,
+        theta=[0.35],
+        temperature_c=20.0,
+        co2_respiration_kg_c_ha=[100.0],
+    )
+    assert (
+        state.o2_frac[0] < 0.2095
+    ), f"Single-layer profile should drop O2 below atmospheric; got {state.o2_frac[0]}"
