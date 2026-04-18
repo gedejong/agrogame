@@ -44,6 +44,7 @@ class RedoxModule:
         saturation: list[float],
         root_fractions: list[float],
         temperature_c: float,
+        o2_concentration_frac: Optional[list[float]] = None,
     ) -> None:
         """Advance redox state by one day.
 
@@ -52,6 +53,10 @@ class RedoxModule:
             saturation: Saturation water content per layer.
             root_fractions: Root density fraction per layer (0-1).
             temperature_c: Mean daily temperature (°C).
+            o2_concentration_frac: Optional per-layer O2 volume fraction
+                from ``GasDiffusionModule`` (#217). When provided, Eh is
+                driven by O2 concentration instead of WFPS. Backward
+                compatible: ``None`` falls back to WFPS sigmoid.
         """
         n = min(len(theta), len(self.state.eh_mv))
         for i in range(n):
@@ -62,8 +67,13 @@ class RedoxModule:
             effective_wfps = max(
                 0.0, wfps - rf * self.params.rhizosphere_wfps_reduction
             )
-            # Compute equilibrium Eh and decay toward it
-            eq_eh = self._equilibrium_eh(effective_wfps)
+            # Compute equilibrium Eh and decay toward it. Prefer the
+            # O2-driven pathway (#217) when available; otherwise the
+            # WFPS-based sigmoid proxy.
+            if o2_concentration_frac is not None and i < len(o2_concentration_frac):
+                eq_eh = self._equilibrium_eh_from_o2(o2_concentration_frac[i])
+            else:
+                eq_eh = self._equilibrium_eh(effective_wfps)
             self.state.eh_mv[i] = self._decay_toward(
                 self.state.eh_mv[i], eq_eh, self.params.tau_days
             )
@@ -111,6 +121,25 @@ class RedoxModule:
         x = p.sigmoid_k * (wfps - p.sigmoid_midpoint)
         sigmoid = 1.0 / (1.0 + math.exp(-x))
         return p.eh_max_mv - (p.eh_max_mv - p.eh_min_mv) * sigmoid
+
+    def _equilibrium_eh_from_o2(self, o2_frac: float) -> float:
+        """Linear Eh-from-O2 mapping between anaerobic and aerobic bands.
+
+        Below ``o2_anaerobic_frac`` Eh = eh_min; above ``o2_aerobic_frac``
+        Eh = eh_max. Linear ramp in between. Ref: Stepniewski 1994;
+        Reddy & DeLaune 2008 — O2-Eh correspondence in aerated soils.
+        """
+        p = self.params
+        lo = p.o2_anaerobic_frac
+        hi = p.o2_aerobic_frac
+        if hi <= lo:
+            return p.eh_max_mv if o2_frac > lo else p.eh_min_mv
+        if o2_frac <= lo:
+            return p.eh_min_mv
+        if o2_frac >= hi:
+            return p.eh_max_mv
+        frac = (o2_frac - lo) / (hi - lo)
+        return p.eh_min_mv + frac * (p.eh_max_mv - p.eh_min_mv)
 
     @staticmethod
     def _decay_toward(current: float, target: float, tau: float) -> float:

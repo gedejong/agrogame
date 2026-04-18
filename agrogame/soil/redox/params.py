@@ -37,3 +37,10 @@ class RedoxParams:
     ch4_oxidation_fraction: float = 0.6
     fe_p_release_fraction: float = 0.005
     rhizosphere_wfps_reduction: float = 0.15
+    # Optional O2-driven Eh pathway (#217). When the caller passes
+    # o2_concentration_frac to daily_step, Eh is derived from O2
+    # saturation rather than the WFPS sigmoid. Below
+    # ``o2_anaerobic_frac``, full anaerobic Eh applies; above
+    # ``o2_aerobic_frac``, full aerobic Eh. Linear ramp in between.
+    o2_anaerobic_frac: float = 0.02
+    o2_aerobic_frac: float = 0.15

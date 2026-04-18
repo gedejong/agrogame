@@ -437,6 +437,37 @@ def test_dual_porosity_heavy_rain_bypass() -> None:
     assert events[0].bypass_fraction > 0.2, "Expected substantial bypass"
 
 
+def test_gas_diffusion_waterlogging_anaerobic() -> None:
+    """Waterlogged profile → anaerobic flag and O2 < 1% below surface.
+
+    Ref: Stepniewski et al. 1994 — waterlogged soils develop anaerobic
+    conditions within days, with O2 dropping below 0.5% at depth.
+    """
+    from agrogame.soil.gas_diffusion import (
+        GasDiffusionModule,
+        GasDiffusionParams,
+        GasDiffusionState,
+    )
+
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    n = len(profile.layers)
+    state = GasDiffusionState.from_layers(n)
+    module = GasDiffusionModule(GasDiffusionParams(), state)
+
+    # Waterlog + active respiration from residue decomposition.
+    theta = [layer.saturation - 0.005 for layer in profile.layers]
+    module.daily_step(
+        profile=profile,
+        theta=theta,
+        temperature_c=20.0,
+        co2_respiration_kg_c_ha=[30.0] * n,
+    )
+    # Deepest layer should be anaerobic with near-zero O2.
+    assert state.anaerobic[-1], "Deep layer should be anaerobic when waterlogged"
+    assert state.o2_frac[-1] < 0.01
+
+
 def test_dual_porosity_light_rain_no_bypass() -> None:
     """Light rain on loam → 100% matrix flow (no bypass event)."""
     from agrogame.soil.pore_network import (
