@@ -46,3 +46,37 @@ class MicronutrientParams:
     toxic_mn_ppm: float = TOXIC_MN_PPM
     om_complexation_factor: float = 0.001
     season_days: float = 150.0
+
+
+@dataclass(frozen=True)
+class RedoxMicronutrientParams:
+    """Redox-driven Fe/Mn pool transitions (#216).
+
+    When soil Eh falls below an element-specific threshold, a fraction
+    of the sorbed/mineral pool (implicit = total - available) moves to
+    the available pool per day, scaled by reducing severity. When Eh
+    rises above the re-oxidation threshold, available precipitates
+    back into sorbed at a slower rate (Patrick & Reddy 1976).
+
+    Attributes:
+        fe_reduction_eh_mv: Eh threshold below which Fe³⁺ → Fe²⁺.
+            Ref: Patrick & Reddy 1976 — Fe reduction zone.
+        mn_reduction_eh_mv: Eh threshold below which Mn⁴⁺ → Mn²⁺.
+            Ref: Stumm & Morgan 1996 — Mn reduces earlier than Fe.
+        reoxidation_eh_mv: Eh threshold above which Fe²⁺/Mn²⁺ precipitate.
+        reduction_rate_per_day: Base fraction moved from sorbed to
+            available at maximum reducing severity (1/day).
+        reoxidation_rate_per_day: Base fraction moved from available back
+            to sorbed at full re-oxidation (1/day). Asymmetrically
+            slower than reduction — precipitation kinetics lag
+            dissolution (Patrick & Reddy 1976).
+        severity_span_mv: Eh span below/above threshold that produces
+            full-strength severity (linear ramp 0 → 1).
+    """
+
+    fe_reduction_eh_mv: float = 100.0
+    mn_reduction_eh_mv: float = 200.0
+    reoxidation_eh_mv: float = 300.0
+    reduction_rate_per_day: float = 0.02
+    reoxidation_rate_per_day: float = 0.005
+    severity_span_mv: float = 200.0

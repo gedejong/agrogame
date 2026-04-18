@@ -12,7 +12,11 @@ from agrogame.soil.micronutrients.constants import (
     PH_AVAIL_MN,
     PH_AVAIL_ZN,
 )
-from agrogame.soil.micronutrients.params import MicronutrientParams
+from agrogame.soil.micronutrients.events import RedoxNutrientTransformed
+from agrogame.soil.micronutrients.params import (
+    MicronutrientParams,
+    RedoxMicronutrientParams,
+)
 from agrogame.soil.micronutrients.state import MicronutrientState
 
 
@@ -112,6 +116,83 @@ class MicronutrientCycle:
             fe_stress=fe_stress,
             zn_stress=zn_stress,
             mn_stress=mn_stress,
+        )
+
+    def apply_redox_adjustment(
+        self,
+        layer: int,
+        eh_mv: float,
+        redox_params: Optional[RedoxMicronutrientParams] = None,
+    ) -> None:
+        """Shift Fe/Mn between sorbed and available pools based on Eh (#216).
+
+        Reduction (Eh below element threshold) pulls sorbed Fe³⁺ / Mn⁴⁺
+        into the ``available`` pool; re-oxidation (Eh above ``reoxidation_eh_mv``)
+        precipitates available back into sorbed. The ``total`` pool is
+        conserved — only the available/sorbed split changes.
+
+        Args:
+            layer: Soil layer index.
+            eh_mv: Redox potential for this layer (mV).
+            redox_params: Rate constants and thresholds. Uses defaults
+                when None.
+
+        Refs:
+            Patrick & Reddy 1976 — Fe³⁺ reduction below 100 mV.
+            Stumm & Morgan 1996 — Mn⁴⁺ reduces earlier (~200 mV).
+            Ponnamperuma 1972 — Fe²⁺ 50-300 ppm in flooded rice soils.
+        """
+        if layer >= self._n_layers:
+            return
+        rp = redox_params if redox_params is not None else RedoxMicronutrientParams()
+        span = max(1.0, rp.severity_span_mv)
+        for element, thr in (
+            ("fe", rp.fe_reduction_eh_mv),
+            ("mn", rp.mn_reduction_eh_mv),
+        ):
+            avail = getattr(self.state, f"{element}_available")
+            total = getattr(self.state, f"{element}_total")
+            if layer >= len(avail) or layer >= len(total):
+                continue
+            cur_avail = avail[layer]
+            cur_total = total[layer]
+            sorbed = max(0.0, cur_total - cur_avail)
+
+            if eh_mv < thr:
+                # Reduction: sorbed → available, proportional to severity.
+                severity = min(1.0, (thr - eh_mv) / span)
+                released = sorbed * rp.reduction_rate_per_day * severity
+                if released > 0.0:
+                    new_avail = min(cur_total, cur_avail + released)
+                    actual = new_avail - cur_avail
+                    avail[layer] = new_avail
+                    self._emit_redox_transform(
+                        layer, element, actual, direction="reduction"
+                    )
+            elif eh_mv > rp.reoxidation_eh_mv:
+                # Re-oxidation: available → sorbed, slower.
+                severity = min(1.0, (eh_mv - rp.reoxidation_eh_mv) / span)
+                precipitated = cur_avail * rp.reoxidation_rate_per_day * severity
+                if precipitated > 0.0:
+                    new_avail = max(0.0, cur_avail - precipitated)
+                    actual = cur_avail - new_avail
+                    avail[layer] = new_avail
+                    self._emit_redox_transform(
+                        layer, element, actual, direction="oxidation"
+                    )
+
+    def _emit_redox_transform(
+        self, layer: int, element: str, amount_ppm: float, direction: str
+    ) -> None:
+        if amount_ppm <= 0.0 or self.event_bus is None:
+            return
+        self.event_bus.emit(
+            RedoxNutrientTransformed(
+                layer=layer,
+                element=element.upper(),
+                amount_ppm=float(amount_ppm),
+                direction=direction,
+            )
         )
 
     def apply_amendment(self, element: str, amount_g_ha: float, layer: int = 0) -> None:
