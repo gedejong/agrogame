@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,10 @@ class DailyDrivers:
         rainfall_mm: Precipitation input (mm).
         irrigation_mm: Irrigation input (mm).
         evaporation_mm: Potential evaporation demand (mm).
+        rainfall_intensity_mm_hr: Peak rainfall intensity during the day
+            (mm/hr). Used by dual-porosity models (#213) to decide
+            matrix vs macropore partitioning. When None, the estimate
+            ``rainfall_mm / 24`` is used as a uniform-rate fallback.
     """
 
     def __init__(
@@ -36,8 +41,14 @@ class DailyDrivers:
         rainfall_mm: float,
         irrigation_mm: float = 0.0,
         evaporation_mm: float = 0.0,
+        rainfall_intensity_mm_hr: Optional[float] = None,
     ):
         """Initialize daily drivers with non-negative values."""
         self.rainfall_mm = max(0.0, rainfall_mm)
         self.irrigation_mm = max(0.0, irrigation_mm)
         self.evaporation_mm = max(0.0, evaporation_mm)
+        self.rainfall_intensity_mm_hr: Optional[float] = (
+            max(0.0, rainfall_intensity_mm_hr)
+            if rainfall_intensity_mm_hr is not None
+            else None
+        )

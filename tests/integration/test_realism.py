@@ -374,3 +374,101 @@ def test_pore_distribution_loam_temperate() -> None:
             0.03 <= state.macro[i] <= 0.30
         ), f"Layer {i}: macro {state.macro[i]:.3f} outside [0.03, 0.30]"
         assert 0.0 <= state.connectivity[i] <= 1.0
+
+
+# --- Dual-porosity flow (#213) ---
+
+
+def test_dual_porosity_heavy_rain_bypass() -> None:
+    """Heavy rain on structured loam → measurable macropore bypass.
+
+    Ref: Jarvis 2007 Table 3 — structured loam at ~50 mm/hr produces
+    majority bypass flow in the matrix.
+    """
+    from agrogame.soil.pore_network import (
+        PoreNetworkModule,
+        PoreNetworkParams,
+        PoreNetworkState,
+    )
+    from agrogame.soil.water import (
+        DailyDrivers,
+        DualPorosityParams,
+        DualPorosityWaterModel,
+        PreferentialFlowOccurred,
+        SoilWaterState,
+    )
+    from agrogame.events import EventBus
+
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    n = len(profile.layers)
+    pore = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), pore).compute(profile)
+
+    state = SoilWaterState(profile)
+    state.enable_dual_porosity(n)
+    bus = EventBus()
+    events: list[PreferentialFlowOccurred] = []
+    bus.subscribe(PreferentialFlowOccurred, events.append)
+
+    model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
+
+    # Heavy rain: 80 mm total at 50 mm/hr peak intensity.
+    flux = model.update_daily(
+        profile,
+        state,
+        DailyDrivers(
+            rainfall_mm=80.0, evaporation_mm=2.0, rainfall_intensity_mm_hr=50.0
+        ),
+    )
+    # Mass conservation: inputs - outputs = dS.
+    assert (
+        abs(
+            80.0
+            - flux.runoff_mm
+            - flux.deep_drainage_mm
+            - flux.evap_mm
+            - flux.storage_change_mm
+        )
+        < 1e-6
+    )
+    # Bypass should have fired.
+    assert len(events) == 1
+    assert events[0].bypass_fraction > 0.2, "Expected substantial bypass"
+
+
+def test_dual_porosity_light_rain_no_bypass() -> None:
+    """Light rain on loam → 100% matrix flow (no bypass event)."""
+    from agrogame.soil.pore_network import (
+        PoreNetworkModule,
+        PoreNetworkParams,
+        PoreNetworkState,
+    )
+    from agrogame.soil.water import (
+        DailyDrivers,
+        DualPorosityParams,
+        DualPorosityWaterModel,
+        PreferentialFlowOccurred,
+        SoilWaterState,
+    )
+    from agrogame.events import EventBus
+
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    n = len(profile.layers)
+    pore = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), pore).compute(profile)
+
+    state = SoilWaterState(profile)
+    state.enable_dual_porosity(n)
+    bus = EventBus()
+    events: list[PreferentialFlowOccurred] = []
+    bus.subscribe(PreferentialFlowOccurred, events.append)
+
+    model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
+    model.update_daily(
+        profile,
+        state,
+        DailyDrivers(rainfall_mm=5.0, evaporation_mm=1.0, rainfall_intensity_mm_hr=0.5),
+    )
+    assert not events, "Light rain must not trigger preferential flow"
