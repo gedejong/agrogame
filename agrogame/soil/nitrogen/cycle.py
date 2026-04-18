@@ -101,6 +101,24 @@ class NitrogenCycle:
 
         event_bus.subscribe(SOMDecomposed, self._on_som_decomposed)
 
+        # Optional aerobic-fraction override from GasDiffusionModule (#217).
+        # When set, replaces the ``(theta - fc) / (sat - fc)`` WFPS proxy
+        # in _environment_factors. Cleared to None by default so existing
+        # behavior is unchanged.
+        self._aerobic_fraction_override: list[float] | None = None
+
+    def set_aerobic_fraction_override(
+        self, aerobic_fraction: list[float] | None
+    ) -> None:
+        """Inject per-layer aerobic fraction from gas diffusion (#217).
+
+        Called by the orchestrator (or tests) to supply O2-derived
+        aerobic fractions. Pass ``None`` to restore WFPS-proxy behavior.
+        """
+        self._aerobic_fraction_override = (
+            list(aerobic_fraction) if aerobic_fraction is not None else None
+        )
+
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
         """Move NO3 proportionally with drainage based on water fraction.
@@ -346,9 +364,17 @@ class NitrogenCycle:
         moisture_factor = min(1.0, theta / fc) if fc > 0 else 1.0
         # Nitrification: quadratic drought response — drops faster at low theta
         moisture_nitrif = min(1.0, (theta / fc) ** 2) if fc > 0 else 1.0
-        anaerobic = 0.0
-        if theta > fc and sat > fc:
-            anaerobic = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
+        # Anaerobic fraction: either O2-derived override (#217) or the
+        # WFPS proxy. Override wins when present and in range.
+        if self._aerobic_fraction_override is not None and idx < len(
+            self._aerobic_fraction_override
+        ):
+            aerobic = max(0.0, min(1.0, self._aerobic_fraction_override[idx]))
+            anaerobic = 1.0 - aerobic
+        else:
+            anaerobic = 0.0
+            if theta > fc and sat > fc:
+                anaerobic = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
         nitrif_aeration = max(0.0, 1.0 - anaerobic)
         ph_factor = self._ph_factor(ph)
         return moisture_factor, anaerobic, nitrif_aeration, ph_factor, moisture_nitrif
