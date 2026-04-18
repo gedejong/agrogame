@@ -103,3 +103,22 @@ class WaterloggingDetected(BaseEvent):
     layer: int
     theta: float
     saturation: float
+
+
+@dataclass(frozen=True)
+class PreferentialFlowOccurred(BaseEvent):
+    """Macropore bypass flow occurred during a daily step (#213).
+
+    Emitted when high-intensity rainfall exceeds matrix infiltration
+    capacity and bypass flow enters the macropore domain.
+
+    Attributes:
+        bypass_fraction: Fraction of incoming water routed to macropores
+            (0.0–1.0).
+        bypass_mm: Absolute bypass depth (mm).
+        layer_indices: Layer indices that received macropore water.
+    """
+
+    bypass_fraction: float
+    bypass_mm: float
+    layer_indices: Tuple[int, ...]
