@@ -72,6 +72,17 @@ class RedoxMicronutrientParams:
             dissolution (Patrick & Reddy 1976).
         severity_span_mv: Eh span below/above threshold that produces
             full-strength severity (linear ramp 0 → 1).
+        reactive_fe_fraction: Fraction of ``fe_total`` that is
+            short-term reducible (amorphous + reactive Fe-oxides).
+            Silicate-bound and crystalline Fe³⁺ does not participate
+            in daily-to-weekly redox cycling. Default 0.02 → reducible
+            pool ~500 ppm for a typical 25,000 ppm total.
+            Ref: Schwertmann 1964; Roden & Wetzel 1996 — 1-5 % of total
+            soil Fe is reactive/amorphous.
+        reactive_mn_fraction: Fraction of ``mn_total`` that is
+            reducible on short timescales. Mn oxides are generally
+            more labile than Fe oxides.
+            Ref: Gotoh & Patrick 1972 — flooded soil Mn²⁺ 1-50 ppm.
     """
 
     fe_reduction_eh_mv: float = 100.0
@@ -80,3 +91,5 @@ class RedoxMicronutrientParams:
     reduction_rate_per_day: float = 0.02
     reoxidation_rate_per_day: float = 0.005
     severity_span_mv: float = 200.0
+    reactive_fe_fraction: float = 0.02
+    reactive_mn_fraction: float = 0.05
