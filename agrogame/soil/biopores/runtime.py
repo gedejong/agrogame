@@ -41,7 +41,8 @@ class BioporesRuntime:
         self.module.apply_decay(self.profile)
 
     def _on_root_turnover(self, ev: RootTurnoverOccurred) -> None:
-        self.module.process_root_turnover(list(ev.per_layer_dead_mass_g_m2))
+        # ev.per_layer_dead_mass_g_m2 is a frozen tuple; pass directly.
+        self.module.process_root_turnover(ev.per_layer_dead_mass_g_m2)
 
     def _on_tillage(self, ev: TillageApplied) -> None:
         self.module.apply_tillage(ev.intensity, self.profile)

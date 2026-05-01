@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import Any
 
 
 @dataclass
@@ -17,13 +17,20 @@ class BioporeState:
     is dimensionally ``density_per_m² × π × r²_m²`` regardless of
     layer depth.
 
+    ``last_applied_volume_fraction`` records what
+    ``BioporeModule.update_pore_network`` has already donated to the
+    pore-network ``macro`` array, so subsequent calls only apply the
+    incremental delta — making the integration idempotent under
+    repeated invocations within a day.
+
     Earthworm contributions are stubbed via ``add_earthworm_biopores``
     pending #76 (soil fauna).
     """
 
-    density_per_m2: List[float] = field(default_factory=list)
-    mean_radius_mm: List[float] = field(default_factory=list)
-    volume_fraction: List[float] = field(default_factory=list)
+    density_per_m2: list[float] = field(default_factory=list)
+    mean_radius_mm: list[float] = field(default_factory=list)
+    volume_fraction: list[float] = field(default_factory=list)
+    last_applied_volume_fraction: list[float] = field(default_factory=list)
 
     @classmethod
     def from_layers(cls, n_layers: int, mean_radius_mm: float = 2.0) -> BioporeState:
@@ -31,6 +38,7 @@ class BioporeState:
             density_per_m2=[0.0] * n_layers,
             mean_radius_mm=[mean_radius_mm] * n_layers,
             volume_fraction=[0.0] * n_layers,
+            last_applied_volume_fraction=[0.0] * n_layers,
         )
 
     @staticmethod
@@ -84,12 +92,17 @@ class BioporeState:
             "density_per_m2": list(self.density_per_m2),
             "mean_radius_mm": list(self.mean_radius_mm),
             "volume_fraction": list(self.volume_fraction),
+            "last_applied_volume_fraction": list(self.last_applied_volume_fraction),
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BioporeState:
+        n = len(data.get("density_per_m2", []))
         return cls(
             density_per_m2=list(data.get("density_per_m2", [])),
             mean_radius_mm=list(data.get("mean_radius_mm", [])),
             volume_fraction=list(data.get("volume_fraction", [])),
+            last_applied_volume_fraction=list(
+                data.get("last_applied_volume_fraction", [0.0] * n)
+            ),
         )

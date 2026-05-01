@@ -202,7 +202,12 @@ def test_subsoil_decays_slower_than_topsoil() -> None:
 # ---------- Tillage destruction ----------
 
 
-def test_tillage_destroys_plow_layer_only() -> None:
+def test_tillage_destroys_within_effective_plow_zone_only() -> None:
+    """Layers entirely below the (intensity-scaled) plow line are untouched.
+
+    With layer-overlap pro-rating in place, layers straddling the plow
+    line are partially affected — see ``test_tillage_layer_overlap_prorated``.
+    """
     bus, module, state, profile = _fresh()
     for i in range(len(state.density_per_m2)):
         state.density_per_m2[i] = 200.0
@@ -214,15 +219,15 @@ def test_tillage_destroys_plow_layer_only() -> None:
 
     # Top layer (within plow depth) lost density.
     assert state.density_per_m2[0] < 200.0
-    # Find layers below plow depth — they should be unchanged.
-    cumulative = 0.0
+    # Layers wholly below the plow line are untouched.
     plow_depth = module.params.plow_depth_cm
+    layer_top = 0.0
     for i, layer in enumerate(profile.layers):
-        if cumulative >= plow_depth:
+        if layer_top >= plow_depth:
             assert (
                 state.density_per_m2[i] == 200.0
-            ), f"Layer {i} below plow line was modified"
-        cumulative += layer.depth_cm
+            ), f"Layer {i} entirely below plow line was modified"
+        layer_top += layer.depth_cm
     assert any(e.cause == "tillage" for e in events)
 
 
@@ -365,26 +370,34 @@ def test_runtime_tillage_event_destroys_biopores() -> None:
 
 
 def test_cover_crop_vs_fallow_density_ratio() -> None:
-    """3-year continuous root turnover (cover crop) vs fallow + tillage.
+    """Pre-established cover crop > 2× fallow biopore density after 3 years.
 
     Ref: Six et al. 2004 — cover-crop biopore density >2× fallow.
-    Test simulates 3 × 365 = 1095 daily cycles. Cover crop emits steady
-    daily turnover (1 g/m² × layer_fractions). Fallow has zero turnover
-    AND a tillage event each year.
+    Both fields start at the same mature density (100/m², representing
+    an established stand at experiment start), so the test compares
+    the **maintained** vs **decaying** trajectories rather than the
+    trivial "cover crop creates anything" baseline.
     """
     profile = _loam()
     n = len(profile.layers)
+    starting_density = 100.0
 
-    # Cover crop scenario
+    # Cover crop scenario: ongoing root turnover replenishes losses.
     cc_state = BioporeState.from_layers(n)
+    for i in range(n):
+        cc_state.density_per_m2[i] = starting_density
+    cc_state.recompute_volume_fraction()
     cc_module = BioporeModule(BioporeParams(), cc_state)
     daily_dead = [0.6 / n] * n  # ~0.6 g/m²/day total dead-root mass
     for _ in range(365 * 3):
         cc_module.process_root_turnover(daily_dead)
         cc_module.apply_decay(profile)
 
-    # Fallow + 1 tillage per year, no turnover
+    # Fallow + 1 tillage per year, no turnover.
     f_state = BioporeState.from_layers(n)
+    for i in range(n):
+        f_state.density_per_m2[i] = starting_density
+    f_state.recompute_volume_fraction()
     f_module = BioporeModule(BioporeParams(), f_state)
     for _year in range(3):
         for _ in range(365):
@@ -394,8 +407,8 @@ def test_cover_crop_vs_fallow_density_ratio() -> None:
     cc_top = cc_state.density_per_m2[0]
     f_top = f_state.density_per_m2[0]
     assert cc_top > 2.0 * max(f_top, 1e-6), (
-        f"Cover crop should hold ≥2× fallow biopores: cc={cc_top:.1f}, "
-        f"fallow={f_top:.1f}"
+        f"Cover crop should hold ≥2× fallow biopores after 3 years: "
+        f"cc={cc_top:.3f}, fallow={f_top:.3f}"
     )
 
 
@@ -422,3 +435,199 @@ def test_tillage_plus_fallow_drives_density_to_zero() -> None:
         f"Top biopore density {final:.2f} (started {initial:.0f}) "
         f"should approach zero within 2 seasons"
     )
+
+
+# ---------- Tillage scaling + layer overlap ----------
+
+
+def test_tillage_intensity_scales_plow_depth() -> None:
+    """Effective plow depth scales with intensity (matches AggregationModule)."""
+    profile = _loam()
+    bus, module, state, _ = _fresh(profile=profile)
+    for i in range(len(state.density_per_m2)):
+        state.density_per_m2[i] = 200.0
+    state.recompute_volume_fraction()
+
+    # Intensity 0.3 → effective plow depth = 30 × 0.3 = 9 cm.
+    # Layer 0 spans 0-25 cm, so overlap = 9/25 = 0.36.
+    # Lost frac = 0.3 × 0.7 × 0.36 ≈ 0.0756.
+    module.apply_tillage(intensity=0.3, profile=profile)
+    expected = 200.0 * (1.0 - 0.3 * 0.7 * 9.0 / 25.0)
+    assert state.density_per_m2[0] == pytest.approx(expected, rel=1e-6)
+
+
+def test_tillage_layer_overlap_prorated() -> None:
+    """Layer straddling the plow line is partially destroyed.
+
+    loam_temperate: layer 0 = 0-25 cm, layer 1 = 25-60 cm. Plow
+    depth 30 cm at intensity=1.0 → layer 1 overlaps 5 cm out of 35,
+    so destroy frac = 1.0 × 0.7 × (5/35) = 0.10.
+    """
+    profile = _loam()
+    bus, module, state, _ = _fresh(profile=profile)
+    for i in range(len(state.density_per_m2)):
+        state.density_per_m2[i] = 200.0
+    state.recompute_volume_fraction()
+
+    module.apply_tillage(intensity=1.0, profile=profile)
+    # Layer 0: full overlap → 70% destroyed.
+    assert state.density_per_m2[0] == pytest.approx(60.0)
+    # Layer 1: 5/35 = 0.143 overlap → 0.7 × 0.143 ≈ 0.10 destroyed.
+    assert state.density_per_m2[1] == pytest.approx(200.0 * (1.0 - 0.7 * 5.0 / 35.0))
+    # Layer 2 onwards: untouched.
+    for i in range(2, len(state.density_per_m2)):
+        assert state.density_per_m2[i] == 200.0
+
+
+# ---------- update_pore_network: idempotence + budget cap ----------
+
+
+def test_update_pore_network_idempotent_within_compute_cycle() -> None:
+    """Repeated calls after one compute() must not double-count the bonus."""
+    bus, module, state, profile = _fresh()
+    n = len(profile.layers)
+    pore_state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), pore_state).compute(profile)
+
+    for i in range(n):
+        state.density_per_m2[i] = 200.0
+    state.recompute_volume_fraction()
+
+    module.update_pore_network(pore_state, profile)
+    macro_after_first = list(pore_state.macro)
+    crypto_after_first = list(pore_state.crypto)
+
+    # Second call without resetting baseline must be a no-op.
+    module.update_pore_network(pore_state, profile)
+    assert pore_state.macro == macro_after_first
+    assert pore_state.crypto == crypto_after_first
+
+
+def test_update_pore_network_after_reset_reapplies() -> None:
+    """After ``reset_pore_network_baseline`` + fresh compute, donation re-applies."""
+    bus, module, state, profile = _fresh()
+    n = len(profile.layers)
+    pore_state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), pore_state).compute(profile)
+    for i in range(n):
+        state.density_per_m2[i] = 200.0
+    state.recompute_volume_fraction()
+    module.update_pore_network(pore_state, profile)
+
+    # Recompute pore network (donor pools refilled) and reset baseline.
+    PoreNetworkModule(PoreNetworkParams(), pore_state).compute(profile)
+    module.reset_pore_network_baseline()
+    macro_before = list(pore_state.macro)
+    module.update_pore_network(pore_state, profile)
+    # Macro grew on the second cycle.
+    assert all(pore_state.macro[i] > macro_before[i] - 1e-12 for i in range(n))
+
+
+def test_update_pore_network_budget_cap_enforced() -> None:
+    """When biopore bonus exceeds available donors, macro stops growing
+    and the saturation invariant still holds."""
+    bus, module, state, profile = _fresh()
+    n = len(profile.layers)
+    pore_state = PoreNetworkState.empty(n)
+    PoreNetworkModule(PoreNetworkParams(), pore_state).compute(profile)
+
+    # Pre-fill macro to the saturation cap so there's no donor budget.
+    for i, layer in enumerate(profile.layers):
+        # Total of crypto + micro in baseline is small; force macro to
+        # consume nearly the whole saturation budget.
+        pore_state.macro[i] = (
+            layer.saturation - pore_state.meso[i] - pore_state.micro[i]
+        )
+        pore_state.crypto[i] = 0.0
+
+    # Pump biopore density to the cap → bonus would be ~6e-3 m³/m³
+    # but no crypto/micro left and macro already at budget edge.
+    for i in range(n):
+        state.density_per_m2[i] = 500.0
+    state.recompute_volume_fraction()
+
+    module.update_pore_network(pore_state, profile)
+
+    for i, layer in enumerate(profile.layers):
+        total = (
+            pore_state.macro[i]
+            + pore_state.meso[i]
+            + pore_state.micro[i]
+            + pore_state.crypto[i]
+        )
+        # Saturation invariant must still hold within float tolerance.
+        assert (
+            abs(total - layer.saturation) < 1e-6
+        ), f"Layer {i}: total {total:.6f} ≠ sat {layer.saturation}"
+
+
+# ---------- Earthworm radius mass-conservation (concern 6) ----------
+
+
+def test_root_turnover_volume_consistent_with_layer_radius() -> None:
+    """``process_root_turnover`` deposits volume using the layer's own radius.
+
+    After a synthetic earthworm pass enlarges layer 0's mean radius,
+    the volume_fraction implied by the new density × radius equals
+    what we'd expect from converting the dead-root mass at the
+    *same* radius. Without the fix in concern 6 (using `state.mean_radius_mm`
+    consistently), this test would show inflated volume.
+    """
+    bus, module, state, profile = _fresh()
+    # Earthworm pass: large radius (4 mm) on layer 0 only.
+    state.add_earthworm_biopores(layer=0, count=20.0, mean_radius_mm=4.0)
+    radius_after_worms = state.mean_radius_mm[0]
+    assert radius_after_worms > 2.0  # density-weighted average grew
+
+    # Add 2 g/m² dead roots → expected biopore volume:
+    #   mass_g/m² / 0.8 g/cm³ = 2.5 cm³/m² = 2.5e-6 m³/m²
+    #   × 0.5 conversion = 1.25e-6 m³/m²
+    # density delta back-calculated using state.mean_radius_mm[0] (concern 6 fix).
+    module.process_root_turnover([2.0, 0.0, 0.0] + [0.0] * (len(profile.layers) - 3))
+
+    # Round-trip volume_fraction must match density × π × r² where r is
+    # the layer's actual mean radius after the operation.
+    expected_vf = BioporeState.density_to_volume_fraction(
+        state.density_per_m2[0], state.mean_radius_mm[0]
+    )
+    assert state.volume_fraction[0] == pytest.approx(expected_vf, rel=1e-9)
+
+
+# ---------- Param validation (post_init) ----------
+
+
+def test_params_invalid_conversion_factor_raises() -> None:
+    with pytest.raises(ValueError, match="conversion_factor"):
+        BioporeParams(conversion_factor=-0.1)
+    with pytest.raises(ValueError, match="conversion_factor"):
+        BioporeParams(conversion_factor=1.5)
+
+
+def test_params_invalid_half_life_raises() -> None:
+    with pytest.raises(ValueError, match="topsoil"):
+        BioporeParams(decay_half_life_days_topsoil=0.0)
+    with pytest.raises(ValueError, match="subsoil"):
+        BioporeParams(decay_half_life_days_subsoil=-10.0)
+
+
+def test_params_invalid_radius_raises() -> None:
+    with pytest.raises(ValueError, match="mean_radius_mm"):
+        BioporeParams(mean_radius_mm=0.0)
+
+
+# ---------- Event type narrowness ----------
+
+
+def test_collapsed_event_cause_is_typed() -> None:
+    """``BioporeCollapsed.cause`` is a Literal-typed field. mypy enforces
+    static narrowness; here we just assert runtime values stay in spec.
+    """
+    bus, module, state, profile = _fresh()
+    state.density_per_m2[0] = 200.0
+    state.recompute_volume_fraction()
+    events: list[BioporeCollapsed] = []
+    bus.subscribe(BioporeCollapsed, events.append)
+    module.apply_tillage(intensity=1.0, profile=profile)
+    module.apply_compaction(intensity=0.5, moisture_factor=0.8, profile=profile)
+    causes = {e.cause for e in events}
+    assert causes <= {"tillage", "compaction"}

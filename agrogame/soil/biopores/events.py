@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from agrogame.events import BaseEvent
 
@@ -26,12 +27,15 @@ class BioporeCreated(BaseEvent):
 class BioporeCollapsed(BaseEvent):
     """Biopores destroyed by tillage or compaction.
 
+    Decay does not emit this event (would generate one event per layer
+    per day in steady state); the silent state mutation is sufficient.
+
     Attributes:
         layer: Soil layer index.
-        cause: One of "tillage", "compaction", "decay".
+        cause: ``"tillage"`` or ``"compaction"``.
         density_lost: Number of biopores destroyed per m².
     """
 
     layer: int
-    cause: str
+    cause: Literal["tillage", "compaction"]
     density_lost: float

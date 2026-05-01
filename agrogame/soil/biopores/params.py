@@ -50,3 +50,28 @@ class BioporeParams:
     compaction_sensitivity: float = 0.4
     mean_radius_mm: float = 2.0
     root_density_g_per_cm3: float = 0.8
+
+    def __post_init__(self) -> None:
+        """Validate params at construction time (frozen-dataclass pattern)."""
+        if not 0.0 <= self.conversion_factor <= 1.0:
+            raise ValueError(
+                f"conversion_factor must be in [0, 1], got {self.conversion_factor}"
+            )
+        if self.decay_half_life_days_topsoil <= 0.0:
+            raise ValueError("decay_half_life_days_topsoil must be > 0")
+        if self.decay_half_life_days_subsoil <= 0.0:
+            raise ValueError("decay_half_life_days_subsoil must be > 0")
+        if self.topsoil_depth_cm < 0.0:
+            raise ValueError("topsoil_depth_cm must be >= 0")
+        if self.max_density_per_m2 < 0.0:
+            raise ValueError("max_density_per_m2 must be >= 0")
+        if self.plow_depth_cm < 0.0:
+            raise ValueError("plow_depth_cm must be >= 0")
+        if not 0.0 <= self.tillage_destruction_max_frac <= 1.0:
+            raise ValueError("tillage_destruction_max_frac must be in [0, 1]")
+        if not 0.0 <= self.compaction_sensitivity <= 1.0:
+            raise ValueError("compaction_sensitivity must be in [0, 1]")
+        if self.mean_radius_mm <= 0.0:
+            raise ValueError("mean_radius_mm must be > 0")
+        if self.root_density_g_per_cm3 <= 0.0:
+            raise ValueError("root_density_g_per_cm3 must be > 0")
