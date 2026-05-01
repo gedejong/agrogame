@@ -22,6 +22,7 @@ nav:
       - API Events Reference: api-events.md
       - Architecture (compressed): architecture.md
       - Quality Bar: quality-bar.md
+  - Conventions: conventions.md
   - Architecture:
       - Overview: architecture/overview.md
       - Soil Module: architecture/soil-module.md

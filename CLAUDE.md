@@ -52,6 +52,10 @@ scripts/           # Utility scripts (plots, analysis)
 
 ## Code Style (Python)
 
+- Read [`docs/conventions.md`](docs/conventions.md) for module shape, naming
+  (`*Params` / `*State` / `*Module` / `*Runtime`), method names (`daily_step`
+  canonical), event-tense rule (past-tense for state changes, `*Computed`
+  for diagnostics), variable naming (`theta` in code), and test layout.
 - Write readable, explicit code; annotate public APIs with type hints
 - Prefer meaningful names; early returns; handle edge cases first
 - Add concise docstrings for non-trivial functions only
