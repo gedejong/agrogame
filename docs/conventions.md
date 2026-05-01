@@ -22,8 +22,9 @@ agrogame/<area>/<module>/
   events.py       # frozen domain events (BaseEvent subclasses)
 ```
 
-Reference implementations: `agrogame/soil/aggregation/`, `agrogame/soil/biopores/`,
-`agrogame/soil/micronutrients/`, `agrogame/soil/redox/`, `agrogame/plant/roots/`.
+Reference implementation: `agrogame/soil/aggregation/` — canonical layout
+and orchestrator-wired in `sim/orchestrator.py`. Other close-to-canonical
+modules: `agrogame/soil/micronutrients/`, `agrogame/soil/redox/`.
 
 ### Documented exceptions
 
@@ -34,8 +35,8 @@ Reference implementations: `agrogame/soil/aggregation/`, `agrogame/soil/biopores
 | `agrogame/soil/microbes/` | `biomass.py` + `responses.py` | Pre-canonical; rename tracked in #288 |
 | `agrogame/soil/water/` | Adds `models/` sub-package, `legacy.py`, `scs.py`, `constants.py`, `types.py` | Multiple water-balance implementations + SCS curve number table |
 | `agrogame/soil/chemistry/` | Only `module.py` + `events.py` | No mutable state yet; tracked in #288 |
-| `agrogame/soil/pore_network/`, `gas_diffusion/`, `biopores/` | `runtime.py` may be present but not orchestrator-wired | Wiring deferred to #284 |
-| `agrogame/soil/canopy/`, `phenology/`, `agrogame/plant/roots/` | `factory.py` + `types.py` instead of `params.py` + `state.py` | Older convention; rename optional |
+| `agrogame/soil/pore_network/`, `gas_diffusion/`, `biopores/` | `runtime.py` exists but not yet orchestrator-wired | Wiring deferred to #284 |
+| `agrogame/soil/canopy/`, `phenology/`, `agrogame/plant/roots/` | `types.py` replaces `state.py`; extra `factory.py` builds the module from presets | Older convention from before the canonical shape was agreed; rename optional |
 | `agrogame/atmosphere/` | Only contains `et/` | Single-child wrapper — collapse if no second child appears |
 
 When introducing a new module, follow the canonical layout. When deviating,
@@ -52,6 +53,10 @@ add a row to the table above.
 | Domain events | `*Updated` / `*Applied` / `*Occurred` / `*Changed` | `RootTurnoverOccurred` |
 | Diagnostic events | `*Computed` | `WaterStressComputed`, `PoreNetworkComputed` |
 
+The runtime suffix may be plural (`BioporesRuntime`) when the domain itself
+is plural and the singular form looks awkward — `*Module` and `*Params` stay
+singular regardless. Ad-hoc and not worth a rename; flagged for review under #282.
+
 ### Pydantic vs dataclass
 
 - **Pydantic `BaseModel`** only at I/O boundaries: configuration loading
@@ -66,19 +71,39 @@ plain dataclasses.
 
 ## 3. Method names
 
-`daily_step(...)` is the canonical name for the once-per-day computation on a
-`*Module`. Existing aliases (`update_daily`, `step_day`, `compute`, `step`)
-predate the convention — rename tracked in **#282**.
+`daily_step(...)` is the canonical name for the once-per-day computation on
+a `*Module`. Existing aliases that predate the convention:
+- `update_daily` — `agrogame/soil/water/legacy.py`,
+  `agrogame/soil/water/models/cascading.py`,
+  `agrogame/soil/water/models/dual_porosity.py`, `agrogame/soil/phenology/module.py`
+- `compute` — `agrogame/soil/pore_network/module.py`
 
-A typical signature:
+`step_day` exists at the orchestrator/field layer
+(`agrogame/sim/orchestrator.py`, `agrogame/game/field.py`) and is
+intentional — different abstraction, not a `*Module` daily step.
+
+Rename tracked in **#282**.
+
+Real example from `agrogame/soil/redox/module.py:41`:
 
 ```python
-class BioporeModule:
-    def daily_step(self, profile: SoilProfile, ...) -> None: ...
+class RedoxModule:
+    def daily_step(
+        self,
+        theta: list[float],
+        saturation: list[float],
+        root_fractions: list[float],
+        temperature_c: float,
+        o2_concentration_frac: list[float] | None = None,
+    ) -> None: ...
 ```
 
-The runtime calls it from a `DayTick` handler. Modules don't subscribe to
-events themselves — that's the runtime's job.
+The runtime calls `daily_step` from a `DayTick` handler. Modules don't
+subscribe to events themselves — that's the runtime's job. Some modules
+(e.g. `BioporeModule`) instead expose verb-named methods
+(`apply_decay`, `apply_tillage`, `process_root_turnover`) that the
+runtime dispatches to from different events; those modules don't have
+a single `daily_step`.
 
 ## 4. Event tense
 
@@ -135,12 +160,16 @@ extraction tracked in **#286**.
 
 ## 7. Coverage exclusions
 
-`.coveragerc` excludes:
+`.coveragerc` currently excludes (verbatim):
 
-- **Frontend-adjacent** (`game/`) — Godot/GDScript not measured by `pytest --cov`.
-- **Optional-extras** (`dashboard/`, `plots/`) — heavy deps imported locally
-  inside guarded functions; full execution requires `poetry install -E dashboard`.
-- **CLI shells** — entry-point modules whose body is `cli()` glue.
+- `agrogame/dashboard/*` — Streamlit/Plotly dashboard; heavy optional deps,
+  imported locally inside guarded functions; requires `poetry install -E dashboard`.
+- `agrogame/plots/*` — Matplotlib plotting helpers; same rationale.
+- `agrogame/weather/cli.py` — single CLI bootstrap; exercised via smoke
+  tests, not worth line-by-line coverage.
+
+`game/` (Godot/GDScript) is not measured by `pytest --cov` at all — it has
+its own GUT-based file-coverage check (`game/tests/check_coverage.sh`).
 
 Criterion when proposing a new exclusion: is the code a thin wrapper around
 an optional dep, or a CLI bootstrap that's exercised by smoke tests but not
@@ -170,7 +199,7 @@ the false-positive rate.
 | Soil-water-balance day step | `agrogame/soil/water/models/cascading.py` |
 | Per-layer pore size distribution | `agrogame/soil/pore_network/state.py` |
 | Daily orchestration sequence | `agrogame/sim/orchestrator.py:FullSimulationOrchestrator` |
-| YAML soil presets | `data/soils/presets.yaml` (or root `soils/presets.yaml`) |
+| YAML soil presets | `data/soils/presets.yaml` |
 | Crop presets | `data/crops/presets.yaml` |
 | Climate presets | `data/climate/presets.yaml` |
 | Public events | `agrogame/<area>/<module>/events.py` |
