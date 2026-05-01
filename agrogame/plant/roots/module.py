@@ -7,7 +7,12 @@ from agrogame.events import EventBus
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.phenology import PhenologyStage
 
-from .events import RootBiomassUpdated, RootDepthChanged, RootDistributionUpdated
+from .events import (
+    RootBiomassUpdated,
+    RootDepthChanged,
+    RootDistributionUpdated,
+    RootTurnoverOccurred,
+)
 from .params import RootParams
 from .types import RootFluxes, RootState
 
@@ -225,10 +230,16 @@ class RootModule:
     ) -> float:
         prev = state.biomass_g_m2
         # turnover first
-        state.biomass_g_m2 = max(
-            0.0, state.biomass_g_m2 * (1.0 - self.params.turnover_rate_per_day)
-        )
+        dead_total = prev * self.params.turnover_rate_per_day
+        state.biomass_g_m2 = max(0.0, prev - dead_total)
         state.biomass_g_m2 += max(0.0, daily_root_biomass_g_m2)
+        # Emit per-layer turnover for biopore creation (#215). Skip when
+        # there's no live distribution yet (pre-emergence).
+        if dead_total > 0.0 and state.layer_fractions and self.event_bus:
+            per_layer = tuple(dead_total * f for f in state.layer_fractions)
+            self.event_bus.emit(
+                RootTurnoverOccurred(per_layer_dead_mass_g_m2=per_layer)
+            )
         if state.biomass_g_m2 != prev and self.event_bus:
             self.event_bus.emit(RootBiomassUpdated(biomass_g_m2=state.biomass_g_m2))
         return state.biomass_g_m2 - prev
