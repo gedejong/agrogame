@@ -46,3 +46,50 @@ class MicronutrientParams:
     toxic_mn_ppm: float = TOXIC_MN_PPM
     om_complexation_factor: float = 0.001
     season_days: float = 150.0
+
+
+@dataclass(frozen=True)
+class RedoxMicronutrientParams:
+    """Redox-driven Fe/Mn pool transitions (#216).
+
+    When soil Eh falls below an element-specific threshold, a fraction
+    of the sorbed/mineral pool (implicit = total - available) moves to
+    the available pool per day, scaled by reducing severity. When Eh
+    rises above the re-oxidation threshold, available precipitates
+    back into sorbed at a slower rate (Patrick & Reddy 1976).
+
+    Attributes:
+        fe_reduction_eh_mv: Eh threshold below which Fe³⁺ → Fe²⁺.
+            Ref: Patrick & Reddy 1976 — Fe reduction zone.
+        mn_reduction_eh_mv: Eh threshold below which Mn⁴⁺ → Mn²⁺.
+            Ref: Stumm & Morgan 1996 — Mn reduces earlier than Fe.
+        reoxidation_eh_mv: Eh threshold above which Fe²⁺/Mn²⁺ precipitate.
+        reduction_rate_per_day: Base fraction moved from sorbed to
+            available at maximum reducing severity (1/day).
+        reoxidation_rate_per_day: Base fraction moved from available back
+            to sorbed at full re-oxidation (1/day). Asymmetrically
+            slower than reduction — precipitation kinetics lag
+            dissolution (Patrick & Reddy 1976).
+        severity_span_mv: Eh span below/above threshold that produces
+            full-strength severity (linear ramp 0 → 1).
+        reactive_fe_fraction: Fraction of ``fe_total`` that is
+            short-term reducible (amorphous + reactive Fe-oxides).
+            Silicate-bound and crystalline Fe³⁺ does not participate
+            in daily-to-weekly redox cycling. Default 0.02 → reducible
+            pool ~500 ppm for a typical 25,000 ppm total.
+            Ref: Schwertmann 1964; Roden & Wetzel 1996 — 1-5 % of total
+            soil Fe is reactive/amorphous.
+        reactive_mn_fraction: Fraction of ``mn_total`` that is
+            reducible on short timescales. Mn oxides are generally
+            more labile than Fe oxides.
+            Ref: Gotoh & Patrick 1972 — flooded soil Mn²⁺ 1-50 ppm.
+    """
+
+    fe_reduction_eh_mv: float = 100.0
+    mn_reduction_eh_mv: float = 200.0
+    reoxidation_eh_mv: float = 300.0
+    reduction_rate_per_day: float = 0.02
+    reoxidation_rate_per_day: float = 0.005
+    severity_span_mv: float = 200.0
+    reactive_fe_fraction: float = 0.02
+    reactive_mn_fraction: float = 0.05

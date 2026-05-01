@@ -12,7 +12,11 @@ from agrogame.soil.micronutrients.constants import (
     PH_AVAIL_MN,
     PH_AVAIL_ZN,
 )
-from agrogame.soil.micronutrients.params import MicronutrientParams
+from agrogame.soil.micronutrients.events import RedoxNutrientTransformed
+from agrogame.soil.micronutrients.params import (
+    MicronutrientParams,
+    RedoxMicronutrientParams,
+)
 from agrogame.soil.micronutrients.state import MicronutrientState
 
 
@@ -48,6 +52,11 @@ class MicronutrientCycle:
         self._n_layers = n_layers
         self._ph_by_layer: list[float] = [6.8] * n_layers
         self._som_c_by_layer: list[float] = [0.0] * n_layers
+        # Last Eh per layer, used by _update_availability to skip the
+        # aerobic-equilibrium pullback while the layer is in reducing
+        # conditions (otherwise daily_step would fight apply_redox_adjustment).
+        # Default 400 mV = fully aerobic, matches RedoxState initial value.
+        self._last_eh_by_layer: list[float] = [400.0] * n_layers
         # Subscribe to pH updates
         from agrogame.soil.chemistry.events import SoilPHUpdated
 
@@ -114,6 +123,101 @@ class MicronutrientCycle:
             mn_stress=mn_stress,
         )
 
+    def apply_redox_adjustment(
+        self,
+        layer: int,
+        eh_mv: float,
+        redox_params: Optional[RedoxMicronutrientParams] = None,
+    ) -> None:
+        """Shift Fe/Mn between sorbed and available pools based on Eh (#216).
+
+        Reduction (Eh below element threshold) pulls sorbed Fe³⁺ / Mn⁴⁺
+        into the ``available`` pool; re-oxidation (Eh above ``reoxidation_eh_mv``)
+        precipitates available back into sorbed. The ``total`` pool is
+        conserved — only the available/sorbed split changes.
+
+        Args:
+            layer: Soil layer index.
+            eh_mv: Redox potential for this layer (mV).
+            redox_params: Rate constants and thresholds. Uses defaults
+                when None.
+
+        Refs:
+            Patrick & Reddy 1976 — Fe³⁺ reduction below 100 mV.
+            Stumm & Morgan 1996 — Mn⁴⁺ reduces earlier (~200 mV).
+            Ponnamperuma 1972 — Fe²⁺ 50-300 ppm in flooded rice soils.
+        """
+        if layer < 0 or layer >= self._n_layers:
+            return
+        rp = redox_params if redox_params is not None else RedoxMicronutrientParams()
+        span = max(1.0, rp.severity_span_mv)
+        self._last_eh_by_layer[layer] = eh_mv
+        spec = (
+            ("fe", rp.fe_reduction_eh_mv, rp.reactive_fe_fraction),
+            ("mn", rp.mn_reduction_eh_mv, rp.reactive_mn_fraction),
+        )
+        for element, thr, reactive_frac in spec:
+            avail = getattr(self.state, f"{element}_available")
+            total = getattr(self.state, f"{element}_total")
+            if layer >= len(avail) or layer >= len(total):
+                continue
+            cur_avail = avail[layer]
+            cur_total = total[layer]
+            sorbed = max(0.0, cur_total - cur_avail)
+            # Only the reactive (amorphous) oxide fraction participates
+            # in short-term redox cycling. Silicate/crystalline Fe is
+            # inert at daily-to-weekly timescales. Cap the reducible
+            # pool: the reactive ceiling applies to ``total``, and at
+            # any moment the sorbed stock that can still release is
+            # ``reactive_ceiling - cur_avail`` (available that already
+            # came from the reactive pool is already out of sorbed).
+            reactive_ceiling = max(0.0, reactive_frac * cur_total)
+            reducible_sorbed = max(0.0, min(sorbed, reactive_ceiling - cur_avail))
+
+            if eh_mv < thr:
+                # Reduction: sorbed → available, proportional to severity.
+                severity = min(1.0, (thr - eh_mv) / span)
+                released = reducible_sorbed * rp.reduction_rate_per_day * severity
+                if released > 0.0:
+                    new_avail = min(cur_total, cur_avail + released)
+                    actual = new_avail - cur_avail
+                    avail[layer] = new_avail
+                    self._emit_redox_transform(
+                        layer, element, actual, direction="reduction"
+                    )
+            elif eh_mv > rp.reoxidation_eh_mv:
+                # Re-oxidation: available → sorbed, slower. Scale
+                # against the redox-mobile pool (excess above aerobic
+                # equilibrium ≈ DEFAULT_AVAIL_FRACTION × total) so the
+                # precipitation rate doesn't drag fresh aerobic Fe
+                # below its equilibrium target.
+                severity = min(1.0, (eh_mv - rp.reoxidation_eh_mv) / span)
+                precipitated = cur_avail * rp.reoxidation_rate_per_day * severity
+                if precipitated > 0.0:
+                    new_avail = max(0.0, cur_avail - precipitated)
+                    actual = cur_avail - new_avail
+                    avail[layer] = new_avail
+                    self._emit_redox_transform(
+                        layer, element, actual, direction="oxidation"
+                    )
+
+    def _emit_redox_transform(
+        self, layer: int, element: str, amount_ppm: float, direction: str
+    ) -> None:
+        if amount_ppm <= 0.0 or self.event_bus is None:
+            return
+        # Title-case matches the convention used by _emit_stress (Fe/Mn/Zn
+        # in NutrientStressComputed) so downstream handlers can match on
+        # a single canonical form.
+        self.event_bus.emit(
+            RedoxNutrientTransformed(
+                layer=layer,
+                element=element.capitalize(),
+                amount_ppm=float(amount_ppm),
+                direction=direction,
+            )
+        )
+
     def apply_amendment(self, element: str, amount_g_ha: float, layer: int = 0) -> None:
         """Apply micronutrient fertilizer to a soil layer.
 
@@ -122,7 +226,7 @@ class MicronutrientCycle:
             amount_g_ha: Amount in g/ha.
             layer: Target soil layer (default 0 = top).
         """
-        if layer >= self._n_layers:
+        if layer < 0 or layer >= self._n_layers:
             return
         from agrogame.soil.micronutrients.constants import PPM_TO_G_HA
 
@@ -141,6 +245,11 @@ class MicronutrientCycle:
         Available pool equilibrates toward target determined by total pool
         × pH multiplier × OM factor. Represents mineral weathering/dissolution.
         Ref: Lindsay 1979 — equilibrium solubility controls.
+
+        Redox-aware: when the last observed Eh is below the element's
+        reduction threshold, the aerobic equilibration is skipped for
+        that element. This prevents ``daily_step`` from fighting
+        ``apply_redox_adjustment`` under sustained reducing conditions.
         """
         from agrogame.soil.micronutrients.constants import (
             DEFAULT_AVAIL_FRACTION_FE,
@@ -153,11 +262,22 @@ class MicronutrientCycle:
             "zn": DEFAULT_AVAIL_FRACTION_ZN,
             "mn": DEFAULT_AVAIL_FRACTION_MN,
         }
+        # Element-specific reducing thresholds (match RedoxMicronutrientParams
+        # defaults). Zn is not redox-sensitive on daily timescales.
+        reduction_thr = {"fe": 100.0, "mn": 200.0}
+        last_eh = (
+            self._last_eh_by_layer[layer]
+            if 0 <= layer < len(self._last_eh_by_layer)
+            else 400.0
+        )
         for elem, table in [
             ("fe", PH_AVAIL_FE),
             ("zn", PH_AVAIL_ZN),
             ("mn", PH_AVAIL_MN),
         ]:
+            if elem in reduction_thr and last_eh < reduction_thr[elem]:
+                # Skip aerobic equilibration while redox is in control.
+                continue
             total = getattr(self.state, f"{elem}_total")[layer]
             avail_list = getattr(self.state, f"{elem}_available")
             ph_mult = _interpolate_ph(ph, table)
