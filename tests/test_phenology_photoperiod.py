@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from agrogame.soil.phenology import (
     PhenologyModule,
     CropPhenologyParams,

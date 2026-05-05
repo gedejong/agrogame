@@ -4,7 +4,7 @@ from datetime import date
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar import Calendar
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from agrogame.soil.water.types import DailyDrivers
 
 

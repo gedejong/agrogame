@@ -4,7 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed

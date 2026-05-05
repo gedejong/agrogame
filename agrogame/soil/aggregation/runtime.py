@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.aggregation.module import AggregationModule

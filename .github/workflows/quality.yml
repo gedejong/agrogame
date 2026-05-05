@@ -44,13 +44,8 @@ jobs:
       - name: Run pre-commit (push stage)
         run: poetry run pre-commit run --all-files --hook-stage push
 
-      - name: Import Linter (green contracts only — see .importlinter)
-        run: |
-          poetry run lint-imports --config .importlinter \
-            --contract events_isolated \
-            --contract weather_independence \
-            --contract plant_independence \
-            --contract game_no_api
+      - name: Import Linter
+        run: poetry run lint-imports --config .importlinter
 
       - name: Xenon complexity
         run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' --exclude 'agrogame/plots/*' agrogame

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agrogame.soil.phenology import PhenologyStage
+from agrogame.params.phenology import PhenologyStage
 
 
 @dataclass(frozen=True)

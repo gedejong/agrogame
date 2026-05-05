@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 from agrogame.events import EventBus
 from agrogame.soil.models import SoilProfile
-from agrogame.soil.phenology import PhenologyStage
+from agrogame.params.phenology import PhenologyStage
 
 from .events import (
     RootBiomassUpdated,

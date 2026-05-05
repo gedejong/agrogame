@@ -67,13 +67,8 @@ repos:
         pass_filenames: false
         stages: [manual]
       - id: importlinter-check
-        name: import-linter contracts (green only — see .importlinter)
-        entry: >-
-          poetry run lint-imports --config .importlinter
-          --contract events_isolated
-          --contract weather_independence
-          --contract plant_independence
-          --contract game_no_api
+        name: import-linter contracts
+        entry: poetry run lint-imports --config .importlinter
         language: system
         pass_filenames: false
         stages: [manual]

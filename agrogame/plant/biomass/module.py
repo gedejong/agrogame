@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from agrogame.events import EventBus
-from agrogame.soil.phenology import PhenologyStage
+from agrogame.params.phenology import PhenologyStage
 
 from .params import PartitioningParams
 from .types import BiomassPools, BiomassAllocations

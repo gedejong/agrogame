@@ -351,14 +351,27 @@ class FullSimulationOrchestrator:
             self.phenology,
             agg_state=self.agg_state,
         )
+        # Cast at the orchestrator boundary: ETRuntime's fields are
+        # ports.py Protocols (#300, ADR-008), so the concrete soil/plant
+        # objects need a `cast` for mypy to accept them.
+        from typing import cast as _cast
+
+        from agrogame.atmosphere.et.ports import (
+            CanopyView as _ETCanopy,
+            RootDistribution as _ETRoots,
+            WaterActuator as _ETActuator,
+            WaterProfile as _ETProfile,
+            WaterState as _ETState,
+        )
+
         _ = ETRuntime(
             event_bus=self.event_bus,
             et=self.et,
-            profile=self.profile,
-            water_state=self.water_state,
-            water_model=self.water_model,
-            roots_state=self.root_state,
-            canopy=self.canopy,
+            profile=_cast(_ETProfile, self.profile),
+            water_state=_cast(_ETState, self.water_state),
+            water_model=_cast(_ETActuator, self.water_model),
+            roots_state=_cast(_ETRoots, self.root_state),
+            canopy=_cast(_ETCanopy, self.canopy),
             _evap_state=EtState(),
             _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
         )

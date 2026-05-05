@@ -64,3 +64,21 @@ class WaterActuator(TranspirationExtractor, Protocol):
     def apply_evaporation(
         self, profile: WaterProfile, state: WaterState, evaporation_mm: float
     ) -> float: ...
+
+
+@runtime_checkable
+class RootDistribution(Protocol):
+    """Per-layer root fractions, used to partition transpiration uptake."""
+
+    layer_fractions: Sequence[float] | None
+
+
+class _CanopyStateLike(Protocol):
+    lai: float
+
+
+@runtime_checkable
+class CanopyView(Protocol):
+    """Read-only view of canopy state needed by ET (just `state.lai`)."""
+
+    state: _CanopyStateLike

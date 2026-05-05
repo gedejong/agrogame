@@ -223,7 +223,7 @@ def test_transpiration_clamped_to_potential() -> None:
 def test_et_runtime_persists_state() -> None:
     """Integration: 10 dry days → evap rate declines."""
     from agrogame.events import EventBus
-    from agrogame.sim.calendar_events import DayTick
+    from agrogame.events.calendar import DayTick
     from agrogame.soil.water.events import EvaporationTaken
     from agrogame.atmosphere.et.runtime import ETRuntime
     from agrogame.soil.canopy.module import CanopyModule, CanopyParams
@@ -287,7 +287,7 @@ def test_et_runtime_persists_state() -> None:
 def test_et_runtime_rainfall_resets() -> None:
     """Integration: dry → rain → dry → rate recovers."""
     from agrogame.events import EventBus
-    from agrogame.sim.calendar_events import DayTick
+    from agrogame.events.calendar import DayTick
     from agrogame.soil.water.events import EvaporationTaken
     from agrogame.atmosphere.et.runtime import ETRuntime
     from agrogame.soil.canopy.module import CanopyModule, CanopyParams
