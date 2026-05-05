@@ -50,6 +50,9 @@ jobs:
       - name: Xenon complexity
         run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' --exclude 'agrogame/plots/*' agrogame
 
+      - name: Knowledge-base coverage (#295)
+        run: poetry run python scripts/check_docs_coverage.py
+
       - name: Deptry dependency hygiene
         run: poetry run deptry agrogame
 

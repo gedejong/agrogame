@@ -4,9 +4,18 @@ repo_name: databuildcompany/agrogame
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
+  - Knowledge Base:
+      - Index: knowledge-base.md
+      - API: api.md
+      - Atmosphere: atmosphere.md
+      - Events: events.md
+      - Game: game.md
+      - Plant: plant.md
+      - Sim: sim.md
+      - Soil: soil.md
+      - Weather: weather.md
   - Quick Context:
       - Water: water.md
-      - Weather System: weather.md
       - ET (PT/PM + VPD): et.md
       - Evaporation & Residue: evaporation-residue.md
       - Interception: interception.md
@@ -18,7 +27,6 @@ nav:
       - Canopy: canopy.md
       - Diagnostics & Plots: plots.md
       - Dashboard: dashboard.md
-      - Events & Debugging: events.md
       - API Events Reference: api-events.md
       - Architecture (compressed): architecture.md
       - Quality Bar: quality-bar.md

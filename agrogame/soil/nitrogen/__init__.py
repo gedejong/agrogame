@@ -1,5 +1,7 @@
 """Nitrogen cycling module scaffolding.
 
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/nitrogen.md
+
 This package provides a minimal structure for soil nitrogen processes and
 integration with the water model via domain events. It is intentionally
 lightweight to allow iterative development.

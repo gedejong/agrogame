@@ -1,3 +1,8 @@
+"""Simulation composition root — orchestrator, calendar, management plan.
+
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/sim.md
+"""
+
 from __future__ import annotations
 
 # Only re-export lightweight modules to avoid circular imports.

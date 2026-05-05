@@ -1,3 +1,27 @@
+---
+module: agrogame.soil.canopy
+doc_type: module
+references:
+  - "Beer–Lambert canopy light interception (Monsi & Saeki 1953)"
+  - "WOFOST/SUCROS RUE-based biomass accumulation"
+  - "DSSAT phenology-coupled senescence"
+key_classes:
+  - CanopyModule
+  - CanopyParams
+  - CanopyState
+  - CanopyFluxes
+key_events:
+  - LightIntercepted
+  - BiomassAccumulated
+  - LAIUpdated
+  - CanopyIntercepted
+  - CanopyEvaporated
+primary_tests:
+  - tests/test_canopy.py
+  - tests/integration/test_realism.py
+related_adrs: [ADR-002]
+---
+
 Canopy summary
 
 - Interception: Beer–Lambert `fraction = 1 - exp(-k * LAI)`

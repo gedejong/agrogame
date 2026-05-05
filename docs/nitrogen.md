@@ -1,3 +1,23 @@
+---
+module: agrogame.soil.nitrogen
+doc_type: module
+references:
+  - "DSSAT CENTURY/CERES nitrogen submodels"
+  - "Parton et al. 1988 — first-order nitrification kinetics"
+  - "FAO-56 — water/nitrogen interaction in canopy stress"
+key_classes:
+  - NitrogenCycle
+  - SoilNitrogenState
+  - NitrogenFluxes
+key_events:
+  - NitrificationOccurred
+  - NutrientLeached
+primary_tests:
+  - tests/test_nitrogen.py
+  - tests/integration/test_realism.py
+related_adrs: [ADR-002, ADR-006]
+---
+
 Nitrogen module summary
 
 - Core: `NitrogenCycle` processes (mineralization, nitrification, denitrification, uptake)

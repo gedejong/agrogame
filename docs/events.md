@@ -1,3 +1,16 @@
+---
+module: agrogame.events
+doc_type: module
+references:
+  - "Hohpe & Woolf, Enterprise Integration Patterns (2003) — observer/pub-sub"
+key_classes: [BaseEvent, EventBus]
+key_events: []
+primary_tests:
+  - tests/test_event_bus.py
+  - tests/test_events.py
+related_adrs: [ADR-002]
+---
+
 ## Events & Debugging
 
 This project uses an event-driven architecture built on `agrogame.events.EventBus` and `BaseEvent`.
