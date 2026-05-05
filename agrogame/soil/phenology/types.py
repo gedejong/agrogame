@@ -1,17 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
 from typing import Any
 
+# PhenologyStage moved to agrogame.params.phenology (#300, ADR-008).
+# Re-exported here so existing soil-internal callers keep working.
+from agrogame.params.phenology import PhenologyStage
 
-class PhenologyStage(Enum):
-    PLANTED = "planted"
-    EMERGED = "emerged"
-    VEGETATIVE = "vegetative"
-    FLOWERING = "flowering"
-    GRAIN_FILL = "grain_fill"
-    MATURITY = "maturity"
+__all__ = ["PhenologyStage", "PhenologyState"]
 
 
 @dataclass

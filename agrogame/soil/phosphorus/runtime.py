@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from .cycle import PhosphorusCycle
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.stress import StressCalculator

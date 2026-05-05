@@ -7,8 +7,8 @@ from pathlib import Path
 import yaml
 
 from agrogame.config.validation import validate_data
-from agrogame.soil.canopy.params import CanopyParams
-from agrogame.soil.phenology.params import CropPhenologyParams, GrowthStageThresholds
+from agrogame.params.canopy import CanopyParams
+from agrogame.params.phenology import CropPhenologyParams, GrowthStageThresholds
 from agrogame.plant.roots.params import RootParams
 
 

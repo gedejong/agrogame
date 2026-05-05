@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.plant.roots.events import RootTurnoverOccurred
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from agrogame.soil.aggregation.events import TillageApplied
 from agrogame.soil.biopores.module import BioporeModule
 from agrogame.soil.models import SoilProfile

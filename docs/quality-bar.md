@@ -15,7 +15,7 @@ should fail CI on a PR. Updated as part of #297 (Phase 4 of #293).
 | Type check (project-wide) | `mypy` | `[tool.mypy]` (no_implicit_optional, warn_*) | CI + pre-commit (manual) |
 | Type check (strict pilot) | `mypy --strict` | Pilot package: `agrogame/events` | CI + pre-commit (manual) |
 | Cyclomatic complexity | `xenon` | B/B/C (`--max-average B --max-modules B --max-absolute C`) | CI + pre-commit (manual) |
-| Import contracts (subset) | `import-linter` | `.importlinter` — green contracts only (see [drift note](#import-linter-drift)) | CI + pre-commit (manual) |
+| Import contracts | `import-linter` | `.importlinter` — all 10 contracts (see [Import-linter contracts](#import-linter-contracts)) | CI + pre-commit (manual) |
 | Test suite | `pytest --cov` | Coverage floor 92% (`pyproject.toml` `[tool.pytest.ini_options]`) | CI + pre-commit (manual) |
 | Realism (literature) | `pytest tests/integration/test_realism.py` | Literature-cited ranges per assertion | CI |
 | Dead code | `vulture` (#297) | `--min-confidence 80` against `vulture-whitelist.py` | CI + pre-commit (manual) |
@@ -63,33 +63,26 @@ classes is enforced separately by `scripts/check_class_docstrings.py`.
 
 Tracking issue for the ratchet: a follow-up to #296 (TBD).
 
-## Import-linter drift
+## Import-linter contracts
 
-**Discovered during #297 (Phase 4).** The legacy `[contract:<name>]`
-section header used by the previous `.importlinter` file is silently
-ignored by import-linter v2 — every contract had been passing for free.
-After migrating to the required `[importlinter:contract:<name>]` format,
-six of the nine pre-existing contracts turned out to be broken by
-codebase drift.
+All 10 contracts pass. `lint-imports` runs without `--contract` filters in
+both pre-commit (manual stage) and the Quality CI job. See
+[`docs/adr/ADR-008-import-layering.md`](adr/ADR-008-import-layering.md)
+for the layering decision and the rationale behind each contract's
+`ignore_imports` allowlist.
 
-CI runs only the four currently-green contracts via explicit `--contract`
-flags. The broken six remain in `.importlinter` as architectural intent
-and a checklist for the cleanup issue.
-
-| Contract | Status |
-|----------|--------|
-| `events_isolated` | ✅ KEPT |
-| `weather_independence` | ✅ KEPT |
-| `plant_independence` | ✅ KEPT |
-| `game_no_api` (#297 new) | ✅ KEPT |
-| `soil_plant_direction` | ❌ BROKEN — soil → plant events drift |
-| `atmosphere_independence` | ❌ BROKEN — atmosphere.et → weather.constants |
-| `sim_isolation` | ❌ BROKEN |
-| `soil_subdomain_independence` | ❌ BROKEN |
-| `plant_vs_soil` | ❌ BROKEN |
-| `domain_layers` | ❌ BROKEN — likely reversed layer order |
-
-Tracking issue: #300.
+| Contract | Notes |
+|----------|-------|
+| `events_isolated` | `agrogame.events` is type-only; no domain imports. |
+| `soil_plant_direction` | Allowlist for soil → plant.events subscriptions. |
+| `weather_independence` | Weather is the foundational layer. |
+| `atmosphere_independence` | ET runtime uses `atmosphere/et/ports.py` Protocols (#300). |
+| `plant_independence` | Plant doesn't depend on atmosphere. |
+| `sim_isolation` | `DayTick` lives at `agrogame.events.calendar` (#300). |
+| `soil_subdomain_independence` | Allowlist for canopy↔phenology + nitrogen↔water events. |
+| `plant_vs_soil` | Allowlist for plant.roots.runtime → soil.phenology runtime read. |
+| `domain_layers` | atmosphere > plant > soil > weather; allowlist mirrors `soil_plant_direction`. |
+| `game_no_api` | Game layer doesn't depend on the API layer. |
 
 ## Docstring conventions
 
@@ -121,9 +114,7 @@ poetry run mypy --strict agrogame/events
 # Quality (heavy; CI mirror)
 poetry run xenon --max-average B --max-modules B --max-absolute C \
     --ignore 'tests/*,docs/*,out/*' --exclude 'agrogame/plots/*' agrogame
-poetry run lint-imports --config .importlinter \
-    --contract events_isolated --contract weather_independence \
-    --contract plant_independence --contract game_no_api
+poetry run lint-imports --config .importlinter
 poetry run vulture agrogame vulture-whitelist.py --min-confidence 80
 poetry run deptry agrogame
 poetry run pytest --cov

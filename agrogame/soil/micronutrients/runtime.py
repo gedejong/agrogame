@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 from agrogame.soil.micronutrients.cycle import MicronutrientCycle
 from agrogame.soil.micronutrients.params import RedoxMicronutrientParams
 from agrogame.soil.redox.events import RedoxChanged

@@ -13,7 +13,7 @@ from agrogame.events import EventBus
 from agrogame.soil.nitrogen.events import NutrientLeached
 from agrogame.soil.phosphorus.events import PhosphorusFixationOccurred
 from .events import SoilPHUpdated, LimeApplied, AcidifyingFertilizerApplied
-from agrogame.sim.calendar_events import DayTick
+from agrogame.events.calendar import DayTick
 
 
 class SoilChemistryModule:

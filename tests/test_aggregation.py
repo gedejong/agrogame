@@ -373,7 +373,7 @@ def test_runtime_weekly_cadence() -> None:
     events: list[AggregateStructureUpdated] = []
     bus.subscribe(AggregateStructureUpdated, events.append)
 
-    from agrogame.sim.calendar_events import DayTick
+    from agrogame.events.calendar import DayTick
 
     # Tick 6 days — no formation events (only raindrop/breakdown)
     for d in range(6):
@@ -406,7 +406,7 @@ def test_runtime_freeze_thaw_hysteresis() -> None:
     """Freeze-thaw needs freeze then thaw with 2C hysteresis."""
     from agrogame.soil.aggregation.runtime import AggregationRuntime
     from agrogame.soil.water.state import SoilWaterState
-    from agrogame.sim.calendar_events import DayTick
+    from agrogame.events.calendar import DayTick
 
     soils = load_soil_presets(Path("soils/presets.yaml"))
     profile = soils.soils["loam_temperate"]

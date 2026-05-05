@@ -4,20 +4,16 @@ import math
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
-from agrogame.sim.calendar_events import DayTick
-from agrogame.soil.models import SoilProfile
-from agrogame.soil.water.state import SoilWaterState
-from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
+from agrogame.events.calendar import DayTick
 from agrogame.atmosphere.et import Evapotranspiration
 from agrogame.atmosphere.et.ports import (
+    CanopyView as ETCanopyView,
+    RootDistribution as ETRootDistribution,
     WaterProfile as ETWaterProfile,
     WaterState as ETWaterState,
     WaterActuator as ETWaterActuator,
 )
 from agrogame.atmosphere.et.types import EtState, ResidueState
-from agrogame.plant.roots.types import RootState
-from agrogame.soil.canopy.module import CanopyModule
-from typing import cast
 from agrogame.plant.stress import StressCalculator
 from agrogame.plant.events import WaterStressComputed
 
@@ -26,15 +22,22 @@ _LN2 = math.log(2.0)
 
 @dataclass
 class ETRuntime:
-    """Wire Evapotranspiration to the EventBus; partitions ET daily."""
+    """Wire Evapotranspiration to the EventBus; partitions ET daily.
+
+    Field types are the local ports in :mod:`agrogame.atmosphere.et.ports`
+    so the atmosphere package never imports concrete soil/plant classes
+    directly (#300, ADR-008). The orchestrator passes whatever soil-water
+    profile, water state, water model, root state, and canopy module it
+    has wired up; structural typing matches them to the ports.
+    """
 
     event_bus: EventBus
     et: Evapotranspiration
-    profile: SoilProfile
-    water_state: SoilWaterState
-    water_model: CascadingBucketWaterModel
-    roots_state: RootState
-    canopy: CanopyModule
+    profile: ETWaterProfile
+    water_state: ETWaterState
+    water_model: ETWaterActuator
+    roots_state: ETRootDistribution
+    canopy: ETCanopyView
     _stress: StressCalculator | None = None
     _evap_state: EtState = field(default_factory=EtState)
     _residue: ResidueState = field(default_factory=ResidueState)
@@ -79,8 +82,8 @@ class ETRuntime:
 
         self._update_wetting_and_residue(ev)
 
-        root_fracs = (
-            self.roots_state.layer_fractions
+        root_fracs: list[float] = (
+            list(self.roots_state.layer_fractions)
             if self.roots_state.layer_fractions
             else [1.0 / len(self.profile.layers)] * len(self.profile.layers)
         )
@@ -90,9 +93,9 @@ class ETRuntime:
         )
         comps = self.et.potential_components(et0_mm=et0, lai=self.canopy.state.lai)
         actual = self.et.actual_et(
-            cast(ETWaterProfile, self.profile),
-            cast(ETWaterState, self.water_state),
-            cast(ETWaterActuator, self.water_model),
+            self.profile,
+            self.water_state,
+            self.water_model,
             comps,
             root_fracs,
             evap_state=self._evap_state,
