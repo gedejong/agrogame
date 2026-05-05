@@ -179,7 +179,42 @@ worth full coverage? If yes, add to `.coveragerc` and note here.
 The base coverage threshold is **92%** (was 97% before optional-extras
 exclusions; current effective coverage hovers around 95%).
 
-## 8. Pre-commit and CI
+## 8. Knowledge-base pages
+
+Every package directly under `agrogame/` (with the explicit allowlist below)
+must have a `docs/<page>.md` whose YAML frontmatter binds it to the Python
+module. The schema lives in
+[`docs/knowledge-base-schema.json`](knowledge-base-schema.json) and is
+enforced by `scripts/check_docs_coverage.py` in pre-commit (manual stage) and
+the `Quality` CI job. See [Knowledge Base index](knowledge-base.md).
+
+Each required package's `__init__.py` first paragraph must contain an
+absolute GitHub URL to its docs page
+(`https://github.com/gedejong/agrogame/blob/main/docs/<page>.md`) so the link
+resolves whether rendered by mkdocstrings, read in source, or surfaced by
+`help()`.
+
+### Allowlist
+
+Packages directly under `agrogame/` that are exempt from the docs-page gate
+(declared in `PACKAGE_ALLOWLIST` in `scripts/check_docs_coverage.py`):
+
+| Package | Reason |
+|---------|--------|
+| `agrogame.analysis` | Calibration / sensitivity analysis scripts — no science surface of its own |
+| `agrogame.config` | Configuration loaders — covered by `agrogame.events` (ConfigReloaded) |
+| `agrogame.dashboard` | Streamlit dashboard — optional dep, imported locally |
+| `agrogame.params` | Parameter library / Pydantic schemas — referenced from each domain page |
+| `agrogame.plots` | Matplotlib helpers — optional dep, imported locally |
+
+The top-level `agrogame/cli.py` is a single CLI bootstrap and not a package;
+the gate keys on directories with `__init__.py`.
+
+The check is intentionally allowlist-driven (rather than opt-in) — the gate's
+value is preventing drift, not enforcing heroics. Adding a new package
+under `agrogame/` requires either a docs page or an allowlist entry.
+
+## 9. Pre-commit and CI
 
 Pre-commit (fast, ~5 s): `black`, `ruff`, `flake8`, `gdlint`, `gdformat`,
 file-coverage check.
@@ -193,7 +228,7 @@ pre-commit by design — false positives on dataclass fields and event
 payloads make the local hook noisy. Safe to add later if a config tightens
 the false-positive rate.
 
-## 9. Where things live
+## 10. Where things live
 
 | You're looking for | Path |
 |--------------------|------|

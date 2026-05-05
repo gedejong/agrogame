@@ -1,4 +1,7 @@
-"""Phenology module: thermal time and growth stages."""
+"""Phenology module: thermal time and growth stages.
+
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/phenology.md
+"""
 
 from __future__ import annotations
 

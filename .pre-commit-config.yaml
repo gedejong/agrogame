@@ -72,6 +72,12 @@ repos:
         language: system
         pass_filenames: false
         stages: [manual]
+      - id: docs-coverage
+        name: docs coverage (KB frontmatter + __init__.py links)
+        entry: poetry run python scripts/check_docs_coverage.py
+        language: system
+        pass_filenames: false
+        stages: [manual]
       - id: pytest-with-cov
         name: pytest with coverage
         entry: poetry run pytest --maxfail=1 --disable-warnings

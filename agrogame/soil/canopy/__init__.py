@@ -1,4 +1,7 @@
-"""Canopy growth and light interception module."""
+"""Canopy growth and light interception module.
+
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/canopy.md
+"""
 
 from __future__ import annotations
 

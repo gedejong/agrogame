@@ -1,5 +1,7 @@
 """Public API for the soil water package.
 
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/water.md
+
 This package re-exports the primary classes and events for ease of import:
 `EventBus`, `CascadingBucketWaterModel`, `SoilWaterBalance`, `DailyDrivers`,
 `SoilWaterState`, `WaterFluxes`, and the water events.

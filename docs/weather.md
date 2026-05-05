@@ -1,3 +1,18 @@
+---
+module: agrogame.weather
+doc_type: module
+references:
+  - "FAO-56 (Allen et al. 1998) — reference ET drivers (tmin, tmax, rh, wind, rs)"
+  - "Richardson 1981 — stochastic weather generation"
+key_classes: [WeatherRecord, WeatherSeries, ClimatePreset, ClimateLibrary, SyntheticWeatherGenerator]
+key_events: []
+primary_tests:
+  - tests/test_weather_generator.py
+  - tests/test_weather_ingestion.py
+  - tests/test_weather_interpolation.py
+related_adrs: [ADR-002, ADR-006]
+---
+
 # Weather System
 
 ## Data Sources

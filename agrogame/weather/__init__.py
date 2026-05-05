@@ -1,3 +1,8 @@
+"""Weather drivers — historical loaders, climate presets, synthetic generator.
+
+Docs: https://github.com/gedejong/agrogame/blob/main/docs/weather.md
+"""
+
 from .types import WeatherRecord, WeatherSeries
 from .loader import load_weather, load_weather_auto
 from .presets import ClimatePreset, ClimateLibrary, load_climate_presets
