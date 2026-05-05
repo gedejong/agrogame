@@ -6,6 +6,8 @@ from typing import Any
 
 @dataclass
 class CanopyState:
+    """Mutable canopy state: LAI, biomass partitioning, last computed water stress."""
+
     lai: float
     biomass_g_m2: float
     stem_biomass_g_m2: float = 0.0

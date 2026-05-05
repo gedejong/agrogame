@@ -16,6 +16,8 @@ if TYPE_CHECKING:
 
 @dataclass
 class RootsRuntime:
+    """Wire RootModule to the EventBus; subscribes to DayTick to advance roots daily."""
+
     event_bus: EventBus
     module: RootModule
     state: RootState

@@ -18,6 +18,8 @@ from .responses import EnvironmentalResponses
 
 @dataclass
 class MicrobialParams:
+    """Microbial biomass parameters: turnover, C:N ratio, enzyme economics."""
+
     n_layers: int
     cn_ratio: float = 8.0
     bacteria_turnover_days: float = 30.0
@@ -31,6 +33,8 @@ class MicrobialParams:
 
 @dataclass
 class MicrobialLayerState:
+    """Per-layer microbial pool: C, N, fungal:bacterial fraction."""
+
     c_kg_ha: float = 200.0
     n_kg_ha: float = 25.0
     fungal_fraction: float = 0.4  # remainder bacterial
@@ -38,10 +42,14 @@ class MicrobialLayerState:
 
 @dataclass
 class MicrobialState:
+    """Whole-profile microbial state: list of per-layer pools."""
+
     layers: List[MicrobialLayerState]
 
 
 class MicrobialBiomassModule:
+    """Pure-logic microbial biomass: growth, turnover, fungal:bacterial dynamics."""
+
     def __init__(self, params: MicrobialParams, event_bus: EventBus) -> None:
         self.params = params
         self.event_bus = event_bus

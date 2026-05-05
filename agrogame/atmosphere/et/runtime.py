@@ -26,6 +26,8 @@ _LN2 = math.log(2.0)
 
 @dataclass
 class ETRuntime:
+    """Wire Evapotranspiration to the EventBus; partitions ET daily."""
+
     event_bus: EventBus
     et: Evapotranspiration
     profile: SoilProfile

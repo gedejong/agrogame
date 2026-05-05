@@ -16,6 +16,8 @@ class PhenologyStage(Enum):
 
 @dataclass
 class PhenologyState:
+    """Mutable phenology state: accumulated GDD, current stage, vernalization units."""
+
     accumulated_gdd: float
     stage: PhenologyStage
     vernalization_units: float = 0.0

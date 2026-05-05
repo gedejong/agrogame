@@ -1,3 +1,5 @@
+"""Base class shared by every domain event in the project."""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -17,6 +19,7 @@ class BaseEvent:
     timestamp: datetime = field(default_factory=datetime.utcnow, init=False)
 
     def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-safe dict including ISO timestamp and event_type marker."""
         data = asdict(self)
         # Ensure timestamp is ISO string for logging/JSON
         ts = data.get("timestamp")

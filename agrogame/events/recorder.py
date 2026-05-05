@@ -1,3 +1,5 @@
+"""In-memory event recorder used by tests and visualization tooling."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -9,6 +11,8 @@ from .bus import EventBus
 
 @dataclass
 class RecordedEvent:
+    """One captured event with the day index it was emitted on."""
+
     day_index: Optional[int]
     event_type: str
     module_name: str
@@ -19,11 +23,13 @@ class EventRecorder:
     """Subscribe to BaseEvent and keep an in-memory log for visualization."""
 
     def __init__(self, bus: EventBus) -> None:
+        """Subscribe to BaseEvent on `bus` and start with an empty log."""
         self._events: List[RecordedEvent] = []
         self._current_day: Optional[int] = None
         bus.subscribe(BaseEvent, self._on_event)
 
     def set_day(self, day_index: int) -> None:
+        """Tag subsequent recorded events with `day_index` until changed."""
         self._current_day = day_index
 
     def _on_event(self, event: BaseEvent) -> None:
@@ -38,4 +44,5 @@ class EventRecorder:
 
     @property
     def events(self) -> Sequence[RecordedEvent]:
+        """Immutable snapshot of all events recorded so far."""
         return tuple(self._events)

@@ -20,6 +20,8 @@ from agrogame.plant.roots.events import RootDistributionUpdated
 
 @dataclass
 class MicrobesRuntime:
+    """Wire MicrobialBiomassModule to the EventBus (DayTick + SOM/N events)."""
+
     event_bus: EventBus
     microbes: MicrobialBiomassModule
     profile: SoilProfile | None = None

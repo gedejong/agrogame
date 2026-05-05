@@ -18,9 +18,9 @@ repos:
 
   - repo: local
     hooks:
-      - id: ruff-docstrings-water
-        name: ruff docstrings (water package)
-        entry: poetry run ruff check agrogame/soil/water --select D
+      - id: ruff-docstrings-pilot
+        name: ruff docstrings (pilot packages)
+        entry: poetry run ruff check agrogame/soil/water agrogame/events --select D
         language: system
         pass_filenames: false
 
@@ -75,6 +75,18 @@ repos:
       - id: docs-coverage
         name: docs coverage (KB frontmatter + __init__.py links)
         entry: poetry run python scripts/check_docs_coverage.py
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: class-docstrings
+        name: canonical class docstrings (Params/State/Module/Runtime)
+        entry: poetry run python scripts/check_class_docstrings.py
+        language: system
+        pass_filenames: false
+        stages: [manual]
+      - id: interrogate
+        name: interrogate docstring coverage
+        entry: poetry run interrogate agrogame
         language: system
         pass_filenames: false
         stages: [manual]

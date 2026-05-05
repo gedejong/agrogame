@@ -13,6 +13,8 @@ from agrogame.weather.utils import saturation_vapor_pressure_kpa
 
 @dataclass
 class CanopyRuntime:
+    """Wire CanopyModule to the EventBus; subscribes to DayTick + stress events."""
+
     event_bus: EventBus
     canopy: CanopyModule
     _last_water: float = 1.0
