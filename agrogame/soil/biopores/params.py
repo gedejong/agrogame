@@ -2,7 +2,41 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
+
+
+def _check_unit_interval(name: str, value: float) -> None:
+    """Raise if value is outside [0, 1]."""
+    if not 0.0 <= value <= 1.0:
+        raise ValueError(f"{name} must be in [0, 1], got {value}")
+
+
+def _check_positive(name: str, value: float) -> None:
+    """Raise if value is not strictly > 0."""
+    if value <= 0.0:
+        raise ValueError(f"{name} must be > 0")
+
+
+def _check_non_negative(name: str, value: float) -> None:
+    """Raise if value is < 0."""
+    if value < 0.0:
+        raise ValueError(f"{name} must be >= 0")
+
+
+# Field name → validator. Driven by dataclass field order so adding a field
+# requires only one extra entry here.
+_VALIDATORS = {
+    "conversion_factor": _check_unit_interval,
+    "decay_half_life_days_topsoil": _check_positive,
+    "decay_half_life_days_subsoil": _check_positive,
+    "topsoil_depth_cm": _check_non_negative,
+    "max_density_per_m2": _check_non_negative,
+    "plow_depth_cm": _check_non_negative,
+    "tillage_destruction_max_frac": _check_unit_interval,
+    "compaction_sensitivity": _check_unit_interval,
+    "mean_radius_mm": _check_positive,
+    "root_density_g_per_cm3": _check_positive,
+}
 
 
 @dataclass(frozen=True)
@@ -53,25 +87,7 @@ class BioporeParams:
 
     def __post_init__(self) -> None:
         """Validate params at construction time (frozen-dataclass pattern)."""
-        if not 0.0 <= self.conversion_factor <= 1.0:
-            raise ValueError(
-                f"conversion_factor must be in [0, 1], got {self.conversion_factor}"
-            )
-        if self.decay_half_life_days_topsoil <= 0.0:
-            raise ValueError("decay_half_life_days_topsoil must be > 0")
-        if self.decay_half_life_days_subsoil <= 0.0:
-            raise ValueError("decay_half_life_days_subsoil must be > 0")
-        if self.topsoil_depth_cm < 0.0:
-            raise ValueError("topsoil_depth_cm must be >= 0")
-        if self.max_density_per_m2 < 0.0:
-            raise ValueError("max_density_per_m2 must be >= 0")
-        if self.plow_depth_cm < 0.0:
-            raise ValueError("plow_depth_cm must be >= 0")
-        if not 0.0 <= self.tillage_destruction_max_frac <= 1.0:
-            raise ValueError("tillage_destruction_max_frac must be in [0, 1]")
-        if not 0.0 <= self.compaction_sensitivity <= 1.0:
-            raise ValueError("compaction_sensitivity must be in [0, 1]")
-        if self.mean_radius_mm <= 0.0:
-            raise ValueError("mean_radius_mm must be > 0")
-        if self.root_density_g_per_cm3 <= 0.0:
-            raise ValueError("root_density_g_per_cm3 must be > 0")
+        for f in fields(self):
+            validator = _VALIDATORS.get(f.name)
+            if validator is not None:
+                validator(f.name, getattr(self, f.name))

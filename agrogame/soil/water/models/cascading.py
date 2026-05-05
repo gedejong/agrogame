@@ -117,6 +117,122 @@ class CascadingBucketWaterModel(SoilWaterModel):
             )
         return remaining
 
+    def _drain_saturation_excess(
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        porosity_overrides: list[float],
+    ) -> float:
+        """Pre-pass: expel water exceeding adjusted saturation to deep drainage.
+
+        When aggregation degrades mid-season (B1 fix), porosity may drop below
+        current theta — push the excess straight to deep drainage.
+        """
+        deep_drainage = 0.0
+        for i, layer in enumerate(profile.layers):
+            if i >= len(porosity_overrides):
+                break
+            current = state.layer_storage_mm(profile, i)
+            sat_cap = porosity_overrides[i] * layer.depth_cm * 10.0
+            sat_excess = max(0.0, current - sat_cap)
+            if sat_excess <= 1e-9:
+                continue
+            state.set_layer_storage_mm(profile, i, sat_cap)
+            deep_drainage += sat_excess
+            if self.event_bus:
+                self.event_bus.emit(
+                    WaterDrained(from_layer=i, to_layer=-1, amount_mm=sat_excess)
+                )
+        return deep_drainage
+
+    @staticmethod
+    def _layer_capacity(
+        profile: SoilProfile,
+        layer_idx: int,
+        porosity_overrides: list[float] | None,
+    ) -> float:
+        """Saturation capacity (mm) for a layer, honouring porosity overrides."""
+        layer = profile.layers[layer_idx]
+        sat = (
+            porosity_overrides[layer_idx]
+            if porosity_overrides and layer_idx < len(porosity_overrides)
+            else layer.saturation
+        )
+        return sat * layer.depth_cm * 10.0
+
+    def _drain_fc_excess_to_next_layer(
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        layer_idx: int,
+        drainable: float,
+        porosity_overrides: list[float] | None,
+    ) -> float:
+        """Move FC-excess from layer_idx into layer_idx+1; return overflow."""
+        nxt_idx = layer_idx + 1
+        nxt = state.layer_storage_mm(profile, nxt_idx)
+        nxt_room = max(
+            0.0, self._layer_capacity(profile, nxt_idx, porosity_overrides) - nxt
+        )
+        moved = min(nxt_room, drainable)
+        if moved > 0:
+            state.set_layer_storage_mm(profile, nxt_idx, nxt + moved)
+            if self.event_bus:
+                self.event_bus.emit(
+                    WaterDrained(
+                        from_layer=layer_idx, to_layer=nxt_idx, amount_mm=moved
+                    )
+                )
+        return drainable - moved
+
+    def _drain_fc_excess_to_deep(self, layer_idx: int, amount_mm: float) -> float:
+        """Send FC-excess from layer_idx to deep drainage; emit event."""
+        if amount_mm <= 0.0:
+            return 0.0
+        if self.event_bus:
+            self.event_bus.emit(
+                WaterDrained(from_layer=layer_idx, to_layer=-1, amount_mm=amount_mm)
+            )
+        return amount_mm
+
+    def _drain_layer_fc_excess(
+        self,
+        profile: SoilProfile,
+        state: SoilWaterState,
+        layer_idx: int,
+        ksat_factors: list[float] | None,
+        porosity_overrides: list[float] | None,
+    ) -> float:
+        """Drain water above FC for one layer; return deep-drainage contribution.
+
+        Limit drainage by ksat: poorly aggregated soil drains slower.
+        ksat_factor < 1 retains some excess above FC (waterlogging).
+        Cap at 1.0: in a daily bucket model, the base case already drains
+        100% of FC-excess per day. kf > 1 (well-aggregated) cannot accelerate
+        beyond instant drainage — benefit manifests as increased
+        porosity/capacity instead. Ref: Dexter 2004.
+        """
+        layer = profile.layers[layer_idx]
+        current = state.layer_storage_mm(profile, layer_idx)
+        fc_storage = layer.field_capacity * layer.depth_cm * 10.0
+        excess = max(0.0, current - fc_storage)
+        if excess <= 1e-9:
+            return 0.0
+        kf = (
+            ksat_factors[layer_idx]
+            if ksat_factors and layer_idx < len(ksat_factors)
+            else 1.0
+        )
+        drainable = excess * min(1.0, kf)
+        retained = excess - drainable
+        state.set_layer_storage_mm(profile, layer_idx, fc_storage + retained)
+        if layer_idx + 1 < len(profile.layers):
+            leftover = self._drain_fc_excess_to_next_layer(
+                profile, state, layer_idx, drainable, porosity_overrides
+            )
+            return self._drain_fc_excess_to_deep(layer_idx, leftover)
+        return self._drain_fc_excess_to_deep(layer_idx, drainable)
+
     def _cascade_excess(
         self,
         profile: SoilProfile,
@@ -126,72 +242,14 @@ class CascadingBucketWaterModel(SoilWaterModel):
     ) -> float:
         """Cascade water above field capacity to lower layers or deep drainage."""
         deep_drainage = 0.0
-        # First pass: expel water exceeding adjusted saturation (B1 fix).
-        # When aggregation degrades mid-season, porosity may drop below
-        # current theta — push excess to deep drainage immediately.
         if porosity_overrides:
-            for i, layer in enumerate(profile.layers):
-                if i >= len(porosity_overrides):
-                    break
-                current = state.layer_storage_mm(profile, i)
-                sat_cap = porosity_overrides[i] * layer.depth_cm * 10.0
-                sat_excess = max(0.0, current - sat_cap)
-                if sat_excess > 1e-9:
-                    state.set_layer_storage_mm(profile, i, sat_cap)
-                    deep_drainage += sat_excess
-                    if self.event_bus:
-                        self.event_bus.emit(
-                            WaterDrained(
-                                from_layer=i, to_layer=-1, amount_mm=sat_excess
-                            )
-                        )
-        # Second pass: drain FC excess.
-        for i, layer in enumerate(profile.layers):
-            current = state.layer_storage_mm(profile, i)
-            fc_storage = layer.field_capacity * layer.depth_cm * 10.0
-            excess = max(0.0, current - fc_storage)
-            if excess <= 1e-9:
-                continue
-            # Limit drainage by ksat: poorly aggregated soil drains slower.
-            # ksat_factor < 1 retains some excess above FC (waterlogging).
-            # Cap at 1.0: in a daily bucket model, the base case already drains
-            # 100% of FC-excess per day. kf > 1 (well-aggregated) cannot
-            # accelerate beyond instant drainage — benefit manifests as
-            # increased porosity/capacity instead. Ref: Dexter 2004.
-            kf = ksat_factors[i] if ksat_factors and i < len(ksat_factors) else 1.0
-            drainable = excess * min(1.0, kf)
-            retained = excess - drainable
-            state.set_layer_storage_mm(profile, i, fc_storage + retained)
-            if i + 1 < len(profile.layers):
-                nxt = state.layer_storage_mm(profile, i + 1)
-                nxt_layer = profile.layers[i + 1]
-                sat = (
-                    porosity_overrides[i + 1]
-                    if porosity_overrides and i + 1 < len(porosity_overrides)
-                    else nxt_layer.saturation
-                )
-                nxt_capacity = sat * nxt_layer.depth_cm * 10.0
-                nxt_room = max(0.0, nxt_capacity - nxt)
-                moved = min(nxt_room, drainable)
-                if moved > 0:
-                    state.set_layer_storage_mm(profile, i + 1, nxt + moved)
-                    if self.event_bus and moved > 0:
-                        self.event_bus.emit(
-                            WaterDrained(from_layer=i, to_layer=i + 1, amount_mm=moved)
-                        )
-                leftover = drainable - moved
-                if leftover > 0:
-                    deep_drainage += leftover
-                    if self.event_bus and leftover > 0:
-                        self.event_bus.emit(
-                            WaterDrained(from_layer=i, to_layer=-1, amount_mm=leftover)
-                        )
-            else:
-                deep_drainage += drainable
-                if self.event_bus and drainable > 0:
-                    self.event_bus.emit(
-                        WaterDrained(from_layer=i, to_layer=-1, amount_mm=drainable)
-                    )
+            deep_drainage += self._drain_saturation_excess(
+                profile, state, porosity_overrides
+            )
+        for i in range(len(profile.layers)):
+            deep_drainage += self._drain_layer_fc_excess(
+                profile, state, i, ksat_factors, porosity_overrides
+            )
         return deep_drainage
 
     def update_daily(
