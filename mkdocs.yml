@@ -42,6 +42,7 @@ nav:
       - Game Loop & Turns: adr/ADR-004-game-loop-turn-system.md
       - Frontend Architecture: adr/ADR-005-frontend-architecture.md
       - Performance Strategy: adr/ADR-006-performance-strategy.md
+      - 3D Rendering Migration: adr/ADR-007-3d-rendering-migration.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md

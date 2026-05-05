@@ -5,7 +5,8 @@ new module: read this in five minutes, then go build. Documents what the
 codebase already does — not aspirational future state. Drift fixes are tracked
 under audit umbrella **#280**.
 
-For frontend (Godot/GDScript) conventions, see [CLAUDE.md](../CLAUDE.md) §
+For frontend (Godot/GDScript) conventions, see
+[CLAUDE.md](https://github.com/gedejong/agrogame/blob/main/CLAUDE.md) §
 "Code Style (GDScript)".
 
 ## 1. Module shape

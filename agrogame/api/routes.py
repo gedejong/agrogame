@@ -14,6 +14,7 @@ from agrogame.api.models import (
     ActionResponse,
     CostBreakdown,
     CreateGameRequest,
+    DailySnapshot,
     DayResultResponse,
     DayWeatherResponse,
     ForecastDayResponse,
@@ -501,33 +502,134 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
     )
 
 
+def _reset_session_for_new_season(s: GameSession) -> None:
+    """Reset session state when /step is called after a finished season."""
+    s.weather = []
+    s.day_index = 0
+    _reset_all_crops(s)
+    s.run_count += 1
+    s.season_settled = False
+    s.ledger.reset_season()
+    s.turn_manager = None
+
+
+def _build_daily_snapshot(
+    fid: str,
+    pi: int,
+    p: "Patch",
+    rec: WeatherRecord,
+    day_num: int,
+    day_date: str,
+) -> DailySnapshot:
+    """Build one DailySnapshot for a patch from its current orchestrator state."""
+    snap = p.orch.snapshot_soil()
+    n_total = sum(snap.n_no3) + sum(snap.n_nh4)
+    theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+    return DailySnapshot(
+        day_number=day_num,
+        date=day_date,
+        field_id=fid,
+        patch_idx=pi,
+        crop_stage=p.orch.phenology.state.stage.value,
+        lai=round(p.orch.canopy.state.lai, 2),
+        grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
+        water_stress=round(p.orch.canopy.state.last_water_stress, 2),
+        soil_theta_surface=round(theta_top, 4),
+        n_available_total=round(n_total, 1),
+        redox_eh_surface=(round(snap.redox_eh[0], 1) if snap.redox_eh else 400.0),
+        fe_available_surface=(
+            round(snap.micro_fe_avail[0], 2) if snap.micro_fe_avail else 10.0
+        ),
+        zn_available_surface=(
+            round(snap.micro_zn_avail[0], 3) if snap.micro_zn_avail else 1.2
+        ),
+        mn_available_surface=(
+            round(snap.micro_mn_avail[0], 2) if snap.micro_mn_avail else 18.0
+        ),
+        agg_mwd_surface=(
+            round(
+                snap.agg_micro[0] * 0.01
+                + snap.agg_meso[0] * 0.135
+                + snap.agg_macro[0] * 2.0,
+                3,
+            )
+            if snap.agg_macro
+            else 0.55
+        ),
+        rain_mm=round(rec.precip_mm or 0.0, 1),
+        events=_serialize_events(p),
+    )
+
+
+def _run_day_step(s: GameSession, idx: int, rec: WeatherRecord) -> list:
+    """Run one day's simulation step and return per-patch snapshots."""
+    from agrogame.soil.water.types import DailyDrivers as _DD
+
+    for fld in s.field_manager.fields.values():
+        for p in fld.patches:
+            p.recorder.clear()
+            p.recorder.set_day(idx)
+    drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
+    # Debug: force saturation before step so redox sees high WFPS
+    _maybe_force_saturation(s, rec)
+    s.field_manager.step_day(
+        drivers=drivers,
+        tmin_c=rec.tmin_c,
+        tmax_c=rec.tmax_c,
+        par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+        sim_date=rec.day,
+    )
+    day_num = idx + 1
+    day_date = str(rec.day) if rec.day else ""
+    snapshots = []
+    for fid, fld in s.field_manager.fields.items():
+        for pi, p in enumerate(fld.patches):
+            snapshots.append(_build_daily_snapshot(fid, pi, p, rec, day_num, day_date))
+    return snapshots
+
+
+def _finalize_season(s: GameSession) -> None:
+    """Create SeasonResult so /report works after season completion."""
+    from agrogame.game.turn import SeasonResult
+
+    first_field = next(iter(s.field_manager.fields.values()))
+    first_patch = first_field.patches[0]
+    grain = first_patch.orch.canopy.state.grain_biomass_g_m2
+    if not s.turn_manager:
+        s.turn_manager = GameTurnManager(
+            orch=first_patch.orch,
+            weather=s.weather,
+            crop_key=first_patch.config.crop_key,
+        )
+    s.turn_manager.current_day = s.day_index
+    s.turn_manager.result = SeasonResult(
+        total_days=s.day_index,
+        grain_g_m2=grain,
+        grain_kg_ha=grain * 10.0,
+        pause_count=0,
+        crop_key=first_patch.config.crop_key,
+    )
+    s.run_count += 1
+
+
 @router.post("/games/{game_id}/step", response_model=DayResultResponse)
 def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     """Advance the simulation by N days."""
+    from datetime import timedelta
+
     s = _get_session(game_id)
     if not s.field_manager.fields:
         raise HTTPException(400, "No fields configured")
     # If weather was consumed by /start-season, regenerate for new stepping
     if s.weather and s.day_index >= len(s.weather):
-        s.weather = []
-        s.day_index = 0
-        _reset_all_crops(s)
-        s.run_count += 1
-        s.season_settled = False
-        s.ledger.reset_season()
-        s.turn_manager = None
+        _reset_session_for_new_season(s)
     _ensure_weather(s, seed)
-
-    from agrogame.soil.water.types import DailyDrivers as _DD
-    from datetime import timedelta
 
     steps = min(days, len(s.weather) - s.day_index)
     if steps <= 0:
         raise HTTPException(400, "Season complete — no more days to simulate")
 
-    from agrogame.api.models import DailySnapshot
-
-    snapshots: list[DailySnapshot] = []
+    snapshots: list = []
     last_rec = s.weather[s.day_index]
     for i in range(steps):
         idx = s.day_index + i
@@ -535,72 +637,7 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
             break
         rec = s.weather[idx]
         last_rec = rec
-        for fld in s.field_manager.fields.values():
-            for p in fld.patches:
-                p.recorder.clear()
-                p.recorder.set_day(s.day_index + i)
-        drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
-        # Debug: force saturation before step so redox sees high WFPS
-        _maybe_force_saturation(s, rec)
-        s.field_manager.step_day(
-            drivers=drivers,
-            tmin_c=rec.tmin_c,
-            tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
-            sim_date=rec.day,
-        )
-        day_num = s.day_index + i + 1
-        day_date = str(rec.day) if rec.day else ""
-        for fid, fld in s.field_manager.fields.items():
-            for pi, p in enumerate(fld.patches):
-                snap = p.orch.snapshot_soil()
-                n_total = sum(snap.n_no3) + sum(snap.n_nh4)
-                theta_top = snap.water_theta[0] if snap.water_theta else 0.0
-                patch_events = _serialize_events(p)
-                snapshots.append(
-                    DailySnapshot(
-                        day_number=day_num,
-                        date=day_date,
-                        field_id=fid,
-                        patch_idx=pi,
-                        crop_stage=p.orch.phenology.state.stage.value,
-                        lai=round(p.orch.canopy.state.lai, 2),
-                        grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
-                        water_stress=round(p.orch.canopy.state.last_water_stress, 2),
-                        soil_theta_surface=round(theta_top, 4),
-                        n_available_total=round(n_total, 1),
-                        redox_eh_surface=(
-                            round(snap.redox_eh[0], 1) if snap.redox_eh else 400.0
-                        ),
-                        fe_available_surface=(
-                            round(snap.micro_fe_avail[0], 2)
-                            if snap.micro_fe_avail
-                            else 10.0
-                        ),
-                        zn_available_surface=(
-                            round(snap.micro_zn_avail[0], 3)
-                            if snap.micro_zn_avail
-                            else 1.2
-                        ),
-                        mn_available_surface=(
-                            round(snap.micro_mn_avail[0], 2)
-                            if snap.micro_mn_avail
-                            else 18.0
-                        ),
-                        agg_mwd_surface=(
-                            round(
-                                snap.agg_micro[0] * 0.01
-                                + snap.agg_meso[0] * 0.135
-                                + snap.agg_macro[0] * 2.0,
-                                3,
-                            )
-                            if snap.agg_macro
-                            else 0.55
-                        ),
-                        rain_mm=round(rec.precip_mm or 0.0, 1),
-                        events=patch_events,
-                    )
-                )
+        snapshots.extend(_run_day_step(s, idx, rec))
 
     s.day_index += steps
     s.current_date = s.current_date + timedelta(days=steps)
@@ -608,28 +645,8 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     result = _build_day_result(s, last_rec)
     result.daily_snapshots = snapshots
 
-    # Create SeasonResult when season completes so /report works
     if result.season_complete and (not s.turn_manager or not s.turn_manager.result):
-        from agrogame.game.turn import GameTurnManager, SeasonResult
-
-        first_field = next(iter(s.field_manager.fields.values()))
-        first_patch = first_field.patches[0]
-        grain = first_patch.orch.canopy.state.grain_biomass_g_m2
-        if not s.turn_manager:
-            s.turn_manager = GameTurnManager(
-                orch=first_patch.orch,
-                weather=s.weather,
-                crop_key=first_patch.config.crop_key,
-            )
-        s.turn_manager.current_day = s.day_index
-        s.turn_manager.result = SeasonResult(
-            total_days=s.day_index,
-            grain_g_m2=grain,
-            grain_kg_ha=grain * 10.0,
-            pause_count=0,
-            crop_key=first_patch.config.crop_key,
-        )
-        s.run_count += 1
+        _finalize_season(s)
 
     return result
 
