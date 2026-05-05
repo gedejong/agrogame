@@ -18,6 +18,8 @@ from agrogame.sim.calendar_events import DayTick
 
 
 class SoilChemistryModule:
+    """Per-layer pH state; reacts to lime, fertilizer, and N/P transformations."""
+
     def __init__(self, event_bus: EventBus, n_layers: int, base_ph: float = 6.8):
         self.event_bus = event_bus
         self._ph: List[float] = [float(base_ph)] * n_layers

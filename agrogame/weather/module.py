@@ -7,6 +7,8 @@ from .types import WeatherSeries
 
 
 class WeatherModule:
+    """Pure-logic weather emitter — fires DailyWeather for a given day index."""
+
     def __init__(self, series: WeatherSeries, event_bus: EventBus) -> None:
         self.series = series
         self.event_bus = event_bus

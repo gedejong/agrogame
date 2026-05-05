@@ -13,6 +13,8 @@ from agrogame.soil.redox.params import RedoxParams
 
 @dataclass
 class PhosphorusRuntime:
+    """Wire PhosphorusCycle to the EventBus; subscribes to DayTick + RedoxChanged."""
+
     event_bus: EventBus
     cycle: PhosphorusCycle
     _stress: StressCalculator | None = None

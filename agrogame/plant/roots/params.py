@@ -8,6 +8,8 @@ from agrogame.soil.phenology import PhenologyStage
 
 @dataclass(frozen=True)
 class RootParams:
+    """Immutable params for root growth, depth, and nutrient-driven proliferation."""
+
     max_depth_cm: float = 120.0
     growth_rate_cm_per_day: float = 1.5
     distribution: str = "exponential"  # or "uniform"

@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class CanopyParams:
+    """Frozen canopy parameters: light interception, RUE, LAI dynamics, senescence."""
+
     extinction_coefficient_k: float  # unitless Beer-Lambert k
     radiation_use_efficiency_g_per_mj: float  # g biomass per MJ intercepted PAR
     specific_leaf_area_m2_per_g: float  # SLA

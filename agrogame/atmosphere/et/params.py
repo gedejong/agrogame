@@ -5,6 +5,8 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class EtParams:
+    """Frozen ET parameters: method, Ritchie soil-evap stages, canopy coupling."""
+
     method: str = "priestley-taylor"  # or "penman-monteith"
     # Priestley–Taylor
     pt_alpha: float = 1.26

@@ -18,6 +18,8 @@ from .types import RootFluxes, RootState
 
 
 class RootModule:
+    """Pure-logic root growth: depth elongation, layer-fraction allocation, turnover."""
+
     def __init__(self, params: RootParams, event_bus: EventBus | None = None) -> None:
         self.params = params
         self.event_bus = event_bus

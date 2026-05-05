@@ -12,6 +12,8 @@ from agrogame.soil.redox.events import RedoxChanged
 
 @dataclass
 class NitrogenRuntime:
+    """Wire NitrogenCycle to the EventBus; subscribes to DayTick + RedoxChanged."""
+
     event_bus: EventBus
     cycle: NitrogenCycle
     _stress: StressCalculator | None = None

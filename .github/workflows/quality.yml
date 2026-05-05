@@ -53,6 +53,12 @@ jobs:
       - name: Knowledge-base coverage (#295)
         run: poetry run python scripts/check_docs_coverage.py
 
+      - name: Canonical class docstrings (#296)
+        run: poetry run python scripts/check_class_docstrings.py
+
+      - name: Interrogate docstring coverage (#296)
+        run: poetry run interrogate agrogame
+
       - name: Deptry dependency hygiene
         run: poetry run deptry agrogame
 

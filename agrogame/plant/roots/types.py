@@ -6,6 +6,8 @@ from typing import Any, List
 
 @dataclass
 class RootState:
+    """Mutable per-day root state: depth, biomass, per-layer fractions."""
+
     current_depth_cm: float = 5.0
     biomass_g_m2: float = 0.0
     layer_fractions: List[float] | None = None

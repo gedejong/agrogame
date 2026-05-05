@@ -243,6 +243,158 @@ def test_real_repo_passes():
     assert result.packages_required >= 8
 
 
+def test_internal_link_to_existing_file_passes(fake_repo):
+    """A relative link in a docs page that resolves on disk is OK."""
+    _, pkg_root, docs_root = fake_repo
+    init = textwrap.dedent(
+        '''\
+        """foo.
+
+        Docs: https://github.com/gedejong/agrogame/blob/main/docs/foo.md
+        """
+        '''
+    )
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    _make_doc(
+        docs_root,
+        "bar.md",
+        module="agrogame.foo",  # not used; just give it valid frontmatter
+        body="See [foo](foo.md) for details.\n",
+    )
+    # bar.md has duplicate module — drop frontmatter; we're checking links only.
+    (docs_root / "bar.md").write_text("See [foo](foo.md) for details.\n")
+    result = check_docs_coverage.run()
+    assert result.ok, result.errors
+
+
+def test_internal_link_to_missing_file_fails(fake_repo):
+    """A relative link with a missing target fails the gate."""
+    _, pkg_root, docs_root = fake_repo
+    init = textwrap.dedent(
+        '''\
+        """foo.
+
+        Docs: https://github.com/gedejong/agrogame/blob/main/docs/foo.md
+        """
+        '''
+    )
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    (docs_root / "bar.md").write_text("See [missing](does-not-exist.md).\n")
+    result = check_docs_coverage.run()
+    assert not result.ok
+    assert any("broken link" in e for e in result.errors)
+
+
+def test_internal_link_in_code_block_skipped(fake_repo):
+    """Markdown inside fenced code blocks is not parsed as links."""
+    _, pkg_root, docs_root = fake_repo
+    init = textwrap.dedent(
+        '''\
+        """foo.
+
+        Docs: https://github.com/gedejong/agrogame/blob/main/docs/foo.md
+        """
+        '''
+    )
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    (docs_root / "snippet.md").write_text(
+        "Example:\n```python\nraw = MIGRATIONS[version](raw)\n```\n"
+    )
+    result = check_docs_coverage.run()
+    assert result.ok, result.errors
+
+
+def test_external_links_skipped(fake_repo):
+    """http/https/mailto/mdc/anchor links are not validated."""
+    _, pkg_root, docs_root = fake_repo
+    init = textwrap.dedent(
+        '''\
+        """foo.
+
+        Docs: https://github.com/gedejong/agrogame/blob/main/docs/foo.md
+        """
+        '''
+    )
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    (docs_root / "ext.md").write_text(
+        "[abs](https://example.com) [mail](mailto:a@b.c) "
+        "[mdc](mdc:docs/foo.md) [anchor](#section)\n"
+    )
+    result = check_docs_coverage.run()
+    assert result.ok, result.errors
+
+
+def test_adr_section_check_passes(fake_repo):
+    """ADRs containing all required sections satisfy the check."""
+    _, pkg_root, docs_root = fake_repo
+    docs_url = "https://github.com/gedejong/agrogame/blob/main/docs/foo.md"
+    init = f'"""foo.\n\nDocs: {docs_url}\n"""\n'
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    adr_dir = docs_root / "adr"
+    adr_dir.mkdir()
+    (adr_dir / "ADR-001-example.md").write_text(
+        textwrap.dedent(
+            """\
+            # ADR-001: Example
+
+            ## Status: Accepted
+
+            ## Context
+
+            Body.
+
+            ## Decision
+
+            Body.
+
+            ## Consequences
+
+            Body.
+            """
+        )
+    )
+    result = check_docs_coverage.run()
+    assert result.ok, result.errors
+
+
+def test_adr_missing_section_fails(fake_repo):
+    """An ADR missing one of the required sections fails the gate."""
+    _, pkg_root, docs_root = fake_repo
+    docs_url = "https://github.com/gedejong/agrogame/blob/main/docs/foo.md"
+    init = f'"""foo.\n\nDocs: {docs_url}\n"""\n'
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    adr_dir = docs_root / "adr"
+    adr_dir.mkdir()
+    # Missing the Consequences section
+    (adr_dir / "ADR-002-bad.md").write_text(
+        "# ADR-002\n\n## Status\n\n## Context\n\n## Decision\n"
+    )
+    result = check_docs_coverage.run()
+    assert not result.ok
+    assert any("Consequences" in e and "ADR-002" in e for e in result.errors)
+
+
+def test_adr_template_skipped(fake_repo):
+    """`_template.md` under docs/adr/ is exempt from the section check."""
+    _, pkg_root, docs_root = fake_repo
+    docs_url = "https://github.com/gedejong/agrogame/blob/main/docs/foo.md"
+    init = f'"""foo.\n\nDocs: {docs_url}\n"""\n'
+    _make_pkg(pkg_root, "foo", init_body=init)
+    _make_doc(docs_root, "foo.md", module="agrogame.foo")
+    adr_dir = docs_root / "adr"
+    adr_dir.mkdir()
+    # Template starts with underscore — should be skipped
+    (adr_dir / "_template.md").write_text("# Template\nNo sections here.\n")
+    result = check_docs_coverage.run()
+    assert result.ok, result.errors
+
+
 def test_schema_validates_example_frontmatter():
     """The schema accepts the canonical example frontmatter from the AC."""
     schema_path = ROOT / "docs" / "knowledge-base-schema.json"

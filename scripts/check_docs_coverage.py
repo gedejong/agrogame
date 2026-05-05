@@ -51,6 +51,20 @@ PACKAGE_ALLOWLIST: frozenset[str] = frozenset(
 )
 
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
+# Required ADR sections per docs/adr/_template.md (#296). Match `## Status`
+# or `## Status: <state>` — both forms are in use historically.
+ADR_REQUIRED_SECTIONS: tuple[str, ...] = (
+    "Status",
+    "Context",
+    "Decision",
+    "Consequences",
+)
+# Markdown link pattern — captures inline links of the form [text](target).
+# Skips reference-style links and bare URLs; those are caught by mkdocs --strict.
+LINK_RE = re.compile(r"\[(?:[^\]]+)\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
+# Repo-root files that we explicitly allow as link targets even though they
+# live outside docs/. Justified case-by-case in docs/conventions.md.
+ROOT_LINK_WHITELIST: frozenset[str] = frozenset({"CLAUDE.md", "README.md"})
 
 
 @dataclass
@@ -213,6 +227,116 @@ def _check_init_link(module_name: str, page: DocPage, result: CheckResult) -> No
         )
 
 
+def _is_external(target: str) -> bool:
+    """Return True for absolute URLs, mailto, anchors-only, and mdc:// hrefs."""
+    if target.startswith(("http://", "https://", "mailto:", "ftp://", "mdc:")):
+        return True
+    if target.startswith("#"):
+        return True
+    return False
+
+
+def _resolve_link_target(page_path: Path, target: str) -> Path:
+    """Resolve a relative markdown link to an on-disk path.
+
+    Strips any ``#fragment`` and ``?query``; resolves against the page's
+    parent directory. The returned path is **not** guaranteed to exist —
+    that's checked separately.
+    """
+    no_frag = target.split("#", 1)[0].split("?", 1)[0]
+    if not no_frag:
+        # Pure fragment ("#section") — already filtered out by _is_external.
+        return page_path
+    return (page_path.parent / no_frag).resolve()
+
+
+def _check_adr_sections(result: CheckResult) -> None:
+    """Every ``docs/adr/ADR-*.md`` must contain the required template sections.
+
+    Sections may be combined (e.g. ``## Status: Accepted``) or standalone
+    (``## Status`` followed by body content). Files starting with an
+    underscore (``_template.md``) are skipped.
+    """
+    adr_dir = DOCS_ROOT / "adr"
+    if not adr_dir.exists():
+        return
+    section_patterns = {
+        name: re.compile(rf"^##\s+{re.escape(name)}\b", re.MULTILINE)
+        for name in ADR_REQUIRED_SECTIONS
+    }
+    for adr in sorted(adr_dir.glob("ADR-*.md")):
+        if adr.name.startswith("_"):
+            continue
+        try:
+            text = adr.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        rel = adr.relative_to(ROOT)
+        for name, pattern in section_patterns.items():
+            if not pattern.search(text):
+                result.fail(
+                    f"{rel}: missing required section '## {name}' "
+                    f"(see docs/adr/_template.md)"
+                )
+
+
+def _strip_code_blocks(text: str) -> str:
+    r"""Remove fenced code blocks so link parsing doesn't match code syntax.
+
+    Replaces fenced blocks (```...```) and inline code spans (`...`) with
+    empty strings. Indented code blocks are not stripped — they are
+    uncommon in this codebase's docs and the false-positive risk is low
+    enough to defer until it bites.
+    """
+    no_fenced = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+    return re.sub(r"`[^`\n]+`", "", no_fenced)
+
+
+def _check_internal_links(result: CheckResult) -> None:
+    """Walk every relative markdown link in docs/**/*.md and verify it resolves.
+
+    External URLs (http/https/mailto), ``mdc://`` editor URIs, and pure
+    in-page anchors are skipped. Targets are accepted if they:
+
+    - point at an existing file inside ``docs/``;
+    - point at an existing file at the repo root listed in
+      :data:`ROOT_LINK_WHITELIST` (e.g. ``CLAUDE.md``);
+    - resolve to an absolute URL via ``GITHUB_URL_BASE`` (those are external).
+
+    Links to nonexistent targets fail the gate.
+    """
+    docs_resolved = DOCS_ROOT.resolve()
+    for md in sorted(DOCS_ROOT.rglob("*.md")):
+        try:
+            text = md.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        text = _strip_code_blocks(text)
+        rel_md = md.relative_to(ROOT)
+        for match in LINK_RE.finditer(text):
+            target = match.group(1).strip()
+            if _is_external(target):
+                continue
+            resolved = _resolve_link_target(md, target)
+            if resolved.exists():
+                continue
+            # Allow links to whitelisted repo-root files even if the target
+            # path resolves above docs/ (e.g. ../CLAUDE.md from a docs page).
+            try:
+                resolved.relative_to(docs_resolved)
+                inside_docs = True
+            except ValueError:
+                inside_docs = False
+            if not inside_docs:
+                rel_to_root = resolved.name
+                if rel_to_root in ROOT_LINK_WHITELIST and resolved.exists():
+                    continue
+            result.fail(
+                f"{rel_md}: broken link '{target}' "
+                f"(resolved to {resolved}, file does not exist)"
+            )
+
+
 def _filter_packages(packages: Iterable[str], only: str | None) -> list[str]:
     """Restrict to a single package when --package is supplied."""
     pkgs = list(packages)
@@ -264,6 +388,12 @@ def run(only: str | None = None) -> CheckResult:
         if module_name in required:
             continue  # already checked
         _check_key_classes(page, result)
+
+    # Internal-link integrity + ADR section presence (#296). Skipped when
+    # --package narrows scope because these are doc-tree-wide concerns.
+    if only is None:
+        _check_internal_links(result)
+        _check_adr_sections(result)
 
     return result
 

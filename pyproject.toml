@@ -49,6 +49,7 @@ emcee = "^3.1"
 corner = "^2.2"
 pytest-xdist = "^3.8.0"
 httpx = "^0.28.1"
+interrogate = "^1.7.0"
 
 [tool.poetry.scripts]
 simulate = "agrogame.cli:main"
@@ -94,6 +95,27 @@ ignore = []
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.interrogate]
+# Project-wide docstring-coverage floor. Phase 3 of #293 prescribes 90% as
+# the eventual target; the current baseline is ~53% (a follow-up tracks the
+# bulk fill). The floor is set as a ratchet — each subsequent PR raises it
+# until we hit 90%. The 100% gate on *Params/*State/*Module/*Runtime classes
+# is enforced separately by scripts/check_class_docstrings.py, since
+# interrogate cannot key on a name pattern alone.
+fail-under = 50
+exclude = ["agrogame/dashboard", "agrogame/plots"]
+ignore-init-module = true
+ignore-init-method = true
+ignore-magic = true
+ignore-private = true
+ignore-property-decorators = true
+ignore-nested-functions = true
+ignore-nested-classes = true
+verbose = 1
+quiet = false
+omit-covered-files = false
+color = true
 
 [tool.pytest.ini_options]
 addopts = "--maxfail=1 --disable-warnings --cov=agrogame --cov-report=term-missing --cov-config=.coveragerc --cov-fail-under=92"

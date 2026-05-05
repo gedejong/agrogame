@@ -10,6 +10,8 @@ from .module import PhenologyModule
 
 @dataclass
 class PhenologyRuntime:
+    """Wire PhenologyModule to the EventBus; subscribes to DayTick to advance GDD."""
+
     event_bus: EventBus
     phenology: PhenologyModule
     latitude_deg: float = 52.0

@@ -12,6 +12,8 @@ class GrowthStageThresholds:
 
 @dataclass(frozen=True)
 class CropPhenologyParams:
+    """Frozen phenology params: GDD base/max, stages, photoperiod, vernalization."""
+
     base_temperature_c: float
     max_temperature_c: float
     thresholds: GrowthStageThresholds
