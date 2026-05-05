@@ -24,7 +24,6 @@ Refs:
 
 from __future__ import annotations
 
-from typing import List
 
 from agrogame.soil.models import SoilProfile
 
@@ -32,12 +31,12 @@ _EPS = 1e-9
 
 
 def compute_exchange_mm(
-    theta_macro: List[float],
-    theta_matrix: List[float],
+    theta_macro: list[float],
+    theta_matrix: list[float],
     profile: SoilProfile,
     alpha_w_per_day: float,
-    macro_frac: List[float],
-) -> List[float]:
+    macro_frac: list[float],
+) -> list[float]:
     """Per-layer macropore-to-matrix exchange (mm/day).
 
     Positive return value = macro → matrix (macropore water diffusing
@@ -59,7 +58,7 @@ def compute_exchange_mm(
         Per-layer exchange amount in mm. List length = min of inputs.
     """
     n = min(len(theta_macro), len(theta_matrix), len(profile.layers), len(macro_frac))
-    out: List[float] = []
+    out: list[float] = []
     for i in range(n):
         layer = profile.layers[i]
         depth_mm = layer.depth_cm * 10.0

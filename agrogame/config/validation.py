@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 import yaml
 from jsonschema import Draft7Validator, RefResolver
@@ -16,22 +16,22 @@ def get_schema_path(name: str) -> Path:
     return SCHEMA_DIR / f"{name}.json"
 
 
-def _load_schema(name: str) -> Dict[str, Any]:
+def _load_schema(name: str) -> dict[str, Any]:
     schema_path = get_schema_path(name)
     with schema_path.open("r", encoding="utf-8") as f:
-        return cast(Dict[str, Any], json.load(f))
+        return cast(dict[str, Any], json.load(f))
 
 
-def _load_yaml_or_json(path: Path) -> Dict[str, Any]:
+def _load_yaml_or_json(path: Path) -> dict[str, Any]:
     if path.suffix.lower() in {".yaml", ".yml"}:
         with path.open("r", encoding="utf-8") as f:
-            return cast(Dict[str, Any], yaml.safe_load(f) or {})
+            return cast(dict[str, Any], yaml.safe_load(f) or {})
     if path.suffix.lower() == ".json":
-        return cast(Dict[str, Any], json.loads(path.read_text()))
+        return cast(dict[str, Any], json.loads(path.read_text()))
     raise ValueError(f"Unsupported config type: {path.suffix}")
 
 
-def validate_data(data: Dict[str, Any], schema_name: str) -> None:
+def validate_data(data: dict[str, Any], schema_name: str) -> None:
     """Validate a configuration dictionary against a named JSON Schema.
 
     Raises ValidationError with rich message indicating the path and context.
@@ -48,7 +48,7 @@ def validate_data(data: Dict[str, Any], schema_name: str) -> None:
         raise ValidationError(f"{schema_name} validation failed at {loc}: {e.message}")
 
 
-def validate_file(path: Path, schema_name: str) -> Dict[str, Any]:
+def validate_file(path: Path, schema_name: str) -> dict[str, Any]:
     data = _load_yaml_or_json(path)
     validate_data(data, schema_name)
     return data

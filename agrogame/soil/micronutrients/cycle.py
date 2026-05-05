@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 from agrogame.events import EventBus
 from agrogame.plant.events import NutrientStressComputed
@@ -75,7 +74,7 @@ class MicronutrientCycle:
     def daily_step(
         self,
         biomass_inc_g_m2: float = 0.0,
-        root_fractions: Optional[list[float]] = None,
+        root_fractions: list[float] | None = None,
     ) -> MicronutrientFluxes:
         """Process daily micronutrient availability and plant uptake.
 
@@ -127,7 +126,7 @@ class MicronutrientCycle:
         self,
         layer: int,
         eh_mv: float,
-        redox_params: Optional[RedoxMicronutrientParams] = None,
+        redox_params: RedoxMicronutrientParams | None = None,
     ) -> None:
         """Shift Fe/Mn between sorbed and available pools based on Eh (#216).
 

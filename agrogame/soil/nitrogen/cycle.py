@@ -30,7 +30,8 @@ from agrogame.soil.microbes.events import (
     MicrobialActivityComputed,
     MicrobialFBUpdated,
 )
-from typing import Protocol, Sequence
+from typing import Protocol
+from collections.abc import Sequence
 
 
 from .events import (

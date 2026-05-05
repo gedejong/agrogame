@@ -13,7 +13,7 @@ import pytest
 
 # Guard: skip if SALib not available
 try:
-    import SALib  # noqa: F401
+    import SALib  # noqa: F401  # availability probe; not used directly
 except ImportError:
     pytest.skip("SALib not installed", allow_module_level=True)
 
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 def test_sensitivity_script_imports() -> None:
     """The script module should import without error."""
-    import sensitivity_analysis  # noqa: F811
+    import sensitivity_analysis
 
     assert hasattr(sensitivity_analysis, "run_morris")
     assert hasattr(sensitivity_analysis, "PARAM_DEFS")

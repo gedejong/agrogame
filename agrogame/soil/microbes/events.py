@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from agrogame.events import BaseEvent
 
@@ -25,7 +24,7 @@ class EnzymeProduced(BaseEvent):
     layer: int
     enzyme_group: str
     production_cost_c_kg_ha: float
-    params: Dict[str, float]
+    params: dict[str, float]
 
 
 @dataclass(frozen=True)
@@ -59,7 +58,7 @@ class MicrobialActivityComputed(BaseEvent):
 class EnzymeGroupTotals(BaseEvent):
     """Profile-wide enzyme production cost totals by group for a day."""
 
-    totals_c_kg_ha_by_group: Dict[str, float]
+    totals_c_kg_ha_by_group: dict[str, float]
 
 
 @dataclass(frozen=True)

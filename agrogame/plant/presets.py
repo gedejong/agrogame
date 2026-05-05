@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Dict
 
 import yaml
 
@@ -30,8 +29,8 @@ class CropPreset:
 
 @dataclass
 class CropLibrary:
-    crops: Dict[str, CropPreset]
-    climate_overrides: Dict[str, Dict[str, CropPreset]] = field(default_factory=dict)
+    crops: dict[str, CropPreset]
+    climate_overrides: dict[str, dict[str, CropPreset]] = field(default_factory=dict)
 
     def get_preset(self, crop_key: str, climate_key: str | None = None) -> CropPreset:
         """Get crop preset, applying climate-specific overrides if available."""
@@ -149,8 +148,8 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
     with p.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     validate_data(data, "crop_preset")
-    crops: Dict[str, CropPreset] = {}
-    all_overrides: Dict[str, Dict[str, CropPreset]] = {}
+    crops: dict[str, CropPreset] = {}
+    all_overrides: dict[str, dict[str, CropPreset]] = {}
 
     for key, raw in data.get("crops", {}).items():
         base = CropPreset(

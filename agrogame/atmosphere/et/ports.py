@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable, Sequence
+from typing import Protocol, runtime_checkable
+from collections.abc import Sequence
 
 
 class SoilLayer(Protocol):

@@ -5,5 +5,3 @@ preserve backward compatibility and will be removed in a later release.
 """
 
 from __future__ import annotations
-
-from agrogame.events import EventBus  # noqa: F401

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Tuple
 
 import matplotlib.pyplot as plt
 
@@ -18,16 +17,16 @@ def simulate_nitrogen(
     rainfall_mm: float,
     evaporation_mm: float,
     pattern: str = "constant",
-) -> Tuple[List[float], List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float], list[float]]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils[profile_name]
     orch = FullSimulationOrchestrator(profile)
     calc = StressCalculator()
 
-    total_org: List[float] = []
-    total_nh4: List[float] = []
-    total_no3: List[float] = []
-    n_stress: List[float] = []
+    total_org: list[float] = []
+    total_nh4: list[float] = []
+    total_no3: list[float] = []
+    n_stress: list[float] = []
 
     rains, evaps = generate_rain_evap(days, rainfall_mm, evaporation_mm, pattern)
 
@@ -63,15 +62,15 @@ def simulate_phosphorus(
     rainfall_mm: float,
     evaporation_mm: float,
     pattern: str = "constant",
-) -> Tuple[List[float], List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float], list[float]]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils[profile_name]
     orch = FullSimulationOrchestrator(profile)
 
-    total_org: List[float] = []
-    total_avail: List[float] = []
-    total_fixed: List[float] = []
-    p_stress_series: List[float] = []
+    total_org: list[float] = []
+    total_avail: list[float] = []
+    total_fixed: list[float] = []
+    p_stress_series: list[float] = []
 
     rains, evaps = generate_rain_evap(days, rainfall_mm, evaporation_mm, pattern)
 

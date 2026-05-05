@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, Tuple, Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import os
 import csv
@@ -45,16 +45,16 @@ pytestmark = [
 ]
 
 
-def _scenario_cfg() -> Dict[str, Any]:
+def _scenario_cfg() -> dict[str, Any]:
     import yaml
 
-    result: Dict[str, Any] = yaml.safe_load(
+    result: dict[str, Any] = yaml.safe_load(
         Path("tests/data/benchmarks/scenarios.yaml").read_text()
     )
     return result
 
 
-SCENARIOS: Dict[str, Path] = {
+SCENARIOS: dict[str, Path] = {
     "maize_iowa": Path("tests/data/benchmarks/fullseason/maize_iowa.csv"),
     "wheat_kansas": Path("tests/data/benchmarks/fullseason/wheat_kansas.csv"),
     "maize_kenya_drought": Path(
@@ -67,7 +67,7 @@ def _yield_t_ha_from_biomass_g_m2(biomass_g_m2: float, harvest_index: float) -> 
     return harvest_index * biomass_g_m2 * 0.01
 
 
-def _run_one(name: str, weather_file: Path) -> Dict[str, float | int | None]:
+def _run_one(name: str, weather_file: Path) -> dict[str, float | int | None]:
     import yaml
 
     cfg = yaml.safe_load(Path("tests/data/benchmarks/scenarios.yaml").read_text())
@@ -121,7 +121,7 @@ def _run_one(name: str, weather_file: Path) -> Dict[str, float | int | None]:
     maturity_gdd = None
     total_et_mm = 0.0
     total_n_uptake = 0.0
-    biomass_series: Dict[int, float] = {}
+    biomass_series: dict[int, float] = {}
 
     for i, rec in enumerate(weather.records):
         st = phen.update_daily(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
@@ -185,11 +185,11 @@ def _run_one(name: str, weather_file: Path) -> Dict[str, float | int | None]:
     }
 
 
-def _read_observed_series() -> Dict[int, float] | None:
+def _read_observed_series() -> dict[int, float] | None:
     path = Path("tests/data/observed_biomass.csv")
     if not path.exists():
         return None
-    out: Dict[int, float] = {}
+    out: dict[int, float] = {}
     with path.open("r", encoding="utf-8") as f:
         rd = csv.DictReader(f)
         for row in rd:
@@ -200,13 +200,13 @@ def _read_observed_series() -> Dict[int, float] | None:
 
 
 def _align_on_days(
-    sim: Dict[int, float], obs: Dict[int, float]
-) -> Tuple[list[float], list[float]]:
+    sim: dict[int, float], obs: dict[int, float]
+) -> tuple[list[float], list[float]]:
     keys = sorted(set(sim.keys()) & set(obs.keys()))
     return [obs[k] for k in keys], [sim[k] for k in keys]
 
 
-def _compare_biomass_series_r2(sim: Dict[int, float]) -> float | None:
+def _compare_biomass_series_r2(sim: dict[int, float]) -> float | None:
     obs = _read_observed_series()
     if not obs:
         return None
@@ -216,7 +216,7 @@ def _compare_biomass_series_r2(sim: Dict[int, float]) -> float | None:
     return float(r2(y_obs, y_sim))
 
 
-def _compare_biomass_series_nse(sim: Dict[int, float]) -> float | None:
+def _compare_biomass_series_nse(sim: dict[int, float]) -> float | None:
     obs = _read_observed_series()
     if not obs:
         return None

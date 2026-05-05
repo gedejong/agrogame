@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -41,13 +40,13 @@ class DailyDrivers:
         rainfall_mm: float,
         irrigation_mm: float = 0.0,
         evaporation_mm: float = 0.0,
-        rainfall_intensity_mm_hr: Optional[float] = None,
+        rainfall_intensity_mm_hr: float | None = None,
     ):
         """Initialize daily drivers with non-negative values."""
         self.rainfall_mm = max(0.0, rainfall_mm)
         self.irrigation_mm = max(0.0, irrigation_mm)
         self.evaporation_mm = max(0.0, evaporation_mm)
-        self.rainfall_intensity_mm_hr: Optional[float] = (
+        self.rainfall_intensity_mm_hr: float | None = (
             max(0.0, rainfall_intensity_mm_hr)
             if rainfall_intensity_mm_hr is not None
             else None

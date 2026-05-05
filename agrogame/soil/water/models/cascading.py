@@ -7,7 +7,6 @@ layer, and gravitational drainage cascading through layers.
 
 from __future__ import annotations
 
-from typing import Tuple
 
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.constants import TEXTURE_TO_CN
@@ -59,7 +58,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
         texture = profile.layers[0].texture
         return TEXTURE_TO_CN.get(texture, 86)
 
-    def _compute_runoff(self, incoming_mm: float, cn: int) -> Tuple[float, float]:
+    def _compute_runoff(self, incoming_mm: float, cn: int) -> tuple[float, float]:
         """Partition incoming water into runoff and infiltrated components."""
         runoff = scs_runoff_mm(incoming_mm, cn)
         if self.event_bus and runoff > 0:

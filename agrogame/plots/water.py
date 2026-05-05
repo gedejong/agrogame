@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 import matplotlib.pyplot as plt
 
@@ -21,11 +20,11 @@ def plot_water_timeseries(
     out.parent.mkdir(parents=True, exist_ok=True)
     orch = build_full_from_preset(profile)
 
-    storage: List[float] = []
-    runoff: List[float] = []
-    drainage: List[float] = []
-    evap_series: List[float] = []
-    transp_series: List[float] = []
+    storage: list[float] = []
+    runoff: list[float] = []
+    drainage: list[float] = []
+    evap_series: list[float] = []
+    transp_series: list[float] = []
 
     rains, evaps = generate_rain_evap(days, rain, evap, pattern)
     for i in range(days):

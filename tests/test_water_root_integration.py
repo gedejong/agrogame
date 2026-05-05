@@ -25,7 +25,7 @@ def test_extract_transpiration_by_roots_respects_wilting_point() -> None:
         state.set_layer_storage_mm(profile, i, storage)
 
     demand = 10.0  # mm
-    root_fracs = (0.7, 0.3) + tuple(0.0 for _ in range(len(profile.layers) - 2))
+    root_fracs = (0.7, 0.3, *tuple(0.0 for _ in range(len(profile.layers) - 2)))
     supplied = model.extract_transpiration_by_roots(profile, state, demand, root_fracs)
 
     # Available from layer 0 and 1 only

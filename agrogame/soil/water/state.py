@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
 
 from agrogame.soil.models import SoilProfile
 
@@ -25,8 +24,8 @@ class SoilWaterState:
         Args:
             profile: Soil profile providing layer metadata.
         """
-        self.theta: List[float] = [layer.field_capacity for layer in profile.layers]
-        self.theta_macro: Optional[List[float]] = None
+        self.theta: list[float] = [layer.field_capacity for layer in profile.layers]
+        self.theta_macro: list[float] | None = None
 
     def enable_dual_porosity(self, n_layers: int) -> None:
         """Initialize empty macropore domain state (all layers at theta=0)."""

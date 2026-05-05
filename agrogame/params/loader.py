@@ -10,7 +10,7 @@ from .models import CropParameterLibrary
 
 
 def load_library(path: str | Path) -> CropParameterLibrary:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         data: Any = yaml.safe_load(f)
     # Validate against JSON Schema before Pydantic model validation
     if isinstance(path, str):

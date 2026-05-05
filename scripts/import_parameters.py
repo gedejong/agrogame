@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 import subprocess
@@ -20,19 +20,19 @@ from agrogame.params.models import (
 from agrogame.config.validation import validate_data
 
 
-def load_yaml(path: Path) -> Dict[str, Any]:
+def load_yaml(path: Path) -> dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
 
 
-def save_yaml(data: Dict[str, Any], path: Path) -> None:
+def save_yaml(data: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as f:
         yaml.safe_dump(data, f, sort_keys=False, allow_unicode=True)
 
 
-def try_parse_our_schema(payload: Dict[str, Any]) -> Dict[str, CropParameters]:
-    crops: Dict[str, CropParameters] = {}
+def try_parse_our_schema(payload: dict[str, Any]) -> dict[str, CropParameters]:
+    crops: dict[str, CropParameters] = {}
     if "crops" in payload and isinstance(payload["crops"], dict):
         # Validate full library against JSON Schema first
         try:
@@ -47,9 +47,9 @@ def try_parse_our_schema(payload: Dict[str, Any]) -> Dict[str, CropParameters]:
 
 
 def merge_libraries(
-    existing: CropParameterLibrary, incoming: Dict[str, CropParameters]
+    existing: CropParameterLibrary, incoming: dict[str, CropParameters]
 ) -> CropParameterLibrary:
-    merged: Dict[str, CropParameters] = dict(existing.crops)
+    merged: dict[str, CropParameters] = dict(existing.crops)
     for name, params in incoming.items():
         # Prefer incoming; overwrite if exists
         merged[name] = params
@@ -65,7 +65,7 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
         text = path.read_text(encoding="utf-8", errors="ignore")
     except (OSError, UnicodeDecodeError) as e:
         raise RuntimeError(f"Failed reading PCSE crop file {path}") from e
-    kv: Dict[str, float] = {}
+    kv: dict[str, float] = {}
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
@@ -76,7 +76,7 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
                 line = line.split(token, 1)[0].strip()
         if "=" not in line:
             continue
-        key, val = [p.strip() for p in line.split("=", 1)]
+        key, val = (p.strip() for p in line.split("=", 1))
         try:
             kv[key.upper()] = float(val)
         except ValueError:
@@ -118,13 +118,13 @@ def _parse_pcse_crop_file(path: Path) -> CropParameters | None:
         raise ValueError(f"Invalid crop parameters synthesized from {path}") from e
 
 
-def import_from_directory(path: Path) -> Dict[str, CropParameters]:
+def import_from_directory(path: Path) -> dict[str, CropParameters]:
     """
     Import crop parameters from a directory by:
     1) Merging any files already in our schema (contain top-level 'crops')
     2) Attempting basic adapters for simple JSON/YAML with familiar keys
     """
-    collected: Dict[str, CropParameters] = {}
+    collected: dict[str, CropParameters] = {}
     pcse_tests = path / "pcse" / "tests" / "test_data"
     candidate_files: list[Path] = []
     if pcse_tests.exists():
@@ -294,7 +294,7 @@ def main() -> None:
     else:
         existing = CropParameterLibrary(crops={})
 
-    incoming: Dict[str, CropParameters] = {}
+    incoming: dict[str, CropParameters] = {}
 
     def ensure_clone(url: str, dest: Path) -> Path | None:
         if dest.exists():

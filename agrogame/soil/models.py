@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, PositiveFloat, model_validator
 
@@ -14,7 +14,7 @@ SoilTexture = Literal[
     "peat",
 ]
 
-TEXTURE_TO_CLAY: Dict[str, float] = {
+TEXTURE_TO_CLAY: dict[str, float] = {
     "sand": 5.0,
     "sandy_loam": 12.0,
     "loam": 22.0,
@@ -26,7 +26,7 @@ TEXTURE_TO_CLAY: Dict[str, float] = {
 # Sand and silt percentages by texture class.
 # Ref: Rawls et al. 1982, Trans. ASAE, Table 2.
 # Currently used by tests only; future PTFs will consume these.
-TEXTURE_TO_SAND: Dict[str, float] = {
+TEXTURE_TO_SAND: dict[str, float] = {
     "sand": 92.0,
     "sandy_loam": 65.0,
     "loam": 42.0,
@@ -35,7 +35,7 @@ TEXTURE_TO_SAND: Dict[str, float] = {
     "peat": 35.0,
 }
 
-TEXTURE_TO_SILT: Dict[str, float] = {
+TEXTURE_TO_SILT: dict[str, float] = {
     "sand": 3.0,
     "sandy_loam": 23.0,
     "loam": 36.0,
@@ -73,7 +73,7 @@ class SoilLayer(BaseModel):
     initial_p_kg_ha: float = Field(
         ..., description="Initial phosphorus in topsoil layer (kg/ha)"
     )
-    clay_pct: Optional[float] = Field(
+    clay_pct: float | None = Field(
         default=None,
         description="Clay content percentage (%). Derived from texture if not set.",
     )
@@ -83,7 +83,7 @@ class SoilLayer(BaseModel):
     initial_mn_ppm: float = Field(default=18.0, description="DTPA-Mn (ppm)")
 
     @model_validator(mode="after")
-    def validate_water_bounds(self) -> "SoilLayer":
+    def validate_water_bounds(self) -> SoilLayer:
         if not (
             0.0 <= self.wilting_point < self.field_capacity < self.saturation <= 0.8
         ):
@@ -99,12 +99,12 @@ class SoilLayer(BaseModel):
 
 class SoilProfile(BaseModel):
     name: str = Field(..., description="Human-readable soil profile name")
-    layers: List[SoilLayer] = Field(
+    layers: list[SoilLayer] = Field(
         ..., min_length=3, description="Soil layers from surface to depth"
     )
 
     @model_validator(mode="after")
-    def validate_depth(self) -> "SoilProfile":
+    def validate_depth(self) -> SoilProfile:
         total_depth = sum(layer.depth_cm for layer in self.layers)
         if total_depth < 100.0:
             raise ValueError(
@@ -114,6 +114,6 @@ class SoilProfile(BaseModel):
 
 
 class SoilLibrary(BaseModel):
-    soils: Dict[str, SoilProfile] = Field(
+    soils: dict[str, SoilProfile] = Field(
         ..., description="Dictionary of soil profiles keyed by profile id"
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
 from agrogame.sim.calendar_events import DayTick
@@ -18,7 +18,7 @@ class PhosphorusRuntime:
     event_bus: EventBus
     cycle: PhosphorusCycle
     _stress: StressCalculator | None = None
-    _redox_params: RedoxParams = RedoxParams()
+    _redox_params: RedoxParams = field(default_factory=RedoxParams)
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)

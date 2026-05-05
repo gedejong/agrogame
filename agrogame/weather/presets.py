@@ -3,7 +3,6 @@ from __future__ import annotations
 import functools
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List
 
 import yaml
 
@@ -25,7 +24,7 @@ class ClimatePreset:
     # Monthly rainfall weights (12 values, normalized so mean=1.0).
     # E.g., [0.5, 0.5, 1.5, 2.0, 1.5, 0.3, ...] for bimodal pattern.
     # Empty list means uniform distribution.
-    rainfall_monthly_weights: List[float] = field(default_factory=list)
+    rainfall_monthly_weights: list[float] = field(default_factory=list)
     heatwave_probability: float = 0.0
     frost_probability: float = 0.0
     heavy_rain_probability: float = 0.0
@@ -36,7 +35,7 @@ class ClimatePreset:
 
 @dataclass
 class ClimateLibrary:
-    climates: Dict[str, ClimatePreset]
+    climates: dict[str, ClimatePreset]
 
 
 _DEFAULT_PATH = Path("data/climate/presets.yaml")
@@ -48,7 +47,7 @@ def _load_climate_presets_cached(p: Path) -> ClimateLibrary:
     with p.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     validate_data(data, "climate")
-    climates: Dict[str, ClimatePreset] = {}
+    climates: dict[str, ClimatePreset] = {}
     for key, raw in data.get("climates", {}).items():
         climates[key] = ClimatePreset(
             name=raw["name"],

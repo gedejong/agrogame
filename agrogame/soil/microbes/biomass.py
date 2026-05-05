@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 from agrogame.events import EventBus
 from .events import (
@@ -26,7 +25,7 @@ class MicrobialParams:
     fungi_turnover_days: float = 120.0
     enzyme_cost_fraction: float = 0.1  # fraction of C uptake
     # Optional relative weights for enzyme groups; default is set at runtime
-    enzyme_group_weights: Dict[str, float] | None = None
+    enzyme_group_weights: dict[str, float] | None = None
     # Daily adjustment rate for fungal:bacterial ratio (0 = static)
     fb_adjust_rate: float = 0.05
 
@@ -44,7 +43,7 @@ class MicrobialLayerState:
 class MicrobialState:
     """Whole-profile microbial state: list of per-layer pools."""
 
-    layers: List[MicrobialLayerState]
+    layers: list[MicrobialLayerState]
 
 
 class MicrobialBiomassModule:
@@ -58,8 +57,8 @@ class MicrobialBiomassModule:
             layers=[MicrobialLayerState() for _ in range(params.n_layers)]
         )
         # Transient inputs each day
-        self._substrate_today: Dict[int, tuple[float, float]] = {}
-        self._priming_multiplier: Dict[int, float] = {}
+        self._substrate_today: dict[int, tuple[float, float]] = {}
+        self._priming_multiplier: dict[int, float] = {}
         # Subscribe to substrate and priming events (optional providers)
         event_bus.subscribe(SubstrateAvailable, self._on_substrate)
         event_bus.subscribe(RhizospherePrimingPulse, self._on_priming)
@@ -83,8 +82,8 @@ class MicrobialBiomassModule:
             ph_by_layer=ph_by_layer,
         )
 
-    def _normalize_enzyme_weights(self) -> Dict[str, float]:
-        group_weights: Dict[str, float] = self.params.enzyme_group_weights or {
+    def _normalize_enzyme_weights(self) -> dict[str, float]:
+        group_weights: dict[str, float] = self.params.enzyme_group_weights or {
             "cellulase": 0.35,
             "protease": 0.25,
             "phosphatase": 0.25,
@@ -152,7 +151,7 @@ class MicrobialBiomassModule:
         w: float,
         p: float,
         temperature_c: float,
-        norm_weights: Dict[str, float],
+        norm_weights: dict[str, float],
     ) -> None:
         available_c, quality = self._substrate_today.get(idx, (2.0, 0.8))
         km = 1.0
@@ -197,8 +196,8 @@ class MicrobialBiomassModule:
         self,
         *,
         temperature_c: float,
-        wfps_by_layer: List[float],
-        ph_by_layer: List[float],
+        wfps_by_layer: list[float],
+        ph_by_layer: list[float],
     ) -> None:
         """Depth-aware daily step using per-layer moisture (WFPS) and pH.
 

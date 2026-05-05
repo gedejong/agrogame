@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
-from typing import List
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
 from agrogame.soil.loader import load_soil_presets
@@ -29,7 +28,7 @@ def main() -> None:
 
     weather = load_weather(args.weather_file)
 
-    rows: List[list[str | float]] = [["day", "et0", "act_evap", "act_transp", "lai"]]
+    rows: list[list[str | float]] = [["day", "et0", "act_evap", "act_transp", "lai"]]
     for i in range(min(args.days, len(weather.records))):
         rec = weather.records[i]
         rain = rec.precip_mm or 0.0

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from io import StringIO
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 from agrogame.soil.models import SoilProfile
 

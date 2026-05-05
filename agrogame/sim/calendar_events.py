@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Literal, Optional
+from typing import Literal
 
 from agrogame.events import BaseEvent
 from agrogame.soil.water.types import DailyDrivers
@@ -25,10 +25,10 @@ Phase = Literal[
 class DayTick(BaseEvent):
     sim_date: date
     phase: Phase
-    drivers: Optional[DailyDrivers] = None
-    target_ph: Optional[float] = None
-    tmin_c: Optional[float] = None
-    tmax_c: Optional[float] = None
-    par_mj_m2: Optional[float] = None
-    plant_n_demand_kg_ha: Optional[float] = None
-    plant_p_demand_kg_ha: Optional[float] = None
+    drivers: DailyDrivers | None = None
+    target_ph: float | None = None
+    tmin_c: float | None = None
+    tmax_c: float | None = None
+    par_mj_m2: float | None = None
+    plant_n_demand_kg_ha: float | None = None
+    plant_p_demand_kg_ha: float | None = None

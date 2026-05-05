@@ -8,7 +8,6 @@ without tight coupling.
 
 from __future__ import annotations
 
-from typing import List
 
 from agrogame.events import EventBus
 from agrogame.soil.nitrogen.events import NutrientLeached
@@ -22,7 +21,7 @@ class SoilChemistryModule:
 
     def __init__(self, event_bus: EventBus, n_layers: int, base_ph: float = 6.8):
         self.event_bus = event_bus
-        self._ph: List[float] = [float(base_ph)] * n_layers
+        self._ph: list[float] = [float(base_ph)] * n_layers
         # Subscribe to relevant events that may influence pH
         event_bus.subscribe(NutrientLeached, self._on_nutrient_leached)
         event_bus.subscribe(PhosphorusFixationOccurred, self._on_p_fix)
@@ -79,5 +78,5 @@ class SoilChemistryModule:
         self._emit_all()
 
     @property
-    def ph_by_layer(self) -> List[float]:
+    def ph_by_layer(self) -> list[float]:
         return list(self._ph)

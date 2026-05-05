@@ -54,7 +54,7 @@ def _reset_all_crops(s: GameSession) -> None:
             patch.orch.reset_crop(preset)
 
 
-def _build_soil_state(patch: "Patch") -> SoilStateResponse:
+def _build_soil_state(patch: Patch) -> SoilStateResponse:
     """Build SoilStateResponse from a patch's current soil snapshot."""
     snap = patch.orch.snapshot_soil()
     som_total = (
@@ -106,7 +106,7 @@ def _build_soil_state(patch: "Patch") -> SoilStateResponse:
     )
 
 
-def _serialize_events(patch: "Patch") -> list[dict]:
+def _serialize_events(patch: Patch) -> list[dict]:
     """Serialize recorded events for a patch into JSON-safe dicts."""
     out: list[dict] = []
     for e in patch.recorder.events:
@@ -516,7 +516,7 @@ def _reset_session_for_new_season(s: GameSession) -> None:
 def _build_daily_snapshot(
     fid: str,
     pi: int,
-    p: "Patch",
+    p: Patch,
     rec: WeatherRecord,
     day_num: int,
     day_date: str,

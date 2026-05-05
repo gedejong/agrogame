@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
 
 import matplotlib.pyplot as plt
 
@@ -20,7 +19,7 @@ def _simulate(
     rate: float,
     max_depth: float,
     dist: str,
-) -> List[float]:
+) -> list[float]:
     soil = load_soil_presets(Path("soils/presets.yaml")).soils[profile_name]
     phen = PhenologyModule(
         CropPhenologyParams(
@@ -39,7 +38,7 @@ def _simulate(
         )
     )
     state = RootState()
-    depths: List[float] = []
+    depths: list[float] = []
     for _ in range(days):
         phen.update_daily(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
         _ = roots.daily_step(state, soil, phen.state.stage)

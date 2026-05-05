@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
 
 
 @dataclass
@@ -10,7 +10,7 @@ class RootState:
 
     current_depth_cm: float = 5.0
     biomass_g_m2: float = 0.0
-    layer_fractions: List[float] | None = None
+    layer_fractions: list[float] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {

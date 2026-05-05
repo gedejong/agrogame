@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from .base import BaseEvent
 from .bus import EventBus
@@ -13,10 +14,10 @@ from .bus import EventBus
 class RecordedEvent:
     """One captured event with the day index it was emitted on."""
 
-    day_index: Optional[int]
+    day_index: int | None
     event_type: str
     module_name: str
-    data: Dict[str, Any]
+    data: dict[str, Any]
 
 
 class EventRecorder:
@@ -24,8 +25,8 @@ class EventRecorder:
 
     def __init__(self, bus: EventBus) -> None:
         """Subscribe to BaseEvent on `bus` and start with an empty log."""
-        self._events: List[RecordedEvent] = []
-        self._current_day: Optional[int] = None
+        self._events: list[RecordedEvent] = []
+        self._current_day: int | None = None
         bus.subscribe(BaseEvent, self._on_event)
 
     def set_day(self, day_index: int) -> None:

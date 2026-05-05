@@ -4,7 +4,6 @@ import argparse
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, Tuple
 
 from agrogame.events.recorder import EventRecorder
 from scripts._weather_cli import add_weather_args, get_weather_series
@@ -89,7 +88,7 @@ def main() -> None:
         )
 
     # Build transitions by walking the recorded event stream in order
-    edges: Dict[Tuple[str, str], int] = {}
+    edges: dict[tuple[str, str], int] = {}
     if rec.events:
         prev = rec.events[0]
         for cur in rec.events[1:]:

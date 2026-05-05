@@ -232,10 +232,12 @@ def test_texture_order_runoff_and_drainage() -> None:
         runoff, deep, _ = swb.update_daily(rainfall_mm=rain, evaporation_mm=evapo)
         runoffs.append(runoff)
         drains.append(deep)
+    from itertools import pairwise
+
     # Expect non-decreasing runoff with heavier textures
     # and non-increasing deep drainage
-    assert all(a <= b + 1e-6 for a, b in zip(runoffs, runoffs[1:], strict=False))
-    assert all(a >= b - 1e-6 for a, b in zip(drains, drains[1:], strict=False))
+    assert all(a <= b + 1e-6 for a, b in pairwise(runoffs))
+    assert all(a >= b - 1e-6 for a, b in pairwise(drains))
 
 
 def test_interception_fills_and_evaporates_before_soil() -> None:

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, List, Sequence, Tuple
+from typing import Any
+from collections.abc import Sequence
 
 
-def moving_average(values: Sequence[float], window: int) -> List[float]:
+def moving_average(values: Sequence[float], window: int) -> list[float]:
     w = max(1, int(window))
     if w == 1:
         return list(values)
-    out: List[float] = []
+    out: list[float] = []
     run = 0.0
     for i, v in enumerate(values):
         run += v
@@ -17,7 +18,7 @@ def moving_average(values: Sequence[float], window: int) -> List[float]:
     return out
 
 
-def merge_legends(*axes: Any) -> Tuple[list, list]:
+def merge_legends(*axes: Any) -> tuple[list, list]:
     handles: list = []
     labels: list = []
     for ax in axes:
@@ -36,8 +37,8 @@ def merge_legends(*axes: Any) -> Tuple[list, list]:
     return unique_h, unique_l
 
 
-def clamp_forward_fill(values: Sequence[float], lo: float, hi: float) -> List[float]:
-    out: List[float] = []
+def clamp_forward_fill(values: Sequence[float], lo: float, hi: float) -> list[float]:
+    out: list[float] = []
     last: float | None = None
     for v in values:
         vv = v

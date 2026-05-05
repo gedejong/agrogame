@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Dict
 from pydantic import BaseModel, Field, PositiveFloat, model_validator
 
 
@@ -32,7 +31,7 @@ class Roots(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_distribution(self) -> "Roots":
+    def validate_distribution(self) -> Roots:
         if not self.distribution:
             raise ValueError("distribution must contain at least 3 elements")
         total = sum(self.distribution)
@@ -51,11 +50,11 @@ class Biomass(BaseModel):
             "Harvest index: fraction of total biomass in harvestable product (0-1]"
         ),
     )
-    partition_vegetative: Dict[str, float] = Field(
+    partition_vegetative: dict[str, float] = Field(
         ...,
         description="Biomass partition fractions during vegetative phase (sum to 1.0)",
     )
-    partition_reproductive: Dict[str, float] = Field(
+    partition_reproductive: dict[str, float] = Field(
         ...,
         description=(
             "Biomass partition fractions during reproductive phase (sum to 1.0)"
@@ -63,12 +62,12 @@ class Biomass(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_partitions(self) -> "Biomass":
+    def validate_partitions(self) -> Biomass:
         # Ensure harvest index is (0, 1]
         if not (0.0 < self.harvest_index <= 1.0):
             raise ValueError("harvest_index must be in (0, 1]")
 
-        def _sum_to_one(d: Dict[str, float], name: str) -> None:
+        def _sum_to_one(d: dict[str, float], name: str) -> None:
             total = sum(d.values())
             if abs(total - 1.0) > 1e-6:
                 raise ValueError(f"{name} must sum to 1.0 (got {total})")
@@ -88,6 +87,6 @@ class CropParameters(BaseModel):
 
 
 class CropParameterLibrary(BaseModel):
-    crops: Dict[str, CropParameters] = Field(
+    crops: dict[str, CropParameters] = Field(
         ..., description="Mapping from crop key to its parameter set"
     )

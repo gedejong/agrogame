@@ -58,6 +58,8 @@ jobs:
         run: poetry run ruff check agrogame/soil/water agrogame/events --select D
       - name: Type check (MyPy)
         run: poetry run mypy agrogame
+      - name: Type check (MyPy --strict, pilot packages)
+        run: poetry run mypy --strict agrogame/events
 
   test_full_matrix:
     if: github.event_name == 'release'
@@ -99,6 +101,8 @@ jobs:
         run: poetry run ruff check agrogame/soil/water agrogame/events --select D
       - name: Type check (MyPy)
         run: poetry run mypy agrogame
+      - name: Type check (MyPy --strict, pilot packages)
+        run: poetry run mypy --strict agrogame/events
 
   docs:
     runs-on: ubuntu-latest

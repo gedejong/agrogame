@@ -6,7 +6,6 @@ from pathlib import Path
 
 
 from agrogame.events import EventBus
-import agrogame.sim  # noqa: F401 — resolve circular import
 from agrogame.soil.nitrogen import NitrogenCycle, SoilNitrogenState
 from agrogame.soil.water.events import WaterDrained, TranspirationByLayer
 from agrogame.soil.loader import load_soil_presets

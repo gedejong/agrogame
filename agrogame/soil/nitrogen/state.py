@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
 
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.nitrogen.constants import (
@@ -28,12 +27,12 @@ class SoilNitrogenState:
             profile: Soil profile providing initial nutrient metadata.
         """
         # Initialize inorganic pools directly from per-layer initial values
-        self.nh4: List[float] = [layer.initial_nh4_kg_ha for layer in profile.layers]
-        self.no3: List[float] = [layer.initial_no3_kg_ha for layer in profile.layers]
+        self.nh4: list[float] = [layer.initial_nh4_kg_ha for layer in profile.layers]
+        self.no3: list[float] = [layer.initial_no3_kg_ha for layer in profile.layers]
 
         # Initialize organic N per layer based on soil organic matter (OM)
         # Assumption: 5% of OM mass is nitrogen (simplified agronomic rule of thumb)
-        self.organic_n: List[float] = []
+        self.organic_n: list[float] = []
         for layer in profile.layers:
             depth_m = layer.depth_cm / 100.0
             bulk_density_kg_m3 = layer.bulk_density_g_cm3 * BULK_DENSITY_G_CM3_TO_KG_M3

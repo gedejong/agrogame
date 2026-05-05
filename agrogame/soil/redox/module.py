@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from agrogame.events import EventBus
 from agrogame.soil.redox.state import RedoxState, DominantAcceptor
@@ -30,7 +29,7 @@ class RedoxModule:
         self,
         params: RedoxParams,
         state: RedoxState,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self.params = params
         self.state = state
@@ -44,7 +43,7 @@ class RedoxModule:
         saturation: list[float],
         root_fractions: list[float],
         temperature_c: float,
-        o2_concentration_frac: Optional[list[float]] = None,
+        o2_concentration_frac: list[float] | None = None,
     ) -> None:
         """Advance redox state by one day.
 

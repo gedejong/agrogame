@@ -25,7 +25,8 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 # ---------------------------------------------------------------------------
 # GYGA yield data (water-limited potential, t/ha grain)

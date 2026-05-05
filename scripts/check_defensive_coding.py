@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import sys
 from pathlib import Path
-from typing import Iterable
+from collections.abc import Iterable
 
 
 BROAD_EXCEPTS = {"Exception", "BaseException"}
@@ -21,7 +21,7 @@ class DefensiveVisitor(ast.NodeVisitor):
         self.filename = filename
         self.issues: list[str] = []
 
-    def visit_Try(self, node: ast.Try) -> None:  # noqa: N802
+    def visit_Try(self, node: ast.Try) -> None:
         # Flag bare except: and broad excepts with only pass
         for handler in node.handlers:
             exc = handler.type

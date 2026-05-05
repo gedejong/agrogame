@@ -5,7 +5,7 @@ import csv
 import subprocess
 from math import sin, pi
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -206,8 +206,8 @@ def _collect_day_history(
     histories["transp_mm_series"].append(agg_transp)
 
 
-def _ffill_clamp(vals: List[float], lo: float, hi: float) -> List[float]:
-    out: List[float] = []
+def _ffill_clamp(vals: list[float], lo: float, hi: float) -> list[float]:
+    out: list[float] = []
     last: float | None = None
     for v in vals:
         vv = v
@@ -218,8 +218,8 @@ def _ffill_clamp(vals: List[float], lo: float, hi: float) -> List[float]:
     return out
 
 
-def _sanitize(seq: List[float | None]) -> List[float]:
-    out: List[float] = []
+def _sanitize(seq: list[float | None]) -> list[float]:
+    out: list[float] = []
     for v in seq:
         if v is None:
             out.append(float("nan"))
@@ -327,8 +327,8 @@ def _plot_phenology_stages(
         "grain_fill": "#fdd0a2",
         "maturity": "#bcbddc",
     }
-    t_days: List[int] = [1]
-    t_labels: List[str] = [stage_series[0].name] if stage_series else ["emerged"]
+    t_days: list[int] = [1]
+    t_labels: list[str] = [stage_series[0].name] if stage_series else ["emerged"]
     last_stage = stage_series[0] if stage_series else PhenologyStage.EMERGED
     for day_idx, st in enumerate(stage_series, start=1):
         if st != last_stage:

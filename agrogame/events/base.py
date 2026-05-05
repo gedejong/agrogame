@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class BaseEvent:
     # Not part of __init__ to avoid ordering constraints in subclasses
     timestamp: datetime = field(default_factory=datetime.utcnow, init=False)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-safe dict including ISO timestamp and event_type marker."""
         data = asdict(self)
         # Ensure timestamp is ISO string for logging/JSON

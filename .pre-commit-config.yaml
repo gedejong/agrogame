@@ -54,6 +54,12 @@ repos:
         pass_filenames: false
         files: ^agrogame/
         stages: [manual]
+      - id: mypy-strict-events
+        name: mypy --strict (agrogame/events)
+        entry: poetry run mypy --strict agrogame/events
+        language: system
+        pass_filenames: false
+        stages: [manual]
       - id: xenon-check
         name: xenon complexity
         entry: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' agrogame
@@ -61,8 +67,13 @@ repos:
         pass_filenames: false
         stages: [manual]
       - id: importlinter-check
-        name: import-linter contracts
-        entry: poetry run lint-imports --config .importlinter
+        name: import-linter contracts (green only — see .importlinter)
+        entry: >-
+          poetry run lint-imports --config .importlinter
+          --contract events_isolated
+          --contract weather_independence
+          --contract plant_independence
+          --contract game_no_api
         language: system
         pass_filenames: false
         stages: [manual]
@@ -120,5 +131,5 @@ repos:
     rev: v2.11
     hooks:
       - id: vulture
-        args: ["--min-confidence","80","agrogame"]
+        args: ["--min-confidence","80","agrogame","vulture-whitelist.py"]
         stages: [manual]

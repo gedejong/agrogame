@@ -13,7 +13,8 @@ AGRO-25 acceptance criteria:
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence
+from typing import Protocol
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from agrogame.events import EventBus
@@ -209,7 +210,9 @@ class PhosphorusCycle:
         anchors = PH_AVAILABILITY_ANCHORS
         if ph <= anchors[0][0]:
             return anchors[0][1]
-        for (x0, y0), (x1, y1) in zip(anchors, anchors[1:], strict=False):
+        from itertools import pairwise
+
+        for (x0, y0), (x1, y1) in pairwise(anchors):
             if ph <= x1:
                 # linear interpolate
                 t = (ph - x0) / max(1e-9, (x1 - x0))
