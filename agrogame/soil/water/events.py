@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from agrogame.events import BaseEvent
-from typing import Tuple
 
 
 @dataclass(frozen=True)
@@ -20,8 +19,8 @@ class WaterInfiltrated(BaseEvent):
         amounts_mm: Water amounts added to each layer (mm).
     """
 
-    layer_indices: Tuple[int, ...]
-    amounts_mm: Tuple[float, ...]
+    layer_indices: tuple[int, ...]
+    amounts_mm: tuple[float, ...]
 
 
 @dataclass(frozen=True)
@@ -73,8 +72,8 @@ class TranspirationByLayer(BaseEvent):
         total_mm: Total transpiration supplied (mm).
     """
 
-    layer_indices: Tuple[int, ...]
-    amounts_mm: Tuple[float, ...]
+    layer_indices: tuple[int, ...]
+    amounts_mm: tuple[float, ...]
     total_mm: float
 
 
@@ -121,4 +120,4 @@ class PreferentialFlowOccurred(BaseEvent):
 
     bypass_fraction: float
     bypass_mm: float
-    layer_indices: Tuple[int, ...]
+    layer_indices: tuple[int, ...]

@@ -24,7 +24,6 @@ order used in #211 and #213.
 
 from __future__ import annotations
 
-from typing import List, Optional
 
 from agrogame.events import EventBus
 from agrogame.soil.gas_diffusion.events import GasConcentrationUpdated
@@ -58,8 +57,8 @@ def temperature_corrected_d(
 
 
 def solve_tridiagonal(
-    a: List[float], b: List[float], c: List[float], d: List[float]
-) -> List[float]:
+    a: list[float], b: list[float], c: list[float], d: list[float]
+) -> list[float]:
     """Thomas algorithm for a tridiagonal system (a·x_{i-1} + b·x_i + c·x_{i+1} = d).
 
     ``a[0]`` and ``c[-1]`` are unused (boundary rows absorb them).
@@ -96,7 +95,7 @@ class GasDiffusionModule:
         self,
         params: GasDiffusionParams,
         state: GasDiffusionState,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._params = params
         self._state = state
@@ -117,10 +116,10 @@ class GasDiffusionModule:
     def daily_step(
         self,
         profile: SoilProfile,
-        theta: List[float],
+        theta: list[float],
         temperature_c: float,
-        co2_respiration_kg_c_ha: List[float],
-        pore_state: Optional[PoreNetworkState] = None,
+        co2_respiration_kg_c_ha: list[float],
+        pore_state: PoreNetworkState | None = None,
     ) -> None:
         """Solve steady-state gas profile for one day.
 
@@ -216,11 +215,11 @@ class GasDiffusionModule:
     def _total_porosity(
         self,
         profile: SoilProfile,
-        pore_state: Optional[PoreNetworkState],
+        pore_state: PoreNetworkState | None,
         n: int,
-    ) -> List[float]:
+    ) -> list[float]:
         """Layer porosity from ``pore_state`` if given, else ``saturation``."""
-        out: List[float] = []
+        out: list[float] = []
         for i in range(n):
             if pore_state is not None and i < len(pore_state.macro):
                 out.append(pore_state.total_porosity(i))
@@ -231,11 +230,11 @@ class GasDiffusionModule:
     def _compute_volumetric_rates(
         self,
         profile: SoilProfile,
-        theta_a: List[float],
-        co2_respiration_kg_c_ha: List[float],
+        theta_a: list[float],
+        co2_respiration_kg_c_ha: list[float],
         n: int,
         kind: str,
-    ) -> List[float]:
+    ) -> list[float]:
         """Convert respiration (kg C/ha/day) → volumetric gas rate (1/s).
 
         kg C/ha/day → mol C/m3-air/s, then O2 sink = RQ × rate, CO2
@@ -244,7 +243,7 @@ class GasDiffusionModule:
         secs_per_day = 86400.0
         m2_per_ha = 1e4
         c_g_per_mol = 12.0
-        rates: List[float] = []
+        rates: list[float] = []
         for i in range(n):
             rate_kg_c_per_ha_per_day = (
                 co2_respiration_kg_c_ha[i] if i < len(co2_respiration_kg_c_ha) else 0.0
@@ -272,12 +271,12 @@ class GasDiffusionModule:
     def _solve_profile(
         self,
         profile: SoilProfile,
-        d_eff: List[float],
-        source_rate: List[float],
+        d_eff: list[float],
+        source_rate: list[float],
         n: int,
         top_boundary: float,
         source_sign: float,
-    ) -> List[float]:
+    ) -> list[float]:
         """Solve steady-state Fick's 2nd law with source and boundaries.
 
         Discretizes -d/dz (D_eff dC/dz) = source_sign × source_rate

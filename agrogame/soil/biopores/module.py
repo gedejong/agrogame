@@ -20,7 +20,7 @@ deferred to a follow-up issue, matching the landing order used in
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 from agrogame.events import EventBus
 from agrogame.soil.biopores.events import BioporeCollapsed, BioporeCreated

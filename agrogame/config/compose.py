@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Iterable, cast
+from typing import Any, cast
+from collections.abc import Iterable
 
 import yaml
 
 
-def deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+def deep_merge_dicts(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
     """Deep-merge override into base without mutating inputs.
 
     - Dicts are merged recursively
@@ -24,21 +25,21 @@ def deep_merge_dicts(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str
     return result
 
 
-def _load(path: Path) -> Dict[str, Any]:
+def _load(path: Path) -> dict[str, Any]:
     if path.suffix.lower() in {".yaml", ".yml"}:
         with path.open("r", encoding="utf-8") as f:
-            return cast(Dict[str, Any], yaml.safe_load(f) or {})
+            return cast(dict[str, Any], yaml.safe_load(f) or {})
     if path.suffix.lower() == ".json":
-        return cast(Dict[str, Any], json.loads(path.read_text()))
+        return cast(dict[str, Any], json.loads(path.read_text()))
     raise ValueError(f"Unsupported config type: {path}")
 
 
-def load_and_compose(paths: Iterable[Path]) -> Dict[str, Any]:
+def load_and_compose(paths: Iterable[Path]) -> dict[str, Any]:
     """Load multiple files and compose via deep-merge in order.
 
     Later files override earlier files.
     """
-    data: Dict[str, Any] = {}
+    data: dict[str, Any] = {}
     for p in paths:
         data = deep_merge_dicts(data, _load(p))
     return data

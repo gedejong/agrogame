@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import pandas as pd
 from io import StringIO
 
 
-def check_monotonic(series: pd.Series, name: str) -> Tuple[bool, str]:
+def check_monotonic(series: pd.Series, name: str) -> tuple[bool, str]:
     inc = (series.diff().fillna(0) >= -1e-9).all()
     return inc, f"{name} monotonic non-decreasing"
 
@@ -18,8 +17,8 @@ def check_lai_shape(
     peak_tail_days: int = 10,
     eps: float = 0.05,
     smooth_window: int = 3,
-) -> Tuple[bool, str, Dict[str, float]]:
-    diagnostics: Dict[str, float] = {}
+) -> tuple[bool, str, dict[str, float]]:
+    diagnostics: dict[str, float] = {}
     if series.empty:
         return True, "LAI increases then plateaus/declines", diagnostics
 
@@ -46,14 +45,14 @@ def check_lai_shape(
 
 def check_irrigation_stress(
     ts: pd.DataFrame,
-    irr_days: List[int],
+    irr_days: list[int],
     pre_window: int = 3,
     post_window: int = 5,
     min_improvement: float = 0.0,
     improve_if_pre_below: float | None = None,
-) -> Tuple[List[Tuple[bool, str]], List[Dict[str, float]]]:
-    results: List[Tuple[bool, str]] = []
-    diags: List[Dict[str, float]] = []
+) -> tuple[list[tuple[bool, str]], list[dict[str, float]]]:
+    results: list[tuple[bool, str]] = []
+    diags: list[dict[str, float]] = []
     for d in irr_days:
         pre = ts.loc[ts["day"].between(d - pre_window, d - 1), "water_stress"].mean()
         post = ts.loc[ts["day"].between(d + 1, d + post_window), "water_stress"].mean()
@@ -92,7 +91,7 @@ def check_irrigation_stress(
     return results, diags
 
 
-def check_stress_bounds(ts: pd.DataFrame) -> Tuple[bool, str]:
+def check_stress_bounds(ts: pd.DataFrame) -> tuple[bool, str]:
     ok_cols = []
     for col in ("water_stress", "n_stress", "p_stress"):
         if col in ts.columns:
@@ -109,13 +108,13 @@ def check_water_coherence(
     denom_min: float = 1.0,
     ratio_thr: float = 0.65,
     max_exceed_frac: float = 0.10,
-) -> Tuple[bool, str, Dict[str, float]]:
+) -> tuple[bool, str, dict[str, float]]:
     """Low water stress should imply low actual/potential transpiration.
 
     Uses transp_mm / (et0_mm * canopy_cover proxy) if potential not stored; here we
     approximate with transp_mm / max(transp_mm, et0_mm) to ensure bounded ratio.
     """
-    diagnostics: Dict[str, float] = {}
+    diagnostics: dict[str, float] = {}
     if "water_stress" not in ts.columns:
         return True, "Water coherence (skipped)", diagnostics
     # Prefer actual/potential transpiration when available
@@ -148,8 +147,8 @@ def check_p_correlation(
     biomass_inc_min: float = 0.05,
     mean_tol: float = 0.05,
     min_group_count: int = 7,
-) -> Tuple[bool, str, Dict[str, float]]:
-    diagnostics: Dict[str, float] = {}
+) -> tuple[bool, str, dict[str, float]]:
+    diagnostics: dict[str, float] = {}
     s = ts.get("p_stress")
     if s is None or s.dropna().empty:
         return True, "P correlation (skipped)", diagnostics
@@ -210,8 +209,8 @@ def check_p_correlation(
     return ok, "P stress trend mostly non-increasing (proxy)", diagnostics
 
 
-def check_n_coherence(ts: pd.DataFrame) -> Tuple[bool, str, Dict[str, float]]:
-    diagnostics: Dict[str, float] = {}
+def check_n_coherence(ts: pd.DataFrame) -> tuple[bool, str, dict[str, float]]:
+    diagnostics: dict[str, float] = {}
     if "n_stress" not in ts.columns:
         return True, "N coherence (skipped)", diagnostics
     # Use total mineral N proxy if present
@@ -234,8 +233,8 @@ def check_stage_impact(
     biomass_inc_col: str = "biomass_inc_g_m2",
     critical_stages: tuple[str, ...] = ("flowering", "grain_fill"),
     stress_thr: float = 0.7,
-) -> Tuple[bool, str, Dict[str, float]]:
-    diagnostics: Dict[str, float] = {}
+) -> tuple[bool, str, dict[str, float]]:
+    diagnostics: dict[str, float] = {}
     if any(c not in ts.columns for c in (stress_col, stage_col, biomass_inc_col)):
         return True, "Stage impact (skipped)", diagnostics
     crit = ts.loc[ts[stage_col].isin(list(critical_stages))]
@@ -258,8 +257,8 @@ def check_et_bounded(
     ts: pd.DataFrame,
     max_exceed_fraction: float = 0.10,
     exclude_lai_below: float | None = None,
-) -> Tuple[bool, str, Dict[str, float]]:
-    diagnostics: Dict[str, float] = {}
+) -> tuple[bool, str, dict[str, float]]:
+    diagnostics: dict[str, float] = {}
     scope = ts
     if exclude_lai_below is not None and "lai" in ts.columns:
         scope = ts.loc[ts["lai"] >= exclude_lai_below]
@@ -304,8 +303,8 @@ def main() -> None:
 
     ts = pd.read_csv(args.timeseries)
 
-    checks: List[Tuple[bool, str]] = []
-    diagnostics_sections: List[str] = []
+    checks: list[tuple[bool, str]] = []
+    diagnostics_sections: list[str] = []
     # Stress bounds
     ok_sb, name_sb = check_stress_bounds(ts)
     checks.append((ok_sb, name_sb))
@@ -375,35 +374,29 @@ def main() -> None:
         buf_top, index=False
     )
     diagnostics_sections.append(
-        (
-            "## ET exceedance diagnostics\n\n"
-            f"- fraction_exceed (LAI>={args.et_exclude_lai_below}): "
-            f"{diag_et.get('fraction_exceed', 0.0):.3f}\n"
-            f"- max_margin: {diag_et.get('max_margin', 0.0):.3f}\n"
-            f"- mean_margin: {diag_et.get('mean_margin', 0.0):.3f}\n\n"
-            "Top 10 days by ET margin (E+T - ET0):\n\n"
-            "```csv\n" + buf_top.getvalue() + "```\n"
-        )
+        "## ET exceedance diagnostics\n\n"
+        f"- fraction_exceed (LAI>={args.et_exclude_lai_below}): "
+        f"{diag_et.get('fraction_exceed', 0.0):.3f}\n"
+        f"- max_margin: {diag_et.get('max_margin', 0.0):.3f}\n"
+        f"- mean_margin: {diag_et.get('mean_margin', 0.0):.3f}\n\n"
+        "Top 10 days by ET margin (E+T - ET0):\n\n"
+        "```csv\n" + buf_top.getvalue() + "```\n"
     )
 
     # LAI shape diagnostics
     diagnostics_sections.append(
-        (
-            "## LAI diagnostics\n\n"
-            f"- lai_max_day_index: {diag_lai.get('lai_max_day_index', float('nan'))}\n"
-            f"- lai_max_value: {diag_lai.get('lai_max_value', float('nan'))}\n"
-        )
+        "## LAI diagnostics\n\n"
+        f"- lai_max_day_index: {diag_lai.get('lai_max_day_index', float('nan'))}\n"
+        f"- lai_max_value: {diag_lai.get('lai_max_value', float('nan'))}\n"
     )
 
     # Irrigation pre/post diagnostics
     buf_irr = StringIO()
     pd.DataFrame(irr_diags).to_csv(buf_irr, index=False)
     diagnostics_sections.append(
-        (
-            "## Irrigation impact diagnostics\n\n"
-            "Pre/Post window means and deltas by irrigation day:\n\n"
-            "```csv\n" + buf_irr.getvalue() + "```\n"
-        )
+        "## Irrigation impact diagnostics\n\n"
+        "Pre/Post window means and deltas by irrigation day:\n\n"
+        "```csv\n" + buf_irr.getvalue() + "```\n"
     )
 
     # Harvest-aware check and diagnostics
@@ -415,20 +408,16 @@ def main() -> None:
             ok_harvest = drop > 0.5 * max(1.0, before["lai"].max())
             checks.append((bool(ok_harvest), "LAI drops after harvest"))
             diagnostics_sections.append(
-                (
-                    "## Harvest diagnostics\n\n"
-                    f"- harvest_day: {args.harvest}\n"
-                    f"- lai_before_last: {before['lai'].iloc[-1]:.3f}\n"
-                    f"- lai_after_mean_7d: {after['lai'].head(7).mean():.3f}\n"
-                    f"- lai_drop: {drop:.3f}\n"
-                )
+                "## Harvest diagnostics\n\n"
+                f"- harvest_day: {args.harvest}\n"
+                f"- lai_before_last: {before['lai'].iloc[-1]:.3f}\n"
+                f"- lai_after_mean_7d: {after['lai'].head(7).mean():.3f}\n"
+                f"- lai_drop: {drop:.3f}\n"
             )
         else:
             diagnostics_sections.append(
-                (
-                    "## Harvest diagnostics\n\n"
-                    "No post-harvest window available; skipping LAI drop check.\n"
-                )
+                "## Harvest diagnostics\n\n"
+                "No post-harvest window available; skipping LAI drop check.\n"
             )
 
     # Write report

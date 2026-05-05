@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from time import perf_counter
-from typing import Dict, List, Tuple, cast
+from typing import cast
 
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.types import DailyDrivers
@@ -38,23 +38,23 @@ class SeasonResults:
 
 class EventScheduler:
     def __init__(self) -> None:
-        self._by_day: Dict[int, List[ScheduledAction]] = {}
+        self._by_day: dict[int, list[ScheduledAction]] = {}
 
     def schedule(self, action: ScheduledAction) -> None:
         self._by_day.setdefault(action.day_index, []).append(action)
 
-    def for_day(self, day_index: int) -> List[ScheduledAction]:
+    def for_day(self, day_index: int) -> list[ScheduledAction]:
         return list(self._by_day.get(day_index, ()))
 
-    def snapshot(self) -> Dict[int, List[Tuple[str, float, int]]]:
-        snap: Dict[int, List[Tuple[str, float, int]]] = {}
+    def snapshot(self) -> dict[int, list[tuple[str, float, int]]]:
+        snap: dict[int, list[tuple[str, float, int]]] = {}
         for di, items in self._by_day.items():
             snap[di] = [(it.action.value, it.amount, it.layer) for it in items]
         return snap
 
     @classmethod
     def from_snapshot(
-        cls, snap: Dict[int, List[Tuple[str, float, int]]]
+        cls, snap: dict[int, list[tuple[str, float, int]]]
     ) -> EventScheduler:
         sched = cls()
         for di, items in snap.items():
@@ -89,7 +89,7 @@ class SimulationEngine:
     ) -> None:
         self.profile = profile
         self.weather_file = str(weather_file)
-        self.weather_records: List[WeatherRecord] = list(
+        self.weather_records: list[WeatherRecord] = list(
             load_weather(Path(self.weather_file)).records
         )
         self.max_days = max_days or len(self.weather_records)
@@ -178,7 +178,7 @@ class SimulationEngine:
         self.current_day = int(state.get("current_day", 0))
         self.is_running = bool(state.get("is_running", False))
         self.days_per_step = int(state.get("days_per_step", 1))
-        snap = cast(Dict[int, List[Tuple[str, float, int]]], state.get("scheduler", {}))
+        snap = cast(dict[int, list[tuple[str, float, int]]], state.get("scheduler", {}))
         self.scheduler = EventScheduler.from_snapshot(snap)
 
     # --- Main loop ---------------------------------------------------

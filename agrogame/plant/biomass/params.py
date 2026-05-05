@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from agrogame.soil.phenology import PhenologyStage
 
@@ -10,7 +9,7 @@ from agrogame.soil.phenology import PhenologyStage
 class PartitioningParams:
     """Frozen biomass-partitioning per phenology stage, with stress responses."""
 
-    partitioning: Dict[PhenologyStage, Dict[str, float]]
+    partitioning: dict[PhenologyStage, dict[str, float]]
     harvest_index_potential: float = 0.5
     remobilization_efficiency: float = 0.5
     # Stress-response tuning

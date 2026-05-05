@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Tuple
 
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
@@ -25,7 +24,7 @@ def generate_rain_evap(
     base_rain_mm: float,
     base_evap_mm: float,
     pattern: str = "constant",
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     """Generate daily rainfall and evaporation sequences for a small set of patterns.
 
     - constant: fixed rain and evap
@@ -62,7 +61,7 @@ def generate_temp_par(
     base_tmax_c: float,
     base_par_mj_m2: float,
     pattern: str = "constant",
-) -> Tuple[List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float]]:
     """Generate daily tmin/tmax/PAR sequences for simple patterns."""
     import math
 

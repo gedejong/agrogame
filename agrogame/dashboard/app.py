@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import Any, Mapping, NamedTuple, Optional
+from typing import Any, NamedTuple
+from collections.abc import Mapping
 
 import streamlit as st
 
@@ -225,7 +226,7 @@ def _render_stress_metrics(history: Mapping[str, Any], upto: int | None) -> None
         st.metric("Water stress", f"{float(ws_last):.2f}")
     with c_ns:
         n_series = history.get("n_stress", [])
-        n_display: Optional[float] = None
+        n_display: float | None = None
         if n_series:
             val = n_series[idx]
             if val is not None:
@@ -389,7 +390,7 @@ def _render_all_tabs(
         _render_weather_tab(history, upto)
 
 
-def main(argv: Optional[list[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     st.set_page_config(page_title="AgroGame Dashboard", layout="wide")
     st.title("AgroGame Dashboard")
     # App readiness marker for e2e tests (present regardless of run state)

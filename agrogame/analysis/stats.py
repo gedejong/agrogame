@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import math
-from typing import Iterable, List, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 
 def _to_lists(
     obs: Iterable[float], sim: Iterable[float]
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     o = list(obs)
     s = list(sim)
     if len(o) != len(s) or len(o) == 0:
@@ -89,10 +89,10 @@ def coverage_within(obs: Iterable[float], sim: Iterable[float], tol: float) -> f
 
 def _align_union(
     xmap: dict, ymap: dict, sort_keys: bool
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     keys = set(xmap) | set(ymap)
     keys_list = sorted(keys) if sort_keys else list(keys)
-    aligned: List[Tuple[float, float]] = []
+    aligned: list[tuple[float, float]] = []
     for k in keys_list:
         if k in xmap and k in ymap:
             aligned.append((xmap[k], ymap[k]))
@@ -101,7 +101,7 @@ def _align_union(
 
 def _align_intersection(
     xs: Sequence, xmap: dict, ymap: dict, sort_keys: bool
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     keys_seq = (
         sorted(set(xs) & set(ymap)) if sort_keys else [k for k in xs if k in ymap]
     )
@@ -116,7 +116,7 @@ def align_series(
     *,
     use_union: bool = False,
     sort_keys: bool = False,
-) -> Tuple[List[float], List[float]]:
+) -> tuple[list[float], list[float]]:
     """Align two series by key sequences xs, ys and values xv, yv.
 
     - By default returns pairs for keys in intersection, keeping obs (xs) order.

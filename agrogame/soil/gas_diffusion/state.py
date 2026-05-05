@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, List
+from typing import Any
 
 
 @dataclass
@@ -16,10 +16,10 @@ class GasDiffusionState:
     profile once ``daily_step`` is called.
     """
 
-    o2_frac: List[float] = field(default_factory=list)
-    co2_frac: List[float] = field(default_factory=list)
-    anaerobic: List[bool] = field(default_factory=list)
-    anaerobic_microsite_frac: List[float] = field(default_factory=list)
+    o2_frac: list[float] = field(default_factory=list)
+    co2_frac: list[float] = field(default_factory=list)
+    anaerobic: list[bool] = field(default_factory=list)
+    anaerobic_microsite_frac: list[float] = field(default_factory=list)
 
     @classmethod
     def from_layers(

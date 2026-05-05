@@ -13,13 +13,13 @@ class _FakeResp:
     def __init__(self, payload: dict[str, Any]):
         self._data = json.dumps(payload).encode("utf-8")
 
-    def __enter__(self) -> "_FakeResp":  # noqa: D401
+    def __enter__(self) -> _FakeResp:
         return self
 
-    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:  # noqa: D401
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         return None
 
-    def read(self) -> bytes:  # noqa: D401
+    def read(self) -> bytes:
         return self._data
 
 
@@ -38,7 +38,7 @@ def test_power_auto_fetch_monkeypatched(monkeypatch: pytest.MonkeyPatch) -> None
         }
     }
 
-    def _fake_urlopen(url: str, timeout: int = 60) -> _FakeResp:  # noqa: D401
+    def _fake_urlopen(url: str, timeout: int = 60) -> _FakeResp:
         return _FakeResp(payload)
 
     import urllib.request as _u

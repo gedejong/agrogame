@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict
 
 from agrogame.soil.phenology import PhenologyStage
 
@@ -15,7 +14,7 @@ class RootParams:
     distribution: str = "exponential"  # or "uniform"
     turnover_rate_per_day: float = 0.005
     proliferation_strength: float = 0.0  # 0 disables nutrient-driven bias
-    stage_multipliers: Dict[PhenologyStage, float] | None = None
+    stage_multipliers: dict[PhenologyStage, float] | None = None
     # When True, allocate root fractions continuously within the boundary layer
     # instead of stepwise per full layer. This reduces discontinuities.
     continuous_distribution: bool = True

@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple
 
 from agrogame.soil.loader import load_soil_presets
 
 
 # Very light reference ranges (heuristic) inspired by common soil property ranges
-FC_RANGE: Tuple[float, float] = (0.05, 0.60)
-WP_RANGE: Tuple[float, float] = (0.02, 0.35)
-SAT_RANGE: Tuple[float, float] = (0.25, 0.85)
-BD_RANGE: Tuple[float, float] = (0.2, 2.0)  # g/cm3, peat to compacted clays
-KSAT_RANGE: Tuple[float, float] = (0.5, 200.0)  # mm/h
+FC_RANGE: tuple[float, float] = (0.05, 0.60)
+WP_RANGE: tuple[float, float] = (0.02, 0.35)
+SAT_RANGE: tuple[float, float] = (0.25, 0.85)
+BD_RANGE: tuple[float, float] = (0.2, 2.0)  # g/cm3, peat to compacted clays
+KSAT_RANGE: tuple[float, float] = (0.5, 200.0)  # mm/h
 
 
 def main() -> int:

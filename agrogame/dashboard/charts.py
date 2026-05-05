@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Any, Mapping
+from typing import Any
+from collections.abc import Mapping
 
 import plotly.graph_objects as go
 
@@ -14,7 +15,7 @@ def _gradient_hex(color_a: str, color_b: str, steps: int) -> list[str]:
         return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
     def to_hex(rgb: tuple[int, int, int]) -> str:
-        return "#%02x%02x%02x" % rgb
+        return "#{:02x}{:02x}{:02x}".format(*rgb)
 
     ra, ga, ba = to_rgb(color_a)
     rb, gb, bb = to_rgb(color_b)

@@ -5,7 +5,6 @@ import functools
 import json
 from datetime import date, datetime
 from pathlib import Path
-from typing import List, Optional
 
 import urllib.request
 from urllib.error import HTTPError, URLError
@@ -38,7 +37,7 @@ def load_weather(path: Path) -> WeatherSeries:
 
 
 def _load_csv(path: Path) -> WeatherSeries:
-    rows: List[WeatherRecord] = []
+    rows: list[WeatherRecord] = []
     with path.open("r", newline="") as f:
         reader = csv.DictReader(f)
         for i, r in enumerate(reader, start=2):
@@ -56,7 +55,7 @@ def _load_csv(path: Path) -> WeatherSeries:
                         precip_mm=_opt_float(r.get("precip_mm")),
                     )
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 raise ValueError(f"CSV parse error at line {i}: {e}") from e
     return WeatherSeries(rows)
 
@@ -70,7 +69,7 @@ def _load_json(path: Path) -> WeatherSeries:
         # Be permissive: keep legacy support if schema not matched, but annotate
         # callers can choose to re-validate later if needed
         _ = e
-    rows: List[WeatherRecord] = []
+    rows: list[WeatherRecord] = []
     for i, r in enumerate(data, start=1):
         try:
             rows.append(
@@ -86,12 +85,12 @@ def _load_json(path: Path) -> WeatherSeries:
                     precip_mm=_opt_float(r.get("precip_mm")),
                 )
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise ValueError(f"JSON parse error at index {i}: {e}") from e
     return WeatherSeries(rows)
 
 
-def _opt_float(v: Optional[str | float]) -> Optional[float]:
+def _opt_float(v: str | float | None) -> float | None:
     """Parse optional float from CSV/JSON, treating sentinel -999 as missing."""
     if v is None or v == "":
         return None
@@ -132,14 +131,14 @@ def load_weather_auto(
     try:
         with urllib.request.urlopen(url, timeout=60) as resp:  # nosec B310
             payload = json.loads(resp.read().decode("utf-8"))
-    except (HTTPError, URLError) as e:  # noqa: PERF203
+    except (HTTPError, URLError) as e:
         raise ValueError(f"NASA POWER request failed: {e}") from e
 
     d = payload["properties"]["parameter"]
     days = sorted(int(k) for k in d["T2M_MAX"].keys())
-    records: List[WeatherRecord] = []
+    records: list[WeatherRecord] = []
 
-    def _clean(value: Optional[float]) -> Optional[float]:
+    def _clean(value: float | None) -> float | None:
         if value is None:
             return None
         # Convert POWER sentinel to None

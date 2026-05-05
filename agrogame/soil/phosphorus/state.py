@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List
 
 from agrogame.soil.models import SoilProfile
 from .constants import (
@@ -28,15 +27,15 @@ class SoilPhosphorusState:
             profile: Soil profile providing initial nutrient metadata.
         """
         # Initialize available P directly from per-layer initial values
-        self.available_p: List[float] = [
+        self.available_p: list[float] = [
             layer.initial_p_kg_ha for layer in profile.layers
         ]
         # Start with no fixed P; will accumulate via fixation
-        self.fixed_p: List[float] = [0.0 for _ in profile.layers]
+        self.fixed_p: list[float] = [0.0 for _ in profile.layers]
 
         # Initialize organic P per layer based on soil organic matter (OM)
         # Rule of thumb: 0.2% of OM mass as P, adjustable via constant
-        self.organic_p: List[float] = []
+        self.organic_p: list[float] = []
         for layer in profile.layers:
             depth_m = layer.depth_cm / 100.0
             bulk_density_kg_m3 = layer.bulk_density_g_cm3 * BULK_DENSITY_G_CM3_TO_KG_M3

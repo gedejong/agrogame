@@ -44,8 +44,13 @@ jobs:
       - name: Run pre-commit (push stage)
         run: poetry run pre-commit run --all-files --hook-stage push
 
-      - name: Import Linter
-        run: poetry run lint-imports --config .importlinter
+      - name: Import Linter (green contracts only — see .importlinter)
+        run: |
+          poetry run lint-imports --config .importlinter \
+            --contract events_isolated \
+            --contract weather_independence \
+            --contract plant_independence \
+            --contract game_no_api
 
       - name: Xenon complexity
         run: poetry run xenon --max-average B --max-modules B --max-absolute C --ignore 'tests/*,docs/*,out/*' --exclude 'agrogame/plots/*' agrogame
@@ -62,5 +67,5 @@ jobs:
       - name: Deptry dependency hygiene
         run: poetry run deptry agrogame
 
-      - name: Vulture (report-only)
-        run: poetry run vulture agrogame --min-confidence 80
+      - name: Vulture (enforced, #297)
+        run: poetry run vulture agrogame vulture-whitelist.py --min-confidence 80

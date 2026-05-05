@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 from agrogame.events.base import BaseEvent
 
@@ -11,5 +10,5 @@ from agrogame.events.base import BaseEvent
 class ConfigReloaded(BaseEvent):
     """Emitted when configuration files are reloaded successfully."""
 
-    files: List[Path]
+    files: list[Path]
     schema: str

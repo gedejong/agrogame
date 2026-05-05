@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, DefaultDict, List, Type, TypeVar
+from typing import Any, TypeVar
+from collections.abc import Callable
 from collections import defaultdict
 
 
@@ -16,12 +17,12 @@ class EventBus:
 
     def __init__(self, debug_mode: bool = False):
         """Create a new bus. Pass debug_mode=True to re-raise handler errors."""
-        self._handlers: DefaultDict[type, List[Callable[[Any], None]]] = defaultdict(
+        self._handlers: defaultdict[type, list[Callable[[Any], None]]] = defaultdict(
             list
         )
         self._debug_mode = debug_mode
 
-    def subscribe(self, event_type: Type[T], handler: Callable[[T], None]) -> None:
+    def subscribe(self, event_type: type[T], handler: Callable[[T], None]) -> None:
         """Register `handler` to be called every time an `event_type` is emitted."""
         self._handlers[event_type].append(handler)
 

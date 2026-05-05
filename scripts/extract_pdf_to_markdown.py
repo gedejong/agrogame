@@ -3,12 +3,12 @@ from __future__ import annotations
 import argparse
 import re
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from collections.abc import Iterable
 
 from pypdf import PdfReader
 
 
-HEADING_PATTERNS: Tuple[re.Pattern[str], ...] = (
+HEADING_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*chapter\s+\d+\b", re.IGNORECASE),
     re.compile(r"^\s*\d+\.?\s+[A-Z][A-Za-z ,\-]{5,}$"),
 )
@@ -30,13 +30,13 @@ def _is_heading(line: str) -> bool:
     return False
 
 
-def split_into_docs(pages: List[str], chunk_pages: int = 8) -> List[Tuple[str, str]]:
+def split_into_docs(pages: list[str], chunk_pages: int = 8) -> list[tuple[str, str]]:
     """Split raw page texts into (title, markdown) documents.
 
     Heuristics: start a new doc on detected headings; otherwise split by chunk_pages.
     """
-    docs: List[Tuple[str, str]] = []
-    current_lines: List[str] = []
+    docs: list[tuple[str, str]] = []
+    current_lines: list[str] = []
     current_title: str | None = None
     pages_since_split = 0
 
@@ -68,15 +68,15 @@ def split_into_docs(pages: List[str], chunk_pages: int = 8) -> List[Tuple[str, s
     return docs
 
 
-def sanitize_title(title: str, index: int) -> Tuple[str, str]:
+def sanitize_title(title: str, index: int) -> tuple[str, str]:
     safe = re.sub(r"[^A-Za-z0-9\- ]+", "", title)[:60].strip() or f"Section-{index:03d}"
     slug = re.sub(r"\s+", "-", safe).lower()
     return safe, slug
 
 
-def write_docs(docs: List[Tuple[str, str]], out_dir: Path) -> List[Path]:
+def write_docs(docs: list[tuple[str, str]], out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
-    written: List[Path] = []
+    written: list[Path] = []
     for i, (title, body) in enumerate(docs, start=1):
         safe, slug = sanitize_title(title, i)
         path = out_dir / f"{i:03d}-{slug}.md"

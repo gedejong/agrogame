@@ -26,7 +26,8 @@ import sys
 from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 import numpy as np
 

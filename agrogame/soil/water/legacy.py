@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Tuple
 
 from agrogame.soil.models import SoilProfile
 from agrogame.events import EventBus
@@ -52,7 +51,7 @@ class SoilWaterBalance:
         evaporation_mm: float = 0.0,
         *,
         lai: float | None = None,
-    ) -> Tuple[float, float, float]:
+    ) -> tuple[float, float, float]:
         """Advance one day and return (runoff, deep_drainage, storage_change)."""
         rain_in = max(0.0, rainfall_mm)
         pot_evap = max(0.0, evaporation_mm)

@@ -4,7 +4,8 @@ import math
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
+from collections.abc import Mapping
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
 from agrogame.plant.events import NutrientStressComputed, WaterStressComputed
@@ -81,7 +82,7 @@ def _apply_fertilizers(
 def _compute_reference_et(
     et_mod: Evapotranspiration,
     rec: WeatherRecord,
-) -> tuple[float, Optional[float], float, float, float, float]:
+) -> tuple[float, float | None, float, float, float, float]:
     """Compute ET0 (PM, PT), VPD and thermal/energy inputs used downstream.
 
     Returns (et0_pm, et0_pt, par, rn, tmean, vpd).
@@ -111,11 +112,11 @@ def _compute_reference_et(
 class _DailyAggregation:
     evap_mm: float = 0.0
     transp_mm: float = 0.0
-    enzyme_totals: Dict[str, float] = field(default_factory=dict)
+    enzyme_totals: dict[str, float] = field(default_factory=dict)
     # Stress signals captured from events (optional; fall back to derived)
-    water_stress: Optional[float] = None
-    n_stress: Optional[float] = None
-    p_stress: Optional[float] = None
+    water_stress: float | None = None
+    n_stress: float | None = None
+    p_stress: float | None = None
 
 
 def _subscribe_daily_aggregators(orch: FullSimulationOrchestrator) -> _DailyAggregation:
@@ -187,7 +188,7 @@ def _make_drivers(total_rain_mm: float) -> DailyDrivers:
 
 
 def _append_day_summary(
-    history: Dict[str, Any],
+    history: dict[str, Any],
     *,
     et0: float,
     agg: _DailyAggregation,
@@ -213,14 +214,14 @@ def _append_day_summary(
 
 
 def _append_biomass_and_interception(
-    history: Dict[str, Any], *, orch: FullSimulationOrchestrator, par: float
+    history: dict[str, Any], *, orch: FullSimulationOrchestrator, par: float
 ) -> None:
     current_biomass = orch.canopy.state.biomass_g_m2
     prev_biomass = history["biomass_g_m2"][-1] if history["biomass_g_m2"] else 0.0
     history["biomass_g_m2"].append(current_biomass)
     history["biomass_inc_g_m2"].append(max(0.0, current_biomass - prev_biomass))
     k_raw = getattr(orch.canopy.params, "extinction_coefficient_k", 0.6)
-    if not isinstance(k_raw, (int, float)):
+    if not isinstance(k_raw, int | float):
         raise TypeError("Canopy extinction coefficient must be numeric")
     k_ext = float(k_raw)
     lai_now = float(orch.canopy.state.lai or 0.0)
@@ -233,20 +234,20 @@ def _append_biomass_and_interception(
 
 
 def _append_root_and_stage(
-    history: Dict[str, Any], *, orch: FullSimulationOrchestrator
+    history: dict[str, Any], *, orch: FullSimulationOrchestrator
 ) -> None:
     rd = getattr(getattr(orch, "root_state", None), "current_depth_cm", None)
-    history["root_depth_cm"].append(float(rd) if isinstance(rd, (int, float)) else 0.0)
+    history["root_depth_cm"].append(float(rd) if isinstance(rd, int | float) else 0.0)
     stage = getattr(getattr(orch.phenology, "state", None), "stage", None)
     history["stage"].append(
         stage.value if isinstance(stage, PhenologyStage) else str(stage)
     )
     gdd = getattr(getattr(orch.phenology, "state", None), "accumulated_gdd", None)
-    history["gdd_accum"].append(gdd if isinstance(gdd, (int, float)) else None)
+    history["gdd_accum"].append(gdd if isinstance(gdd, int | float) else None)
 
 
 def _append_layers(
-    history: Dict[str, Any],
+    history: dict[str, Any],
     *,
     orch: FullSimulationOrchestrator,
     profile: SoilProfile,
@@ -266,7 +267,7 @@ def _append_layers(
 
 
 def _append_weather(
-    history: Dict[str, Any], *, rain: float, rec: WeatherRecord, tmean: float
+    history: dict[str, Any], *, rain: float, rec: WeatherRecord, tmean: float
 ) -> None:
     history["rain_mm"].append(rain)
     history["tmin_c"].append(rec.tmin_c)
@@ -275,7 +276,7 @@ def _append_weather(
 
 
 def _append_microbes(
-    history: Dict[str, Any], *, orch: FullSimulationOrchestrator
+    history: dict[str, Any], *, orch: FullSimulationOrchestrator
 ) -> None:
     try:
         micro_c = sum(lc.c_kg_ha for lc in orch.microbes.state.layers)
@@ -290,7 +291,7 @@ def _append_microbes(
     history["micro_fb_avg"].append(fb_avg)
 
 
-def _append_enzyme_groups(history: Dict[str, Any], *, agg: _DailyAggregation) -> None:
+def _append_enzyme_groups(history: dict[str, Any], *, agg: _DailyAggregation) -> None:
     snapshot = dict(agg.enzyme_totals)
     history["enzyme_cellulase_c"].append(float(snapshot.get("cellulase", 0.0)))
     history["enzyme_protease_c"].append(float(snapshot.get("protease", 0.0)))
@@ -311,7 +312,7 @@ def _init_orchestrator(
     return orch, et_mod
 
 
-def _new_history(profile: SoilProfile) -> Dict[str, Any]:
+def _new_history(profile: SoilProfile) -> dict[str, Any]:
     """Allocate the history structure for time series outputs."""
     return {
         "day": [],
@@ -367,7 +368,7 @@ def _run_simulation(
     fertilizer_schedule: list[tuple[int, float]] | None = None,
     *,
     fertilizer_ops: list[tuple[int, float, str, int]] | None = None,
-) -> tuple[Dict[str, Any], SoilProfile]:
+) -> tuple[dict[str, Any], SoilProfile]:
     soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
     profile = soil_lib.soils["loam_temperate"]
     orch, et_mod = _init_orchestrator(profile)
@@ -377,7 +378,7 @@ def _run_simulation(
     weather = load_weather(weather_file)
     records: list[WeatherRecord] = _extend_weather_records(list(weather.records), days)
 
-    history: Dict[str, Any] = _new_history(profile)
+    history: dict[str, Any] = _new_history(profile)
 
     irrig_map = dict(irrigation_schedule or [])
     fert_map = dict(fertilizer_schedule or [])

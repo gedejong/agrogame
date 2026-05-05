@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -34,7 +34,7 @@ def _stage_label(stage: PhenologyStage) -> str:
 
 def _generate_weather_series(
     days: int, tmin: float, tmax: float, par: float, pattern: str
-) -> Tuple[List[float], List[float], List[float]]:
+) -> tuple[list[float], list[float], list[float]]:
     if pattern == "seasonal":
         import math
 
@@ -52,13 +52,13 @@ def _generate_weather_series(
 
 def simulate_phenology_canopy(
     days: int, tmin: float, tmax: float, par: float, pattern: str
-) -> Tuple[
-    List[float],
-    List[float],
-    List[PhenologyStage],
-    List[tuple[int, str]],
-    List[float],
-    List[float],
+) -> tuple[
+    list[float],
+    list[float],
+    list[PhenologyStage],
+    list[tuple[int, str]],
+    list[float],
+    list[float],
 ]:
     bus = EventBus()
     phen_params = CropPhenologyParams(
@@ -79,12 +79,12 @@ def simulate_phenology_canopy(
         ),
         event_bus=bus,
     )
-    stage_marks: List[tuple[int, str]] = []
-    lai: List[float] = []
-    biomass: List[float] = []
-    stages: List[PhenologyStage] = []
-    intercepted_series: List[float] = []
-    biomass_inc_series: List[float] = []
+    stage_marks: list[tuple[int, str]] = []
+    lai: list[float] = []
+    biomass: list[float] = []
+    stages: list[PhenologyStage] = []
+    intercepted_series: list[float] = []
+    biomass_inc_series: list[float] = []
 
     bus.subscribe(
         StageChanged,
@@ -120,7 +120,7 @@ _STAGE_COLORS = {
 }
 
 
-def _draw_stage_ribbon(ax: Any, stages: List[PhenologyStage]) -> None:
+def _draw_stage_ribbon(ax: Any, stages: list[PhenologyStage]) -> None:
     start = 0
     for i in range(1, len(stages) + 1):
         if i == len(stages) or stages[i] != stages[start]:
@@ -135,7 +135,7 @@ def _draw_stage_ribbon(ax: Any, stages: List[PhenologyStage]) -> None:
 
 
 def _save_efficiency_plot(
-    x: List[int], intercepted: List[float], biomass_inc: List[float], out: Path
+    x: list[int], intercepted: list[float], biomass_inc: list[float], out: Path
 ) -> None:
     import numpy as np
 
@@ -216,7 +216,7 @@ def simulate_roots(
     growth_rate_cm_per_day: float,
     max_depth_cm: float,
     distribution: str,
-) -> tuple[List[float], List[float], List[List[float]]]:
+) -> tuple[list[float], list[float], list[list[float]]]:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils[profile_name]
     bus = EventBus()
@@ -239,9 +239,9 @@ def simulate_roots(
         event_bus=bus,
     )
     state = RootState()
-    depths: List[float] = []
-    top_frac: List[float] = []
-    fractions_over_time: List[List[float]] = []
+    depths: list[float] = []
+    top_frac: list[float] = []
+    fractions_over_time: list[list[float]] = []
     for _ in range(days):
         phen.update_daily(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
         _ = roots.daily_step(state, profile, phen.state.stage)
@@ -256,7 +256,7 @@ def simulate_roots(
 
 
 def _plot_layer_fractions(
-    ax: Any, x: List[int], fractions_over_time: List[List[float]]
+    ax: Any, x: list[int], fractions_over_time: list[list[float]]
 ) -> None:
     if not any(frac for frac in fractions_over_time):
         return

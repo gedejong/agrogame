@@ -21,7 +21,6 @@ Refs:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 from agrogame.events import EventBus
 from agrogame.soil.models import SoilProfile
@@ -63,7 +62,7 @@ def partition_flow(
     matrix_ksat_mm_hr: float,
     macro_frac: float,
     params: DualPorosityParams,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Split incoming rainfall into matrix and macropore bypass amounts.
 
     Returns (matrix_mm, bypass_mm). Both sum to rainfall_mm.
@@ -112,7 +111,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         self,
         params: DualPorosityParams,
         pore_state: PoreNetworkState,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         """Create the dual-porosity model.
 
@@ -132,8 +131,8 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         profile: SoilProfile,
         state: SoilWaterState,
         drivers: DailyDrivers,
-        ksat_factors: Optional[List[float]] = None,
-        porosity_overrides: Optional[List[float]] = None,
+        ksat_factors: list[float] | None = None,
+        porosity_overrides: list[float] | None = None,
     ) -> WaterFluxes:
         """Run one daily dual-porosity step.
 
@@ -255,7 +254,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         profile: SoilProfile,
         state: SoilWaterState,
         bypass_mm: float,
-    ) -> Tuple[float, List[int]]:
+    ) -> tuple[float, list[int]]:
         """Route bypass water through macropore domain, top-to-bottom.
 
         Fills each layer's macropore domain up to its volumetric
@@ -267,7 +266,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         if bypass_mm <= 0.0 or state.theta_macro is None:
             return 0.0, []
         remaining = bypass_mm
-        filled: List[int] = []
+        filled: list[int] = []
         n = min(
             len(profile.layers), len(state.theta_macro), len(self._pore_state.macro)
         )
@@ -291,8 +290,8 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
     def _build_matrix_porosity_overrides(
         self,
         profile: SoilProfile,
-        porosity_overrides: Optional[List[float]],
-    ) -> List[float]:
+        porosity_overrides: list[float] | None,
+    ) -> list[float]:
         """Per-layer effective matrix porosity = saturation - macro_frac.
 
         Prevents double-counting: pore network already reserves
@@ -300,7 +299,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         the matrix domain cascading bucket must cap at the remainder.
         """
         n = len(profile.layers)
-        overrides: List[float] = []
+        overrides: list[float] = []
         for i, layer in enumerate(profile.layers):
             base = (
                 porosity_overrides[i]

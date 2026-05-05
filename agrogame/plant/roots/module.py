@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from math import exp
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from agrogame.events import EventBus
 from agrogame.soil.models import SoilProfile
@@ -75,8 +75,8 @@ class RootModule:
     @staticmethod
     def _uniform_distribution(
         profile: SoilProfile, depth_cm: float, *, continuous: bool
-    ) -> List[float]:
-        fracs: List[float] = []
+    ) -> list[float]:
+        fracs: list[float] = []
         cum_top = 0.0
         rooted_count = 0.0
         for i, layer in enumerate(profile.layers):
@@ -111,9 +111,9 @@ class RootModule:
     @staticmethod
     def _exponential_distribution(
         profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
-    ) -> List[float]:
+    ) -> list[float]:
         # Depth-decay kernel exp(-z/scale) integrated over rooted portion of each layer
-        weights: List[float] = []
+        weights: list[float] = []
         cum_top = 0.0
         for layer in profile.layers:
             top = cum_top
@@ -140,13 +140,13 @@ class RootModule:
     @staticmethod
     def _taproot_distribution(
         profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
-    ) -> List[float]:
+    ) -> list[float]:
         """Increasing weight with depth to mimic taproot dominance.
 
         Uses an inverted exponential so that deeper layers get higher weight
         within the rooted zone.
         """
-        weights: List[float] = []
+        weights: list[float] = []
         cum_top = 0.0
         for layer in profile.layers:
             top = cum_top
@@ -172,8 +172,8 @@ class RootModule:
 
     @staticmethod
     def _apply_proliferation(
-        fracs: List[float], nutrient_signal: Sequence[float] | None, strength: float
-    ) -> List[float]:
+        fracs: list[float], nutrient_signal: Sequence[float] | None, strength: float
+    ) -> list[float]:
         if not nutrient_signal or strength <= 0.0:
             return fracs
         biased = [

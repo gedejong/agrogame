@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 
 from agrogame.events.base import BaseEvent
@@ -8,7 +8,7 @@ from agrogame.events.base import BaseEvent
 
 @dataclass(frozen=True)
 class DailyWeather(BaseEvent):
-    day: date = date.today()
+    day: date = field(default_factory=date.today)
     tmin_c: float = 0.0
     tmax_c: float = 0.0
     relative_humidity_pct: float | None = None

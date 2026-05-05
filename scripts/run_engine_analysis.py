@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 from io import StringIO
 
 import pandas as pd
@@ -19,13 +19,13 @@ def run_engine(
     profile: str,
     weather_file: Path,
     days: int,
-    irrig: List[str] | None,
+    irrig: list[str] | None,
     out_dir: Path,
-    fert_an: List[str] | None = None,
-    fert_urea: List[str] | None = None,
-    lime: List[str] | None = None,
+    fert_an: list[str] | None = None,
+    fert_urea: list[str] | None = None,
+    lime: list[str] | None = None,
     harvest: int | None = None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     soil_lib = load_soil_presets(Path("soils/presets.yaml"))
     eng = SimulationEngine(soil_lib.soils[profile], weather_file)
@@ -54,14 +54,14 @@ def run_engine(
         eng.schedule_harvest(int(harvest))
 
     # Daily aggregations
-    evap_series: List[float] = []
-    transp_series: List[float] = []
-    lai_series: List[float] = []
-    biomass_series: List[float] = []
-    nmin_series: List[float] = []
-    day_labels: List[Any] = []
-    et0_series: List[float] = []
-    water_stress_series: List[float] = []
+    evap_series: list[float] = []
+    transp_series: list[float] = []
+    lai_series: list[float] = []
+    biomass_series: list[float] = []
+    nmin_series: list[float] = []
+    day_labels: list[Any] = []
+    et0_series: list[float] = []
+    water_stress_series: list[float] = []
 
     # In-memory day counters via event subscriptions
     daily = {"evap": 0.0, "transp": 0.0}
@@ -113,7 +113,7 @@ def run_engine(
         water_stress_series.append(max(0.05, min(1.0, daily["transp"] / demand)))
 
     # Convert events to DataFrame
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for ev in rec.events:
         # Normalize day index for grouping; keep sim_date separately if present
         sim_date = ev.data.get("sim_date")
@@ -170,7 +170,7 @@ def run_engine(
             ax_s.set_yticks([])
 
         # Annotate management days (shift +1 to align with post-step day index)
-        def _parse_days(specs: List[str] | None) -> list[int]:
+        def _parse_days(specs: list[str] | None) -> list[int]:
             days_list: list[int] = []
             for s in specs or []:
                 d = int(s.split(",")[0]) + 1

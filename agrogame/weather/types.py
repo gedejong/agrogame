@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any, List, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -10,12 +10,12 @@ class WeatherRecord:
     day: date
     tmin_c: float
     tmax_c: float
-    relative_humidity_pct: Optional[float] = None
-    wind_m_s: Optional[float] = None
-    shortwave_mj_m2: Optional[float] = None  # Rs
-    net_radiation_mj_m2: Optional[float] = None  # Rn
-    albedo: Optional[float] = None
-    precip_mm: Optional[float] = None
+    relative_humidity_pct: float | None = None
+    wind_m_s: float | None = None
+    shortwave_mj_m2: float | None = None  # Rs
+    net_radiation_mj_m2: float | None = None  # Rn
+    albedo: float | None = None
+    precip_mm: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,4 +47,4 @@ class WeatherRecord:
 
 @dataclass
 class WeatherSeries:
-    records: List[WeatherRecord]
+    records: list[WeatherRecord]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 import matplotlib.pyplot as plt
 
@@ -73,7 +73,7 @@ def _run_simulation(
     days: int,
     pattern: str,
     weather_args: Any,
-) -> tuple[dict[str, List[float]], int]:
+) -> tuple[dict[str, list[float]], int]:
     """Run simulation and return collected time series and total_days."""
     lib = load_soil_presets(Path("soils/presets.yaml"))
     soil_profile = lib.soils[profile]
@@ -103,7 +103,7 @@ def _run_simulation(
     )
     etmod = Evapotranspiration(EtParams())
 
-    data: dict[str, List[float]] = {
+    data: dict[str, list[float]] = {
         k: []
         for k in [
             "et0s",
@@ -214,7 +214,7 @@ def _run_simulation(
 
 
 def _postprocess_weather(
-    data: dict[str, List[float]],
+    data: dict[str, list[float]],
 ) -> None:
     """Clamp/fill weather and recompute VPD/stomatal from cleaned data in-place."""
     data["tmins"] = clamp_forward_fill(data["tmins"], -60.0, 60.0)
@@ -236,7 +236,7 @@ def _postprocess_weather(
 
 
 def _render_plots(
-    data: dict[str, List[float]],
+    data: dict[str, list[float]],
     total_days: int,
     out: Path,
     smooth_window: int,
@@ -245,7 +245,7 @@ def _render_plots(
 ) -> None:
     """Create the figure and render all subplots."""
 
-    def smooth(vals: List[float]) -> List[float]:
+    def smooth(vals: list[float]) -> list[float]:
         return moving_average(vals, smooth_window)
 
     x = list(range(1, total_days + 1))

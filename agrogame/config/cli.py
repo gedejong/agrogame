@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 from agrogame.config.compose import load_and_compose
 from agrogame.config.validation import validate_data
@@ -40,7 +40,7 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
     files = [Path(p) for p in args.files]
     bus = EventBus()
 
-    def on_change(_changed: List[Path]) -> None:
+    def on_change(_changed: list[Path]) -> None:
         data = load_and_compose(files)
         try:
             validate_data(data, schema)

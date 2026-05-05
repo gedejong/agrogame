@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Tuple
+from typing import Any
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as pe
@@ -168,7 +169,7 @@ def plot_timeline(
     grep: str = "",
 ) -> None:
     rec, total = simulate_and_record(days, "loam_temperate", weather_args)
-    lane_y: Dict[str, int] = {name: i for i, name in enumerate(LANES)}
+    lane_y: dict[str, int] = {name: i for i, name in enumerate(LANES)}
     colors = {
         "Weather": "#1f77b4",
         "Soil": "#17becf",
@@ -206,10 +207,10 @@ def plot_heatmap(
     include: str = "",
     exclude: str = "",
     grep: str = "",
-) -> List[List[int]]:
+) -> list[list[int]]:
     rec, total = simulate_and_record(days, "loam_temperate", weather_args)
     row_index = {n: i for i, n in enumerate(LANES)}
-    mat: List[List[int]] = [[0 for _ in range(total)] for _ in range(len(LANES))]
+    mat: list[list[int]] = [[0 for _ in range(total)] for _ in range(len(LANES))]
     filtered = _filter_events(rec.events, include, exclude, grep)
     for ev in filtered:
         r = row_index.get(bucket(ev.event_type, ev.module_name))
@@ -373,21 +374,23 @@ def _run_dependency_sim(
     return total
 
 
-def _build_edges(rec: Any) -> Dict[Tuple[str, str], int]:
+def _build_edges(rec: Any) -> dict[tuple[str, str], int]:
     """Build chronological edges per day across bucketed modules."""
-    edges: Dict[Tuple[str, str], int] = {}
-    day_events: Dict[int, list] = {}
+    edges: dict[tuple[str, str], int] = {}
+    day_events: dict[int, list] = {}
     for ev in rec.events:
         day_events.setdefault(ev.day_index or 0, []).append(ev)
+    from itertools import pairwise
+
     for _, evs in day_events.items():
         modules = [bucket(e.event_type, e.module_name) for e in evs]
-        for a, b in zip(modules, modules[1:], strict=False):
+        for a, b in pairwise(modules):
             if a != b:
                 edges[(a, b)] = edges.get((a, b), 0) + 1
     return edges
 
 
-def _draw_dependency_graph(edges: Dict[Tuple[str, str], int], out: Path) -> None:
+def _draw_dependency_graph(edges: dict[tuple[str, str], int], out: Path) -> None:
     """Draw and save the dependency graph."""
     import math
 
