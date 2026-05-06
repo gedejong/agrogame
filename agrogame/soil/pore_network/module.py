@@ -35,6 +35,23 @@ class PoreNetworkModule:
         self._state = state
         self._bus = event_bus
 
+    @property
+    def state(self) -> PoreNetworkState:
+        return self._state
+
+    def set_state(self, state: PoreNetworkState) -> None:
+        """Replace state contents in place to preserve aliases.
+
+        Runtimes and the orchestrator hold references to the underlying
+        ``PoreNetworkState``. Mutating in place keeps those references
+        valid after a snapshot restore.
+        """
+        self._state.macro = list(state.macro)
+        self._state.meso = list(state.meso)
+        self._state.micro = list(state.micro)
+        self._state.crypto = list(state.crypto)
+        self._state.connectivity = list(state.connectivity)
+
     def compute(
         self,
         profile: SoilProfile,

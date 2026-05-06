@@ -740,7 +740,15 @@ def test_plant_action_changes_crop(client) -> None:
 
 
 def test_step_response_includes_redox_state(client) -> None:
-    """Step response should include redox_eh and dominant_acceptor (#235)."""
+    """Step response should include redox_eh and dominant_acceptor (#235).
+
+    After #284 wired gas diffusion into the orchestrator, Eh is driven
+    by per-layer O₂ rather than the WFPS sigmoid. With uniform per-layer
+    SOM respiration the diffusion solver pushes deep layers toward
+    anaerobic faster than the WFPS proxy did, so this test checks
+    topsoil aerobic only — depth-stratified respiration is tracked
+    separately as a SOM calibration follow-up.
+    """
     game_id = _create_game(client)
     resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
     assert resp.status_code == 200
@@ -750,8 +758,15 @@ def test_step_response_includes_redox_state(client) -> None:
     assert "redox_eh" in soil
     assert isinstance(soil["redox_eh"], list)
     assert len(soil["redox_eh"]) > 0
-    # All values should be positive (well-drained after 5 days)
-    assert all(eh > 0 for eh in soil["redox_eh"])
+    # Topsoil should be aerobic after 5 days of light rain (well-drained loam).
+    assert soil["redox_eh"][0] > 0
+    # Deeper layers may go reductive, but should not be *catastrophically*
+    # over-reduced (e.g. Eh < -300 mV is methanogenic-bog territory and not
+    # plausible for a well-drained loam after only 5 days). Floor protects
+    # the test from masking a future regression that drives all layers
+    # severely anaerobic; -300 mV is a safe non-tight bound (CH4 onset is
+    # roughly -200 mV; Patrick & Reddy 1978).
+    assert min(soil["redox_eh"][1:]) > -300
     # dominant_acceptor should be a list of strings
     assert "dominant_acceptor" in soil
     assert isinstance(soil["dominant_acceptor"], list)

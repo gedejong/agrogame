@@ -9,7 +9,7 @@ Expected ranges are for the crop's typical performance in that climate.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -503,3 +503,359 @@ def test_dual_porosity_light_rain_no_bypass() -> None:
         DailyDrivers(rainfall_mm=5.0, evaporation_mm=1.0, rainfall_intensity_mm_hr=0.5),
     )
     assert not events, "Light rain must not trigger preferential flow"
+
+
+# --- #284: pore-chain orchestrator wiring ----------------------------------
+
+
+def _build_loam_orchestrator() -> FullSimulationOrchestrator:
+    """Construct a stripped-down orchestrator on `loam_temperate` for #284 tests."""
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    return FullSimulationOrchestrator(profile)
+
+
+def test_full_orchestrator_runs_one_year_with_pore_chain() -> None:
+    """365-day full step with pore-chain wired (#284) — no NaN, no negatives."""
+    import math
+
+    orch = _build_loam_orchestrator()
+    for d in range(365):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=2.0),
+            tmin_c=8.0,
+            tmax_c=18.0,
+            par_mj_m2=12.0,
+            sim_date=date(2024, 1, 1).replace(day=1)
+            + (date(2024, 1, 2) - date(2024, 1, 1)) * d,
+        )
+
+    # No NaN / negative values in any of the new pore-chain states.
+    for arr in (
+        orch.pore_state.macro,
+        orch.pore_state.meso,
+        orch.pore_state.micro,
+        orch.pore_state.crypto,
+        orch.gas_state.o2_frac,
+        orch.gas_state.co2_frac,
+        orch.biopore_state.density_per_m2,
+    ):
+        for v in arr:
+            assert not math.isnan(v) and v >= -1e-9, f"bad value in {arr}: {v}"
+
+    # Pore-network invariant must still hold within float tolerance.
+    for i, layer in enumerate(orch.profile.layers):
+        total = (
+            orch.pore_state.macro[i]
+            + orch.pore_state.meso[i]
+            + orch.pore_state.micro[i]
+            + orch.pore_state.crypto[i]
+        )
+        assert abs(total - layer.saturation) < 1e-6, (
+            f"layer {i}: macro+meso+micro+crypto={total:.6f} ≠ saturation"
+            f" {layer.saturation:.6f}"
+        )
+
+
+def test_heavy_rain_on_clay_bypass_visible_in_pore_chain() -> None:
+    """Heavy rain should leave a measurable signature in the pore chain.
+
+    Even without the dual-porosity water model wired in (#213 deferred),
+    the orchestrator must keep the pore-chain coherent under a heavy
+    rain pulse: macro pool stays in [0, saturation], crypto isn't pushed
+    negative, and connectivity stays in [0, 1]. Validates that the
+    `BioporeModule.update_pore_network` donation cascade behaves under
+    stress. Ref: Beven & Germann 1982 — heavy storms drive macropore
+    flow in structured soils.
+    """
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["clay_loam_temperate"]
+    orch = FullSimulationOrchestrator(profile)
+    # Seed biopores so the donation has something to push.
+    for i in range(len(profile.layers)):
+        orch.biopore_state.density_per_m2[i] = 80.0
+    orch.biopore_state.recompute_volume_fraction()
+
+    # 10 days of heavy rain.
+    for d in range(10):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=40.0),
+            tmin_c=12.0,
+            tmax_c=22.0,
+            par_mj_m2=12.0,
+            sim_date=date(2024, 6, 1) + timedelta(days=d),
+        )
+
+    for i, layer in enumerate(profile.layers):
+        macro = orch.pore_state.macro[i]
+        crypto = orch.pore_state.crypto[i]
+        conn = orch.pore_state.connectivity[i]
+        assert (
+            0.0 <= macro <= layer.saturation + 1e-9
+        ), f"layer {i} macro out of bounds: {macro:.4f}"
+        assert crypto >= -1e-9, f"layer {i} crypto negative: {crypto:.4f}"
+        assert -1e-9 <= conn <= 1.0 + 1e-9, f"layer {i} conn out of [0,1]: {conn:.4f}"
+
+
+def test_waterlog_drives_o2_drop_and_eh_collapse() -> None:
+    """14 days saturated → topsoil O₂ drops below 5% and Eh collapses (#284).
+
+    Ref: Reddy & DeLaune 2008, Biogeochemistry of Wetlands — O₂ depletion
+    and Eh decline under prolonged saturation. The gas-diffusion solver
+    (#217) plus orchestrator wiring (#284) should make this visible end-
+    to-end without any test-only manual O₂ injection.
+    """
+    orch = _build_loam_orchestrator()
+    # Push to near-saturation (95% of layer saturation): tiny air phase
+    # so respiration overwhelms diffusion in the gas-diffusion solver.
+    # At exact saturation, theta_a = 0 collapses the solver and O₂
+    # stays at the boundary value; 0.95 × saturation keeps it physical.
+    waterlog_factor = 0.95
+    for i, layer in enumerate(orch.profile.layers):
+        orch.water_state.theta[i] = layer.saturation * waterlog_factor
+    initial_eh_top = orch.redox_state.eh_mv[0]
+
+    for d in range(14):
+        # Re-saturate every day so cascading bucket can't drain it dry.
+        for i, layer in enumerate(orch.profile.layers):
+            orch.water_state.theta[i] = layer.saturation * waterlog_factor
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=10.0),
+            tmin_c=15.0,
+            tmax_c=25.0,
+            par_mj_m2=10.0,
+            sim_date=date(2024, 7, 1) + timedelta(days=d),
+        )
+
+    # Topsoil O₂ should drop substantially below atmospheric (0.2095).
+    assert orch.gas_state.o2_frac[0] < 0.05, (
+        f"Topsoil O₂ {orch.gas_state.o2_frac[0]:.4f} should drop below 5% "
+        f"after 14 days waterlog"
+    )
+    # Topsoil Eh should fall measurably (gas-driven sigmoid). Direction
+    # matters more than absolute number — the signature is "Eh dropped".
+    assert orch.redox_state.eh_mv[0] < initial_eh_top - 100, (
+        f"Topsoil Eh only dropped from {initial_eh_top:.0f} to "
+        f"{orch.redox_state.eh_mv[0]:.0f} mV after 14d waterlog"
+    )
+
+
+def test_phase_ordering_matters() -> None:
+    """Rearranging day_start to fire after water phase produces wrong macro.
+
+    Smoke test that the ADR-010 phase ordering (pore_network → biopore
+    → gas_diffusion before water/redox/N) is load-bearing. We swap the
+    Calendar's order so day_start fires *last* — biopore donation never
+    sees the freshly recomputed pore_network because gas/redox already
+    consumed the stale state. The macro pool must end up clearly
+    different from the canonical-order run.
+    """
+    from agrogame.events.calendar import Phase
+    from agrogame.sim.calendar import Calendar
+
+    canonical = _build_loam_orchestrator()
+    # Seed biopores so the donation has something to push downstream.
+    for i in range(len(canonical.profile.layers)):
+        canonical.biopore_state.density_per_m2[i] = 80.0
+    canonical.biopore_state.recompute_volume_fraction()
+    for d in range(30):
+        canonical.step_day(
+            drivers=DailyDrivers(rainfall_mm=3.0),
+            tmin_c=10.0,
+            tmax_c=20.0,
+            par_mj_m2=12.0,
+            sim_date=date(2024, 5, 1) + timedelta(days=d),
+        )
+    canonical_macro = list(canonical.pore_state.macro)
+
+    # Same orchestrator, same biopore seed, but tick with day_start
+    # moved to the end so biopore donation never updates macro before
+    # gas/redox/N read it.
+    swapped = _build_loam_orchestrator()
+    for i in range(len(swapped.profile.layers)):
+        swapped.biopore_state.density_per_m2[i] = 80.0
+    swapped.biopore_state.recompute_volume_fraction()
+    bad_order: list[Phase] = [
+        "chemistry",
+        "water",
+        "redox",
+        "plant_structure",
+        "et",
+        "nutrients",
+        "canopy",
+        "day_end",
+        "day_start",  # moved last — gas/redox already ticked above
+    ]
+    cal = Calendar(swapped.event_bus)
+    for d in range(30):
+        cal.tick(
+            sim_date=date(2024, 5, 1) + timedelta(days=d),
+            drivers=DailyDrivers(rainfall_mm=3.0),
+            target_ph=6.8,
+            phases=bad_order,
+            tmin_c=10.0,
+            tmax_c=20.0,
+            par_mj_m2=12.0,
+        )
+    swapped_macro = list(swapped.pore_state.macro)
+
+    # The two orderings must produce *different* macro pools — even if
+    # the steady-state magnitude is similar, the timing of biopore
+    # decay vs donation within a tick puts the swapped order one tick
+    # out of phase, so the saved state should differ. Threshold 1e-7
+    # is below numerical noise but above floating-point determinism.
+    diff = max(abs(a - b) for a, b in zip(canonical_macro, swapped_macro, strict=False))
+    assert diff > 1e-7, (
+        f"Phase ordering should change macro pool noticeably; "
+        f"max-abs diff was {diff:.2e}"
+    )
+
+
+def test_within_day_start_ordering_matters() -> None:
+    """Reversing the within-day_start subscription order diverges macro pool.
+
+    ADR-010 documents *two* ordering invariants: ``day_start`` runs
+    before other phases, **and** within ``day_start`` the pore-chain
+    runtimes fire pore_network → biopore → gas_diffusion. The
+    ``test_phase_ordering_matters`` test only covers the first.
+
+    This guard reverses the within-phase order (gas → biopore →
+    pore_network) by clearing the bus and re-subscribing. With the
+    pore-network recompute running last, biopore donations are wiped
+    each tick before any consumer reads them, so the ending macro pool
+    is texture-only and differs measurably from the canonical chain.
+    """
+    from agrogame.events.calendar import DayTick
+    from agrogame.soil.biopores.runtime import BioporesRuntime
+    from agrogame.soil.gas_diffusion.runtime import GasDiffusionRuntime
+    from agrogame.soil.pore_network.runtime import PoreNetworkRuntime
+
+    # Canonical order — use the orchestrator's own wiring as ground truth.
+    canonical = _build_loam_orchestrator()
+    for i in range(len(canonical.profile.layers)):
+        canonical.biopore_state.density_per_m2[i] = 80.0
+    canonical.biopore_state.recompute_volume_fraction()
+    for d in range(15):
+        tick = DayTick(sim_date=date(2024, 5, 1) + timedelta(days=d), phase="day_start")
+        canonical.event_bus.emit(tick)
+    canonical_macro = list(canonical.pore_state.macro)
+
+    # Reversed within-phase order — clear the bus and re-subscribe the
+    # three pore-chain runtimes in gas → biopore → pore_network order.
+    swapped = _build_loam_orchestrator()
+    for i in range(len(swapped.profile.layers)):
+        swapped.biopore_state.density_per_m2[i] = 80.0
+    swapped.biopore_state.recompute_volume_fraction()
+    swapped.event_bus.clear()
+    _ = GasDiffusionRuntime(
+        swapped.event_bus,
+        swapped.gas_module,
+        swapped.profile,
+        swapped.water_state,
+        swapped.pore_state,
+        co2_respiration_supplier=swapped._co2_respiration_for_gas,
+    )
+    _ = BioporesRuntime(
+        swapped.event_bus,
+        swapped.biopore_module,
+        swapped.profile,
+        pore_state=swapped.pore_state,
+    )
+    _ = PoreNetworkRuntime(
+        swapped.event_bus,
+        swapped.pore_module,
+        swapped.profile,
+        agg_state=swapped.agg_state,
+        biopore_module=swapped.biopore_module,
+    )
+    for d in range(15):
+        tick = DayTick(sim_date=date(2024, 5, 1) + timedelta(days=d), phase="day_start")
+        swapped.event_bus.emit(tick)
+    swapped_macro = list(swapped.pore_state.macro)
+
+    diff = max(abs(a - b) for a, b in zip(canonical_macro, swapped_macro, strict=False))
+    assert diff > 1e-6, (
+        f"Within-day_start subscription order should change macro pool; "
+        f"max-abs diff was {diff:.2e}"
+    )
+
+
+def test_pore_chain_perf_under_10ms_per_day() -> None:
+    """365-day full step median day < 10 ms (#284 perf budget, ADR-006)."""
+    import time
+
+    orch = _build_loam_orchestrator()
+    durations: list[float] = []
+    for d in range(365):
+        t0 = time.perf_counter()
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=2.0),
+            tmin_c=8.0,
+            tmax_c=18.0,
+            par_mj_m2=12.0,
+            sim_date=date(2024, 1, 1) + timedelta(days=d),
+        )
+        durations.append(time.perf_counter() - t0)
+    durations.sort()
+    median = durations[len(durations) // 2]
+    assert (
+        median < 0.010
+    ), f"Median day step {median * 1000:.2f} ms exceeds 10 ms/day budget"
+
+
+def test_soil_snapshot_round_trip_pore_chain_states() -> None:
+    """Save→load round-trip preserves pore_network/biopore/gas_diffusion (#284)."""
+    orch = _build_loam_orchestrator()
+    # Run a few days so the states have non-default values.
+    for d in range(7):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=5.0),
+            tmin_c=10.0,
+            tmax_c=20.0,
+            par_mj_m2=12.0,
+            sim_date=date(2024, 4, 1) + timedelta(days=d),
+        )
+
+    snap = orch.snapshot_soil()
+    raw = snap.to_dict()
+    # Round-trip via dict (matches save→JSON→load path).
+    restored_snap = type(snap).from_dict(raw)
+    other = _build_loam_orchestrator()
+    other.restore_soil(restored_snap)
+
+    bp_orig = orch.biopore_state.density_per_m2
+    bp_restored = other.biopore_state.density_per_m2
+    for a, b in zip(orch.pore_state.macro, other.pore_state.macro, strict=False):
+        assert abs(a - b) < 1e-9
+    for a, b in zip(bp_orig, bp_restored, strict=False):
+        assert abs(a - b) < 1e-9
+    for a, b in zip(orch.gas_state.o2_frac, other.gas_state.o2_frac, strict=False):
+        assert abs(a - b) < 1e-9
+
+
+def test_soil_snapshot_backward_compat_pre_284() -> None:
+    """Loading a pre-#284 snapshot dict (without pore-chain keys) must not crash."""
+    from agrogame.sim.orchestrator import SoilSnapshot
+
+    # Minimal pre-#284 dict — only the legacy keys.
+    legacy_dict = {
+        "water_theta": [0.25, 0.24, 0.23],
+        "n_nh4": [0.0, 0.0, 0.0],
+        "n_no3": [0.0, 0.0, 0.0],
+        "n_organic": [0.0, 0.0, 0.0],
+        "p_available": [0.0, 0.0, 0.0],
+        "p_fixed": [0.0, 0.0, 0.0],
+        "p_organic": [0.0, 0.0, 0.0],
+    }
+    snap = SoilSnapshot.from_dict(legacy_dict)
+    assert snap.pore_network == {}
+    assert snap.biopore == {}
+    assert snap.gas_diffusion == {}
+
+    orch = _build_loam_orchestrator()
+    # Restoring should leave the freshly-initialised pore-chain states
+    # alone and not raise.
+    orch.restore_soil(snap)
+    # Sanity: pore_state still has populated values from the orchestrator
+    # `__init__` compute call.
+    assert orch.pore_state.macro[0] >= 0.0

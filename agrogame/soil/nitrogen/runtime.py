@@ -4,22 +4,33 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from .cycle import NitrogenCycle
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
+from agrogame.soil.gas_diffusion.state import GasDiffusionState
 from agrogame.soil.redox.events import RedoxChanged
+
+from .cycle import NitrogenCycle
 
 
 @dataclass
 class NitrogenRuntime:
-    """Wire NitrogenCycle to the EventBus; subscribes to DayTick + RedoxChanged."""
+    """Wire NitrogenCycle to the EventBus; subscribes to DayTick + RedoxChanged.
+
+    When ``gas_state`` is provided (#284 orchestrator wiring), the
+    cycle's aerobic-fraction override is refreshed on every nutrients
+    tick from gas-diffusion's ``anaerobic_microsite_frac`` so
+    denitrification rates respond to actual O₂ rather than the WFPS
+    proxy.
+    """
 
     event_bus: EventBus
     cycle: NitrogenCycle
+    gas_state: GasDiffusionState | None = None
     _stress: StressCalculator | None = None
     _eh_by_layer: list[float] | None = None
 
     def __post_init__(self) -> None:
+        """Subscribe to DayTick + RedoxChanged; create stress calculator."""
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self._stress = StressCalculator("liebig")
         self.event_bus.subscribe(RedoxChanged, self._on_redox_changed)
@@ -43,6 +54,15 @@ class NitrogenRuntime:
         tmean = 18.0
         if ev.tmin_c is not None and ev.tmax_c is not None:
             tmean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
+        # When gas-diffusion is wired in, refresh the cycle's aerobic-
+        # fraction override so denitrification responds to today's O₂
+        # profile (#284). Aerobic = 1 - anaerobic_microsite_frac.
+        if self.gas_state is not None:
+            aerobic = [
+                max(0.0, min(1.0, 1.0 - f))
+                for f in self.gas_state.anaerobic_microsite_frac
+            ]
+            self.cycle.set_aerobic_fraction_override(aerobic)
         flux = self.cycle.daily_step(
             temperature_c=tmean,
             plant_demand_kg_ha=demand,

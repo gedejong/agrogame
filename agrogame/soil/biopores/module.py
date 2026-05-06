@@ -50,6 +50,20 @@ class BioporeModule:
     def state(self) -> BioporeState:
         return self._state
 
+    def set_state(self, state: BioporeState) -> None:
+        """Replace state contents in place to preserve aliases.
+
+        See :meth:`PoreNetworkModule.set_state` for rationale — the
+        orchestrator and runtimes hold references to the underlying
+        ``BioporeState`` and rely on identity stability across restore.
+        """
+        self._state.density_per_m2 = list(state.density_per_m2)
+        self._state.mean_radius_mm = list(state.mean_radius_mm)
+        self._state.volume_fraction = list(state.volume_fraction)
+        self._state.last_applied_volume_fraction = list(
+            state.last_applied_volume_fraction
+        )
+
     @property
     def params(self) -> BioporeParams:
         return self._params

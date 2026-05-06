@@ -6,10 +6,11 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.soil.models import SoilProfile
-from agrogame.soil.water.state import SoilWaterState
-from agrogame.soil.redox.module import RedoxModule
 from agrogame.plant.roots.events import RootDistributionUpdated
+from agrogame.soil.gas_diffusion.state import GasDiffusionState
+from agrogame.soil.models import SoilProfile
+from agrogame.soil.redox.module import RedoxModule
+from agrogame.soil.water.state import SoilWaterState
 
 
 @dataclass
@@ -20,16 +21,23 @@ class RedoxRuntime:
     WFPS that reflects actual saturation, before cascade drainage
     removes excess water. This is critical for redox activation —
     the post-drainage theta rarely exceeds field capacity.
+
+    When ``gas_state`` is provided (#284 orchestrator wiring), Eh is
+    driven directly by the ``o2_frac`` profile from
+    ``GasDiffusionModule`` instead of the WFPS sigmoid — see
+    :meth:`RedoxModule.daily_step`.
     """
 
     event_bus: EventBus
     module: RedoxModule
     profile: SoilProfile
     water_state: SoilWaterState
+    gas_state: GasDiffusionState | None = None
     _root_fractions: list[float] | None = None
     _pre_drainage_theta: list[float] | None = None
 
     def __post_init__(self) -> None:
+        """Subscribe to DayTick + RootDistributionUpdated on bus."""
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
 
@@ -56,4 +64,5 @@ class RedoxRuntime:
         tmean = 18.0
         if ev.tmin_c is not None and ev.tmax_c is not None:
             tmean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
-        self.module.daily_step(theta, sat, roots, tmean)
+        o2_frac = list(self.gas_state.o2_frac) if self.gas_state is not None else None
+        self.module.daily_step(theta, sat, roots, tmean, o2_concentration_frac=o2_frac)

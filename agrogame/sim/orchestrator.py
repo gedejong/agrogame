@@ -35,6 +35,7 @@ from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
 from agrogame.sim.management import ManagementPlan
+from agrogame.soil.som.events import CO2Respired
 from agrogame.soil.som.runtime import SOMRuntime
 from agrogame.soil.redox import RedoxModule, RedoxParams, RedoxState
 from agrogame.soil.redox.runtime import RedoxRuntime
@@ -50,6 +51,24 @@ from agrogame.soil.aggregation import (
     SoilAggregationState,
 )
 from agrogame.soil.aggregation.runtime import AggregationRuntime
+from agrogame.soil.pore_network import (
+    PoreNetworkModule,
+    PoreNetworkParams,
+    PoreNetworkState,
+)
+from agrogame.soil.biopores import (
+    BioporeModule,
+    BioporeParams,
+    BioporeState,
+    BioporesRuntime,
+)
+from agrogame.soil.gas_diffusion import (
+    GasDiffusionModule,
+    GasDiffusionParams,
+    GasDiffusionState,
+)
+from agrogame.soil.gas_diffusion.runtime import GasDiffusionRuntime
+from agrogame.soil.pore_network.runtime import PoreNetworkRuntime
 
 
 class SimulationOrchestrator:
@@ -156,6 +175,13 @@ class SoilSnapshot:
     agg_micro: list[float] = field(default_factory=list)
     agg_meso: list[float] = field(default_factory=list)
     agg_macro: list[float] = field(default_factory=list)
+    # Pore-network chain (#284). All four fields default to empty
+    # lists so loading a pre-#284 save initializes them from defaults
+    # without crashing.
+    pore_network: dict[str, Any] = field(default_factory=dict)
+    biopore: dict[str, Any] = field(default_factory=dict)
+    gas_diffusion: dict[str, Any] = field(default_factory=dict)
+    water_theta_macro: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -188,6 +214,10 @@ class SoilSnapshot:
             "agg_micro": list(self.agg_micro),
             "agg_meso": list(self.agg_meso),
             "agg_macro": list(self.agg_macro),
+            "pore_network": dict(self.pore_network),
+            "biopore": dict(self.biopore),
+            "gas_diffusion": dict(self.gas_diffusion),
+            "water_theta_macro": list(self.water_theta_macro),
         }
 
     @classmethod
@@ -222,6 +252,10 @@ class SoilSnapshot:
             agg_micro=list(data.get("agg_micro", [])),
             agg_meso=list(data.get("agg_meso", [])),
             agg_macro=list(data.get("agg_macro", [])),
+            pore_network=dict(data.get("pore_network") or {}),
+            biopore=dict(data.get("biopore") or {}),
+            gas_diffusion=dict(data.get("gas_diffusion") or {}),
+            water_theta_macro=list(data.get("water_theta_macro") or []),
         )
 
 
@@ -324,15 +358,72 @@ class FullSimulationOrchestrator:
         self.agg_module = AggregationModule(
             SoilAggregationParams(), self.agg_state, event_bus=self.event_bus
         )
+        # Pore-network chain (#284) — pore-size distribution, biopore
+        # macropore donation, and gas diffusion. All three run on the
+        # `day_start` phase in this order; ADR-010 documents why.
+        n_layers = len(profile.layers)
+        self.pore_state = PoreNetworkState.empty(n_layers)
+        self.pore_module = PoreNetworkModule(
+            PoreNetworkParams(), self.pore_state, event_bus=self.event_bus
+        )
+        # Compute initial pore distribution so first-day reads see
+        # populated values (later runtime calls re-derive each tick).
+        self.pore_module.compute(profile, self.agg_state)
+        self.biopore_state = BioporeState.from_layers(n_layers)
+        self.biopore_module = BioporeModule(
+            BioporeParams(), self.biopore_state, event_bus=self.event_bus
+        )
+        self.gas_state = GasDiffusionState.from_layers(n_layers)
+        self.gas_module = GasDiffusionModule(
+            GasDiffusionParams(), self.gas_state, event_bus=self.event_bus
+        )
         # ET model (emits transpiration/evaporation related events via water model)
         self.et = Evapotranspiration(et_params or EtParams())
         # Calendar for phased daily progression
         self.calendar = Calendar(self.event_bus)
 
+        # Per-day CO₂ buffer used by GasDiffusion as the previous-day
+        # respiration source term (#284). SOM emits ``CO2Respired`` on
+        # the ``nutrients`` phase; gas diffusion reads + resets this
+        # list on the following day's ``day_start`` phase.
+        self._co2_buffer: list[float] = [0.0] * len(profile.layers)
+
         self._wire_runtimes()
 
     def _wire_runtimes(self) -> None:
-        """Subscribe all runtime listeners to the event bus."""
+        """Subscribe all runtime listeners to the event bus.
+
+        Subscription order matters for ``DayTick(day_start)``: the bus
+        dispatches handlers in subscription order, so the pore-chain
+        runtimes (#284, ADR-010) must register **first** to set up the
+        pore geometry, biopore donations, and gas profile before
+        downstream consumers (water, redox, N) tick.
+        """
+        # --- Pore-chain runtimes — must subscribe in this order on
+        # day_start: pore-network compute → biopore donation →
+        # gas diffusion. Documented in ADR-010.
+        _ = PoreNetworkRuntime(
+            self.event_bus,
+            self.pore_module,
+            self.profile,
+            agg_state=self.agg_state,
+            biopore_module=self.biopore_module,
+        )
+        _ = BioporesRuntime(
+            self.event_bus,
+            self.biopore_module,
+            self.profile,
+            pore_state=self.pore_state,
+        )
+        _ = GasDiffusionRuntime(
+            self.event_bus,
+            self.gas_module,
+            self.profile,
+            self.water_state,
+            self.pore_state,
+            co2_respiration_supplier=self._co2_respiration_for_gas,
+        )
+
         _ = WaterRuntime(
             self.event_bus,
             self.water_model,
@@ -375,8 +466,14 @@ class FullSimulationOrchestrator:
             _evap_state=EtState(),
             _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
         )
-        _ = RedoxRuntime(self.event_bus, self.redox, self.profile, self.water_state)
-        _ = NitrogenRuntime(self.event_bus, self.n_cycle)
+        _ = RedoxRuntime(
+            self.event_bus,
+            self.redox,
+            self.profile,
+            self.water_state,
+            gas_state=self.gas_state,
+        )
+        _ = NitrogenRuntime(self.event_bus, self.n_cycle, gas_state=self.gas_state)
         _ = MicronutrientRuntime(self.event_bus, self.micro_cycle)
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
         self._som_runtime = SOMRuntime(
@@ -401,6 +498,10 @@ class FullSimulationOrchestrator:
         from agrogame.soil.canopy.events import BiomassAccumulated
 
         self.event_bus.subscribe(BiomassAccumulated, self._on_biomass_accumulated)
+
+        # Track per-layer CO₂ respiration so GasDiffusion (#284) has a
+        # source term derived from yesterday's SOM decomposition.
+        self.event_bus.subscribe(CO2Respired, self._on_co2_respired)
 
     def _som_pool_lists(self, attr: str) -> list[float]:
         """Extract per-layer SOM pool attribute as list."""
@@ -450,6 +551,10 @@ class FullSimulationOrchestrator:
             agg_micro=list(self.agg_state.micro),
             agg_meso=list(self.agg_state.meso),
             agg_macro=list(self.agg_state.macro),
+            pore_network=self.pore_state.to_dict(),
+            biopore=self.biopore_state.to_dict(),
+            gas_diffusion=self.gas_state.to_dict(),
+            water_theta_macro=list(getattr(self.water_state, "theta_macro", []) or []),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -499,6 +604,25 @@ class FullSimulationOrchestrator:
             self.agg_state.micro = list(snapshot.agg_micro)
             self.agg_state.meso = list(snapshot.agg_meso)
             self.agg_state.macro = list(snapshot.agg_macro)
+
+        # --- Pore-network chain (#284) — backward-compat: empty dicts
+        # mean a pre-#284 save, in which case we leave the freshly
+        # initialised state alone. Use the public ``set_state`` API
+        # (copy-in-place) so existing references held by the runtimes
+        # and ``self.pore_state`` / ``self.biopore_state`` /
+        # ``self.gas_state`` remain valid post-restore.
+        if snapshot.pore_network:
+            self.pore_module.set_state(
+                PoreNetworkState.from_dict(snapshot.pore_network)
+            )
+        if snapshot.biopore:
+            self.biopore_module.set_state(BioporeState.from_dict(snapshot.biopore))
+        if snapshot.gas_diffusion:
+            self.gas_module.set_state(
+                GasDiffusionState.from_dict(snapshot.gas_diffusion)
+            )
+        if snapshot.water_theta_macro and hasattr(self.water_state, "theta_macro"):
+            self.water_state.theta_macro = list(snapshot.water_theta_macro)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
@@ -580,6 +704,27 @@ class FullSimulationOrchestrator:
 
     def _on_biomass_accumulated(self, ev: Any) -> None:
         self._last_biomass_inc_g_m2 = float(ev.increment_g_m2)
+
+    def _on_co2_respired(self, ev: Any) -> None:
+        """Accumulate per-layer CO₂ for the gas-diffusion supplier (#284)."""
+        layer = int(ev.layer)
+        while len(self._co2_buffer) <= layer:
+            self._co2_buffer.append(0.0)
+        self._co2_buffer[layer] += float(ev.co2_c_kg_ha)
+
+    def _co2_respiration_for_gas(self, n: int) -> list[float]:
+        """Return previous day's per-layer CO₂; reset buffer for today (#284).
+
+        Called once per ``DayTick(day_start)`` by ``GasDiffusionRuntime``.
+        Returns the buffer SOM filled during the previous day's
+        ``nutrients`` phase, then zeros it so this day's SOM run
+        accumulates fresh totals for tomorrow's read.
+        """
+        out = list(self._co2_buffer[:n])
+        if len(out) < n:
+            out += [0.0] * (n - len(out))
+        self._co2_buffer = [0.0] * n
+        return out
 
     def _compute_nutrient_demand(self) -> tuple[float, float]:
         """Compute N and P demand from previous day's biomass increment.
