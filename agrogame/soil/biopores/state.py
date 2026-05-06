@@ -63,6 +63,11 @@ class BioporeState:
     def recompute_volume_fraction(self) -> None:
         """Refresh ``volume_fraction`` from current density × radius."""
         for i in range(len(self.density_per_m2)):
+            # Fallback matches BioporeParams.mean_radius_mm default (1.0 mm,
+            # ADR-009). No caller hits this path today — `from_layers` sizes
+            # density and mean_radius_mm equally — but a future caller that
+            # constructs a state with mismatched lengths gets the calibrated
+            # default rather than a stale 2.0 mm.
             r = self.mean_radius_mm[i] if i < len(self.mean_radius_mm) else 1.0
             self.volume_fraction[i] = self.density_to_volume_fraction(
                 self.density_per_m2[i], r

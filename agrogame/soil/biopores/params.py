@@ -57,7 +57,11 @@ class BioporeParams:
             *structural* (>~0.5 mm dia) — only this fraction leaves
             persistent channels. Fine roots decompose without
             durable channel imprints. Ref: Six et al. 2004; Kautz
-            2015 §2 — typically 0.1–0.3.
+            2015 §2 — typically 0.1–0.3. The default 0.2 sits at the
+            upper end of that range to land cover-crop steady-state
+            density in Pierret 2007's [50, 200] /m² band; values
+            below ~0.15 will fall under the calibration target with
+            the rest of the defaults unchanged.
         conversion_factor: Fraction of *structural* dead-root volume
             that converts to persistent biopore volume. Defaults to
             1.0 because the structural fraction (above) already

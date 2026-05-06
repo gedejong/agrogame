@@ -91,12 +91,33 @@ After applying the new defaults to the realism scenario:
 - AC#1 met: topsoil ∈ [50, 200] /m² ✓
 - AC#2 met: topsoil 50.8 ≥ subsoil 36.6 ✓
 - AC#3 met: fallow topsoil 0.54 < 10 within 2 seasons ✓
-- AC#4 met: cover-crop / fallow ratio at year 3 ≈ 94× > 2× ✓
+- AC#4 met: cover-crop / fallow ratio at year 3 ≈ 1276× > 2× ✓ (cc topsoil 50.8 /m² ÷ fallow topsoil 0.04 /m² after 3 yr of decay + 3 annual tillages)
 
-The calibration headroom is intentionally tight at the lower bound:
-real soils with productive perennial roots, no tillage, and high SOM
-should be able to push density into the 100–200 /m² mid-band, while
-disturbed annual systems stay near 50 /m².
+### Two known characteristics of the chosen calibration
+
+**Tight lower-bound headroom.** Topsoil 50.8 /m² lands ~1.6% above the
+[50, 200] /m² floor. The calibration is intentionally framed at the
+lower edge so productive perennial systems can push density into the
+100–200 /m² mid-band; the trade-off is that a small downward drift in
+any single knob — `structural_root_fraction` to 0.18, fixture mass below
+~4.5 g/m²/d, or topsoil half-life under 175 d — pushes steady state
+below 50 /m² and fails `test_cover_crop_steady_state_density_in_pierret_range`.
+Future tuners adjusting any of those should re-verify against the
+calibration AC and update this ADR.
+
+**Non-monotonic depth profile (top 50.8 → mid 30.5 → sub 36.6).**
+`apply_decay` classifies a layer as topsoil iff its top edge is shallower
+than `topsoil_depth_cm = 30 cm`. Layer 1 (25–60 cm) qualifies, so its
+~5/6 of mass below the 30 cm boundary still uses the topsoil 180-d
+half-life despite physically belonging mostly to the subsoil zone. The
+result: the mid layer decays as fast as the surface but receives less
+input, dipping below the subsoil. This satisfies AC#2 at the layer-0 vs
+layer-2 comparison but does not produce the strictly monotonic profile
+that Pierret 2007 / Kautz 2015 report. A future refinement could weight
+the half-life by the overlap of each layer with the topsoil/subsoil
+zones — same trick `apply_tillage` uses to pro-rate destruction by plow
+depth. Tracked separately rather than addressed in #290 because the
+weighted-decay change deserves its own justification and tests.
 
 ## Alternatives Considered
 
