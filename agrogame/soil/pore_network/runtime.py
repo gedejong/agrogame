@@ -12,12 +12,16 @@ preserves that order — see ADR-010.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.pore_network.module import PoreNetworkModule
+
+if TYPE_CHECKING:
+    from agrogame.soil.biopores.module import BioporeModule
 
 
 @dataclass
@@ -36,7 +40,10 @@ class PoreNetworkRuntime:
     agg_state: SoilAggregationState | None = None
     # Optional reference so we can reset the donation baseline atomically
     # with the pore_network recompute. The orchestrator wires this in.
-    biopore_module: object | None = None
+    # Typed via TYPE_CHECKING to avoid a runtime import edge from
+    # pore_network → biopores (the reverse direction already exists:
+    # biopores.module imports pore_network.state).
+    biopore_module: BioporeModule | None = None
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick on construction."""
@@ -52,7 +59,5 @@ class PoreNetworkRuntime:
         # `last_applied_volume_fraction` must therefore be zeroed too,
         # otherwise its next donation would be a (target - stale_applied)
         # delta rather than a fresh full-volume contribution.
-        if self.biopore_module is not None and hasattr(
-            self.biopore_module, "reset_pore_network_baseline"
-        ):
+        if self.biopore_module is not None:
             self.biopore_module.reset_pore_network_baseline()

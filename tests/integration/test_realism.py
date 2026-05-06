@@ -9,7 +9,7 @@ Expected ranges are for the crop's typical performance in that climate.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 
@@ -583,7 +583,7 @@ def test_heavy_rain_on_clay_bypass_visible_in_pore_chain() -> None:
             tmin_c=12.0,
             tmax_c=22.0,
             par_mj_m2=12.0,
-            sim_date=date(2024, 6, 1) + (date(2024, 6, 2) - date(2024, 6, 1)) * d,
+            sim_date=date(2024, 6, 1) + timedelta(days=d),
         )
 
     for i, layer in enumerate(profile.layers):
@@ -624,7 +624,7 @@ def test_waterlog_drives_o2_drop_and_eh_collapse() -> None:
             tmin_c=15.0,
             tmax_c=25.0,
             par_mj_m2=10.0,
-            sim_date=date(2024, 7, 1) + (date(2024, 7, 2) - date(2024, 7, 1)) * d,
+            sim_date=date(2024, 7, 1) + timedelta(days=d),
         )
 
     # Topsoil O₂ should drop substantially below atmospheric (0.2095).
@@ -664,7 +664,7 @@ def test_phase_ordering_matters() -> None:
             tmin_c=10.0,
             tmax_c=20.0,
             par_mj_m2=12.0,
-            sim_date=date(2024, 5, 1) + (date(2024, 5, 2) - date(2024, 5, 1)) * d,
+            sim_date=date(2024, 5, 1) + timedelta(days=d),
         )
     canonical_macro = list(canonical.pore_state.macro)
 
@@ -689,7 +689,7 @@ def test_phase_ordering_matters() -> None:
     cal = Calendar(swapped.event_bus)
     for d in range(30):
         cal.tick(
-            sim_date=date(2024, 5, 1) + (date(2024, 5, 2) - date(2024, 5, 1)) * d,
+            sim_date=date(2024, 5, 1) + timedelta(days=d),
             drivers=DailyDrivers(rainfall_mm=3.0),
             target_ph=6.8,
             phases=bad_order,
@@ -711,6 +711,75 @@ def test_phase_ordering_matters() -> None:
     )
 
 
+def test_within_day_start_ordering_matters() -> None:
+    """Reversing the within-day_start subscription order diverges macro pool.
+
+    ADR-010 documents *two* ordering invariants: ``day_start`` runs
+    before other phases, **and** within ``day_start`` the pore-chain
+    runtimes fire pore_network → biopore → gas_diffusion. The
+    ``test_phase_ordering_matters`` test only covers the first.
+
+    This guard reverses the within-phase order (gas → biopore →
+    pore_network) by clearing the bus and re-subscribing. With the
+    pore-network recompute running last, biopore donations are wiped
+    each tick before any consumer reads them, so the ending macro pool
+    is texture-only and differs measurably from the canonical chain.
+    """
+    from agrogame.events.calendar import DayTick
+    from agrogame.soil.biopores.runtime import BioporesRuntime
+    from agrogame.soil.gas_diffusion.runtime import GasDiffusionRuntime
+    from agrogame.soil.pore_network.runtime import PoreNetworkRuntime
+
+    # Canonical order — use the orchestrator's own wiring as ground truth.
+    canonical = _build_loam_orchestrator()
+    for i in range(len(canonical.profile.layers)):
+        canonical.biopore_state.density_per_m2[i] = 80.0
+    canonical.biopore_state.recompute_volume_fraction()
+    for d in range(15):
+        tick = DayTick(sim_date=date(2024, 5, 1) + timedelta(days=d), phase="day_start")
+        canonical.event_bus.emit(tick)
+    canonical_macro = list(canonical.pore_state.macro)
+
+    # Reversed within-phase order — clear the bus and re-subscribe the
+    # three pore-chain runtimes in gas → biopore → pore_network order.
+    swapped = _build_loam_orchestrator()
+    for i in range(len(swapped.profile.layers)):
+        swapped.biopore_state.density_per_m2[i] = 80.0
+    swapped.biopore_state.recompute_volume_fraction()
+    swapped.event_bus.clear()
+    _ = GasDiffusionRuntime(
+        swapped.event_bus,
+        swapped.gas_module,
+        swapped.profile,
+        swapped.water_state,
+        swapped.pore_state,
+        co2_respiration_supplier=swapped._co2_respiration_for_gas,
+    )
+    _ = BioporesRuntime(
+        swapped.event_bus,
+        swapped.biopore_module,
+        swapped.profile,
+        pore_state=swapped.pore_state,
+    )
+    _ = PoreNetworkRuntime(
+        swapped.event_bus,
+        swapped.pore_module,
+        swapped.profile,
+        agg_state=swapped.agg_state,
+        biopore_module=swapped.biopore_module,
+    )
+    for d in range(15):
+        tick = DayTick(sim_date=date(2024, 5, 1) + timedelta(days=d), phase="day_start")
+        swapped.event_bus.emit(tick)
+    swapped_macro = list(swapped.pore_state.macro)
+
+    diff = max(abs(a - b) for a, b in zip(canonical_macro, swapped_macro, strict=False))
+    assert diff > 1e-6, (
+        f"Within-day_start subscription order should change macro pool; "
+        f"max-abs diff was {diff:.2e}"
+    )
+
+
 def test_pore_chain_perf_under_10ms_per_day() -> None:
     """365-day full step median day < 10 ms (#284 perf budget, ADR-006)."""
     import time
@@ -724,7 +793,7 @@ def test_pore_chain_perf_under_10ms_per_day() -> None:
             tmin_c=8.0,
             tmax_c=18.0,
             par_mj_m2=12.0,
-            sim_date=date(2024, 1, 1) + (date(2024, 1, 2) - date(2024, 1, 1)) * d,
+            sim_date=date(2024, 1, 1) + timedelta(days=d),
         )
         durations.append(time.perf_counter() - t0)
     durations.sort()
@@ -744,7 +813,7 @@ def test_soil_snapshot_round_trip_pore_chain_states() -> None:
             tmin_c=10.0,
             tmax_c=20.0,
             par_mj_m2=12.0,
-            sim_date=date(2024, 4, 1) + (date(2024, 4, 2) - date(2024, 4, 1)) * d,
+            sim_date=date(2024, 4, 1) + timedelta(days=d),
         )
 
     snap = orch.snapshot_soil()

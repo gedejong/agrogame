@@ -107,6 +107,18 @@ class GasDiffusionModule:
     def state(self) -> GasDiffusionState:
         return self._state
 
+    def set_state(self, state: GasDiffusionState) -> None:
+        """Replace state contents in place to preserve aliases.
+
+        See :meth:`PoreNetworkModule.set_state` for rationale — runtimes
+        and the orchestrator hold the same state object identity and
+        rely on it remaining stable across snapshot restore.
+        """
+        self._state.o2_frac = list(state.o2_frac)
+        self._state.co2_frac = list(state.co2_frac)
+        self._state.anaerobic = list(state.anaerobic)
+        self._state.anaerobic_microsite_frac = list(state.anaerobic_microsite_frac)
+
     @property
     def params(self) -> GasDiffusionParams:
         return self._params

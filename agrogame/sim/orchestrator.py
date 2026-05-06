@@ -35,6 +35,7 @@ from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
 from agrogame.soil.microbes.runtime import MicrobesRuntime
 from agrogame.sim.management import ManagementPlan
+from agrogame.soil.som.events import CO2Respired
 from agrogame.soil.som.runtime import SOMRuntime
 from agrogame.soil.redox import RedoxModule, RedoxParams, RedoxState
 from agrogame.soil.redox.runtime import RedoxRuntime
@@ -408,13 +409,13 @@ class FullSimulationOrchestrator:
             agg_state=self.agg_state,
             biopore_module=self.biopore_module,
         )
-        self._biopore_runtime = BioporesRuntime(
+        _ = BioporesRuntime(
             self.event_bus,
             self.biopore_module,
             self.profile,
             pore_state=self.pore_state,
         )
-        self._gas_runtime = GasDiffusionRuntime(
+        _ = GasDiffusionRuntime(
             self.event_bus,
             self.gas_module,
             self.profile,
@@ -500,8 +501,6 @@ class FullSimulationOrchestrator:
 
         # Track per-layer CO₂ respiration so GasDiffusion (#284) has a
         # source term derived from yesterday's SOM decomposition.
-        from agrogame.soil.som.events import CO2Respired
-
         self.event_bus.subscribe(CO2Respired, self._on_co2_respired)
 
     def _som_pool_lists(self, attr: str) -> list[float]:
@@ -608,16 +607,20 @@ class FullSimulationOrchestrator:
 
         # --- Pore-network chain (#284) — backward-compat: empty dicts
         # mean a pre-#284 save, in which case we leave the freshly
-        # initialised state alone.
+        # initialised state alone. Use the public ``set_state`` API
+        # (copy-in-place) so existing references held by the runtimes
+        # and ``self.pore_state`` / ``self.biopore_state`` /
+        # ``self.gas_state`` remain valid post-restore.
         if snapshot.pore_network:
-            self.pore_state = PoreNetworkState.from_dict(snapshot.pore_network)
-            self.pore_module._state = self.pore_state
+            self.pore_module.set_state(
+                PoreNetworkState.from_dict(snapshot.pore_network)
+            )
         if snapshot.biopore:
-            self.biopore_state = BioporeState.from_dict(snapshot.biopore)
-            self.biopore_module._state = self.biopore_state
+            self.biopore_module.set_state(BioporeState.from_dict(snapshot.biopore))
         if snapshot.gas_diffusion:
-            self.gas_state = GasDiffusionState.from_dict(snapshot.gas_diffusion)
-            self.gas_module._state = self.gas_state
+            self.gas_module.set_state(
+                GasDiffusionState.from_dict(snapshot.gas_diffusion)
+            )
         if snapshot.water_theta_macro and hasattr(self.water_state, "theta_macro"):
             self.water_state.theta_macro = list(snapshot.water_theta_macro)
 
