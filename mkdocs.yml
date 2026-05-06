@@ -53,6 +53,7 @@ nav:
       - 3D Rendering Migration: adr/ADR-007-3d-rendering-migration.md
       - Import Layering: adr/ADR-008-import-layering.md
       - Biopore Calibration: adr/ADR-009-biopore-calibration.md
+      - Pore-chain Phase Ordering: adr/ADR-010-pore-chain-phase-ordering.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md
