@@ -33,9 +33,17 @@ site/
 node_modules/
 test-results/
 
-# AI assistant config (editor-local, superseded by CLAUDE.md)
+# AI assistant config — most of `.claude/` is editor-local (settings,
+# personal MCP allowlists, session locks). The `commands/` subfolder is
+# the exception: those are the project's shared skill definitions
+# (po-review, tech-refine, dev-implement, etc.) and ship with the repo.
 .cursor/
-.claude/
+.claude/*
+!.claude/commands/
+!.claude/commands/**
+
+# graphify build artifacts (graph + caches; rebuilt on demand)
+graphify-out/
 
 # Reference materials (large, not part of build)
 references/
