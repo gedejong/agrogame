@@ -59,13 +59,19 @@ class BioporeModule:
     def process_root_turnover(self, per_layer_dead_mass_g_m2: Sequence[float]) -> None:
         """Convert dead-root mass to new biopore density per layer.
 
-        Volume of dead roots = mass / bulk density. A configurable
-        ``conversion_factor`` of that volume becomes biopore volume.
+        Only the structural fraction of dead-root mass (Six 2004; Kautz
+        2015) leaves persistent channels — fine roots decompose without
+        durable imprints. The two-step conversion is:
+
+            structural_volume = dead_volume × structural_root_fraction
+            biopore_volume    = structural_volume × conversion_factor
+
         Density is back-calculated using the **per-layer** mean radius
         (``state.mean_radius_mm[i]``) so that earthworm-augmented layers
         (#76, density-weighted radius) stay mass-consistent.
         """
         p = self._params
+        effective_factor = p.structural_root_fraction * p.conversion_factor
         n = min(len(per_layer_dead_mass_g_m2), len(self._state.density_per_m2))
         for i in range(n):
             dead_mass_g_m2 = per_layer_dead_mass_g_m2[i]
@@ -75,7 +81,7 @@ class BioporeModule:
             dead_volume_m3_per_m2 = (
                 dead_mass_g_m2 / p.root_density_g_per_cm3 * CM3_TO_M3
             )
-            biopore_volume_m3_per_m2 = dead_volume_m3_per_m2 * p.conversion_factor
+            biopore_volume_m3_per_m2 = dead_volume_m3_per_m2 * effective_factor
             # Use the layer's own mean radius for back-calculation —
             # consistent with how volume_fraction is later computed.
             radius_m = self._state.mean_radius_mm[i] * 1e-3
