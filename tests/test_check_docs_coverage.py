@@ -148,7 +148,20 @@ def test_invalid_frontmatter_fails(fake_repo):
 
 
 def test_key_classes_must_be_importable(fake_repo, monkeypatch):
-    """A `key_classes` entry that doesn't exist on the module is an error."""
+    """A `key_classes` entry that doesn't exist on the module is an error.
+
+    We swap in a fake `agrogame` package from `tmp_path` and exercise the
+    check script's `importlib.import_module("agrogame.foo")` call. To do
+    that without poisoning the rest of the test session (#304), we
+    snapshot **every** `sys.modules` entry that starts with `agrogame`
+    before the swap and restore the full set afterwards. Popping just
+    `agrogame` and `agrogame.foo` (as the original implementation did)
+    left the real `agrogame.config`, `agrogame.events`, etc. cached but
+    orphaned — on Python 3.10 the next `mock.patch("agrogame.config.X")`
+    blew up with `AttributeError: module 'agrogame' has no attribute
+    'config'`, because the freshly-imported `agrogame` never re-bound
+    them as attributes.
+    """
     tmp_path, pkg_root, docs_root = fake_repo
     init = textwrap.dedent(
         '''\
@@ -168,16 +181,49 @@ def test_key_classes_must_be_importable(fake_repo, monkeypatch):
         extra_frontmatter={"key_classes": ["Real", "Imaginary"]},
     )
     monkeypatch.syspath_prepend(str(tmp_path))
-    # Drop any cached module so importlib loads our fake one.
-    sys.modules.pop("agrogame", None)
-    sys.modules.pop("agrogame.foo", None)
+
+    # Snapshot every cached agrogame.* module so we can restore them.
+    saved_modules = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if name == "agrogame" or name.startswith("agrogame.")
+    }
+    # Drop them all so importlib loads the fake `agrogame` from tmp_path.
+    for name in saved_modules:
+        del sys.modules[name]
     try:
         result = check_docs_coverage.run()
     finally:
-        sys.modules.pop("agrogame.foo", None)
-        sys.modules.pop("agrogame", None)
+        # Drop anything the fake test imported, then put the real ones back.
+        for name in [
+            n for n in sys.modules if n == "agrogame" or n.startswith("agrogame.")
+        ]:
+            del sys.modules[name]
+        sys.modules.update(saved_modules)
     assert not result.ok
     assert any("Imaginary" in e for e in result.errors)
+
+
+def test_no_agrogame_pollution_after_fake_repo_test():
+    """Regression guard for #304.
+
+    Running `test_key_classes_must_be_importable` must not leave
+    orphaned `agrogame.*` entries in `sys.modules` whose parent
+    attribute is missing. If this check fires, a future cleanup
+    elsewhere has re-broken the snapshot/restore.
+    """
+    import agrogame  # noqa: F401  # ensure the parent is loaded
+
+    for name in sys.modules:
+        if name == "agrogame" or not name.startswith("agrogame."):
+            continue
+        head = name.split(".", 2)[1]
+        # Each cached agrogame.<head>.* entry must have <head> bound on
+        # the parent — otherwise mock.patch dotted-path lookups break.
+        assert hasattr(sys.modules["agrogame"], head), (
+            f"sys.modules has '{name}' cached but agrogame.{head} is "
+            "not bound — see #304"
+        )
 
 
 def test_init_must_contain_absolute_url(fake_repo):

@@ -77,7 +77,18 @@ def test_compose_load_json(tmp_path: Path) -> None:
 
 
 def test_watch_starts_observer() -> None:
-    """Cover lines 29-34 in watcher.watch."""
+    """Cover lines 29-34 in watcher.watch.
+
+    Regression note (#304): `mock.patch("agrogame.config.watcher.X")`
+    walks the dotted path via `getattr` and only re-imports
+    `agrogame.config` if it isn't already in `sys.modules`. Earlier tests
+    that mutate `sys.modules["agrogame"]` without restoring its
+    descendants (notably `tests/test_check_docs_coverage.py::
+    test_key_classes_must_be_importable`) used to leave a freshly-
+    imported `agrogame` without `config` bound as an attribute, breaking
+    this patch on Python 3.10. The snapshot/restore in that test fixed
+    the pollution at source — keep it that way.
+    """
     from agrogame.config.watcher import watch
 
     with patch("agrogame.config.watcher.WatchdogObserver") as MockObs:
