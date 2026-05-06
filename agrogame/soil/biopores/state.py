@@ -33,7 +33,13 @@ class BioporeState:
     last_applied_volume_fraction: list[float] = field(default_factory=list)
 
     @classmethod
-    def from_layers(cls, n_layers: int, mean_radius_mm: float = 2.0) -> BioporeState:
+    def from_layers(cls, n_layers: int, mean_radius_mm: float = 1.0) -> BioporeState:
+        """Create an empty state with `mean_radius_mm` per layer.
+
+        The default tracks ``BioporeParams.mean_radius_mm`` (1.0 mm,
+        Pierret 2007 / Kautz 2015 cereal-channel lower bound — see
+        ADR-009).
+        """
         return cls(
             density_per_m2=[0.0] * n_layers,
             mean_radius_mm=[mean_radius_mm] * n_layers,
@@ -57,7 +63,12 @@ class BioporeState:
     def recompute_volume_fraction(self) -> None:
         """Refresh ``volume_fraction`` from current density × radius."""
         for i in range(len(self.density_per_m2)):
-            r = self.mean_radius_mm[i] if i < len(self.mean_radius_mm) else 2.0
+            # Fallback matches BioporeParams.mean_radius_mm default (1.0 mm,
+            # ADR-009). No caller hits this path today — `from_layers` sizes
+            # density and mean_radius_mm equally — but a future caller that
+            # constructs a state with mismatched lengths gets the calibrated
+            # default rather than a stale 2.0 mm.
+            r = self.mean_radius_mm[i] if i < len(self.mean_radius_mm) else 1.0
             self.volume_fraction[i] = self.density_to_volume_fraction(
                 self.density_per_m2[i], r
             )

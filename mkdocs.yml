@@ -52,6 +52,7 @@ nav:
       - Performance Strategy: adr/ADR-006-performance-strategy.md
       - 3D Rendering Migration: adr/ADR-007-3d-rendering-migration.md
       - Import Layering: adr/ADR-008-import-layering.md
+      - Biopore Calibration: adr/ADR-009-biopore-calibration.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md
