@@ -15,7 +15,7 @@ should fail CI on a PR. Updated as part of #297 (Phase 4 of #293).
 | Type check (project-wide) | `mypy` | `[tool.mypy]` (no_implicit_optional, warn_*) | CI + pre-commit (manual) |
 | Type check (strict pilot) | `mypy --strict` | Pilot package: `agrogame/events` | CI + pre-commit (manual) |
 | Cyclomatic complexity | `xenon` | B/B/C (`--max-average B --max-modules B --max-absolute C`) | CI + pre-commit (manual) |
-| Import contracts | `import-linter` | `.importlinter` — all 10 contracts (see [Import-linter contracts](#import-linter-contracts)) | CI + pre-commit (manual) |
+| Import contracts | `import-linter` | `.importlinter` — all 11 contracts (see [Import-linter contracts](#import-linter-contracts)) | CI + pre-commit (manual) |
 | Test suite | `pytest --cov` | Coverage floor 92% (`pyproject.toml` `[tool.pytest.ini_options]`) | CI + pre-commit (manual) |
 | Realism (literature) | `pytest tests/integration/test_realism.py` | Literature-cited ranges per assertion | CI |
 | Dead code | `vulture` (#297) | `--min-confidence 80` against `vulture-whitelist.py` | CI + pre-commit (manual) |
@@ -83,6 +83,7 @@ for the layering decision and the rationale behind each contract's
 | `plant_vs_soil` | Allowlist for plant.roots.runtime → soil.phenology runtime read. |
 | `domain_layers` | atmosphere > plant > soil > weather; allowlist mirrors `soil_plant_direction`. |
 | `game_no_api` | Game layer doesn't depend on the API layer. |
+| `dashboard_isolation` | Dashboard consumes only `agrogame.api.dashboard_facade`, never engine internals (#309, ADR-011). |
 
 ## Docstring conventions
 

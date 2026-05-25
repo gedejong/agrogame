@@ -4,7 +4,7 @@ from io import StringIO
 from typing import Any
 from collections.abc import Mapping
 
-from agrogame.soil.models import SoilProfile
+from agrogame.api.dashboard_facade import SoilProfile
 
 
 def soil_moisture_csv(

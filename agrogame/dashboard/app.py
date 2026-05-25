@@ -29,8 +29,8 @@ from agrogame.dashboard.export import (
     soil_moisture_csv,
     weather_csv,
 )
+from agrogame.api.dashboard_facade import SoilProfile
 from agrogame.dashboard.simulation import _run_simulation
-from agrogame.soil.models import SoilProfile
 
 
 class SidebarConfig(NamedTuple):

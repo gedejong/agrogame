@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 import plotly.graph_objects as go
 
-from agrogame.soil.models import SoilProfile
+from agrogame.api.dashboard_facade import SoilProfile
 
 
 def _gradient_hex(color_a: str, color_b: str, steps: int) -> list[str]:
