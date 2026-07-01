@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import cast
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
-from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
+from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
@@ -198,7 +198,7 @@ def test_residue_decay_halves_cover() -> None:
 def test_transpiration_clamped_to_potential() -> None:
     """Defensive check: actual transpiration ≤ potential."""
     from typing import cast
-    from agrogame.atmosphere.et.ports import (
+    from agrogame.params.ports import (
         WaterProfile,
         WaterState,
         WaterActuator,

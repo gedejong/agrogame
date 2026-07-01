@@ -15,7 +15,7 @@ from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.module import WeatherModule
 from agrogame.weather.utils import sanitize_weather_series
 from agrogame.weather.cli import get_weather_series
-from agrogame.atmosphere.et.ports import (
+from agrogame.params.ports import (
     WaterProfile as ETWaterProfile,
     WaterState as ETWaterState,
     WaterActuator as ETWaterActuator,
