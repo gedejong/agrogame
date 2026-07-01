@@ -94,6 +94,48 @@ The shared rationale: each entry is a publisher/subscriber edge where the subscr
 - If the soil → plant.events subscription pattern remains stable, consider relocating those event types into `agrogame.events.plant` so the allowlists shrink. Track separately when the count is large enough to justify the churn.
 - Promote a custom ruff/flake8 rule to forbid legacy import paths once the back-compat shims have been in place long enough to migrate downstream consumers.
 
+## Protocol port doctrine (#310)
+
+ADR-008 / #300 introduced structural `Protocol` ports for ET and migrated
+`ETRuntime` to take them. #310 promoted that pattern project-wide: the ports
+now live in the dependency-free leaf `agrogame/params/ports.py`, and all ten
+soil/plant runtimes (plus the `NitrogenCycle` / `PhosphorusCycle`, which had
+each reinvented private `_SoilLayer` / `_WaterProfile` / `_WaterState` shims)
+consume the shared `SoilProfileView` / `SoilLayerView` / `WaterState` views
+instead of the concrete `agrogame.soil.models.SoilProfile`.
+
+**Define a port when** the reader crosses a domain boundary (a runtime or
+module in one package reading a value object owned by another), *and* one of:
+
+- **structural decoupling** — the reader should depend on a shape, not on the
+  concrete Pydantic class, so the class can be refactored without a ripple;
+- **testability** — constructing the concrete object is expensive (a
+  YAML-validated preset), so a `types.SimpleNamespace` fake is worth enabling;
+- **drift prevention** — two or more modules already duck-type the same shape
+  privately (the N/P `_WaterProfile` shims were the smoking gun).
+
+**Take the concrete type when** the value object is module-internal (owned and
+constructed within the same package), or when the reader genuinely needs the
+full concrete API (e.g. Pydantic validation/serialisation).
+
+**Mechanics that matter:**
+
+- **Ports live in `agrogame/params/ports.py`** — a leaf that imports only
+  stdlib typing. Never import a domain enum/class into it (that would create a
+  `params → soil` edge and break the layering contracts). Where a concrete type
+  is a `Literal`/`str` subtype (e.g. `SoilTexture`), the port declares the
+  widened structural type (`texture: str`).
+- **Declare container/collection members as read-only `@property`**, not plain
+  attributes. A plain Protocol attribute is *invariant*, so a concrete
+  `layers: list[SoilLayer]` would not satisfy `layers: Sequence[SoilLayerView]`
+  and every call site would need a `cast`. A read-only property is *covariant*,
+  so the concrete Pydantic model satisfies the view directly — which is why
+  #310 was able to **delete** the orchestrator's `cast(Any, ...)` calls for the
+  N/P cycles rather than merely retype them.
+- **Views may extend narrower ports** (`SoilProfileView(WaterProfile)`,
+  `SoilLayerView(SoilLayer)`) so a broad view is accepted anywhere the narrow
+  ET port is expected.
+
 ## Alternatives Considered
 
 ### Bulk-fill `ignore_imports` instead of relocating types

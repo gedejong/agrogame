@@ -707,3 +707,45 @@ def test_collapsed_event_cause_is_typed() -> None:
     module.apply_compaction(intensity=0.5, moisture_factor=0.8, profile=profile)
     causes = {e.cause for e in events}
     assert causes <= {"tillage", "compaction"}
+
+
+# ---------- Protocol-port testability spot check (#310) ----------
+
+
+def test_runtime_accepts_duck_typed_profile_view() -> None:
+    """A stdlib ``SimpleNamespace`` fake satisfies ``SoilProfileView`` (#310).
+
+    ``BioporesRuntime.profile`` is typed as the structural ``SoilProfileView``
+    port, so a runtime can be driven without building a YAML-validated
+    ``SoilProfile`` preset. This is the testability payoff of the port
+    migration: ``apply_decay`` reads only ``layers[i].depth_cm``, so a fake
+    profile carrying just that shape drives the day-end decay end-to-end
+    through the event bus.
+    """
+    from datetime import date
+    from types import SimpleNamespace
+
+    from agrogame.events.calendar import DayTick
+
+    bus = EventBus()
+    state = BioporeState.from_layers(2)
+    state.density_per_m2[0] = 200.0
+    state.recompute_volume_fraction()
+    module = BioporeModule(
+        BioporeParams(
+            decay_half_life_days_topsoil=10.0, decay_half_life_days_subsoil=10.0
+        ),
+        state,
+        event_bus=bus,
+    )
+
+    fake_profile = SimpleNamespace(
+        name="fake",
+        layers=[SimpleNamespace(depth_cm=20.0), SimpleNamespace(depth_cm=30.0)],
+    )
+    BioporesRuntime(event_bus=bus, module=module, profile=fake_profile)
+
+    before = state.density_per_m2[0]
+    bus.emit(DayTick(sim_date=date(2026, 5, 1), phase="day_end"))
+
+    assert state.density_per_m2[0] < before  # decay ran against the fake profile
