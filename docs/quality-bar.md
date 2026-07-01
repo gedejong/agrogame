@@ -65,7 +65,7 @@ Tracking issue for the ratchet: a follow-up to #296 (TBD).
 
 ## Import-linter contracts
 
-All 10 contracts pass. `lint-imports` runs without `--contract` filters in
+All 11 contracts pass. `lint-imports` runs without `--contract` filters in
 both pre-commit (manual stage) and the Quality CI job. See
 [`docs/adr/ADR-008-import-layering.md`](adr/ADR-008-import-layering.md)
 for the layering decision and the rationale behind each contract's
