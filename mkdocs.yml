@@ -54,6 +54,7 @@ nav:
       - Import Layering: adr/ADR-008-import-layering.md
       - Biopore Calibration: adr/ADR-009-biopore-calibration.md
       - Pore-chain Phase Ordering: adr/ADR-010-pore-chain-phase-ordering.md
+      - Dashboard Façade: adr/ADR-011-dashboard-facade.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md

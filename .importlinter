@@ -204,3 +204,37 @@ source_modules =
     agrogame.game
 forbidden_modules =
     agrogame.api
+# Direct-only: `agrogame/__init__.py` lazily references `dashboard.app`
+# inside the `dashboard_main` function body, which import-linter traces
+# as a dependency of the top-level package. Without this flag, any
+# module that does `import agrogame` (e.g. `game.save` reading
+# `agrogame.__version__`) is flagged for the transitive game →
+# agrogame → dashboard → api chain.
+allow_indirect_imports = true
+
+# ---------------------------------------------------------------------------
+# Dashboard isolation (#309, ADR-011)
+# ---------------------------------------------------------------------------
+# Streamlit dashboard is a presentation layer. It must consume the
+# engine via `agrogame.api.dashboard_facade`, never reach into domain
+# packages directly. `agrogame.events` is allowed because the bus is
+# part of the public contract (the façade re-exports event payload
+# types from there). `agrogame.dashboard` itself, the `api` layer it
+# consumes, and `agrogame.params` (shared neutral types) are also
+# allowed.
+[importlinter:contract:dashboard_isolation]
+name = Dashboard must consume only the public façade, not engine internals
+type = forbidden
+source_modules =
+    agrogame.dashboard
+forbidden_modules =
+    agrogame.soil
+    agrogame.plant
+    agrogame.weather
+    agrogame.atmosphere
+    agrogame.sim
+# Direct-only: indirect paths through agrogame.api.dashboard_facade are
+# legitimate (the façade is the wormhole that re-exports stable types).
+# The contract catches any new dashboard file that reaches past the
+# façade into engine internals.
+allow_indirect_imports = true
