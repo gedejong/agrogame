@@ -30,8 +30,7 @@ from agrogame.soil.microbes.events import (
     MicrobialActivityComputed,
     MicrobialFBUpdated,
 )
-from typing import Protocol
-from collections.abc import Sequence
+from agrogame.params.ports import SoilProfileView, WaterState
 
 
 from .events import (
@@ -45,26 +44,6 @@ from .state import SoilNitrogenState
 from .types import NitrogenFluxes
 
 
-class _SoilLayer(Protocol):
-    field_capacity: float
-    saturation: float
-    depth_cm: float
-
-
-class _WaterProfile(Protocol):
-    layers: Sequence[_SoilLayer]
-
-
-class _WaterState(Protocol):
-    theta: Sequence[float]
-
-    def layer_storage_mm(self, profile: _WaterProfile, idx: int) -> float: ...
-
-    def set_layer_storage_mm(
-        self, profile: _WaterProfile, idx: int, _mm: float
-    ) -> None: ...
-
-
 class NitrogenCycle:
     """Nitrogen processes and event integration for the soil profile."""
 
@@ -72,8 +51,8 @@ class NitrogenCycle:
         self,
         event_bus: EventBus,
         state: SoilNitrogenState,
-        water_state: _WaterState | None = None,
-        profile: _WaterProfile | None = None,
+        water_state: WaterState | None = None,
+        profile: SoilProfileView | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state
