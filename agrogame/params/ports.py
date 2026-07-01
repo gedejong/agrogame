@@ -34,19 +34,34 @@ class SoilLayer(Protocol):
 
 @runtime_checkable
 class WaterProfile(Protocol):
-    """Abstraction of a soil/water profile for ET extraction."""
+    """Abstraction of a soil/water profile for ET extraction.
 
-    layers: Sequence[SoilLayer]
+    ``layers`` is a read-only property so the member is covariant: a
+    concrete profile whose layers are a subtype of ``SoilLayer`` (e.g. the
+    Pydantic ``SoilProfile``, or the broader ``SoilProfileView`` below)
+    satisfies this protocol without a cast.
+    """
+
+    @property
+    def layers(self) -> Sequence[SoilLayer]: ...
 
 
 @runtime_checkable
 class WaterState(Protocol):
-    """Abstraction of soil water state for ET extraction operations."""
+    """Abstraction of soil water state read by ET and the N/P cycles.
+
+    ``theta`` (volumetric water content per layer) is read by the nitrogen
+    and phosphorus cycles; the ``*_storage_mm`` methods are used by ET for
+    transpiration/evaporation bookkeeping.
+    """
+
+    @property
+    def theta(self) -> Sequence[float]: ...
 
     def layer_storage_mm(self, profile: WaterProfile, _layer_index: int) -> float: ...
 
     def set_layer_storage_mm(
-        self, profile: WaterProfile, _layer_index: int, _storage_mm: float
+        self, profile: SoilProfileView, _layer_index: int, _storage_mm: float
     ) -> None: ...
 
 
@@ -108,19 +123,18 @@ class CanopyView(Protocol):
 
 
 @runtime_checkable
-class SoilLayerView(Protocol):
+class SoilLayerView(SoilLayer, Protocol):
     """Structural view of a single soil layer read by soil/plant runtimes.
 
-    Covers the union of attributes the migrated runtimes and the module
-    methods they forward to access. The concrete ``agrogame.soil.models``
-    ``SoilLayer`` satisfies this shape; so does any duck-typed fake used in
-    tests (e.g. ``types.SimpleNamespace``).
+    Extends the ET ``SoilLayer`` (``wilting_point`` + ``depth_cm``) with the
+    union of attributes the migrated runtimes and the module methods they
+    forward to access. The concrete ``agrogame.soil.models.SoilLayer``
+    satisfies this shape; so does any duck-typed fake used in tests (e.g.
+    ``types.SimpleNamespace``).
     """
 
-    depth_cm: float
     saturation: float
     field_capacity: float
-    wilting_point: float
     bulk_density_g_cm3: float
     ksat_mm_per_hour: float
     organic_matter_pct: float
@@ -129,15 +143,25 @@ class SoilLayerView(Protocol):
     initial_nh4_kg_ha: float
     initial_p_kg_ha: float
 
+    # Read-only (covariant) so the concrete ``Literal[...]`` texture on
+    # ``SoilProfile`` satisfies this without importing the soil enum — which
+    # would break the ``agrogame.params`` leaf boundary.
+    @property
+    def texture(self) -> str: ...
+
 
 @runtime_checkable
-class SoilProfileView(Protocol):
+class SoilProfileView(WaterProfile, Protocol):
     """Structural view of a soil profile read by soil/plant runtimes.
 
     The read-only counterpart to ``agrogame.soil.models.SoilProfile`` that
     runtimes take at construction so they never couple to the concrete
-    Pydantic model.
+    Pydantic model. Extends ``WaterProfile`` (covariant ``layers`` property)
+    so a ``SoilProfileView`` is also accepted anywhere a ``WaterProfile`` is
+    expected — e.g. ``WaterState.layer_storage_mm``.
     """
 
     name: str
-    layers: Sequence[SoilLayerView]
+
+    @property
+    def layers(self) -> Sequence[SoilLayerView]: ...

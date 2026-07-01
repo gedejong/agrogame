@@ -9,7 +9,7 @@ from agrogame.events.calendar import DayTick
 from agrogame.plant.roots.events import RootTurnoverOccurred
 from agrogame.soil.aggregation.events import TillageApplied
 from agrogame.soil.biopores.module import BioporeModule
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.state import PoreNetworkState
 
 
@@ -32,7 +32,7 @@ class BioporesRuntime:
 
     event_bus: EventBus
     module: BioporeModule
-    profile: SoilProfile
+    profile: SoilProfileView
     pore_state: PoreNetworkState | None = None
 
     def __post_init__(self) -> None:

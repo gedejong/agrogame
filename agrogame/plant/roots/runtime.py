@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.phenology import PhenologyModule
 from .module import RootModule
 from .types import RootState
@@ -21,7 +21,7 @@ class RootsRuntime:
     event_bus: EventBus
     module: RootModule
     state: RootState
-    profile: SoilProfile
+    profile: SoilProfileView
     phenology: PhenologyModule
     agg_state: SoilAggregationState | None = None
 

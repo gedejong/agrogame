@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.soil.aggregation.state import SoilAggregationState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.module import PoreNetworkModule
 
 if TYPE_CHECKING:
@@ -36,7 +36,7 @@ class PoreNetworkRuntime:
 
     event_bus: EventBus
     module: PoreNetworkModule
-    profile: SoilProfile
+    profile: SoilProfileView
     agg_state: SoilAggregationState | None = None
     # Optional reference so we can reset the donation baseline atomically
     # with the pore_network recompute. The orchestrator wires this in.

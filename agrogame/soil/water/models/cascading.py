@@ -8,7 +8,7 @@ layer, and gravitational drainage cascading through layers.
 from __future__ import annotations
 
 
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.constants import TEXTURE_TO_CN
 from agrogame.events import EventBus
 from agrogame.soil.water.events import (
@@ -27,7 +27,7 @@ class SoilWaterModel:
     """Interface for soil water models."""
 
     def update_daily(
-        self, profile: SoilProfile, state: SoilWaterState, drivers: DailyDrivers
+        self, profile: SoilProfileView, state: SoilWaterState, drivers: DailyDrivers
     ) -> WaterFluxes:  # pragma: no cover - interface
         """Advance the water model by one day.
 
@@ -53,7 +53,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
         """
         self.event_bus = event_bus
 
-    def _texture_cn(self, profile: SoilProfile) -> int:
+    def _texture_cn(self, profile: SoilProfileView) -> int:
         """Return SCS CN derived from the top layer texture."""
         texture = profile.layers[0].texture
         return TEXTURE_TO_CN.get(texture, 86)
@@ -67,7 +67,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     # Expose as public for ET actuator use
     def apply_evaporation(
-        self, profile: SoilProfile, state: SoilWaterState, evaporation_mm: float
+        self, profile: SoilProfileView, state: SoilWaterState, evaporation_mm: float
     ) -> float:
         """Remove actual evaporation from the top layer (bounded by availability)."""
         if evaporation_mm <= 0:
@@ -82,7 +82,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def _infiltrate_layers(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         infiltrated_mm: float,
         porosity_overrides: list[float] | None = None,
@@ -118,7 +118,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def _drain_saturation_excess(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         porosity_overrides: list[float],
     ) -> float:
@@ -146,7 +146,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     @staticmethod
     def _layer_capacity(
-        profile: SoilProfile,
+        profile: SoilProfileView,
         layer_idx: int,
         porosity_overrides: list[float] | None,
     ) -> float:
@@ -161,7 +161,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def _drain_fc_excess_to_next_layer(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         layer_idx: int,
         drainable: float,
@@ -196,7 +196,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def _drain_layer_fc_excess(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         layer_idx: int,
         ksat_factors: list[float] | None,
@@ -234,7 +234,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def _cascade_excess(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         ksat_factors: list[float] | None = None,
         porosity_overrides: list[float] | None = None,
@@ -253,7 +253,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def update_daily(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         drivers: DailyDrivers,
         ksat_factors: list[float] | None = None,
@@ -295,7 +295,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
     # --- Plant transpiration extraction ---------------------------------
     @staticmethod
     def _extract_layer(
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         layer_idx: int,
         desired_mm: float,
@@ -312,7 +312,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
 
     def extract_transpiration_by_roots(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         demand_mm: float,
         root_fractions: tuple[float, ...] | list[float],
