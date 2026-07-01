@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.atmosphere.et import Evapotranspiration
-from agrogame.atmosphere.et.ports import (
+from agrogame.params.ports import (
     CanopyView as ETCanopyView,
     RootDistribution as ETRootDistribution,
     WaterProfile as ETWaterProfile,

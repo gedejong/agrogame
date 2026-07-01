@@ -447,7 +447,7 @@ class FullSimulationOrchestrator:
         # objects need a `cast` for mypy to accept them.
         from typing import cast as _cast
 
-        from agrogame.atmosphere.et.ports import (
+        from agrogame.params.ports import (
             CanopyView as _ETCanopy,
             RootDistribution as _ETRoots,
             WaterActuator as _ETActuator,
