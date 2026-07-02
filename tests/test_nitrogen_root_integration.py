@@ -10,7 +10,7 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.atmosphere.et.module import Evapotranspiration
-from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
+from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 
 if TYPE_CHECKING:
     from agrogame.soil.nitrogen.cycle import (

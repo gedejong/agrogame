@@ -4,7 +4,7 @@ from math import exp
 from collections.abc import Sequence
 
 from agrogame.events import EventBus
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.params.phenology import PhenologyStage
 
 from .events import (
@@ -74,7 +74,7 @@ class RootModule:
 
     @staticmethod
     def _uniform_distribution(
-        profile: SoilProfile, depth_cm: float, *, continuous: bool
+        profile: SoilProfileView, depth_cm: float, *, continuous: bool
     ) -> list[float]:
         fracs: list[float] = []
         cum_top = 0.0
@@ -110,7 +110,7 @@ class RootModule:
 
     @staticmethod
     def _exponential_distribution(
-        profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
+        profile: SoilProfileView, depth_cm: float, *, scale_cm: float, continuous: bool
     ) -> list[float]:
         # Depth-decay kernel exp(-z/scale) integrated over rooted portion of each layer
         weights: list[float] = []
@@ -139,7 +139,7 @@ class RootModule:
 
     @staticmethod
     def _taproot_distribution(
-        profile: SoilProfile, depth_cm: float, *, scale_cm: float, continuous: bool
+        profile: SoilProfileView, depth_cm: float, *, scale_cm: float, continuous: bool
     ) -> list[float]:
         """Increasing weight with depth to mimic taproot dominance.
 
@@ -186,7 +186,7 @@ class RootModule:
     def _update_distribution(
         self,
         state: RootState,
-        profile: SoilProfile | None,
+        profile: SoilProfileView | None,
         nutrient_signal: Sequence[float] | None,
     ) -> None:
         # If no profile is provided (e.g., lightweight orchestrator demo), skip
@@ -249,7 +249,7 @@ class RootModule:
     def daily_step(
         self,
         state: RootState,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         stage: PhenologyStage,
         daily_root_biomass_g_m2: float = 0.0,
         nutrient_signal: Sequence[float] | None = None,

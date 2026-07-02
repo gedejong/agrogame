@@ -11,6 +11,7 @@ from agrogame.soil.phenology import (
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
 from agrogame.plant.presets import CropPreset
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
@@ -21,7 +22,7 @@ from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
-from typing import cast, Any
+from typing import Any
 from datetime import date
 from agrogame.sim.calendar import Calendar
 from agrogame.soil.water.runtime import WaterRuntime
@@ -327,15 +328,15 @@ class FullSimulationOrchestrator:
         self.n_cycle = NitrogenCycle(
             self.event_bus,
             self.n_state,
-            water_state=cast(Any, self.water_state),
-            profile=cast(Any, profile),
+            water_state=self.water_state,
+            profile=profile,
         )
         self.p_state = SoilPhosphorusState(profile)
         self.p_cycle = PhosphorusCycle(
             self.event_bus,
             self.p_state,
-            water_state=cast(Any, self.water_state),
-            profile=cast(Any, profile),
+            water_state=self.water_state,
+            profile=profile,
         )
         # Microbial biomass/enzymes (initial scaffold)
         self.microbes = MicrobialBiomassModule(
@@ -399,26 +400,31 @@ class FullSimulationOrchestrator:
         pore geometry, biopore donations, and gas profile before
         downstream consumers (water, redox, N) tick.
         """
+        # The migrated soil/plant runtimes take the structural
+        # SoilProfileView port (#310, ADR-008). The concrete Pydantic
+        # SoilProfile structurally satisfies that port (covariant `layers`
+        # property), so it flows in directly — no cast needed.
+        profile_view: SoilProfileView = self.profile
         # --- Pore-chain runtimes — must subscribe in this order on
         # day_start: pore-network compute → biopore donation →
         # gas diffusion. Documented in ADR-010.
         _ = PoreNetworkRuntime(
             self.event_bus,
             self.pore_module,
-            self.profile,
+            profile_view,
             agg_state=self.agg_state,
             biopore_module=self.biopore_module,
         )
         _ = BioporesRuntime(
             self.event_bus,
             self.biopore_module,
-            self.profile,
+            profile_view,
             pore_state=self.pore_state,
         )
         _ = GasDiffusionRuntime(
             self.event_bus,
             self.gas_module,
-            self.profile,
+            profile_view,
             self.water_state,
             self.pore_state,
             co2_respiration_supplier=self._co2_respiration_for_gas,
@@ -427,7 +433,7 @@ class FullSimulationOrchestrator:
         _ = WaterRuntime(
             self.event_bus,
             self.water_model,
-            self.profile,
+            profile_view,
             self.water_state,
             agg_state=self.agg_state,
         )
@@ -438,7 +444,7 @@ class FullSimulationOrchestrator:
             self.event_bus,
             self.roots,
             self.root_state,
-            self.profile,
+            profile_view,
             self.phenology,
             agg_state=self.agg_state,
         )
@@ -447,7 +453,7 @@ class FullSimulationOrchestrator:
         # objects need a `cast` for mypy to accept them.
         from typing import cast as _cast
 
-        from agrogame.atmosphere.et.ports import (
+        from agrogame.params.ports import (
             CanopyView as _ETCanopy,
             RootDistribution as _ETRoots,
             WaterActuator as _ETActuator,
@@ -469,7 +475,7 @@ class FullSimulationOrchestrator:
         _ = RedoxRuntime(
             self.event_bus,
             self.redox,
-            self.profile,
+            profile_view,
             self.water_state,
             gas_state=self.gas_state,
         )
@@ -478,7 +484,7 @@ class FullSimulationOrchestrator:
         _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
         self._som_runtime = SOMRuntime(
             self.event_bus,
-            self.profile,
+            profile_view,
             self.water_state,
             self.chem,
             agg_state=self.agg_state,
@@ -486,12 +492,12 @@ class FullSimulationOrchestrator:
         _ = MicrobesRuntime(
             self.event_bus,
             self.microbes,
-            profile=self.profile,
+            profile=profile_view,
             water_state=self.water_state,
             chemistry=self.chem,
         )
         _ = AggregationRuntime(
-            self.event_bus, self.agg_module, self.profile, self.water_state
+            self.event_bus, self.agg_module, profile_view, self.water_state
         )
         _ = CanopyRuntime(self.event_bus, self.canopy)
         # Track biomass increments for dynamic N/P demand computation
@@ -666,14 +672,14 @@ class FullSimulationOrchestrator:
         self.n_cycle = NitrogenCycle(
             self.event_bus,
             self.n_state,
-            water_state=cast(Any, self.water_state),
-            profile=cast(Any, self.profile),
+            water_state=self.water_state,
+            profile=self.profile,
         )
         self.p_cycle = PhosphorusCycle(
             self.event_bus,
             self.p_state,
-            water_state=cast(Any, self.water_state),
-            profile=cast(Any, self.profile),
+            water_state=self.water_state,
+            profile=self.profile,
         )
         self.microbes = MicrobialBiomassModule(
             MicrobialParams(n_layers=len(self.profile.layers)),

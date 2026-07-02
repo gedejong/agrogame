@@ -22,7 +22,7 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.atmosphere.et import Evapotranspiration, EtParams
 from agrogame.atmosphere.et.types import EtComponents
-from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
+from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.weather import load_weather
 from agrogame.analysis.stats import r2, nse
 

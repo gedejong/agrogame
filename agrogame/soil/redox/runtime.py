@@ -8,7 +8,7 @@ from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.gas_diffusion.state import GasDiffusionState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.redox.module import RedoxModule
 from agrogame.soil.water.state import SoilWaterState
 
@@ -30,7 +30,7 @@ class RedoxRuntime:
 
     event_bus: EventBus
     module: RedoxModule
-    profile: SoilProfile
+    profile: SoilProfileView
     water_state: SoilWaterState
     gas_state: GasDiffusionState | None = None
     _root_fractions: list[float] | None = None

@@ -19,7 +19,7 @@ from agrogame.atmosphere.et.types import EtComponents
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
-from agrogame.atmosphere.et.ports import WaterProfile, WaterState, WaterActuator
+from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.weather import load_weather
 
 

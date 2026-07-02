@@ -13,7 +13,7 @@ from .events import (
     EnzymeProduced,
 )
 from agrogame.soil.water.state import SoilWaterState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.chemistry.module import SoilChemistryModule
 from agrogame.plant.roots.events import RootDistributionUpdated
 
@@ -24,7 +24,7 @@ class MicrobesRuntime:
 
     event_bus: EventBus
     microbes: MicrobialBiomassModule
-    profile: SoilProfile | None = None
+    profile: SoilProfileView | None = None
     water_state: SoilWaterState | None = None
     chemistry: SoilChemistryModule | None = None
     # Transient daily aggregation for enzyme costs

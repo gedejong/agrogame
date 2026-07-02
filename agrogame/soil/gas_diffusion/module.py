@@ -29,7 +29,7 @@ from agrogame.events import EventBus
 from agrogame.soil.gas_diffusion.events import GasConcentrationUpdated
 from agrogame.soil.gas_diffusion.params import GasDiffusionParams
 from agrogame.soil.gas_diffusion.state import GasDiffusionState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.state import PoreNetworkState
 
 _EPS = 1e-12
@@ -127,7 +127,7 @@ class GasDiffusionModule:
 
     def daily_step(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         theta: list[float],
         temperature_c: float,
         co2_respiration_kg_c_ha: list[float],
@@ -226,7 +226,7 @@ class GasDiffusionModule:
 
     def _total_porosity(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         pore_state: PoreNetworkState | None,
         n: int,
     ) -> list[float]:
@@ -241,7 +241,7 @@ class GasDiffusionModule:
 
     def _compute_volumetric_rates(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         theta_a: list[float],
         co2_respiration_kg_c_ha: list[float],
         n: int,
@@ -282,7 +282,7 @@ class GasDiffusionModule:
 
     def _solve_profile(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         d_eff: list[float],
         source_rate: list[float],
         n: int,

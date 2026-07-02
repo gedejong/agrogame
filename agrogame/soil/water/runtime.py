@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
@@ -26,7 +26,7 @@ class WaterRuntime:
 
     event_bus: EventBus
     model: CascadingBucketWaterModel
-    profile: SoilProfile
+    profile: SoilProfileView
     state: SoilWaterState
     agg_state: SoilAggregationState | None = None
 

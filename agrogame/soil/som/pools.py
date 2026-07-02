@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ class ThreePoolSOM:
     # Initialisation from soil profile
     # ------------------------------------------------------------------
 
-    def initialize_from_profile(self, profile: SoilProfile) -> None:
+    def initialize_from_profile(self, profile: SoilProfileView) -> None:
         """Set initial pool sizes from soil organic matter percentage.
 
         Distribution: 5 % labile, 20 % intermediate, 75 % stable.

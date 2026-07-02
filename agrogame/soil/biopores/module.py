@@ -26,7 +26,7 @@ from agrogame.events import EventBus
 from agrogame.soil.biopores.events import BioporeCollapsed, BioporeCreated
 from agrogame.soil.biopores.params import BioporeParams
 from agrogame.soil.biopores.state import BioporeState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.state import PoreNetworkState
 
 # Conversion: 1 cm³ = 1e-6 m³.
@@ -127,7 +127,7 @@ class BioporeModule:
 
     # --- Decay --------------------------------------------------------
 
-    def apply_decay(self, profile: SoilProfile) -> None:
+    def apply_decay(self, profile: SoilProfileView) -> None:
         """Daily exponential decay per layer.
 
         Topsoil layers (cumulative depth ≤ ``topsoil_depth_cm``) use
@@ -159,7 +159,7 @@ class BioporeModule:
 
     # --- Tillage destruction ------------------------------------------
 
-    def apply_tillage(self, intensity: float, profile: SoilProfile) -> None:
+    def apply_tillage(self, intensity: float, profile: SoilProfileView) -> None:
         """Destroy biopores in the plow layer proportional to intensity.
 
         Effective plow depth scales with intensity (matches
@@ -208,7 +208,7 @@ class BioporeModule:
         self,
         intensity: float,
         moisture_factor: float,
-        profile: SoilProfile,
+        profile: SoilProfileView,
     ) -> None:
         """Wheel-traffic compaction collapses surface biopores.
 
@@ -246,7 +246,7 @@ class BioporeModule:
     # --- Pore-network integration -------------------------------------
 
     def update_pore_network(
-        self, pore_state: PoreNetworkState, profile: SoilProfile
+        self, pore_state: PoreNetworkState, profile: SoilProfileView
     ) -> None:
         """Add biopore volume into ``pore_state.macro`` per layer.
 
@@ -297,7 +297,7 @@ class BioporeModule:
     def _apply_positive_delta(
         self,
         pore_state: PoreNetworkState,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         layer: int,
         delta: float,
     ) -> None:

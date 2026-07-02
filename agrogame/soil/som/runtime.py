@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.state import SoilWaterState
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class SOMRuntime:
     """
 
     event_bus: EventBus
-    profile: SoilProfile
+    profile: SoilProfileView
     water_state: SoilWaterState
     chemistry: SoilChemistryModule
     som: ThreePoolSOM | None = None

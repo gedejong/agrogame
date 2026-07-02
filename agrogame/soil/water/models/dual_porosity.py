@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agrogame.events import EventBus
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.state import PoreNetworkState
 from agrogame.soil.water.events import PreferentialFlowOccurred
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -128,7 +128,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
 
     def update_daily(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         drivers: DailyDrivers,
         ksat_factors: list[float] | None = None,
@@ -238,7 +238,9 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
     # Helpers
     # ------------------------------------------------------------------
 
-    def _macro_storage_mm(self, profile: SoilProfile, state: SoilWaterState) -> float:
+    def _macro_storage_mm(
+        self, profile: SoilProfileView, state: SoilWaterState
+    ) -> float:
         """Total water stored in macropore domain across all layers (mm)."""
         if state.theta_macro is None:
             return 0.0
@@ -251,7 +253,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
 
     def _route_macropore(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         state: SoilWaterState,
         bypass_mm: float,
     ) -> tuple[float, list[int]]:
@@ -289,7 +291,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
 
     def _build_matrix_porosity_overrides(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         porosity_overrides: list[float] | None,
     ) -> list[float]:
         """Per-layer effective matrix porosity = saturation - macro_frac.
@@ -313,7 +315,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         assert len(overrides) == n
         return overrides
 
-    def _apply_exchange(self, profile: SoilProfile, state: SoilWaterState) -> None:
+    def _apply_exchange(self, profile: SoilProfileView, state: SoilWaterState) -> None:
         """Apply first-order macropore-matrix exchange per layer.
 
         Uses actual transferable amount (min of requested and available

@@ -25,7 +25,7 @@ Refs:
 from __future__ import annotations
 
 
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 
 _EPS = 1e-9
 
@@ -33,7 +33,7 @@ _EPS = 1e-9
 def compute_exchange_mm(
     theta_macro: list[float],
     theta_matrix: list[float],
-    profile: SoilProfile,
+    profile: SoilProfileView,
     alpha_w_per_day: float,
     macro_frac: list[float],
 ) -> list[float]:
