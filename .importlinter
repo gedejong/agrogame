@@ -46,10 +46,9 @@ ignore_imports =
     agrogame.soil.microbes.runtime -> agrogame.plant.roots.events
     agrogame.soil.micronutrients.cycle -> agrogame.plant.events
     agrogame.soil.micronutrients.runtime -> agrogame.plant.roots.events
-    agrogame.soil.nitrogen.cycle -> agrogame.plant.roots.events
+    agrogame.soil.nutrients.environment_cache -> agrogame.plant.roots.events
     agrogame.soil.nitrogen.runtime -> agrogame.plant.events
     agrogame.soil.nitrogen.runtime -> agrogame.plant.stress
-    agrogame.soil.phosphorus.cycle -> agrogame.plant.roots.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.stress
     agrogame.soil.redox.runtime -> agrogame.plant.roots.events
@@ -178,10 +177,9 @@ ignore_imports =
     agrogame.soil.microbes.runtime -> agrogame.plant.roots.events
     agrogame.soil.micronutrients.cycle -> agrogame.plant.events
     agrogame.soil.micronutrients.runtime -> agrogame.plant.roots.events
-    agrogame.soil.nitrogen.cycle -> agrogame.plant.roots.events
+    agrogame.soil.nutrients.environment_cache -> agrogame.plant.roots.events
     agrogame.soil.nitrogen.runtime -> agrogame.plant.events
     agrogame.soil.nitrogen.runtime -> agrogame.plant.stress
-    agrogame.soil.phosphorus.cycle -> agrogame.plant.roots.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.stress
     agrogame.soil.redox.runtime -> agrogame.plant.roots.events
