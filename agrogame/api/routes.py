@@ -54,6 +54,30 @@ def _reset_all_crops(s: GameSession) -> None:
             patch.orch.reset_crop(preset)
 
 
+def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
+    """Compute per-layer dynamic ksat (mm/day) and porosity from aggregation (#253).
+
+    Mirrors the derivation used by ``WaterRuntime``: the aggregation
+    macroaggregate fraction scales base ksat and shifts porosity. Base
+    ksat is stored per layer as ``ksat_mm_per_hour``; we return mm/day.
+    """
+    from agrogame.soil.aggregation.dynamic_state import (
+        effective_ksat_factor,
+        effective_porosity,
+    )
+
+    layers = patch.orch.profile.layers
+    macro = list(patch.orch.agg_state.macro)
+    ksat_mm_day: list[float] = []
+    porosity: list[float] = []
+    for i, layer in enumerate(layers):
+        macro_frac = macro[i] if i < len(macro) else 0.0
+        base_ksat_day = layer.ksat_mm_per_hour * 24.0
+        ksat_mm_day.append(round(base_ksat_day * effective_ksat_factor(macro_frac), 2))
+        porosity.append(round(effective_porosity(layer.saturation, macro_frac), 4))
+    return ksat_mm_day, porosity
+
+
 def _build_soil_state(patch: Patch) -> SoilStateResponse:
     """Build SoilStateResponse from a patch's current soil snapshot."""
     snap = patch.orch.snapshot_soil()
@@ -61,6 +85,10 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
     )
     redox_eh = list(snap.redox_eh) if snap.redox_eh else []
+    pore = snap.pore_network or {}
+    ksat_mm_day, porosity = _dynamic_soil_properties(patch)
+    root_state = patch.orch.root_state
+    root_fracs = list(root_state.layer_fractions) if root_state.layer_fractions else []
     # redox_state is always present on FullSimulationOrchestrator (AGRO-73)
     redox_acceptors = [a.value for a in patch.orch.redox_state.dominant_acceptor]
     return SoilStateResponse(
@@ -101,6 +129,22 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
             if snap.agg_macro
             else []
         ),
+        microbe_n=[round(v, 3) for v in snap.microbe_n] if snap.microbe_n else [],
+        fungal_fraction=(
+            [round(v, 4) for v in snap.microbe_fungal_fraction]
+            if snap.microbe_fungal_fraction
+            else []
+        ),
+        pore_macro_frac=[round(v, 4) for v in pore.get("macro", [])],
+        pore_meso_frac=[round(v, 4) for v in pore.get("meso", [])],
+        pore_micro_frac=[round(v, 4) for v in pore.get("micro", [])],
+        pore_crypto_frac=[round(v, 4) for v in pore.get("crypto", [])],
+        tortuosity=[round(v, 4) for v in pore.get("connectivity", [])],
+        ksat_mm_day=ksat_mm_day,
+        porosity=porosity,
+        root_biomass_g_m2=round(root_state.biomass_g_m2, 2),
+        root_layer_fractions=[round(v, 4) for v in root_fracs],
+        stem_biomass_g_m2=round(patch.orch.canopy.state.stem_biomass_g_m2, 2),
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -525,6 +569,8 @@ def _build_daily_snapshot(
     snap = p.orch.snapshot_soil()
     n_total = sum(snap.n_no3) + sum(snap.n_nh4)
     theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+    pore_macro = (snap.pore_network or {}).get("macro", [])
+    ksat_day, _porosity = _dynamic_soil_properties(p)
     return DailySnapshot(
         day_number=day_num,
         date=day_date,
@@ -556,6 +602,8 @@ def _build_daily_snapshot(
             if snap.agg_macro
             else 0.55
         ),
+        pore_macro_frac_surface=(round(pore_macro[0], 4) if pore_macro else 0.0),
+        ksat_surface=(ksat_day[0] if ksat_day else 0.0),
         rain_mm=round(rec.precip_mm or 0.0, 1),
         events=_serialize_events(p),
     )

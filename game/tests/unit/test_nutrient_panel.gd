@@ -8,6 +8,25 @@ func test_nutrient_bars_defined() -> void:
 		assert_true(NutrientPanel.NUTRIENT_BARS.has(key), "Bar config for %s" % key)
 
 
+func test_biology_bars_defined() -> void:
+	# #317: microbial N and fungal fraction per-layer bars.
+	for key: String in ["MicrobeN", "Fungal"]:
+		assert_true(NutrientPanel.NUTRIENT_BARS.has(key), "Bar config for %s" % key)
+	assert_eq(NutrientPanel.NUTRIENT_BARS["Fungal"]["max"], 1.0, "Fungal frac max 1.0")
+
+
+func test_biomass_row_renders() -> void:
+	# #317: root vs stem biomass split rendered when biomass dict passed.
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-20cm", "values": {}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers, {"root_g_m2": 120.0, "stem_g_m2": 80.0})
+	assert_eq(panel._layer_bodies.size(), 1, "Layer body still built with biomass")
+
+
 func test_nutrient_bars_have_icon() -> void:
 	for key: String in NutrientPanel.NUTRIENT_BARS:
 		var cfg: Dictionary = NutrientPanel.NUTRIENT_BARS[key]

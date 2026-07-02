@@ -94,6 +94,54 @@ class SoilStateResponse(BaseModel):
         default_factory=list, description="Mean weight diameter per layer (mm)"
     )
 
+    # Microbial N + fungal fraction (#317)
+    microbe_n: list[float] = Field(
+        default_factory=list, description="Microbial biomass N per layer (kg/ha)"
+    )
+    fungal_fraction: list[float] = Field(
+        default_factory=list,
+        description="Fungal fraction of microbial biomass per layer (0..1)",
+    )
+
+    # Pore-network state (#274) — per-layer volume fractions summing to porosity
+    pore_macro_frac: list[float] = Field(
+        default_factory=list, description="Macropore fraction per layer (>50 µm)"
+    )
+    pore_meso_frac: list[float] = Field(
+        default_factory=list, description="Mesopore fraction per layer (10–50 µm)"
+    )
+    pore_micro_frac: list[float] = Field(
+        default_factory=list, description="Micropore fraction per layer (0.2–10 µm)"
+    )
+    pore_crypto_frac: list[float] = Field(
+        default_factory=list, description="Cryptopore fraction per layer (<0.2 µm)"
+    )
+    tortuosity: list[float] = Field(
+        default_factory=list,
+        description="Pore-network connectivity/tortuosity index per layer (0..1)",
+    )
+
+    # Dynamic soil properties from aggregation (#253)
+    ksat_mm_day: list[float] = Field(
+        default_factory=list,
+        description="Dynamic saturated hydraulic conductivity per layer (mm/day)",
+    )
+    porosity: list[float] = Field(
+        default_factory=list, description="Dynamic total porosity per layer (0..1)"
+    )
+
+    # Plant biomass surfaced alongside soil for the 3D/biology view (#317)
+    root_biomass_g_m2: float = Field(
+        default=0.0, description="Total root biomass (g/m²)"
+    )
+    root_layer_fractions: list[float] = Field(
+        default_factory=list,
+        description="Root biomass fraction per soil layer (sums to ~1 when rooted)",
+    )
+    stem_biomass_g_m2: float = Field(
+        default=0.0, description="Canopy stem biomass (g/m²)"
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
@@ -193,6 +241,8 @@ class DailySnapshot(BaseModel):
     zn_available_surface: float = 1.2
     mn_available_surface: float = 18.0
     agg_mwd_surface: float = 0.55
+    pore_macro_frac_surface: float = 0.0
+    ksat_surface: float = 0.0
     rain_mm: float = 0.0
     events: list[dict] = Field(
         default_factory=list,

@@ -83,6 +83,36 @@ const NUTRIENT_BARS := {
 		"mass_type": "carbon",
 		"tooltip": "Microbial biomass — decomposers that recycle nutrients from organic matter",
 	},
+	"MicrobeN":
+	{
+		"color": UiTheme.SUBSTANCE_MICROBE,
+		"icon": "",
+		"icon_glyph": "N",
+		"max": 40.0,
+		"opt_min": 5.0,
+		"opt_max": 40.0,
+		"mass_type": "",
+		"unit": "kg/ha",
+		"tooltip":
+		"Microbial biomass N — nitrogen immobilised in decomposers, released on turnover",
+	},
+	"Fungal":
+	{
+		"color": Color(0.60, 0.50, 0.30, 0.8),
+		"icon": "",
+		"icon_glyph": "⚘",
+		"max": 1.0,
+		"opt_min": 0.35,
+		"opt_max": 0.75,
+		"mass_type": "",
+		"unit": "",
+		"tooltip":
+		(
+			"Fungal fraction of microbial biomass (0-1).\n"
+			+ "Higher = fungal-dominated (no-till, high residue);\n"
+			+ "lower = bacterial-dominated (tilled, high N)."
+		),
+	},
 	"Fe":
 	{
 		"color": Color(0.75, 0.45, 0.20, 0.8),
@@ -175,7 +205,7 @@ var _layer_headers: Array[Button] = []
 var _all_expanded := false
 
 
-func show_layers(layers_data: Array[Dictionary]) -> void:
+func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> void:
 	_clear()
 	var style := UiTheme.create_panel_style(true)
 	style.content_margin_left = 5
@@ -213,6 +243,11 @@ func show_layers(layers_data: Array[Dictionary]) -> void:
 	expand_btn.pressed.connect(_on_expand_all)
 	title_row.add_child(expand_btn)
 	vbox.add_child(title_row)
+
+	# Plant biomass split — root vs stem (#317)
+	if not biomass.is_empty():
+		_build_biomass_row(vbox, biomass)
+		_add_separator(vbox)
 
 	# Flow cycle filter row
 	_build_cycle_row(vbox)
@@ -441,6 +476,57 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 	if val < opt_min:
 		return BAR_MARGINAL
 	return BAR_OK
+
+
+func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
+	## Root vs stem biomass split (g/m²) with a two-tone proportion bar (#317).
+	var root_g: float = biomass.get("root_g_m2", 0.0)
+	var stem_g: float = biomass.get("stem_g_m2", 0.0)
+	var total: float = maxf(root_g + stem_g, 0.001)
+
+	var caption := Label.new()
+	caption.text = "PLANT BIOMASS"
+	caption.uppercase = true
+	caption.add_theme_font_size_override("font_size", 9)
+	caption.add_theme_color_override("font_color", UiTheme.TEXT_MUTED)
+	caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	parent.add_child(caption)
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	row.tooltip_text = (
+		"Root vs stem biomass allocation.\n" + "Root: %.0f g/m²  Stem: %.0f g/m²" % [root_g, stem_g]
+	)
+
+	var track_w := 120
+	var track_h := 12
+	var bar_bg := Control.new()
+	bar_bg.custom_minimum_size = Vector2(track_w, track_h)
+	var track := ColorRect.new()
+	track.color = UiTheme.TRACK_BG
+	track.size = Vector2(track_w, track_h)
+	bar_bg.add_child(track)
+
+	var root_frac: float = clampf(root_g / total, 0.0, 1.0)
+	var root_rect := ColorRect.new()
+	root_rect.color = UiTheme.SUBSTANCE_CARBON
+	root_rect.position = Vector2(0, 0)
+	root_rect.size = Vector2(root_frac * track_w, track_h)
+	bar_bg.add_child(root_rect)
+
+	var stem_rect := ColorRect.new()
+	stem_rect.color = UiTheme.ACCENT_GREEN
+	stem_rect.position = Vector2(root_frac * track_w, 0)
+	stem_rect.size = Vector2((1.0 - root_frac) * track_w, track_h)
+	bar_bg.add_child(stem_rect)
+	row.add_child(bar_bg)
+
+	var lbl := Label.new()
+	lbl.text = "R %.0f / S %.0f g/m²" % [root_g, stem_g]
+	lbl.add_theme_font_size_override("font_size", 9)
+	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
+	row.add_child(lbl)
+	parent.add_child(row)
 
 
 func _build_cycle_row(parent: VBoxContainer) -> void:
