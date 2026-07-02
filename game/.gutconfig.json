@@ -5,5 +5,6 @@
   "log_level": 1,
   "include_subdirs": true,
   "prefix": "test_",
-  "suffix": ".gd"
+  "suffix": ".gd",
+  "post_run_script": "res://tests/load_guard_hook.gd"
 }

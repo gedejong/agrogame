@@ -30,10 +30,10 @@ jobs:
         run: pip install gdtoolkit
 
       - name: Lint GDScript
-        run: gdlint game/scripts/*.gd game/tests/unit/*.gd
+        run: gdlint game/scripts/*.gd game/tests/*.gd game/tests/unit/*.gd
 
       - name: Check GDScript formatting
-        run: gdformat --check game/scripts/*.gd game/tests/unit/*.gd
+        run: gdformat --check game/scripts/*.gd game/tests/*.gd game/tests/unit/*.gd
 
   coverage:
     runs-on: ubuntu-latest
@@ -60,7 +60,19 @@ jobs:
         working-directory: game
 
       - name: Run GUT tests
-        run: godot --headless --script addons/gut/gut_cmdln.gd -gconfig=.gutconfig.json
+        # The load_guard_hook (post_run_script in .gutconfig.json) fails the run
+        # when any test script fails to LOAD. The grep below is an independent
+        # backstop in case the hook itself cannot run (issue #338).
+        run: |
+          set -o pipefail
+          godot --headless --script addons/gut/gut_cmdln.gd \
+            -gconfig=.gutconfig.json 2>&1 | tee gut_output.log
+          gut_status=${PIPESTATUS[0]}
+          if grep -qE "could not be loaded|Ignoring script|Load guard: [0-9]+ of" gut_output.log; then
+            echo "::error::GUT reported test scripts that failed to load (false-green guard)."
+            exit 1
+          fi
+          exit "$gut_status"
         working-directory: game
         timeout-minutes: 5
 
