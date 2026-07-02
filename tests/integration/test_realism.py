@@ -68,13 +68,17 @@ def _run_scenario(
 
 def test_winter_wheat_netherlands_spring_start() -> None:
     """NL winter wheat 150d Apr start should reach maturity with decent biomass."""
-    biomass, _lai, stage, _grain = _run_scenario(
+    biomass, lai, stage, _grain = _run_scenario(
         "winter_wheat", "netherlands_temperate", date(2024, 4, 1)
     )
     assert stage == "MATURITY"
-    # Literature AGB: 1600-2000 g/m². Accept > 400 (still underestimated
-    # due to canopy model limitations).
-    assert biomass > 400
+    # Literature total above-ground biomass for NW-European wheat:
+    # ~15-22 t/ha (1500-2200 g/m²), WOFOST / AHDB Wheat Growth Guide 2015.
+    # Model produces ~1426 g/m²; two-sided bound brackets it while catching
+    # a >~30% regression at the low end and unphysical growth at the top.
+    assert 1000 < biomass < 2200
+    # Peak LAI for a closed wheat canopy: 4-8 (WOFOST; Hay & Porter 2006).
+    assert 3.0 < lai < 8.5
 
 
 def test_winter_wheat_netherlands_autumn_start() -> None:
@@ -83,9 +87,10 @@ def test_winter_wheat_netherlands_autumn_start() -> None:
         "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
     )
     assert stage == "MATURITY"
-    # With biomass partitioning and smooth senescence (AGRO-88),
-    # Oct-start should reach literature-range biomass.
-    assert biomass > 800
+    # Autumn-sown winter wheat total AGB: ~12-22 t/ha (1200-2200 g/m²),
+    # AHDB Wheat Growth Guide 2015; WOFOST NL calibration. Model ~1165 g/m².
+    # Lower bound set to bracket the current output and bite on a ~30% drop.
+    assert 800 < biomass < 2200
 
 
 def test_winter_wheat_sahel_fails() -> None:
@@ -111,10 +116,12 @@ def test_spring_wheat_kenya_reaches_maturity() -> None:
         "spring_wheat", "kenya_highlands", date(2024, 3, 1)
     )
     assert stage in ("GRAIN_FILL", "MATURITY")
-    # Literature AGB: 500-1900 g/m² (GYGA Kenya spring wheat).
-    # Model produces ~2026 due to optimal highland conditions;
-    # bound = observed × 1.3 (AGRO-96).
-    assert 200 < biomass < 2600
+    # Highland spring wheat total AGB: ~10-20 t/ha (1000-2000 g/m²) under
+    # near-optimal Kenya highland conditions (GYGA East-Africa wheat;
+    # DSSAT CERES-Wheat). Model ~1759 g/m². Tightened from the old
+    # observed×1.3 smoke bound to a real range that still catches a ~30%
+    # regression at the low end.
+    assert 1000 < biomass < 2200
 
 
 def test_spring_wheat_netherlands() -> None:
@@ -123,7 +130,10 @@ def test_spring_wheat_netherlands() -> None:
         "spring_wheat", "netherlands_temperate", date(2024, 4, 1)
     )
     assert stage == "MATURITY"
-    assert biomass > 300
+    # NL spring wheat total AGB: ~8-16 t/ha (800-1600 g/m²); lower than
+    # winter wheat because of the shorter season (AHDB; WOFOST NL).
+    # Model ~958 g/m². Two-sided bound brackets it.
+    assert 600 < biomass < 1600
 
 
 def test_winter_wheat_kenya_fails_to_vernalize() -> None:
@@ -142,10 +152,11 @@ def test_maize_kenya_productive() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "maize", "kenya_highlands", date(2024, 3, 1)
     )
-    # Literature AGB: 900-1300 g/m² (GYGA Kenya highland maize).
-    # Model produces ~2007 with full canopy interception;
-    # bound = observed × 1.3 (AGRO-96).
-    assert 400 < biomass < 2600
+    # Kenya highland maize total AGB: ~12-20 t/ha (1200-2000 g/m²) at
+    # 6-8 t/ha grain potential and HI~0.45 (GYGA Kenya highlands;
+    # DSSAT CERES-Maize). Model ~1711 g/m². Tightened from observed×1.3
+    # smoke bound to a defensible range biting on a ~30% regression.
+    assert 1200 < biomass < 2000
 
 
 def test_maize_sahel_water_limited() -> None:
@@ -153,8 +164,10 @@ def test_maize_sahel_water_limited() -> None:
     biomass, _lai, stage, _grain = _run_scenario(
         "maize", "sahel_arid", date(2024, 6, 1)
     )
-    # Literature: 200-600 g/m² rainfed
-    assert 100 < biomass < 1000
+    # Rainfed Sahel maize total AGB: ~3-12 t/ha (300-1200 g/m²) depending
+    # on the season's rainfall; water-limited (GYGA Sahel / West-Africa
+    # maize; FAO). Model ~859 g/m². Two-sided bound brackets it.
+    assert 400 < biomass < 1200
     assert stage == "MATURITY"  # fast GDD accumulation in heat
 
 
@@ -165,11 +178,14 @@ def test_sorghum_sahel_best_adapted() -> None:
     """Sorghum should be the highest-producing cereal in the Sahel."""
     sorghum_biomass, _, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
     maize_biomass, _, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
-    # Literature: sorghum is better adapted to Sahel than maize
-    # Accept if sorghum >= 80% of maize (model may not fully differentiate yet)
-    assert sorghum_biomass > maize_biomass * 0.8
-    # Literature: 200-1000 g/m²
-    assert 100 < sorghum_biomass < 1500
+    # Sorghum is better adapted to Sahel heat/drought than maize and should
+    # out-yield it there (ICRISAT; FAO West-Africa cereals). Model:
+    # sorghum ~1069 vs maize ~859 g/m². Strengthened from the old
+    # ">= 80% of maize" smoke bound to a strict "> maize".
+    assert sorghum_biomass > maize_biomass
+    # Rainfed Sahel sorghum total AGB: ~3-14 t/ha (300-1400 g/m²)
+    # (ICRISAT sorghum trials; GYGA). Model ~1069 g/m².
+    assert 500 < sorghum_biomass < 1400
 
 
 def test_sorghum_netherlands_limited() -> None:
@@ -177,9 +193,11 @@ def test_sorghum_netherlands_limited() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "sorghum", "netherlands_temperate", date(2024, 4, 1)
     )
-    # Too cool for sorghum (opt 33°C); marginal in NL.
-    # Observed ~910 g/m²; bound = observed × 1.3 (AGRO-96).
-    assert biomass < 1200
+    # Too cool for sorghum (opt ~33°C); marginal / non-grain in NL, stays
+    # vegetative (FAO EcoCrop temperature limits). Model ~957 g/m² vegetative
+    # canopy. Upper bound keeps it below a viable warm-climate sorghum crop
+    # (>~14 t/ha); it must also stay below Sahel sorghum (see invariant test).
+    assert biomass < 1400
 
 
 # --- Rice ---
@@ -190,10 +208,11 @@ def test_rice_kenya_best() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "rice", "kenya_highlands", date(2024, 3, 1)
     )
-    # Literature AGB: 300-1200 g/m² (IRRI, FAO rice production).
-    # Model produces ~1784 in well-watered highlands;
-    # bound = min(2000, observed × 1.3) (AGRO-96).
-    assert 200 < biomass < 2000
+    # Well-watered rice total AGB: ~10-20 t/ha (1000-2000 g/m²) at
+    # 6-10 t/ha grain and HI~0.4-0.5 (IRRI; FAO rice production). Model
+    # ~1648 g/m². Tightened low bound from 200 to 1000 to bite on a
+    # ~30% regression.
+    assert 1000 < biomass < 2000
 
 
 def test_rice_sahel_limited() -> None:
@@ -201,8 +220,10 @@ def test_rice_sahel_limited() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "rice", "sahel_arid", date(2024, 6, 1)
     )
-    # Observed ~526 g/m²; bound = observed × 1.3 ≈ 684 (AGRO-96).
-    assert biomass < 700
+    # Upland/rainfed rice under Sahel water stress: severely limited,
+    # ~2-8 t/ha AGB (IRRI upland rice; FAO). Model ~620 g/m². Two-sided
+    # bound: must still produce something, but far below well-watered rice.
+    assert 200 < biomass < 900
 
 
 # --- Grape ---
@@ -213,8 +234,11 @@ def test_grape_sahel_minimal() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "grape", "sahel_arid", date(2024, 6, 1)
     )
-    # Observed ~142 g/m²; bound = observed × 1.3 ≈ 185 (AGRO-96).
-    assert biomass < 185
+    # Grapevine annual shoot+fruit dry matter is modest even when healthy
+    # (~1-4 t/ha; Williams 1996, viticulture C-budgets); in the hot/dry
+    # Sahel it is marginal. Model ~109 g/m². Upper bound keeps it well
+    # below a productive vineyard.
+    assert biomass < 200
 
 
 def test_grape_netherlands_low() -> None:
@@ -222,29 +246,222 @@ def test_grape_netherlands_low() -> None:
     biomass, _lai, _stage, _grain = _run_scenario(
         "grape", "netherlands_temperate", date(2024, 4, 1)
     )
-    # Literature: 100-300 g/m² annual shoot growth
-    assert 30 < biomass < 400
+    # Grapevine annual above-ground dry matter (shoots+leaves+fruit):
+    # ~1-4 t/ha (100-400 g/m²); Williams 1996 vineyard carbon budgets.
+    # Marginal but viable in NL. Model ~346 g/m². Two-sided bound brackets it.
+    assert 150 < biomass < 500
 
 
 # --- Cross-climate rankings ---
 
 
 def test_kenya_most_productive_for_maize() -> None:
-    """Kenya should produce more maize than Netherlands and Sahel."""
+    """Kenya maize > NL maize > Sahel maize (radiation + water gradient).
+
+    Invariant (AC #319): highland Kenya has the best combination of
+    radiation, temperature and water for maize, so it must out-yield both
+    temperate NL and water-limited Sahel (GYGA maize yield-gap gradient).
+    """
     nl, _, _, _ = _run_scenario("maize", "netherlands_temperate", date(2024, 4, 1))
     ke, _, _, _ = _run_scenario("maize", "kenya_highlands", date(2024, 3, 1))
     sa, _, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
-    assert ke > nl
-    assert ke > sa
+    assert ke > nl, f"Kenya maize {ke:.0f} should exceed NL {nl:.0f}"
+    assert ke > sa, f"Kenya maize {ke:.0f} should exceed Sahel {sa:.0f}"
+    assert nl > sa, f"NL maize {nl:.0f} should exceed water-limited Sahel {sa:.0f}"
 
 
 def test_sorghum_outperforms_in_sahel() -> None:
-    """In the Sahel, sorghum should outperform wheat and grape."""
+    """In the Sahel, sorghum should outperform wheat and grape.
+
+    Invariant (AC #319): sorghum is the canonical heat/drought-adapted
+    cereal for the semi-arid tropics and must beat a cool-season wheat
+    (which fails to vernalize/grow in Sahel heat) and a marginal grapevine
+    (ICRISAT; FAO agro-ecological crop suitability).
+    """
     sorghum, _, _, _ = _run_scenario("sorghum", "sahel_arid", date(2024, 6, 1))
     wheat, _, _, _ = _run_scenario("winter_wheat", "sahel_arid", date(2024, 6, 1))
     grape, _, _, _ = _run_scenario("grape", "sahel_arid", date(2024, 6, 1))
-    assert sorghum > wheat
-    assert sorghum > grape
+    assert sorghum > wheat, f"Sahel sorghum {sorghum:.0f} should beat wheat {wheat:.0f}"
+    assert sorghum > grape, f"Sahel sorghum {sorghum:.0f} should beat grape {grape:.0f}"
+
+
+# --- Management invariants (irrigation, fertilization) — AC #319 ---
+
+
+def _run_managed_scenario(
+    crop_name: str,
+    climate_name: str,
+    start: date,
+    days: int = 150,
+    seed: int = 42,
+    *,
+    soil_key: str = "loam_temperate",
+    daily_irrigation_mm: float = 0.0,
+    fertilizer_kg_ha: float = 0.0,
+    deplete_soil_n_frac: float | None = None,
+) -> float:
+    """Run a scenario with optional daily irrigation / one-shot N fertilizer.
+
+    Returns final above-ground biomass (g/m²). ``deplete_soil_n_frac`` scales
+    the initial organic-N pool and zeroes mineral N to create an N-limited
+    soil for the fertilizer-response invariant.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils[soil_key]
+
+    crop = crops.get_preset(crop_name, climate_name)
+    climate = climates.climates[climate_name]
+    gen = SyntheticWeatherGenerator(climate, seed=seed)
+    series = gen.generate(days, start)
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    if deplete_soil_n_frac is not None:
+        n = len(orch.n_state.no3)
+        orch.n_state.no3 = [0.0] * n
+        orch.n_state.nh4 = [0.0] * n
+        orch.n_state.organic_n = [
+            x * deplete_soil_n_frac for x in orch.n_state.organic_n
+        ]
+    if fertilizer_kg_ha > 0.0:
+        orch.apply_fertilizer("ammonium_nitrate", fertilizer_kg_ha)
+
+    for rec in series.records:
+        if daily_irrigation_mm > 0.0:
+            orch.apply_irrigation(daily_irrigation_mm)
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+    return orch.canopy.state.biomass_g_m2
+
+
+def test_irrigated_beats_rainfed_in_arid_sahel() -> None:
+    """Irrigated maize must out-yield rainfed maize in the arid Sahel.
+
+    Invariant (AC #319): in a water-limited environment, relieving the
+    water constraint raises biomass substantially (FAO-56 water-production
+    functions; Doorenbos & Kassam 1979 yield-response-to-water). Model:
+    rainfed ~859 g/m² → +6 mm/day irrigation ~3111 g/m².
+    """
+    rainfed = _run_managed_scenario("maize", "sahel_arid", date(2024, 6, 1))
+    irrigated = _run_managed_scenario(
+        "maize", "sahel_arid", date(2024, 6, 1), daily_irrigation_mm=6.0
+    )
+    assert irrigated > rainfed, (
+        f"Irrigated maize {irrigated:.0f} should exceed rainfed "
+        f"{rainfed:.0f} in the arid Sahel"
+    )
+    # The relief should be large, not marginal: FAO-56 arid water-response
+    # functions imply a multiplicative gain. Require at least +30%.
+    assert irrigated > rainfed * 1.3, (
+        f"Irrigation lift only {irrigated / rainfed:.2f}× — expected a "
+        f"substantial arid water-response (FAO-56)"
+    )
+
+
+def test_fertilized_beats_unfertilized_on_n_depleted_soil() -> None:
+    """N fertilizer must raise biomass on an N-limited soil.
+
+    Invariant (AC #319): on an N-depleted soil, adding mineral N relieves
+    the nutrient constraint and increases growth (DSSAT/APSIM N-response;
+    liebig-law-of-the-minimum). We deplete the loam to 10% organic N with
+    zero mineral N, then compare 0 vs 200 kg/ha ammonium-nitrate.
+
+    NOTE (follow-up finding, #319): the modelled response is directional
+    but small (~+40 g/m², ~+3%). The current canopy/RUE growth model is
+    only weakly N-limited, so fertilizer barely moves yield even on a
+    strongly depleted soil. Flagged for calibration follow-up; the test
+    asserts only the sign of the response so it stays honest.
+    """
+    unfertilized = _run_managed_scenario(
+        "maize", "kenya_highlands", date(2024, 3, 1), deplete_soil_n_frac=0.10
+    )
+    fertilized = _run_managed_scenario(
+        "maize",
+        "kenya_highlands",
+        date(2024, 3, 1),
+        deplete_soil_n_frac=0.10,
+        fertilizer_kg_ha=200.0,
+    )
+    assert fertilized > unfertilized, (
+        f"Fertilized maize {fertilized:.0f} should exceed unfertilized "
+        f"{unfertilized:.0f} on an N-depleted soil"
+    )
+
+
+# --- Mass balance & no-negative-pool invariant across a full season (#319) ---
+
+
+def test_no_negative_pools_and_soil_mass_balance_full_season() -> None:
+    """No soil pool goes negative and totals stay bounded over a 280-day season.
+
+    Invariant (AC #319): across a full winter-wheat season the water, N and
+    SOM pools must remain physically valid — no negative concentrations —
+    and the soil organic-C stock must change only slowly (RothC turnover is
+    a few % per year for temperate arable soils; Coleman & Jenkinson 1996;
+    Smith et al. 1997). A large jump or a negative pool signals a broken
+    mass balance.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.get_preset("winter_wheat", "netherlands_temperate")
+    climate = climates.climates["netherlands_temperate"]
+    gen = SyntheticWeatherGenerator(climate, seed=42)
+    series = gen.generate(280, date(2023, 10, 15))
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+
+    def _total_som_c() -> float:
+        snap = orch.snapshot_soil()
+        return (
+            sum(snap.som_labile_c)
+            + sum(snap.som_intermediate_c)
+            + sum(snap.som_stable_c)
+        )
+
+    som_c_initial = _total_som_c()
+    assert som_c_initial > 0.0
+
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        # No pool may go negative on any day (allow tiny float slack).
+        assert min(orch.n_state.nh4) >= -1e-9, "NH4 went negative"
+        assert min(orch.n_state.no3) >= -1e-9, "NO3 went negative"
+        assert min(orch.n_state.organic_n) >= -1e-9, "organic N went negative"
+        assert min(orch.water_state.theta) >= -1e-9, "water content went negative"
+
+    som_c_final = _total_som_c()
+    # RothC-style turnover: annual SOM-C change is small (a few %). Model
+    # ~-4.6% over 280 d. Bound the change to |Δ| < 15% of initial stock —
+    # tight enough to catch a broken C balance, loose enough for real
+    # decomposition (Coleman & Jenkinson 1996; Smith et al. 1997).
+    rel_change = abs(som_c_final - som_c_initial) / som_c_initial
+    assert rel_change < 0.15, (
+        f"SOM-C changed {rel_change * 100:.1f}% over one season "
+        f"({som_c_initial:.0f} → {som_c_final:.0f} kg/ha) — "
+        f"outside plausible RothC turnover, suspect broken mass balance"
+    )
 
 
 # --- Grain yield and harvest index (AGRO-89) ---
@@ -262,9 +479,16 @@ def test_maize_kenya_grain_yield() -> None:
         "maize", "kenya_highlands", date(2024, 3, 1)
     )
     assert stage in ("GRAIN_FILL", "MATURITY")
-    # GYGA Kenya: 6-8 t/ha potential; calibrated RUE raises yield.
-    assert 400 < grain < 1200
+    # GYGA Kenya highland maize: 6-8 t/ha potential grain; allowing for
+    # calibrated RUE the model tops out ~7.5 t/ha (~754 g/m²). Bound
+    # 550-1000 g/m² (5.5-10 t/ha) brackets the output and bites on a
+    # ~30% shortfall. Sources: DSSAT CERES-Maize; GYGA Kenya highlands.
+    assert 550 < grain < 1000
     assert grain < biomass
+    # Realized harvest index for grain maize: 0.40-0.55 (Hay & Porter 2006;
+    # HI has risen with breeding, ~0.50 typical). Model HI ~0.44.
+    hi = grain / biomass if biomass > 0 else 0.0
+    assert 0.35 < hi < 0.60, f"maize HI {hi:.2f} outside literature 0.35-0.60"
 
 
 def test_spring_wheat_harvest_index_at_maturity() -> None:
@@ -278,8 +502,10 @@ def test_spring_wheat_harvest_index_at_maturity() -> None:
     )
     assert stage in ("GRAIN_FILL", "MATURITY")
     realized_hi = grain / biomass if biomass > 0 else 0.0
-    # Observed HI ~0.33 with remobilization.
-    assert 0.20 < realized_hi < 0.55
+    # Field wheat HI: 0.35-0.50 (Gebbing & Schnyder 1999; Hay & Porter
+    # 2006). Model ~0.37 with remobilization. Tightened from 0.20-0.55 to
+    # bracket the output within the real HI band.
+    assert 0.30 < realized_hi < 0.50
 
 
 def test_winter_wheat_oct_start_grain_yield() -> None:
@@ -288,10 +514,16 @@ def test_winter_wheat_oct_start_grain_yield() -> None:
         "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
     )
     assert stage == "MATURITY"
-    # Observed ~271 g/m² grain with remobilization.
-    assert grain > 200
+    # NW-European winter-wheat grain: ~6-11 t/ha (AHDB Wheat Growth Guide
+    # 2015; WOFOST NL). Model ~315 g/m² (3.1 t/ha) — see follow-up note
+    # below. Two-sided bound brackets the current output and catches a
+    # ~30% regression.
+    assert 220 < grain < 500
     realized_hi = grain / biomass if biomass > 0 else 0.0
-    assert 0.15 < realized_hi < 0.50
+    # Wheat HI 0.35-0.50 in the field (Gebbing & Schnyder 1999); model
+    # under-partitions here (~0.27), so lower bound kept at 0.20.
+    # Follow-up (#319): winter-wheat grain fill under-yields literature.
+    assert 0.20 < realized_hi < 0.50
 
 
 def test_grape_zero_grain() -> None:
