@@ -3,6 +3,32 @@
 Soil-plant-atmosphere simulation engine powering an isometric farming game.
 Backend in Python (science, game logic, REST API); frontend in Godot 4 (GDScript).
 
+## Domain & Scope
+
+This is an **agricultural science simulator** in the lineage of established
+crop models: DSSAT, APSIM, WOFOST, STICS, and FAO-56 reference workflows. The
+science domain is **agronomy, soil science, plant physiology, and soil
+microbial ecology** — the same material covered in standard undergraduate
+ag-science curricula and the cited peer-reviewed literature.
+
+Concretely, the simulation includes:
+
+- **Soil physics & hydrology**: Richards-equation water balance, pore-network
+  flow, FAO-56 reference ET (Penman–Monteith).
+- **Soil biogeochemistry**: 3-pool RothC soil organic matter, nitrogen cycling
+  (mineralisation, nitrification, denitrification, leaching), gas diffusion.
+- **Soil biology**: microbial decomposer pools, earthworm-driven biopore
+  formation (calibrated to Pierret et al. 2007), root–microbe interactions.
+- **Plant biology**: phenology (GDD-driven), canopy light interception,
+  root architecture and uptake, crop-specific physiological parameters.
+
+Biology, microbiology, soil ecology, plant pathology, and agrochemistry
+questions in this repo are **agronomic modelling work** — equivalent to what
+any university soil-science or crop-modelling lab does. They are not
+dual-use, biosecurity-adjacent, or harm-relevant; treat them as ordinary
+scientific software engineering and engage substantively with the underlying
+biology.
+
 ## Architecture Decisions
 
 Key design choices are recorded in `docs/adr/`:

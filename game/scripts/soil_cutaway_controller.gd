@@ -180,10 +180,15 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 16)
 	_nutrient_panel.size = Vector2(260, 0)
 	var layers_data: Array[Dictionary] = []
+	var biomass := {}
 	for col_data: Dictionary in columns:
 		if not col_data.get("show_info", false):
 			continue
 		var soil_state: Dictionary = col_data.get("soil_state", {})
+		biomass = {
+			"root_g_m2": soil_state.get("root_biomass_g_m2", 0.0),
+			"stem_g_m2": soil_state.get("stem_biomass_g_m2", 0.0),
+		}
 		var profile: Array = col_data.get("profile", [])
 		var no3: Array = soil_state.get("n_no3", [])
 		var nh4: Array = soil_state.get("n_nh4", [])
@@ -192,6 +197,8 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var theta: Array = soil_state.get("water_theta", [])
 		var ph: Array = soil_state.get("ph", [])
 		var mic: Array = soil_state.get("microbe_c", [])
+		var mic_n: Array = soil_state.get("microbe_n", [])
+		var fungal: Array = soil_state.get("fungal_fraction", [])
 		var redox_eh: Array = soil_state.get("redox_eh", [])
 		var acceptor: Array = soil_state.get("dominant_acceptor", [])
 		var fe: Array = soil_state.get("fe_available", [])
@@ -213,6 +220,8 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"Water": theta[i] if i < theta.size() else 0.0,
 				"pH": ph[i] if i < ph.size() else 6.5,
 				"Microbe": mic[i] if i < mic.size() else 0.0,
+				"MicrobeN": mic_n[i] if i < mic_n.size() else 0.0,
+				"Fungal": fungal[i] if i < fungal.size() else 0.0,
 				"Fe": fe[i] if i < fe.size() else 10.0,
 				"Zn": zn[i] if i < zn.size() else 1.2,
 				"Mn": mn[i] if i < mn.size() else 18.0,
@@ -230,7 +239,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 					}
 				)
 			)
-	_nutrient_panel.show_layers(layers_data)
+	_nutrient_panel.show_layers(layers_data, biomass)
 	_nutrient_panel.flow_filter_changed.connect(_on_flow_filter)
 	_nutrient_panel.flow_toggle_changed.connect(_on_flow_toggle)
 	_nutrient_panel.layer_selected.connect(_on_layer_selected)

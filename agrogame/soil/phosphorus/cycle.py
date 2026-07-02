@@ -23,12 +23,11 @@ from agrogame.soil.nitrogen.events import NutrientLeached
 from agrogame.params.ports import SoilProfileView, WaterState
 
 from .events import PhosphorusFixationOccurred
+from .params import PhosphorusRateParams
 from .state import SoilPhosphorusState
 from .types import PhosphorusFluxes
 from .constants import (
     PH_AVAILABILITY_ANCHORS,
-    FIXATION_WEEKLY_MIN,
-    FIXATION_WEEKLY_MAX,
     HEAVY_DRAINAGE_MM,
     HEAVY_DRAINAGE_P_FRACTION,
 )
@@ -43,12 +42,14 @@ class PhosphorusCycle:
         state: SoilPhosphorusState,
         water_state: WaterState | None = None,
         profile: SoilProfileView | None = None,
+        params: PhosphorusRateParams | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state
         self._n_layers = len(state.available_p)
         self._water_state = water_state
         self._profile = profile
+        self._params = params if params is not None else PhosphorusRateParams()
 
         # Pending slow-release fertilizer schedules per layer
         self._slow_release_schedules: list[list[_SlowReleaseSchedule]] = [
@@ -149,6 +150,35 @@ class PhosphorusCycle:
             + pending
         )
 
+    def _layer_clay_pct(self, idx: int) -> float | None:
+        """Return clay % for a layer, or None when unavailable.
+
+        Returning None keeps texture modulation neutral (multiplier 1.0) so
+        cycles built without a profile (e.g. unit tests) are unchanged.
+        """
+        if self._profile is None or not (0 <= idx < len(self._profile.layers)):
+            return None
+        return getattr(self._profile.layers[idx], "clay_pct", None)
+
+    @staticmethod
+    def _clay_multiplier(
+        clay_pct: float | None,
+        reference_pct: float,
+        sensitivity: float,
+        min_mult: float,
+        max_mult: float,
+    ) -> float:
+        """Reference-normalized linear clay response, clamped to bounds.
+
+        Equals 1.0 at ``reference_pct`` (and when ``clay_pct`` is None), so the
+        loam-referenced defaults leave the realism suite unchanged (AC2) while
+        coarser/finer soils scale within the literature spread (AC3).
+        """
+        if clay_pct is None or reference_pct <= 0.0:
+            return 1.0
+        mult = 1.0 + sensitivity * (clay_pct - reference_pct) / reference_pct
+        return max(min_mult, min(max_mult, mult))
+
     def _moisture_factor(self, idx: int) -> float:
         if self._water_state is None or self._profile is None:
             return 1.0
@@ -176,18 +206,14 @@ class PhosphorusCycle:
     def _mineralize_layer(
         self, idx: int, temp_factor: float, moisture_factor: float
     ) -> float:
-        # 0.5–2% per month at 25°C → per day range ≈ (0.005/30 .. 0.02/30)
-        base_daily = (0.005 / 30.0, 0.02 / 30.0)
-        # Use mid value scaled by temp and moisture
-        # Microbial activity scales mineralization (dampening only)
+        # Monthly mineralization bounds → per-day midpoint (÷30), scaled by
+        # temperature, moisture and microbial activity (dampening only).
+        base_daily_min = self._params.mineralization_monthly_min / 30.0
+        base_daily_max = self._params.mineralization_monthly_max / 30.0
         activity = self._env.microbe_activity_by_layer[idx]
         rate = (
-            0.5
-            * (base_daily[0] + base_daily[1])
-            * temp_factor
-            * moisture_factor
-            * activity
-        )
+            0.5 * (base_daily_min + base_daily_max) * temp_factor * moisture_factor
+        ) * activity
         om = self.state.organic_p[idx]
         m = max(0.0, min(om, om * rate))
         if m > 0.0:
@@ -196,12 +222,23 @@ class PhosphorusCycle:
         return m
 
     def _fix_layer(self, idx: int, ph: float) -> float:
-        # Weekly 1–5%; convert to daily (~1/7). Scale by acidity (more at low pH).
+        # Weekly fixation fraction, converted to daily (~1/7). Scaled by acidity
+        # (more at low pH) and by clay content (Fe/Al-oxide sorption capacity;
+        # Barrow 1983; Sanyal & De Datta 1991).
         acidity = max(0.0, min(1.0, (7.0 - ph) / 3.0))  # 0 at pH>=7, ~1 at pH<=4
         weekly = (
-            FIXATION_WEEKLY_MIN + (FIXATION_WEEKLY_MAX - FIXATION_WEEKLY_MIN) * acidity
+            self._params.fixation_weekly_min
+            + (self._params.fixation_weekly_max - self._params.fixation_weekly_min)
+            * acidity
         )
-        daily = weekly / 7.0
+        clay_mult = self._clay_multiplier(
+            self._layer_clay_pct(idx),
+            self._params.fixation_clay_reference_pct,
+            self._params.fixation_clay_sensitivity,
+            self._params.fixation_clay_min_mult,
+            self._params.fixation_clay_max_mult,
+        )
+        daily = weekly * clay_mult / 7.0
         avail = self.state.available_p[idx]
         f = max(0.0, min(avail, avail * daily))
         if f > 0.0:

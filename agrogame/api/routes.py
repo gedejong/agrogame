@@ -6,8 +6,12 @@ import json
 import os
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
+
+if TYPE_CHECKING:
+    from agrogame.sim.orchestrator import SoilSnapshot
 
 from agrogame.api.models import (
     ActionPreviewResponse,
@@ -39,7 +43,7 @@ from agrogame.api.forecast import (
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
-from agrogame.game.field import FieldManager, Patch, PatchConfig
+from agrogame.game.field import Field, FieldManager, Patch, PatchConfig
 from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
@@ -60,6 +64,103 @@ def _reset_all_crops(s: GameSession) -> None:
             patch.orch.reset_crop(preset)
 
 
+def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
+    """Compute per-layer dynamic ksat (mm/day) and porosity from aggregation (#253).
+
+    Mirrors the derivation used by ``WaterRuntime``: the aggregation
+    macroaggregate fraction scales base ksat and shifts porosity. Base
+    ksat is stored per layer as ``ksat_mm_per_hour``; we return mm/day.
+    """
+    from agrogame.soil.aggregation.dynamic_state import (
+        effective_ksat_factor,
+        effective_porosity,
+    )
+
+    layers = patch.orch.profile.layers
+    macro = list(patch.orch.agg_state.macro)
+    ksat_mm_day: list[float] = []
+    porosity: list[float] = []
+    for i, layer in enumerate(layers):
+        macro_frac = macro[i] if i < len(macro) else 0.0
+        base_ksat_day = layer.ksat_mm_per_hour * 24.0
+        ksat_mm_day.append(round(base_ksat_day * effective_ksat_factor(macro_frac), 2))
+        porosity.append(round(effective_porosity(layer.saturation, macro_frac), 4))
+    return ksat_mm_day, porosity
+
+
+def _dynamic_ksat_mm_day(patch: Patch) -> list[float]:
+    """Per-layer dynamic ksat (mm/day) only — avoids computing porosity when unused."""
+    from agrogame.soil.aggregation.dynamic_state import effective_ksat_factor
+
+    macro = list(patch.orch.agg_state.macro)
+    ksat_mm_day: list[float] = []
+    for i, layer in enumerate(patch.orch.profile.layers):
+        macro_frac = macro[i] if i < len(macro) else 0.0
+        base_ksat_day = layer.ksat_mm_per_hour * 24.0
+        ksat_mm_day.append(round(base_ksat_day * effective_ksat_factor(macro_frac), 2))
+    return ksat_mm_day
+
+
+def _micronutrient_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer micronutrient availability (#274)."""
+    return {
+        "fe_available": (
+            [round(v, 2) for v in snap.micro_fe_avail] if snap.micro_fe_avail else []
+        ),
+        "zn_available": (
+            [round(v, 3) for v in snap.micro_zn_avail] if snap.micro_zn_avail else []
+        ),
+        "mn_available": (
+            [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
+        ),
+    }
+
+
+def _aggregate_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer aggregate fractions + mean weight diameter (#253)."""
+    return {
+        "agg_macro": [round(v, 4) for v in snap.agg_macro] if snap.agg_macro else [],
+        "agg_meso": [round(v, 4) for v in snap.agg_meso] if snap.agg_meso else [],
+        "agg_micro": [round(v, 4) for v in snap.agg_micro] if snap.agg_micro else [],
+        "agg_mwd": (
+            [
+                round(
+                    snap.agg_micro[i] * 0.01
+                    + snap.agg_meso[i] * 0.135
+                    + snap.agg_macro[i] * 2.0,
+                    3,
+                )
+                for i in range(len(snap.agg_macro))
+            ]
+            if snap.agg_macro
+            else []
+        ),
+    }
+
+
+def _biology_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer microbial N + fungal fraction (#317)."""
+    return {
+        "microbe_n": [round(v, 3) for v in snap.microbe_n] if snap.microbe_n else [],
+        "fungal_fraction": (
+            [round(v, 4) for v in snap.microbe_fungal_fraction]
+            if snap.microbe_fungal_fraction
+            else []
+        ),
+    }
+
+
+def _pore_fields(pore: dict) -> dict:
+    """Per-layer pore-network volume fractions + connectivity index (#274)."""
+    return {
+        "pore_macro_frac": [round(v, 4) for v in pore.get("macro", [])],
+        "pore_meso_frac": [round(v, 4) for v in pore.get("meso", [])],
+        "pore_micro_frac": [round(v, 4) for v in pore.get("micro", [])],
+        "pore_crypto_frac": [round(v, 4) for v in pore.get("crypto", [])],
+        "pore_connectivity": [round(v, 4) for v in pore.get("connectivity", [])],
+    }
+
+
 def _build_soil_state(patch: Patch) -> SoilStateResponse:
     """Build SoilStateResponse from a patch's current soil snapshot."""
     snap = patch.orch.snapshot_soil()
@@ -67,6 +168,9 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
     )
     redox_eh = list(snap.redox_eh) if snap.redox_eh else []
+    ksat_mm_day, porosity = _dynamic_soil_properties(patch)
+    root_state = patch.orch.root_state
+    root_fracs = list(root_state.layer_fractions) if root_state.layer_fractions else []
     # redox_state is always present on FullSimulationOrchestrator (AGRO-73)
     redox_acceptors = [a.value for a in patch.orch.redox_state.dominant_acceptor]
     return SoilStateResponse(
@@ -82,31 +186,15 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         microbe_c=list(snap.microbe_c),
         redox_eh=[round(e, 1) for e in redox_eh],
         dominant_acceptor=redox_acceptors,
-        fe_available=(
-            [round(v, 2) for v in snap.micro_fe_avail] if snap.micro_fe_avail else []
-        ),
-        zn_available=(
-            [round(v, 3) for v in snap.micro_zn_avail] if snap.micro_zn_avail else []
-        ),
-        mn_available=(
-            [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
-        ),
-        agg_macro=([round(v, 4) for v in snap.agg_macro] if snap.agg_macro else []),
-        agg_meso=([round(v, 4) for v in snap.agg_meso] if snap.agg_meso else []),
-        agg_micro=([round(v, 4) for v in snap.agg_micro] if snap.agg_micro else []),
-        agg_mwd=(
-            [
-                round(
-                    snap.agg_micro[i] * 0.01
-                    + snap.agg_meso[i] * 0.135
-                    + snap.agg_macro[i] * 2.0,
-                    3,
-                )
-                for i in range(len(snap.agg_macro))
-            ]
-            if snap.agg_macro
-            else []
-        ),
+        **_micronutrient_fields(snap),
+        **_aggregate_fields(snap),
+        **_biology_fields(snap),
+        **_pore_fields(snap.pore_network or {}),
+        ksat_mm_day=ksat_mm_day,
+        porosity=porosity,
+        root_biomass_g_m2=round(root_state.biomass_g_m2, 2),
+        root_layer_fractions=[round(v, 4) for v in root_fracs],
+        stem_biomass_g_m2=round(patch.orch.canopy.state.stem_biomass_g_m2, 2),
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -392,6 +480,69 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
+def _harvest_action(
+    s: GameSession, field: Field, prices: PriceTable
+) -> tuple[float, int, int]:
+    """Harvest a field's standing crop and settle season economics.
+
+    Finalizes the crop via the domain layer (``Field.harvest`` →
+    ``orch.harvest``: appends crop history, applies any legume N credit),
+    settles revenue against the harvested grain (``EconomicLedger.settle_season``),
+    records a ``SeasonResult`` so ``GET /report`` succeeds mid-season, and
+    clears the crop off each patch so subsequent day responses report a bare
+    patch.
+
+    Returns ``(grain_g_m2, revenue_credits, profit_credits)``.
+    """
+    from agrogame.game.turn import SeasonResult
+
+    # Grain averaged across patches, captured before harvest resets state.
+    grain_g_m2 = sum(
+        p.orch.canopy.state.grain_biomass_g_m2 for p in field.patches
+    ) / len(field.patches)
+    crop_key = field.patches[0].config.crop_key
+
+    # Finalize the crop in the domain layer (history + N fixation credit).
+    field.harvest()
+
+    # Settle season economics once — revenue from the harvested grain.
+    revenue = 0
+    profit = 0
+    if not s.season_settled:
+        profit = s.ledger.settle_season(grain_g_m2, crop_key, prices)
+        revenue = s.ledger.season_revenue
+        s.season_settled = True
+
+    # Record a SeasonResult so GET /report works in the day-by-day loop.
+    if not s.turn_manager:
+        s.turn_manager = GameTurnManager(
+            orch=field.patches[0].orch,
+            weather=s.weather,
+            crop_key=crop_key,
+        )
+    s.turn_manager.current_day = s.day_index
+    s.turn_manager.result = SeasonResult(
+        total_days=s.day_index,
+        grain_g_m2=grain_g_m2,
+        grain_kg_ha=grain_g_m2 * 10.0,
+        pause_count=0,
+        crop_key=crop_key,
+    )
+
+    # Clear the standing crop so subsequent responses show a bare patch.
+    for patch in field.patches:
+        patch.config = PatchConfig(
+            soil_profile_key=patch.config.soil_profile_key,
+            crop_key="",
+            climate_key=patch.config.climate_key,
+            area_fraction=patch.config.area_fraction,
+        )
+        patch.orch.canopy.state.grain_biomass_g_m2 = 0.0
+        patch.orch.canopy.state.lai = 0.0
+
+    return grain_g_m2, revenue, profit
+
+
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     """Generate weather for the session if not yet generated."""
     if s.weather and s.day_index < len(s.weather):
@@ -531,6 +682,8 @@ def _build_daily_snapshot(
     snap = p.orch.snapshot_soil()
     n_total = sum(snap.n_no3) + sum(snap.n_nh4)
     theta_top = snap.water_theta[0] if snap.water_theta else 0.0
+    pore_macro = (snap.pore_network or {}).get("macro", [])
+    ksat_day = _dynamic_ksat_mm_day(p)
     return DailySnapshot(
         day_number=day_num,
         date=day_date,
@@ -562,6 +715,8 @@ def _build_daily_snapshot(
             if snap.agg_macro
             else 0.55
         ),
+        pore_macro_frac_surface=(round(pore_macro[0], 4) if pore_macro else 0.0),
+        ksat_surface=(ksat_day[0] if ksat_day else 0.0),
         rain_mm=round(rec.precip_mm or 0.0, 1),
         events=_serialize_events(p),
     )
@@ -680,7 +835,12 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
 
     # Apply action
     field = s.field_manager.fields[req.field_id]
-    if req.action == "plant":
+    grain_g_m2 = 0.0
+    revenue_credits = 0
+    profit_credits = 0
+    if req.action == "harvest":
+        grain_g_m2, revenue_credits, profit_credits = _harvest_action(s, field, prices)
+    elif req.action == "plant":
         # Plant targets a specific patch (or all if no patch_idx given)
         crop_key = req.params.get("crop_key", "maize")
         patch_idx = req.params.get("patch_idx", -1)
@@ -725,6 +885,9 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         cost_credits=cost,
         balance_credits=s.ledger.balance_credits,
         day_number=s.day_index,
+        grain_g_m2=round(grain_g_m2, 1),
+        revenue_credits=revenue_credits,
+        profit_credits=profit_credits,
     )
 
 

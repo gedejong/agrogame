@@ -23,6 +23,7 @@ from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
 from typing import Any
+from collections.abc import Callable
 from datetime import date
 from agrogame.sim.calendar import Calendar
 from agrogame.soil.water.runtime import WaterRuntime
@@ -103,20 +104,24 @@ class SimulationOrchestrator:
         self.phenology.update_daily(
             tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=photoperiod_h
         )
-        _ = self.canopy.daily_step(
+        fx = self.canopy.daily_step(
             incident_par_mj_m2=par_mj_m2,
             temp_factor=temp_factor,
             water_stress=water_stress,
             n_stress=n_stress,
         )
-        # Simple demo: allocate a fraction of biomass to roots, update roots
-        # In a full coupling, we'd pass real nutrient signals and constraints
+        # Allocate a crop-parameterised fraction of today's canopy biomass
+        # increment to roots (#330). In a full coupling, we'd also pass real
+        # nutrient signals and constraints.
         stage = self.phenology.state.stage
+        daily_root = self.roots.params.root_allocation_fraction * max(
+            0.0, fx.biomass_increment_g_m2
+        )
         _ = self.roots.daily_step(
             state=self.root_state,
             profile=None,  # type: ignore[arg-type]
             stage=stage,
-            daily_root_biomass_g_m2=0.0,
+            daily_root_biomass_g_m2=daily_root,
             nutrient_signal=None,
             constraints=None,
         )
@@ -280,6 +285,12 @@ def _default_canopy_params() -> CanopyParams:
     )
 
 
+# A subscription-plan factory: a zero-arg callable that constructs (and thereby
+# subscribes) one runtime, or performs one bookkeeping subscription. The return
+# value is discarded — the side effect is the subscription (#323).
+_RuntimeFactory = Callable[[], object]
+
+
 class FullSimulationOrchestrator:
     """Event-wired orchestrator including water, chemistry, N and P.
 
@@ -307,31 +318,98 @@ class FullSimulationOrchestrator:
         # Track last biomass increment for dynamic N/P demand (DSSAT approach:
         # today's demand = yesterday's growth × tissue concentration).
         self._last_biomass_inc_g_m2: float = 0.0
+        # Pending above-ground biomass increment awaiting shoot→root
+        # allocation (#330). Accumulated as canopy emits BiomassAccumulated,
+        # drained by RootsRuntime on the plant_structure phase.
+        self._pending_root_canopy_inc_g_m2: float = 0.0
 
-        # Crop parameters (use preset or defaults)
+        # Soil profile plus crop/atmosphere config that survives a
+        # ``reset_crop`` (the ET model is crop-independent and stateless
+        # across seasons; the per-day CO₂ buffer is orchestrator-owned per
+        # ADR-010). Everything else is built through the shared factories.
+        self.profile = profile
+        # ET model (emits transpiration/evaporation related events via water
+        # model). Built once; reset_crop reuses it.
+        self.et = Evapotranspiration(et_params or EtParams())
+        # Per-day CO₂ buffer used by GasDiffusion as the previous-day
+        # respiration source term (#284). SOM emits ``CO2Respired`` on
+        # the ``nutrients`` phase; gas diffusion reads + resets this
+        # list on the following day's ``day_start`` phase.
+        self._co2_buffer: list[float] = [0.0] * len(profile.layers)
+
+        # Build the module/state graph through the shared factories so
+        # ``__init__`` and ``reset_crop`` construct an identical graph and
+        # subscription order (#323). The fresh-build path also creates the
+        # state containers and computes the initial pore distribution.
+        self._build_plant_modules(crop)
+        self._build_soil_state()
+        self._build_soil_modules()
+        self._build_pore_state()
+        self._build_pore_chain()
+        # Compute the initial pore distribution so first-day reads see
+        # populated values (the runtime re-derives it each tick). Only the
+        # fresh-build path needs this; reset_crop restores saved pore state.
+        self.pore_module.compute(profile, self.agg_state)
+
+        self._wire_runtimes()
+
+    # ------------------------------------------------------------------
+    # Module factories — shared by __init__ and reset_crop (#323)
+    # ------------------------------------------------------------------
+    def _build_plant_modules(self, crop: CropPreset | None) -> None:
+        """Construct the plant modules (phenology, canopy, roots).
+
+        Falls back to defaults when no crop preset is supplied (a bare
+        ``__init__`` with ``crop=None``); ``reset_crop`` always passes a
+        preset. Shared so both paths build an identical plant graph.
+        """
         phen_params = crop.phenology if crop else _default_phen_params()
         canopy_params = crop.canopy if crop else _default_canopy_params()
         root_params = crop.roots if crop else RootParams()
-
-        # Core plant modules
         self.phenology = PhenologyModule(phen_params, event_bus=self.event_bus)
         self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
         self.roots = RootModule(root_params, event_bus=self.event_bus)
         self.root_state = RootState()
 
-        # Soil/water/chemistry/nutrients
-        self.profile = profile
-        self.water_model = CascadingBucketWaterModel(event_bus=self.event_bus)
-        self.water_state = SoilWaterState(profile)
+    def _build_soil_state(self) -> None:
+        """Create fresh mutable soil-state containers.
 
+        Fresh-build only: ``reset_crop`` preserves the existing state
+        objects and repopulates their pools from a snapshot, so it does not
+        call this. State objects do not subscribe to the bus, so their
+        creation order is irrelevant to dispatch order.
+        """
+        profile = self.profile
+        n_layers = len(profile.layers)
+        self.water_state = SoilWaterState(profile)
         self.n_state = SoilNitrogenState(profile)
+        self.p_state = SoilPhosphorusState(profile)
+        # Redox dynamics — Eh computation, CH4 production (AGRO-73)
+        self.redox_state = RedoxState.from_layers(n_layers)
+        # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
+        self.micro_state = MicronutrientState.from_profile(profile)
+        # Soil aggregation — aggregate size distribution (AGRO-218)
+        self.agg_state = SoilAggregationState.from_layers(n_layers)
+
+    def _build_soil_modules(self) -> None:
+        """Construct soil modules/cycles that subscribe to the event bus.
+
+        Rebuilt by both ``__init__`` and ``reset_crop`` (the latter after
+        ``event_bus.clear()``), always referencing the current soil-state
+        objects. Construction order is load-bearing: several modules
+        subscribe on construction and the bus dispatches in subscription
+        order, so this sequence is part of the ADR-010 ordering contract
+        (e.g. NitrogenCycle before PhosphorusCycle for ``WaterDrained``).
+        """
+        profile = self.profile
+        n_layers = len(profile.layers)
+        self.water_model = CascadingBucketWaterModel(event_bus=self.event_bus)
         self.n_cycle = NitrogenCycle(
             self.event_bus,
             self.n_state,
             water_state=self.water_state,
             profile=profile,
         )
-        self.p_state = SoilPhosphorusState(profile)
         self.p_cycle = PhosphorusCycle(
             self.event_bus,
             self.p_state,
@@ -340,117 +418,208 @@ class FullSimulationOrchestrator:
         )
         # Microbial biomass/enzymes (initial scaffold)
         self.microbes = MicrobialBiomassModule(
-            MicrobialParams(n_layers=len(profile.layers)), event_bus=self.event_bus
+            MicrobialParams(n_layers=n_layers), event_bus=self.event_bus
         )
         # Chemistry emits pH events used by N/P
-        self.chem = SoilChemistryModule(self.event_bus, n_layers=len(profile.layers))
-        # Redox dynamics — Eh computation, CH4 production (AGRO-73)
-        self.redox_state = RedoxState.from_layers(len(profile.layers))
+        self.chem = SoilChemistryModule(self.event_bus, n_layers=n_layers)
         self.redox = RedoxModule(
             RedoxParams(), self.redox_state, event_bus=self.event_bus
         )
-        # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
-        self.micro_state = MicronutrientState.from_profile(profile)
         self.micro_cycle = MicronutrientCycle(
-            self.event_bus, self.micro_state, MicronutrientParams(), len(profile.layers)
+            self.event_bus, self.micro_state, MicronutrientParams(), n_layers
         )
-        # Soil aggregation — aggregate size distribution (AGRO-218)
-        self.agg_state = SoilAggregationState.from_layers(len(profile.layers))
         self.agg_module = AggregationModule(
             SoilAggregationParams(), self.agg_state, event_bus=self.event_bus
         )
-        # Pore-network chain (#284) — pore-size distribution, biopore
-        # macropore donation, and gas diffusion. All three run on the
-        # `day_start` phase in this order; ADR-010 documents why.
-        n_layers = len(profile.layers)
+        # Calendar for phased daily progression (emits DayTick; no
+        # subscription, so its construction position is irrelevant).
+        self.calendar = Calendar(self.event_bus)
+
+    def _build_pore_state(self) -> None:
+        """Create fresh pore-chain state containers (#284).
+
+        Fresh-build only: ``reset_crop`` repopulates pore/biopore/gas state
+        from a snapshot after rebuilding the modules.
+        """
+        n_layers = len(self.profile.layers)
         self.pore_state = PoreNetworkState.empty(n_layers)
+        self.biopore_state = BioporeState.from_layers(n_layers)
+        self.gas_state = GasDiffusionState.from_layers(n_layers)
+
+    def _build_pore_chain(self) -> None:
+        """Construct the pore-network → biopore → gas-diffusion modules (#284).
+
+        The three modules only *emit* events; their runtimes (wired in
+        :meth:`_wire_runtimes`) hold the subscriptions. So construction
+        order here does not affect dispatch order — the ADR-010 day_start
+        ordering is enforced by the subscription plan, not by this method.
+        """
         self.pore_module = PoreNetworkModule(
             PoreNetworkParams(), self.pore_state, event_bus=self.event_bus
         )
-        # Compute initial pore distribution so first-day reads see
-        # populated values (later runtime calls re-derive each tick).
-        self.pore_module.compute(profile, self.agg_state)
-        self.biopore_state = BioporeState.from_layers(n_layers)
         self.biopore_module = BioporeModule(
             BioporeParams(), self.biopore_state, event_bus=self.event_bus
         )
-        self.gas_state = GasDiffusionState.from_layers(n_layers)
         self.gas_module = GasDiffusionModule(
             GasDiffusionParams(), self.gas_state, event_bus=self.event_bus
         )
-        # ET model (emits transpiration/evaporation related events via water model)
-        self.et = Evapotranspiration(et_params or EtParams())
-        # Calendar for phased daily progression
-        self.calendar = Calendar(self.event_bus)
 
-        # Per-day CO₂ buffer used by GasDiffusion as the previous-day
-        # respiration source term (#284). SOM emits ``CO2Respired`` on
-        # the ``nutrients`` phase; gas diffusion reads + resets this
-        # list on the following day's ``day_start`` phase.
-        self._co2_buffer: list[float] = [0.0] * len(profile.layers)
-
-        self._wire_runtimes()
+    # ------------------------------------------------------------------
+    # Runtime subscription wiring (#323, ADR-010)
+    # ------------------------------------------------------------------
+    # Named subscription groups. ``PORE_CHAIN`` must precede ``CORE`` so its
+    # runtimes dispatch first on ``DayTick(day_start)`` (ADR-010).
+    _PORE_CHAIN_GROUP = "pore_chain"
+    _CORE_GROUP = "core"
+    _BOOKKEEPING_GROUP = "bookkeeping"
 
     def _wire_runtimes(self) -> None:
-        """Subscribe all runtime listeners to the event bus.
+        """Subscribe all runtime listeners via an explicit, ordered plan.
 
-        Subscription order matters for ``DayTick(day_start)``: the bus
-        dispatches handlers in subscription order, so the pore-chain
-        runtimes (#284, ADR-010) must register **first** to set up the
-        pore geometry, biopore donations, and gas profile before
-        downstream consumers (water, redox, N) tick.
+        The bus dispatches handlers in subscription order, so the order in
+        which runtimes are constructed here is load-bearing for
+        ``DayTick(day_start)``: the pore-chain runtimes (#284, ADR-010) must
+        register **first** so the pore geometry, biopore donations, and gas
+        profile are refreshed before downstream consumers (water, redox, N)
+        tick. That invariant is made structural by the named-group ordering
+        of :meth:`_subscription_plan` and enforced by
+        :meth:`_assert_pore_chain_registered_first`, rather than being
+        implied by raw statement order.
+        """
+        plan = self._subscription_plan()
+        self._assert_pore_chain_registered_first(plan)
+        for _group_name, factories in plan:
+            for factory in factories:
+                factory()
+
+    def _subscription_plan(self) -> list[tuple[str, list[_RuntimeFactory]]]:
+        """Return the ordered runtime-subscription plan (#323, ADR-010).
+
+        Each entry is a ``(group_name, factories)`` pair. Groups apply in
+        list order and factories within a group in list order. The
+        ``pore_chain`` group is first, encoding the ADR-010 day_start
+        invariant structurally instead of by comment. Each factory is a
+        zero-arg callable whose side effect is one subscription.
         """
         # The migrated soil/plant runtimes take the structural
         # SoilProfileView port (#310, ADR-008). The concrete Pydantic
         # SoilProfile structurally satisfies that port (covariant `layers`
         # property), so it flows in directly — no cast needed.
-        profile_view: SoilProfileView = self.profile
-        # --- Pore-chain runtimes — must subscribe in this order on
-        # day_start: pore-network compute → biopore donation →
-        # gas diffusion. Documented in ADR-010.
-        _ = PoreNetworkRuntime(
-            self.event_bus,
-            self.pore_module,
-            profile_view,
-            agg_state=self.agg_state,
-            biopore_module=self.biopore_module,
-        )
-        _ = BioporesRuntime(
-            self.event_bus,
-            self.biopore_module,
-            profile_view,
-            pore_state=self.pore_state,
-        )
-        _ = GasDiffusionRuntime(
-            self.event_bus,
-            self.gas_module,
-            profile_view,
-            self.water_state,
-            self.pore_state,
-            co2_respiration_supplier=self._co2_respiration_for_gas,
-        )
+        pv: SoilProfileView = self.profile
+        # Pore-chain runtimes — subscribe in this order on day_start:
+        # pore-network compute → biopore donation → gas diffusion (ADR-010).
+        pore_chain: list[_RuntimeFactory] = [
+            lambda: PoreNetworkRuntime(
+                self.event_bus,
+                self.pore_module,
+                pv,
+                agg_state=self.agg_state,
+                biopore_module=self.biopore_module,
+            ),
+            lambda: BioporesRuntime(
+                self.event_bus,
+                self.biopore_module,
+                pv,
+                pore_state=self.pore_state,
+            ),
+            lambda: GasDiffusionRuntime(
+                self.event_bus,
+                self.gas_module,
+                pv,
+                self.water_state,
+                self.pore_state,
+                co2_respiration_supplier=self._co2_respiration_for_gas,
+            ),
+        ]
+        core: list[_RuntimeFactory] = [
+            lambda: WaterRuntime(
+                self.event_bus,
+                self.water_model,
+                pv,
+                self.water_state,
+                agg_state=self.agg_state,
+            ),
+            lambda: PhenologyRuntime(
+                self.event_bus, self.phenology, latitude_deg=self.latitude_deg
+            ),
+            lambda: RootsRuntime(
+                self.event_bus,
+                self.roots,
+                self.root_state,
+                pv,
+                self.phenology,
+                agg_state=self.agg_state,
+                canopy_increment_provider=self._consume_root_canopy_increment,
+            ),
+            self._make_et_runtime,
+            lambda: RedoxRuntime(
+                self.event_bus,
+                self.redox,
+                pv,
+                self.water_state,
+                gas_state=self.gas_state,
+            ),
+            lambda: NitrogenRuntime(
+                self.event_bus, self.n_cycle, gas_state=self.gas_state
+            ),
+            lambda: MicronutrientRuntime(self.event_bus, self.micro_cycle),
+            lambda: PhosphorusRuntime(self.event_bus, self.p_cycle),
+            lambda: self._make_som_runtime(pv),
+            lambda: MicrobesRuntime(
+                self.event_bus,
+                self.microbes,
+                profile=pv,
+                water_state=self.water_state,
+                chemistry=self.chem,
+            ),
+            lambda: AggregationRuntime(
+                self.event_bus, self.agg_module, pv, self.water_state
+            ),
+            lambda: CanopyRuntime(self.event_bus, self.canopy),
+        ]
+        bookkeeping: list[_RuntimeFactory] = [
+            self._subscribe_biomass_bookkeeping,
+            self._subscribe_co2_bookkeeping,
+        ]
+        return [
+            (self._PORE_CHAIN_GROUP, pore_chain),
+            (self._CORE_GROUP, core),
+            (self._BOOKKEEPING_GROUP, bookkeeping),
+        ]
 
-        _ = WaterRuntime(
-            self.event_bus,
-            self.water_model,
-            profile_view,
-            self.water_state,
-            agg_state=self.agg_state,
-        )
-        _ = PhenologyRuntime(
-            self.event_bus, self.phenology, latitude_deg=self.latitude_deg
-        )
-        _ = RootsRuntime(
-            self.event_bus,
-            self.roots,
-            self.root_state,
-            profile_view,
-            self.phenology,
-            agg_state=self.agg_state,
-        )
-        # Cast at the orchestrator boundary: ETRuntime's fields are
-        # ports.py Protocols (#300, ADR-008), so the concrete soil/plant
-        # objects need a `cast` for mypy to accept them.
+    @staticmethod
+    def _assert_pore_chain_registered_first(
+        plan: list[tuple[str, list[_RuntimeFactory]]],
+    ) -> None:
+        """Enforce the ADR-010 invariant on the subscription plan.
+
+        The pore-chain group must register before the core group so its
+        runtimes dispatch first on ``DayTick(day_start)``. Raising here turns
+        a silently reordered/dropped subscription — which would corrupt the
+        water/redox/N coupling with no exception — into a construction-time
+        error.
+        """
+        group_order = [name for name, _ in plan]
+        pore = FullSimulationOrchestrator._PORE_CHAIN_GROUP
+        core = FullSimulationOrchestrator._CORE_GROUP
+        if pore not in group_order:
+            raise ValueError("subscription plan is missing the pore-chain group")
+        if core not in group_order:
+            raise ValueError("subscription plan is missing the core group")
+        if group_order.index(pore) >= group_order.index(core):
+            raise ValueError(
+                "ADR-010 violation: pore-chain runtimes must register before "
+                "core runtimes (pore geometry and gas profile must refresh "
+                "before water/redox/N consume them)"
+            )
+
+    def _make_et_runtime(self) -> ETRuntime:
+        """Construct the ET runtime, casting concrete objects to ports.
+
+        ETRuntime's fields are ``ports.py`` Protocols (#300, ADR-008), so the
+        concrete soil/plant objects need a ``cast`` for mypy at this
+        boundary.
+        """
         from typing import cast as _cast
 
         from agrogame.params.ports import (
@@ -461,7 +630,7 @@ class FullSimulationOrchestrator:
             WaterState as _ETState,
         )
 
-        _ = ETRuntime(
+        return ETRuntime(
             event_bus=self.event_bus,
             et=self.et,
             profile=_cast(_ETProfile, self.profile),
@@ -472,16 +641,9 @@ class FullSimulationOrchestrator:
             _evap_state=EtState(),
             _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
         )
-        _ = RedoxRuntime(
-            self.event_bus,
-            self.redox,
-            profile_view,
-            self.water_state,
-            gas_state=self.gas_state,
-        )
-        _ = NitrogenRuntime(self.event_bus, self.n_cycle, gas_state=self.gas_state)
-        _ = MicronutrientRuntime(self.event_bus, self.micro_cycle)
-        _ = PhosphorusRuntime(self.event_bus, self.p_cycle)
+
+    def _make_som_runtime(self, profile_view: SoilProfileView) -> SOMRuntime:
+        """Construct the SOM runtime and retain it for pool inspection."""
         self._som_runtime = SOMRuntime(
             self.event_bus,
             profile_view,
@@ -489,24 +651,19 @@ class FullSimulationOrchestrator:
             self.chem,
             agg_state=self.agg_state,
         )
-        _ = MicrobesRuntime(
-            self.event_bus,
-            self.microbes,
-            profile=profile_view,
-            water_state=self.water_state,
-            chemistry=self.chem,
-        )
-        _ = AggregationRuntime(
-            self.event_bus, self.agg_module, profile_view, self.water_state
-        )
-        _ = CanopyRuntime(self.event_bus, self.canopy)
-        # Track biomass increments for dynamic N/P demand computation
+        return self._som_runtime
+
+    def _subscribe_biomass_bookkeeping(self) -> None:
+        """Track canopy biomass increments for dynamic N/P demand (#284)."""
         from agrogame.soil.canopy.events import BiomassAccumulated
 
         self.event_bus.subscribe(BiomassAccumulated, self._on_biomass_accumulated)
 
-        # Track per-layer CO₂ respiration so GasDiffusion (#284) has a
-        # source term derived from yesterday's SOM decomposition.
+    def _subscribe_co2_bookkeeping(self) -> None:
+        """Buffer per-layer CO₂ so GasDiffusion (#284) has a source term.
+
+        Derived from yesterday's SOM decomposition; see ADR-010.
+        """
         self.event_bus.subscribe(CO2Respired, self._on_co2_respired)
 
     def _som_pool_lists(self, attr: str) -> list[float]:
@@ -648,68 +805,54 @@ class FullSimulationOrchestrator:
     def reset_crop(self, new_crop: CropPreset) -> None:
         """Reset plant state for a new crop, preserving soil state.
 
-        Clears all event subscriptions and re-wires runtimes with fresh
-        plant modules. Soil state (water, N, P, chemistry, microbes) is
-        preserved across the transition.
+        Clears all event subscriptions and rebuilds the plant, soil and
+        pore-chain modules through the same factories used by ``__init__``
+        (#323), so both construction paths produce an identical module graph
+        and subscription order. The soil/pore/biopore/gas *state* objects are
+        preserved (not re-created) and repopulated from a snapshot, so all
+        pools (water, N, P, chemistry, microbes, SOM, redox, aggregation and
+        the pore chain) carry across the transition exactly as before.
         """
         self._current_crop = new_crop
         self._day_counter = 0
         self._last_biomass_inc_g_m2 = 0.0
-        # Capture soil state
+        self._pending_root_canopy_inc_g_m2 = 0.0
+        # Capture soil state before tearing down subscriptions.
         soil = self.snapshot_soil()
 
-        # Clear all event subscriptions to avoid stale handlers
+        # Clear all event subscriptions to avoid stale handlers.
         self.event_bus.clear()
 
-        # Fresh plant modules
-        self.phenology = PhenologyModule(new_crop.phenology, event_bus=self.event_bus)
-        self.canopy = CanopyModule(new_crop.canopy, event_bus=self.event_bus)
-        self.roots = RootModule(new_crop.roots, event_bus=self.event_bus)
-        self.root_state = RootState()
+        # Rebuild the module graph through the shared factories. State
+        # containers are preserved (no _build_*_state calls); the modules
+        # re-reference them. Restore then repopulates pools before wiring,
+        # matching the original restore-before-wire ordering.
+        self._build_plant_modules(new_crop)
+        self._build_soil_modules()
+        self._build_pore_chain()
 
-        # Re-create soil modules that subscribe to events
-        self.water_model = CascadingBucketWaterModel(event_bus=self.event_bus)
-        self.n_cycle = NitrogenCycle(
-            self.event_bus,
-            self.n_state,
-            water_state=self.water_state,
-            profile=self.profile,
-        )
-        self.p_cycle = PhosphorusCycle(
-            self.event_bus,
-            self.p_state,
-            water_state=self.water_state,
-            profile=self.profile,
-        )
-        self.microbes = MicrobialBiomassModule(
-            MicrobialParams(n_layers=len(self.profile.layers)),
-            event_bus=self.event_bus,
-        )
-        self.chem = SoilChemistryModule(
-            self.event_bus, n_layers=len(self.profile.layers)
-        )
-        self.redox = RedoxModule(
-            RedoxParams(), self.redox_state, event_bus=self.event_bus
-        )
-        self.micro_cycle = MicronutrientCycle(
-            self.event_bus,
-            self.micro_state,
-            MicronutrientParams(),
-            len(self.profile.layers),
-        )
-        self.agg_module = AggregationModule(
-            SoilAggregationParams(), self.agg_state, event_bus=self.event_bus
-        )
-        self.calendar = Calendar(self.event_bus)
-
-        # Restore soil state (water, N, P pools)
+        # Restore soil state (water, N, P, pore chain, …) into the
+        # preserved state objects.
         self.restore_soil(soil)
 
-        # Re-wire all runtime listeners
+        # Re-wire all runtime listeners (identical order to __init__).
         self._wire_runtimes()
 
     def _on_biomass_accumulated(self, ev: Any) -> None:
-        self._last_biomass_inc_g_m2 = float(ev.increment_g_m2)
+        inc = float(ev.increment_g_m2)
+        self._last_biomass_inc_g_m2 = inc
+        # Accumulate for shoot→root allocation (#330); drained by RootsRuntime.
+        self._pending_root_canopy_inc_g_m2 += inc
+
+    def _consume_root_canopy_increment(self) -> float:
+        """Return the pending canopy biomass increment and reset it (#330).
+
+        Injected into RootsRuntime as its ``canopy_increment_provider`` port
+        so the plant package needs no import of ``soil.canopy``.
+        """
+        inc = self._pending_root_canopy_inc_g_m2
+        self._pending_root_canopy_inc_g_m2 = 0.0
+        return inc
 
     def _on_co2_respired(self, ev: Any) -> None:
         """Accumulate per-layer CO₂ for the gas-diffusion supplier (#284)."""

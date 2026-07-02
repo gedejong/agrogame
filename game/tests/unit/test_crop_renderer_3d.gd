@@ -28,44 +28,44 @@ func test_leaf_masks_defined() -> void:
 
 
 func test_maize_creates_children() -> void:
-	var plant := MaizeR.create_plant(0.8, 0.0, 0.0, 0.0, 0)
+	var plant := MaizeR.create_plant(0.8, 0.0, {}, 0.0, 0)
 	assert_gt(plant.get_child_count(), 0, "Maize has children at growth 0.8")
 	plant.free()
 
 
 func test_maize_empty_at_zero() -> void:
-	var plant := MaizeR.create_plant(0.0, 0.0, 0.0, 0.0, 0)
+	var plant := MaizeR.create_plant(0.0, 0.0, {}, 0.0, 0)
 	assert_eq(plant.get_child_count(), 0, "No children at zero growth")
 	plant.free()
 
 
 func test_wheat_creates_children() -> void:
-	var plant := WheatR.create_plant(0.8, 0.0, 0.0, 0.0, 0)
+	var plant := WheatR.create_plant(0.8, 0.0, {}, 0.0, 0)
 	assert_gt(plant.get_child_count(), 0)
 	plant.free()
 
 
 func test_sorghum_creates_children() -> void:
-	var plant := SorghumR.create_plant(0.8, 0.0, 0.0, 0.0, 0)
+	var plant := SorghumR.create_plant(0.8, 0.0, {}, 0.0, 0)
 	assert_gt(plant.get_child_count(), 0)
 	plant.free()
 
 
 func test_rice_creates_children() -> void:
-	var plant := RiceR.create_plant(0.8, 0.0, 0.0, 0.0, 0)
+	var plant := RiceR.create_plant(0.8, 0.0, {}, 0.0, 0)
 	assert_gt(plant.get_child_count(), 0)
 	plant.free()
 
 
 func test_grape_creates_children() -> void:
-	var plant := GrapeR.create_plant(0.8, 0.0, 0.0, 0.0, 0)
+	var plant := GrapeR.create_plant(0.8, 0.0, {}, 0.0, 0)
 	assert_gt(plant.get_child_count(), 0)
 	plant.free()
 
 
 func test_maize_grain_adds_ear() -> void:
-	var no_grain := MaizeR.create_plant(1.0, 0.0, 0.0, 0.0, 0)
-	var with_grain := MaizeR.create_plant(1.0, 0.0, 0.0, 0.5, 0)
+	var no_grain := MaizeR.create_plant(1.0, 0.0, {}, 0.0, 0)
+	var with_grain := MaizeR.create_plant(1.0, 0.0, {}, 0.5, 0)
 	assert_gt(
 		with_grain.get_child_count(),
 		no_grain.get_child_count(),

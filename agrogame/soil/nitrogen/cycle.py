@@ -35,6 +35,7 @@ from .events import (
     NutrientLeached,
     VolatilizationOccurred,
 )
+from .params import NitrogenRateParams
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
 
@@ -48,12 +49,14 @@ class NitrogenCycle:
         state: SoilNitrogenState,
         water_state: WaterState | None = None,
         profile: SoilProfileView | None = None,
+        params: NitrogenRateParams | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state
         self._n_layers = len(state.no3)
         self._water_state = water_state
         self._profile = profile
+        self._params = params if params is not None else NitrogenRateParams()
 
         # Subscribe to water movement events
         event_bus.subscribe(WaterDrained, self._on_water_drained)
@@ -295,6 +298,35 @@ class NitrogenCycle:
         """Return total N (organic + NH4 + NO3) across all layers (kg/ha)."""
         return sum(self.state.organic_n) + sum(self.state.nh4) + sum(self.state.no3)
 
+    def _layer_clay_pct(self, idx: int) -> float | None:
+        """Return clay % for a layer, or None when unavailable.
+
+        Returning None keeps texture modulation neutral (multiplier 1.0) so
+        cycles built without a profile (e.g. unit tests) are unchanged.
+        """
+        if self._profile is None or not (0 <= idx < len(self._profile.layers)):
+            return None
+        return getattr(self._profile.layers[idx], "clay_pct", None)
+
+    @staticmethod
+    def _clay_multiplier(
+        clay_pct: float | None,
+        reference_pct: float,
+        sensitivity: float,
+        min_mult: float,
+        max_mult: float,
+    ) -> float:
+        """Reference-normalized linear clay response, clamped to bounds.
+
+        Equals 1.0 at ``reference_pct`` (and when ``clay_pct`` is None), so the
+        loam-referenced defaults leave the realism suite unchanged (AC2) while
+        coarser/finer soils scale within the literature spread (AC3).
+        """
+        if clay_pct is None or reference_pct <= 0.0:
+            return 1.0
+        mult = 1.0 + sensitivity * (clay_pct - reference_pct) / reference_pct
+        return max(min_mult, min(max_mult, mult))
+
     # --- Internal decomposition helpers --------------------------------
     def _environment_factors(
         self, idx: int, ph: float
@@ -332,7 +364,12 @@ class NitrogenCycle:
             return 0.0
         # Microbial activity scales mineralization (dampening only)
         activity = self._env.microbe_activity_by_layer[idx]
-        rate = 0.001 * temp_factor * moisture_factor * activity
+        rate = (
+            self._params.mineralization_base_rate
+            * temp_factor
+            * moisture_factor
+            * activity
+        )
         delta = min(org, rate * org)
         if delta <= 0.0:
             return 0.0
@@ -358,7 +395,7 @@ class NitrogenCycle:
         bact_share = 1.0 - self._env.fungal_fraction_by_layer[idx]
         fb_weight = 0.7 + 0.3 * bact_share  # 0.7..1.0
         rate = (
-            0.15
+            self._params.nitrification_base_rate
             * temp_factor
             * moisture_factor
             * nitrif_aeration
@@ -366,7 +403,7 @@ class NitrogenCycle:
             * activity
             * fb_weight
         )
-        rate = max(0.0, min(0.20, rate))
+        rate = max(0.0, min(self._params.nitrification_max_rate, rate))
         dn = min(nh4, rate * nh4)
         if dn <= 0.0:
             return 0.0
@@ -385,7 +422,21 @@ class NitrogenCycle:
         no3 = self.state.no3[idx]
         if no3 <= 0.0 or anaerobic_factor <= 0.0:
             return 0.0
-        rate = 0.02 * temp_factor * anaerobic_factor
+        # Clay modulation: finer soils hold more anaerobic microsites, raising
+        # denitrification (Barton et al. 1999; Groffman & Tiedje 1989).
+        clay_mult = self._clay_multiplier(
+            self._layer_clay_pct(idx),
+            self._params.denit_clay_reference_pct,
+            self._params.denit_clay_sensitivity,
+            self._params.denit_clay_min_mult,
+            self._params.denit_clay_max_mult,
+        )
+        rate = (
+            self._params.denitrification_base_rate
+            * temp_factor
+            * anaerobic_factor
+            * clay_mult
+        )
         dd = min(no3, rate * no3)
         if dd <= 0.0:
             return 0.0
@@ -412,9 +463,9 @@ class NitrogenCycle:
         nh4 = self.state.nh4[0]
         if nh4 <= 0.0:
             return 0.0
-        # Base rate 0.05 (5%/day), scaled by temperature Q10
-        rate = 0.05 * temp_factor
-        rate = max(0.0, min(0.10, rate))  # cap at 10%/day
+        # Base rate (5%/day default), scaled by temperature Q10
+        rate = self._params.volatilization_base_rate * temp_factor
+        rate = max(0.0, min(self._params.volatilization_max_rate, rate))
         loss = rate * nh4
         if loss <= 0.0:
             return 0.0

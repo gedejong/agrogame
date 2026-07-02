@@ -37,7 +37,11 @@ class SoilAggregationParams:
         temp_max_c: Lethal high temperature — formation ceases.
             Ref: enzyme denaturation above ~40°C.
         plow_depth_cm: Maximum tillage depth at intensity=1.0 (moldboard plow).
-            Ref: DSSAT — typical plow depth 20–30 cm.
+            The plow zone spans 0 to ``plow_depth_cm × intensity``;
+            ``AggregationModule.apply_tillage`` pro-rates per-layer destruction
+            by the fraction of each layer's thickness inside that zone, matching
+            ``BioporeModule.apply_tillage`` (#215). Ref: DSSAT — typical plow
+            depth 20–30 cm.
     """
 
     macro_formation_rate_per_week: float = 0.015

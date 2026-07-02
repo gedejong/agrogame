@@ -102,10 +102,14 @@ def _build_canopy(raw: dict) -> CanopyParams:
 
 def _build_roots(raw: dict) -> RootParams:
     r = raw.get("roots", {})
+    defaults = RootParams()
     return RootParams(
         max_depth_cm=float(r.get("max_depth_cm", 120.0)),
         growth_rate_cm_per_day=float(r.get("growth_rate_cm_per_day", 1.5)),
         distribution=r.get("distribution", "exponential"),
+        root_allocation_fraction=float(
+            r.get("root_allocation_fraction", defaults.root_allocation_fraction)
+        ),
     )
 
 

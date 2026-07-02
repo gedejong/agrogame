@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -16,7 +17,16 @@ if TYPE_CHECKING:
 
 @dataclass
 class RootsRuntime:
-    """Wire RootModule to the EventBus; subscribes to DayTick to advance roots daily."""
+    """Wire RootModule to the EventBus; subscribes to DayTick to advance roots daily.
+
+    ``canopy_increment_provider`` is an injected port (ADR-008) returning the
+    pending above-ground biomass increment (g/m²) accumulated since the last
+    root step, and resetting it on read. It decouples the root package from
+    ``soil.canopy`` (which the ``plant_vs_soil`` import contract forbids
+    importing): the orchestrator observes ``BiomassAccumulated`` and supplies
+    the value. A crop-parameterised fraction of it is allocated to root
+    biomass each day.
+    """
 
     event_bus: EventBus
     module: RootModule
@@ -24,9 +34,17 @@ class RootsRuntime:
     profile: SoilProfileView
     phenology: PhenologyModule
     agg_state: SoilAggregationState | None = None
+    canopy_increment_provider: Callable[[], float] | None = None
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
+
+    def _daily_root_allocation(self) -> float:
+        """Fraction of the pending canopy biomass increment routed to roots."""
+        if self.canopy_increment_provider is None:
+            return 0.0
+        canopy_inc = max(0.0, self.canopy_increment_provider())
+        return self.module.params.root_allocation_fraction * canopy_inc
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "plant_structure":
@@ -44,5 +62,6 @@ class RootsRuntime:
             state=self.state,
             profile=self.profile,
             stage=self.phenology.state.stage,
+            daily_root_biomass_g_m2=self._daily_root_allocation(),
             constraints=constraints,
         )
