@@ -60,6 +60,10 @@ class WaterState(Protocol):
 
     def layer_storage_mm(self, profile: WaterProfile, _layer_index: int) -> float: ...
 
+    # Asymmetric on purpose: the getter only reads ``layer.depth_cm`` (present
+    # on the narrow ``WaterProfile``/ET ``SoilLayer``), but the setter also
+    # reads ``layer.saturation`` to clamp storage — which lives on the broader
+    # ``SoilProfileView`` only.
     def set_layer_storage_mm(
         self, profile: SoilProfileView, _layer_index: int, _storage_mm: float
     ) -> None: ...

@@ -47,17 +47,17 @@ ET (atmosphere) genuinely orchestrates plant + soil + weather inputs, so it sits
 
 ### ET dependency inversion
 
-`ETRuntime` (`agrogame/atmosphere/et/runtime.py`) holds its dependencies via Protocols defined in `agrogame/atmosphere/et/ports.py`:
+`ETRuntime` (`agrogame/atmosphere/et/runtime.py`) holds its dependencies via Protocols defined in `agrogame/params/ports.py` (relocated from `agrogame/atmosphere/et/ports.py` in #310 — see the *Protocol port doctrine* section below):
 
 | Field | Protocol |
 |-------|----------|
 | `profile` | `WaterProfile` |
 | `water_state` | `WaterState` |
 | `water_model` | `WaterActuator` |
-| `roots_state` | `RootDistribution` (new) |
-| `canopy` | `CanopyView` (new) |
+| `roots_state` | `RootDistribution` |
+| `canopy` | `CanopyView` |
 
-The orchestrator (`agrogame/sim/orchestrator.py`) wires concrete soil/plant instances into the runtime via `cast()` at the construction boundary. There is no runtime behavior change — the casts existed previously inside the runtime body around `actual_et()`.
+The orchestrator (`agrogame/sim/orchestrator.py`) still `cast()`s concrete instances into `ETRuntime` at the construction boundary, because ET's ports are deliberately **narrow** (e.g. `WaterProfile.layers` exposes only `wilting_point`/`depth_cm`). The broader soil runtimes and the nitrogen/phosphorus cycles, by contrast, consume the covariant `SoilProfileView`/`WaterState` views **without a cast** (#310): the read-only-property design in the doctrine section makes the concrete Pydantic models satisfy those views structurally, which let the four `cast(Any, ...)` calls that previously wired the N/P cycles be deleted. Behaviour is unchanged.
 
 ### `ignore_imports` allowlists
 

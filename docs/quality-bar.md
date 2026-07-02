@@ -76,7 +76,7 @@ for the layering decision and the rationale behind each contract's
 | `events_isolated` | `agrogame.events` is type-only; no domain imports. |
 | `soil_plant_direction` | Allowlist for soil → plant.events subscriptions. |
 | `weather_independence` | Weather is the foundational layer. |
-| `atmosphere_independence` | ET runtime uses `atmosphere/et/ports.py` Protocols (#300). |
+| `atmosphere_independence` | ET runtime uses `params/ports.py` Protocols (#300, relocated in #310). |
 | `plant_independence` | Plant doesn't depend on atmosphere. |
 | `sim_isolation` | `DayTick` lives at `agrogame.events.calendar` (#300). |
 | `soil_subdomain_independence` | Allowlist for canopy↔phenology + nitrogen↔water events. |
