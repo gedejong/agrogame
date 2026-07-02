@@ -180,6 +180,12 @@ text = "Tillage"
 text = "Plant"
 icon = ExtResource("10")
 
+[node name="HarvestButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
+disabled = true
+tooltip_text = "Select a patch with a standing crop to harvest"
+text = "Harvest"
+icon = ExtResource("10")
+
 [node name="SoilViewButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "View Soil"
 icon = ExtResource("10")

@@ -100,6 +100,7 @@ var _daily_history: Dictionary = {}
 @onready var fertilize_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FertilizeButton
 @onready var tillage_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/TillageButton
 @onready var plant_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/PlantButton
+@onready var harvest_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/HarvestButton
 @onready var soil_view_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
 
@@ -116,6 +117,7 @@ func _ready() -> void:
 	fertilize_btn.pressed.connect(_on_fertilize)
 	tillage_btn.pressed.connect(_on_tillage)
 	plant_btn.pressed.connect(_on_plant_pressed)
+	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
 	_apply_ui_theme()
@@ -292,6 +294,7 @@ func _select_tile(col: int, row: int) -> void:
 	var soil_type: String = data.get("soil_type", "")
 	# Show Quick Status card instead of full sparkline panel
 	_show_quick_status(data, soil_type)
+	_update_harvest_button()
 
 
 func _deselect() -> void:
@@ -301,6 +304,7 @@ func _deselect() -> void:
 	_selected_tile = Vector2i(-1, -1)
 	_hide_quick_status()
 	_cutaway.hide_tile_info()
+	_update_harvest_button()
 
 
 func _show_quick_status(tile_data: Dictionary, soil_type: String) -> void:
@@ -431,6 +435,38 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	fertilize_btn.disabled = disabled
 	tillage_btn.disabled = disabled
 	plant_btn.disabled = disabled
+	# Harvest stays gated on crop presence even when re-enabling the bar.
+	if disabled:
+		harvest_btn.disabled = true
+	else:
+		_update_harvest_button()
+
+
+func _selected_has_standing_crop() -> bool:
+	## True when the selected tile carries a crop that has not been harvested.
+	if _selected_tile.x < 0:
+		return false
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	if idx < 0 or idx >= _tile_data.size():
+		return false
+	var data: Dictionary = _tile_data[idx]
+	var crop_key: String = data.get("crop_key", "")
+	var crop_stage: int = data.get("crop_stage", 0)
+	return not crop_key.is_empty() and crop_stage > 0
+
+
+func _update_harvest_button() -> void:
+	## Enable Harvest only for a selected patch with a standing crop; otherwise
+	## disable with an explanatory tooltip.
+	if _selected_has_standing_crop():
+		harvest_btn.disabled = false
+		harvest_btn.tooltip_text = "Harvest the standing crop on this patch"
+	else:
+		harvest_btn.disabled = true
+		if _selected_tile.x < 0:
+			harvest_btn.tooltip_text = "Select a patch with a standing crop to harvest"
+		else:
+			harvest_btn.tooltip_text = "No standing crop to harvest on this patch"
 
 
 func _on_next_day() -> void:
@@ -698,6 +734,8 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		var soil_type: String = _tile_data[idx]["soil_type"]
 		var history: Array = _daily_history.get(soil_type, [])
 		_cutaway.update_tile_info(history)
+	# Crop stage may have changed (e.g. reached maturity or was cleared).
+	_update_harvest_button()
 
 
 func _on_irrigate() -> void:
@@ -727,6 +765,65 @@ func _on_tillage() -> void:
 		func() -> void:
 			_api_client.execute_action(_game_id, "tillage", {"intensity": 0.8}, _on_action_complete)
 	)
+
+
+func _on_harvest_pressed() -> void:
+	if not _selected_has_standing_crop():
+		status_label.text = "Select a patch with a standing crop to harvest"
+		return
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	var soil_type: String = _tile_data[idx]["soil_type"]
+	var crop_key: String = _tile_data[idx].get("crop_key", "")
+	var patch_idx := SOIL_TYPES.find(soil_type)
+	if patch_idx < 0:
+		patch_idx = 0
+	_ensure_game(
+		func() -> void:
+			_set_buttons_disabled(true)
+			(
+				_api_client
+				. execute_action(
+					_game_id,
+					"harvest",
+					{"patch_idx": patch_idx},
+					_on_harvest_complete.bind(crop_key, soil_type),
+				)
+			)
+	)
+
+
+func _on_harvest_complete(
+	success: bool, data: Dictionary, crop_key: String, soil_type: String
+) -> void:
+	_set_buttons_disabled(false)
+	if not success:
+		status_label.text = "Harvest failed"
+		return
+	var cost: int = data.get("cost_credits", 0)
+	credits_label.text = "%d" % data.get("balance_credits", 0)
+	# Backend really settled + cleared the crop, so this clear survives /step.
+	for i in range(_tile_data.size()):
+		if _tile_data[i]["soil_type"] == soil_type:
+			_tile_data[i]["crop_key"] = ""
+			_tile_data[i]["crop_stage"] = 0
+			_tile_data[i]["lai"] = 0.0
+			_tile_data[i]["grain_g_m2"] = 0.0
+			_update_crop_visuals(i)
+	# Yield + P&L come straight from the harvest action's settlement response.
+	status_label.text = (
+		"Harvested %s (cost %d credits) — revenue %d | profit %d credits"
+		% [crop_key, cost, int(data.get("revenue_credits", 0)), int(data.get("profit_credits", 0))]
+	)
+	_update_harvest_button()
+	# The action response is authoritative for P&L; fetch the season report only
+	# to confirm the fuller breakdown is available and note the gap if it is not.
+	_api_client.get_report(_game_id, _on_harvest_report_received)
+
+
+func _on_harvest_report_received(success: bool, _data: Dictionary) -> void:
+	# Report failure (e.g. mid-season 400) just notes the gap; P&L already shown.
+	if not success:
+		status_label.text += " (detailed report unavailable)"
 
 
 func _setup_crop_popup() -> void:

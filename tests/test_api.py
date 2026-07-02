@@ -739,6 +739,65 @@ def test_plant_action_changes_crop(client) -> None:
     assert patches[0]["crop_key"] == "spring_wheat"
 
 
+def test_harvest_action_clears_crop_and_settles(client) -> None:
+    """Harvest action (#316) clears the crop and returns yield + P&L mid-season.
+
+    Regression: previously `execute_action` had no `harvest` branch, so a
+    harvest POST only charged 50 credits and left the crop standing.
+    """
+    game_id = _create_game(client)
+    # Grow the crop for a while so there is grain to settle.
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["action"] == "harvest"
+    assert data["cost_credits"] == 50, "Harvest charges the labor cost"
+    # Settlement fields returned inline (so the frontend can surface P&L).
+    assert data["grain_g_m2"] > 0.0, "Harvested grain reported"
+    assert data["revenue_credits"] > 0, "Harvest produced revenue"
+    # profit = revenue - season costs (which include the 50-credit harvest labor)
+    assert data["profit_credits"] == data["revenue_credits"] - 50
+
+    # Crop is cleared: a subsequent /step reports a bare patch.
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=1")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    assert patches[0]["crop_key"] == "", "Crop cleared after harvest"
+
+
+def test_harvest_action_enables_report_mid_season(client) -> None:
+    """After a harvest action, GET /report succeeds mid-season (#316).
+
+    Regression: /report returned 400 unless a full season completed, because
+    `turn_manager.result` was only set by `_finalize_season`.
+    """
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    # Report is unavailable before harvesting mid-season.
+    pre = client.get(f"/api/v1/games/{game_id}/report")
+    assert pre.status_code == 400
+
+    harvest = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert harvest.status_code == 200
+
+    report = client.get(f"/api/v1/games/{game_id}/report")
+    assert report.status_code == 200
+    rj = report.json()
+    # Report P&L is consistent with the harvest action's settlement.
+    assert rj["revenue_credits"] == harvest.json()["revenue_credits"]
+    assert rj["revenue_credits"] > 0
+
+
 def test_step_response_includes_redox_state(client) -> None:
     """Step response should include redox_eh and dominant_acceptor (#235).
 

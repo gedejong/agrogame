@@ -286,6 +286,10 @@ class ActionResponse(BaseModel):
     cost_credits: int
     balance_credits: int
     day_number: int
+    # Harvest-only settlement fields (0 for non-harvest actions).
+    grain_g_m2: float = 0.0
+    revenue_credits: int = 0
+    profit_credits: int = 0
 
 
 class ForecastDayResponse(BaseModel):
