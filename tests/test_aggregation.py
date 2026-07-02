@@ -531,6 +531,54 @@ def test_tillage_only_affects_plow_depth() -> None:
     assert state.macro[3] == 0.50, "Layer 3 (below plow) should be untouched"
 
 
+def test_tillage_prorated_by_plow_zone_overlap() -> None:
+    """Straddling layers get destruction proportional to plow-zone overlap.
+
+    Profile mirrors ``loam_temperate`` extended with a subsoil layer:
+    layer 0 = 0–25 cm, layer 1 = 25–60 cm, layer 2 = 60–100 cm; plow depth
+    30 cm at intensity=1.0. Expected per-layer overlap fractions:
+
+    - Layer 0 (0–25): wholly inside the 30 cm plow zone → overlap 1.0 → full
+      destruction (``destruction_frac``).
+    - Layer 1 (25–60): only 5 of 35 cm inside → overlap 5/35 ≈ 0.143 → partial.
+    - Layer 2 (60–100): entirely below → overlap 0 → untouched.
+
+    Ref: Six et al. 2000, SSSAJ; Shipitalo & Butt 1999 — tillage disturbance
+    is confined to the plow zone and declines with depth. Matches the overlap
+    convention of ``BioporeModule.apply_tillage`` (#215).
+    """
+    state = SoilAggregationState.from_layers(3)
+    for i in range(3):
+        state.macro[i] = 0.50
+        state.meso[i] = 0.30
+        state.micro[i] = 0.20
+    params = SoilAggregationParams()
+    module = AggregationModule(params, state)
+
+    module.apply_tillage(1.0, layer_depths_cm=[25.0, 35.0, 40.0])
+
+    destruction_frac = params.tillage_macro_destruction_max  # intensity=1.0
+    overlap_frac_layer1 = 5.0 / 35.0
+
+    # Layer 0: full destruction (overlap 1.0).
+    lost0 = 0.50 - state.macro[0]
+    assert abs(lost0 - 0.50 * destruction_frac) < 1e-9, "Layer 0 full destruction"
+
+    # Layer 1: destruction pro-rated to ~14% overlap.
+    lost1 = 0.50 - state.macro[1]
+    assert abs(lost1 - 0.50 * destruction_frac * overlap_frac_layer1) < 1e-9
+    # Straddling loss is exactly the overlap fraction of the full-layer loss.
+    assert abs(lost1 / lost0 - overlap_frac_layer1) < 1e-9
+
+    # Layer 2: entirely below plow depth → untouched.
+    assert state.macro[2] == 0.50, "Layer 2 (below plow) untouched"
+
+    # Mass conserved in each layer.
+    for i in range(3):
+        total = state.micro[i] + state.meso[i] + state.macro[i]
+        assert abs(total - 1.0) < 1e-6
+
+
 # --- S1: Negative fraction clamping ---
 
 
