@@ -23,8 +23,11 @@ external automation. In-memory game sessions are keyed by `game_id`.
 - `POST /api/v1/games/{game_id}/step` — advance N days, returning daily snapshots
 - `POST /api/v1/games/{game_id}/action` — apply a management action (plant,
   irrigate, fertilize, harvest, …)
+- `POST /api/v1/games/{game_id}/action/preview` — estimate an action's credit
+  cost and affordability without executing it (same cost source as `/action`)
 - `GET /api/v1/games/{game_id}` — current session state
-- `GET /api/v1/games/{game_id}/forecast` — short-range weather forecast
+- `GET /api/v1/games/{game_id}/forecast` — short-range forecast: weather plus a
+  projected water-stress (FAO-56 Ks) and mineral-N trajectory for decision support
 - `GET /api/v1/games/{game_id}/report` — end-of-season harvest report
 
 ## Run

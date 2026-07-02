@@ -32,3 +32,25 @@ func test_available_crops() -> void:
 	assert_true(FarmView.AVAILABLE_CROPS.size() >= 3)
 	assert_has(FarmView.AVAILABLE_CROPS, "maize")
 	assert_has(FarmView.AVAILABLE_CROPS, "spring_wheat")
+
+
+func test_preview_actions_cover_fixed_cost_buttons() -> void:
+	# Cost-preview specs (#318) must carry an action, label and params each,
+	# so the previewed cost label matches the executed action's deduction.
+	var actions: Array = []
+	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+		assert_true(spec.has("action"), "spec has action")
+		assert_true(spec.has("label"), "spec has label")
+		assert_true(spec.has("params"), "spec has params")
+		actions.append(spec["action"])
+	assert_has(actions, "irrigate")
+	assert_has(actions, "fertilize")
+	assert_has(actions, "tillage")
+
+
+func test_preview_irrigate_params_match_handler() -> void:
+	# The irrigate handler sends amount_mm=20; the preview spec must agree
+	# so the shown cost equals the ledger deduction.
+	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+		if spec["action"] == "irrigate":
+			assert_eq(spec["params"].get("amount_mm"), 20)

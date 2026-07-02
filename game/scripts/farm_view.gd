@@ -60,6 +60,14 @@ const _STAGE_MAP := {
 	"maturity": 4,
 }
 
+## Fixed-cost action buttons and the exact params their handlers send, so
+## the previewed cost label matches the eventual ledger deduction (#318).
+const _PREVIEW_ACTIONS: Array[Dictionary] = [
+	{"action": "irrigate", "label": "Irrigate", "params": {"amount_mm": 20}},
+	{"action": "fertilize", "label": "Fertilize", "params": {"type": "urea", "amount_kg_ha": 50}},
+	{"action": "tillage", "label": "Tillage", "params": {"intensity": 0.8}},
+]
+
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_meshes: Array[MeshInstance3D] = []
@@ -498,8 +506,60 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_last_step_data = data
 	_apply_day_result(data)
 	_api_client.get_forecast(_game_id, _on_forecast_received)
+	_refresh_action_costs()
 	if _cutaway.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
+
+
+func _refresh_action_costs() -> void:
+	## Preview each fixed-cost action so buttons show cost + block if unaffordable.
+	if _game_id.is_empty():
+		return
+	_preview_action_at(0)
+
+
+func _preview_action_at(i: int) -> void:
+	if i < 0 or i >= _PREVIEW_ACTIONS.size():
+		return
+	var spec: Dictionary = _PREVIEW_ACTIONS[i]
+	_api_client.preview_action(
+		_game_id,
+		spec["action"],
+		spec["params"],
+		func(success: bool, data: Dictionary) -> void: _on_preview_cost(success, data, i)
+	)
+
+
+func _on_preview_cost(success: bool, data: Dictionary, i: int) -> void:
+	if success:
+		_apply_cost_to_button(i, data)
+	# Chain the next preview (one shared HTTPRequest handles them sequentially).
+	_preview_action_at(i + 1)
+
+
+func _apply_cost_to_button(i: int, data: Dictionary) -> void:
+	var spec: Dictionary = _PREVIEW_ACTIONS[i]
+	var btn: Button = _action_button_for(spec["action"])
+	if btn == null:
+		return
+	var cost: int = data.get("cost_credits", 0)
+	var balance: int = data.get("balance_credits", 0)
+	var affordable: bool = data.get("affordable", true)
+	btn.text = ActionCost.format_button_label(spec["label"], cost)
+	btn.tooltip_text = ActionCost.tooltip_text(spec["action"], cost, balance)
+	btn.disabled = not affordable
+
+
+func _action_button_for(action: String) -> Button:
+	match action:
+		"irrigate":
+			return irrigate_btn
+		"fertilize":
+			return fertilize_btn
+		"tillage":
+			return tillage_btn
+		_:
+			return null
 
 
 func _on_weather_clicked(event: InputEvent) -> void:

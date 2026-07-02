@@ -8,12 +8,14 @@ var _http_request: HTTPRequest
 var _season_request: HTTPRequest
 var _step_request: HTTPRequest
 var _action_request: HTTPRequest
+var _preview_request: HTTPRequest
 var _forecast_request: HTTPRequest
 var _report_request: HTTPRequest
 var _callback: Callable
 var _season_callback: Callable
 var _step_callback: Callable
 var _action_callback: Callable
+var _preview_callback: Callable
 var _forecast_callback: Callable
 var _report_callback: Callable
 
@@ -32,6 +34,9 @@ func _ready() -> void:
 	_action_request = HTTPRequest.new()
 	add_child(_action_request)
 	_action_request.request_completed.connect(_on_action_completed)
+	_preview_request = HTTPRequest.new()
+	add_child(_preview_request)
+	_preview_request.request_completed.connect(_on_preview_completed)
 	_forecast_request = HTTPRequest.new()
 	add_child(_forecast_request)
 	_forecast_request.request_completed.connect(_on_forecast_completed)
@@ -134,6 +139,30 @@ func _on_action_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:
 	_dispatch_callback(_action_callback, result, response_code, body)
+
+
+func preview_action(
+	game_id: String, action: String, params: Dictionary, callback: Callable
+) -> void:
+	## Fetch an action's estimated cost + affordability without executing it (#318).
+	_preview_callback = callback
+	var req := {"field_id": "field_1", "action": action, "params": params}
+	var body_str := JSON.stringify(req)
+	(
+		_preview_request
+		. request(
+			BASE_URL + "/games/" + game_id + "/action/preview",
+			["Content-Type: application/json"],
+			HTTPClient.METHOD_POST,
+			body_str,
+		)
+	)
+
+
+func _on_preview_completed(
+	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
+) -> void:
+	_dispatch_callback(_preview_callback, result, response_code, body)
 
 
 func get_forecast(game_id: String, callback: Callable) -> void:

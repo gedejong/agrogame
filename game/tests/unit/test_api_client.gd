@@ -22,3 +22,12 @@ func test_has_create_game_method() -> void:
 	var client = ApiClientScript.new()
 	assert_true(client.has_method("create_game"), "ApiClient should expose create_game()")
 	client.free()
+
+
+func test_has_preview_action_method() -> void:
+	var client = ApiClientScript.new()
+	assert_true(
+		client.has_method("preview_action"),
+		"ApiClient should expose preview_action() for cost preview (#318)",
+	)
+	client.free()
