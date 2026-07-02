@@ -1,0 +1,113 @@
+{
+  "AcidifyingFertilizerApplied": [
+    "SoilChemistryModule._on_acid_fert"
+  ],
+  "BiomassAccumulated": [
+    "MicronutrientRuntime._on_biomass",
+    "FullSimulationOrchestrator._on_biomass_accumulated"
+  ],
+  "CO2Respired": [
+    "FullSimulationOrchestrator._on_co2_respired"
+  ],
+  "DayTick": [
+    "SoilChemistryModule._on_day_tick",
+    "PoreNetworkRuntime._on_day_tick",
+    "BioporesRuntime._on_day_tick",
+    "GasDiffusionRuntime._on_day_tick",
+    "WaterRuntime._on_day_tick",
+    "PhenologyRuntime._on_day_tick",
+    "RootsRuntime._on_day_tick",
+    "ETRuntime._on_day_tick",
+    "RedoxRuntime._on_day_tick",
+    "NitrogenRuntime._on_day_tick",
+    "MicronutrientRuntime._on_day_tick",
+    "PhosphorusRuntime._on_day_tick",
+    "SOMRuntime._on_day_tick",
+    "MicrobesRuntime._on_day_tick",
+    "AggregationRuntime._on_day_tick",
+    "CanopyRuntime._on_day_tick"
+  ],
+  "EnzymeProduced": [
+    "MicrobesRuntime._on_enzyme_produced"
+  ],
+  "GddAccumulated": [
+    "CanopyModule._on_gdd_accumulated"
+  ],
+  "Harvested": [
+    "CanopyModule._on_harvest"
+  ],
+  "LimeApplied": [
+    "SoilChemistryModule._on_lime"
+  ],
+  "MicrobialActivityComputed": [
+    "EnvironmentalCache._on_microbe_activity",
+    "EnvironmentalCache._on_microbe_activity"
+  ],
+  "MicrobialFBUpdated": [
+    "EnvironmentalCache._on_microbe_fb",
+    "EnvironmentalCache._on_microbe_fb",
+    "AggregationRuntime._on_microbes_updated"
+  ],
+  "NutrientLeached": [
+    "SoilChemistryModule._on_nutrient_leached"
+  ],
+  "NutrientStressComputed": [
+    "CanopyRuntime._on_nutrient_stress"
+  ],
+  "PhosphorusFixationOccurred": [
+    "SoilChemistryModule._on_p_fix"
+  ],
+  "RedoxChanged": [
+    "NitrogenRuntime._on_redox_changed",
+    "MicronutrientRuntime._on_redox_changed",
+    "PhosphorusRuntime._on_redox_changed"
+  ],
+  "RhizospherePrimingPulse": [
+    "MicrobialBiomassModule._on_priming"
+  ],
+  "RootDistributionUpdated": [
+    "EnvironmentalCache._on_root_distribution",
+    "EnvironmentalCache._on_root_distribution",
+    "RedoxRuntime._on_root_distribution",
+    "MicronutrientRuntime._on_roots",
+    "SOMRuntime._on_root_distribution",
+    "MicrobesRuntime._on_root_distribution",
+    "AggregationRuntime._on_root_distribution"
+  ],
+  "RootTurnoverOccurred": [
+    "BioporesRuntime._on_root_turnover"
+  ],
+  "SOMDecomposed": [
+    "NitrogenCycle._on_som_decomposed"
+  ],
+  "SoilPHUpdated": [
+    "EnvironmentalCache._on_soil_ph_updated",
+    "EnvironmentalCache._on_soil_ph_updated",
+    "EnvironmentalCache._on_soil_ph_updated"
+  ],
+  "StageChanged": [
+    "CanopyModule._on_stage_changed"
+  ],
+  "SubstrateAvailable": [
+    "MicrobialBiomassModule._on_substrate"
+  ],
+  "TillageApplied": [
+    "BioporesRuntime._on_tillage"
+  ],
+  "TranspirationByLayer": [
+    "NitrogenCycle._on_transpiration_by_layer"
+  ],
+  "WaterDrained": [
+    "NitrogenCycle._on_water_drained",
+    "PhosphorusCycle._on_water_drained"
+  ],
+  "WaterInfiltrated": [
+    "NitrogenCycle._on_infiltrated"
+  ],
+  "WaterStressComputed": [
+    "CanopyRuntime._on_water_stress"
+  ],
+  "WaterloggingDetected": [
+    "CanopyRuntime._on_waterlogging"
+  ]
+}

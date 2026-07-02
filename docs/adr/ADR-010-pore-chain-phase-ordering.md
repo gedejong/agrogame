@@ -60,7 +60,22 @@ Day 1 starts with a zero buffer, which is correct (no SOM has run yet).
 
 ### Subscription-order sensitivity
 
-Subscription order in `_wire_runtimes` is load-bearing because the EventBus dispatches in that order. The orchestrator's `_wire_runtimes` documents this with a comment block, and `tests/integration/test_realism.py::test_phase_ordering_matters` is the regression guard — it constructs a second orchestrator with `day_start` swapped to fire last via the `Calendar.tick(phases=...)` override and asserts the `pore_state.macro` pool diverges from the canonical run.
+Subscription order in `_wire_runtimes` is load-bearing because the EventBus dispatches in that order. `tests/integration/test_realism.py::test_phase_ordering_matters` is the regression guard — it constructs a second orchestrator with `day_start` swapped to fire last via the `Calendar.tick(phases=...)` override and asserts the `pore_state.macro` pool diverges from the canonical run.
+
+### Explicit subscription plan (#323)
+
+Originally the ordering lived only in the raw statement order of a single long `_wire_runtimes` block, enforced by a comment. #323 made it structural without changing behaviour: `_wire_runtimes` now iterates an ordered, named-group **subscription plan** returned by `FullSimulationOrchestrator._subscription_plan()`:
+
+```
+pore_chain  = [PoreNetworkRuntime, BioporesRuntime, GasDiffusionRuntime]   # ADR-010 invariant
+core        = [Water, Phenology, Roots, ET, Redox, Nitrogen, Micronutrient,
+               Phosphorus, SOM, Microbes, Aggregation, Canopy]
+bookkeeping = [BiomassAccumulated sub, CO2Respired sub]
+```
+
+Groups apply in list order and factories within a group in list order, so the `pore_chain` group necessarily subscribes before `core`. The invariant is enforced **in code** by `_assert_pore_chain_registered_first(plan)`, which raises `ValueError` if the pore-chain group is missing or does not precede the core group — converting a silently reordered/dropped subscription (which would corrupt the water/redox/N coupling with no exception) into a construction-time error.
+
+Module construction is likewise grouped into focused factories (`_build_plant_modules`, `_build_soil_state`, `_build_soil_modules`, `_build_pore_state`, `_build_pore_chain`) shared by both `__init__` and `reset_crop`, so the two paths build an identical module graph and subscription order rather than the pre-#323 partially-overlapping re-implementation. No new `Phase` was added (see Alternatives). The behaviour-neutrality of the refactor is pinned by `tests/test_orchestrator_wiring.py`, which asserts the per-event-type handler order (fresh `__init__` and post-`reset_crop`) matches a golden fixture captured from pre-#323 `main`.
 
 ### CO₂ buffer ownership
 
@@ -113,6 +128,7 @@ The issue suggested gating the whole pore chain behind a config flag, default OF
 ## References
 
 - Issue #284 — orchestrator wiring (parent)
+- Issue #323 — decompose orchestrator init/`_wire_runtimes` into factories + explicit subscription plan (this amendment)
 - Issue #290 / ADR-009 — biopore calibration (hard prerequisite, now merged)
 - Issue #211, #213, #215, #216, #217 — modules being wired
 - ADR-002 — multi-field architecture (Field → Patch → Orchestrator)
