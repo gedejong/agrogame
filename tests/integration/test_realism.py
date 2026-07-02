@@ -1091,3 +1091,69 @@ def test_soil_snapshot_backward_compat_pre_284() -> None:
     # Sanity: pore_state still has populated values from the orchestrator
     # `__init__` compute call.
     assert orch.pore_state.macro[0] >= 0.0
+
+
+# --- #330: shoot→root biomass allocation over a season ----------------------
+
+
+def _run_root_biomass_series(
+    crop_name: str,
+    climate_name: str,
+    start: date,
+    days: int = 150,
+    seed: int = 42,
+) -> list[tuple[float, float]]:
+    """Run a season, returning (root_biomass, shoot_biomass) g/m² per day."""
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+
+    crop = crops.get_preset(crop_name, climate_name)
+    climate = climates.climates[climate_name]
+    gen = SyntheticWeatherGenerator(climate, seed=seed)
+    series = gen.generate(days, start)
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    out: list[tuple[float, float]] = []
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        out.append((orch.root_state.biomass_g_m2, orch.canopy.state.biomass_g_m2))
+    return out
+
+
+def test_maize_root_biomass_grows_within_root_shoot_range() -> None:
+    """Root biomass accumulates and stays in a cereal root:shoot range (#330).
+
+    A crop-parameterised fraction of the daily canopy biomass increment is
+    allocated to root biomass (RootParams.root_allocation_fraction; maize
+    0.18). Root:shoot for cereals sits ~0.1-0.3 (DSSAT CERES-Maize seasonal
+    root:shoot; APSIM stage-dependent partitioning; WOFOST FR fraction-to-
+    roots, Boogaard et al. 2014). Turnover (0.005/day) trims standing root
+    mass slightly below the cumulative-allocation fraction.
+    """
+    series = _run_root_biomass_series(
+        "maize", "kenya_highlands", date(2024, 3, 1), days=150
+    )
+    mid_root, mid_shoot = series[74]  # ~mid-season
+    late_root, late_shoot = series[-1]  # late season
+
+    # Non-zero and growing over the season
+    assert mid_root > 0.0
+    assert late_root > mid_root
+
+    # Root:shoot within the defensible cereal range at mid- and late-season
+    mid_ratio = mid_root / mid_shoot
+    late_ratio = late_root / late_shoot
+    assert 0.1 <= mid_ratio <= 0.3, f"mid root:shoot {mid_ratio:.3f} out of range"
+    assert 0.1 <= late_ratio <= 0.3, f"late root:shoot {late_ratio:.3f} out of range"
