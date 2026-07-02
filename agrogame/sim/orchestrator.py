@@ -103,20 +103,24 @@ class SimulationOrchestrator:
         self.phenology.update_daily(
             tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=photoperiod_h
         )
-        _ = self.canopy.daily_step(
+        fx = self.canopy.daily_step(
             incident_par_mj_m2=par_mj_m2,
             temp_factor=temp_factor,
             water_stress=water_stress,
             n_stress=n_stress,
         )
-        # Simple demo: allocate a fraction of biomass to roots, update roots
-        # In a full coupling, we'd pass real nutrient signals and constraints
+        # Allocate a crop-parameterised fraction of today's canopy biomass
+        # increment to roots (#330). In a full coupling, we'd also pass real
+        # nutrient signals and constraints.
         stage = self.phenology.state.stage
+        daily_root = self.roots.params.root_allocation_fraction * max(
+            0.0, fx.biomass_increment_g_m2
+        )
         _ = self.roots.daily_step(
             state=self.root_state,
             profile=None,  # type: ignore[arg-type]
             stage=stage,
-            daily_root_biomass_g_m2=0.0,
+            daily_root_biomass_g_m2=daily_root,
             nutrient_signal=None,
             constraints=None,
         )
@@ -307,6 +311,10 @@ class FullSimulationOrchestrator:
         # Track last biomass increment for dynamic N/P demand (DSSAT approach:
         # today's demand = yesterday's growth × tissue concentration).
         self._last_biomass_inc_g_m2: float = 0.0
+        # Pending above-ground biomass increment awaiting shoot→root
+        # allocation (#330). Accumulated as canopy emits BiomassAccumulated,
+        # drained by RootsRuntime on the plant_structure phase.
+        self._pending_root_canopy_inc_g_m2: float = 0.0
 
         # Crop parameters (use preset or defaults)
         phen_params = crop.phenology if crop else _default_phen_params()
@@ -447,6 +455,7 @@ class FullSimulationOrchestrator:
             profile_view,
             self.phenology,
             agg_state=self.agg_state,
+            canopy_increment_provider=self._consume_root_canopy_increment,
         )
         # Cast at the orchestrator boundary: ETRuntime's fields are
         # ports.py Protocols (#300, ADR-008), so the concrete soil/plant
@@ -655,6 +664,7 @@ class FullSimulationOrchestrator:
         self._current_crop = new_crop
         self._day_counter = 0
         self._last_biomass_inc_g_m2 = 0.0
+        self._pending_root_canopy_inc_g_m2 = 0.0
         # Capture soil state
         soil = self.snapshot_soil()
 
@@ -709,7 +719,20 @@ class FullSimulationOrchestrator:
         self._wire_runtimes()
 
     def _on_biomass_accumulated(self, ev: Any) -> None:
-        self._last_biomass_inc_g_m2 = float(ev.increment_g_m2)
+        inc = float(ev.increment_g_m2)
+        self._last_biomass_inc_g_m2 = inc
+        # Accumulate for shoot→root allocation (#330); drained by RootsRuntime.
+        self._pending_root_canopy_inc_g_m2 += inc
+
+    def _consume_root_canopy_increment(self) -> float:
+        """Return the pending canopy biomass increment and reset it (#330).
+
+        Injected into RootsRuntime as its ``canopy_increment_provider`` port
+        so the plant package needs no import of ``soil.canopy``.
+        """
+        inc = self._pending_root_canopy_inc_g_m2
+        self._pending_root_canopy_inc_g_m2 = 0.0
+        return inc
 
     def _on_co2_respired(self, ev: Any) -> None:
         """Accumulate per-layer CO₂ for the gas-diffusion supplier (#284)."""

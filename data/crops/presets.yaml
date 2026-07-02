@@ -54,6 +54,7 @@ crops:
       max_depth_cm: 150.0
       growth_rate_cm_per_day: 2.0
       distribution: exponential
+      root_allocation_fraction: 0.18   # CERES-Maize seasonal root:shoot
 
   winter_wheat:
     name: "Winter Wheat (Triticum aestivum)"
@@ -99,6 +100,7 @@ crops:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
       distribution: exponential
+      root_allocation_fraction: 0.22   # APSIM-Wheat root:shoot
 
   spring_wheat:
     name: "Spring Wheat (Triticum aestivum)"
@@ -135,6 +137,7 @@ crops:
       max_depth_cm: 100.0      # shallower than winter wheat
       growth_rate_cm_per_day: 1.5
       distribution: exponential
+      root_allocation_fraction: 0.22   # APSIM-Wheat root:shoot
 
   rice:
     name: "Rice (Oryza sativa)"
@@ -172,6 +175,7 @@ crops:
       max_depth_cm: 60.0       # shallow-rooted
       growth_rate_cm_per_day: 1.0
       distribution: uniform
+      root_allocation_fraction: 0.15   # CERES-Rice (lowland, low root:shoot)
 
   sorghum:
     name: "Sorghum (Sorghum bicolor)"
@@ -208,6 +212,7 @@ crops:
       max_depth_cm: 180.0      # deep-rooted, drought-adapted
       growth_rate_cm_per_day: 2.5
       distribution: exponential
+      root_allocation_fraction: 0.25   # drought-adapted, high root investment
 
   soybean:
     name: "Soybean (Glycine max)"
@@ -245,6 +250,7 @@ crops:
       max_depth_cm: 120.0
       growth_rate_cm_per_day: 1.5
       distribution: exponential
+      root_allocation_fraction: 0.20   # legume, N-fixing nodulated roots
 
   grape:
     name: "Grape (Vitis vinifera)"
@@ -280,3 +286,4 @@ crops:
       max_depth_cm: 200.0      # very deep-rooted perennial
       growth_rate_cm_per_day: 0.8
       distribution: exponential
+      root_allocation_fraction: 0.30   # perennial vine, high root investment
