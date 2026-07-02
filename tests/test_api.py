@@ -885,7 +885,7 @@ def test_step_response_includes_microbial_biology(client) -> None:
 
 
 def test_step_response_includes_pore_network(client) -> None:
-    """Soil state exposes per-layer pore fractions + tortuosity (#274)."""
+    """Soil state exposes per-layer pore fractions + connectivity (#274)."""
     game_id = _create_game(client)
     resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
     assert resp.status_code == 200
@@ -896,15 +896,15 @@ def test_step_response_includes_pore_network(client) -> None:
         "pore_meso_frac",
         "pore_micro_frac",
         "pore_crypto_frac",
-        "tortuosity",
+        "pore_connectivity",
     ):
         assert key in soil, f"{key} missing from soil_state"
         assert isinstance(soil[key], list)
         assert len(soil[key]) > 0
         assert all(v >= 0.0 for v in soil[key])
 
-    # Tortuosity/connectivity index is bounded 0..1.
-    assert all(0.0 <= t <= 1.0 for t in soil["tortuosity"])
+    # Connectivity index is bounded 0..1.
+    assert all(0.0 <= t <= 1.0 for t in soil["pore_connectivity"])
 
     # Pore fractions sum to total porosity per layer (Greenland 1977).
     n = len(soil["pore_macro_frac"])

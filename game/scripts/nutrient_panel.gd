@@ -479,9 +479,13 @@ static func _stress_color(key: String, val: float, opt_min: float, opt_max: floa
 
 
 func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
-	## Root vs stem biomass split (g/m²) with a two-tone proportion bar (#317).
+	## Plant biomass (g/m²) proportion bar (#317).
+	## The root portion is only drawn once root biomass is actually reported; the
+	## orchestrator currently supplies root_g_m2 == 0 (tracked in #330), so until
+	## then we render stem-only rather than ship a visibly-wrong "R 0" split.
 	var root_g: float = biomass.get("root_g_m2", 0.0)
 	var stem_g: float = biomass.get("stem_g_m2", 0.0)
+	var has_root: bool = root_g > 0.0
 	var total: float = maxf(root_g + stem_g, 0.001)
 
 	var caption := Label.new()
@@ -494,9 +498,16 @@ func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
-	row.tooltip_text = (
-		"Root vs stem biomass allocation.\n" + "Root: %.0f g/m²  Stem: %.0f g/m²" % [root_g, stem_g]
-	)
+	if has_root:
+		row.tooltip_text = (
+			"Root vs stem biomass allocation.\n"
+			+ "Root: %.0f g/m²  Stem: %.0f g/m²" % [root_g, stem_g]
+		)
+	else:
+		row.tooltip_text = (
+			"Stem biomass: %.0f g/m².\n" % stem_g
+			+ "Root biomass not yet reported by the engine (#330)."
+		)
 
 	var track_w := 120
 	var track_h := 12
@@ -507,12 +518,13 @@ func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
 	track.size = Vector2(track_w, track_h)
 	bar_bg.add_child(track)
 
-	var root_frac: float = clampf(root_g / total, 0.0, 1.0)
-	var root_rect := ColorRect.new()
-	root_rect.color = UiTheme.SUBSTANCE_CARBON
-	root_rect.position = Vector2(0, 0)
-	root_rect.size = Vector2(root_frac * track_w, track_h)
-	bar_bg.add_child(root_rect)
+	var root_frac: float = clampf(root_g / total, 0.0, 1.0) if has_root else 0.0
+	if has_root:
+		var root_rect := ColorRect.new()
+		root_rect.color = UiTheme.SUBSTANCE_CARBON
+		root_rect.position = Vector2(0, 0)
+		root_rect.size = Vector2(root_frac * track_w, track_h)
+		bar_bg.add_child(root_rect)
 
 	var stem_rect := ColorRect.new()
 	stem_rect.color = UiTheme.ACCENT_GREEN
@@ -522,7 +534,10 @@ func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
 	row.add_child(bar_bg)
 
 	var lbl := Label.new()
-	lbl.text = "R %.0f / S %.0f g/m²" % [root_g, stem_g]
+	if has_root:
+		lbl.text = "R %.0f / S %.0f g/m²" % [root_g, stem_g]
+	else:
+		lbl.text = "Stem %.0f g/m²" % stem_g
 	lbl.add_theme_font_size_override("font_size", 9)
 	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	row.add_child(lbl)

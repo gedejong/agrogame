@@ -6,8 +6,12 @@ import json
 import os
 import uuid
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, HTTPException
+
+if TYPE_CHECKING:
+    from agrogame.sim.orchestrator import SoilSnapshot
 
 from agrogame.api.models import (
     ActionRequest,
@@ -78,6 +82,79 @@ def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
     return ksat_mm_day, porosity
 
 
+def _dynamic_ksat_mm_day(patch: Patch) -> list[float]:
+    """Per-layer dynamic ksat (mm/day) only — avoids computing porosity when unused."""
+    from agrogame.soil.aggregation.dynamic_state import effective_ksat_factor
+
+    macro = list(patch.orch.agg_state.macro)
+    ksat_mm_day: list[float] = []
+    for i, layer in enumerate(patch.orch.profile.layers):
+        macro_frac = macro[i] if i < len(macro) else 0.0
+        base_ksat_day = layer.ksat_mm_per_hour * 24.0
+        ksat_mm_day.append(round(base_ksat_day * effective_ksat_factor(macro_frac), 2))
+    return ksat_mm_day
+
+
+def _micronutrient_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer micronutrient availability (#274)."""
+    return {
+        "fe_available": (
+            [round(v, 2) for v in snap.micro_fe_avail] if snap.micro_fe_avail else []
+        ),
+        "zn_available": (
+            [round(v, 3) for v in snap.micro_zn_avail] if snap.micro_zn_avail else []
+        ),
+        "mn_available": (
+            [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
+        ),
+    }
+
+
+def _aggregate_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer aggregate fractions + mean weight diameter (#253)."""
+    return {
+        "agg_macro": [round(v, 4) for v in snap.agg_macro] if snap.agg_macro else [],
+        "agg_meso": [round(v, 4) for v in snap.agg_meso] if snap.agg_meso else [],
+        "agg_micro": [round(v, 4) for v in snap.agg_micro] if snap.agg_micro else [],
+        "agg_mwd": (
+            [
+                round(
+                    snap.agg_micro[i] * 0.01
+                    + snap.agg_meso[i] * 0.135
+                    + snap.agg_macro[i] * 2.0,
+                    3,
+                )
+                for i in range(len(snap.agg_macro))
+            ]
+            if snap.agg_macro
+            else []
+        ),
+    }
+
+
+def _biology_fields(snap: SoilSnapshot) -> dict:
+    """Per-layer microbial N + fungal fraction (#317)."""
+    return {
+        "microbe_n": [round(v, 3) for v in snap.microbe_n] if snap.microbe_n else [],
+        "fungal_fraction": (
+            [round(v, 4) for v in snap.microbe_fungal_fraction]
+            if snap.microbe_fungal_fraction
+            else []
+        ),
+    }
+
+
+def _pore_fields(pore: dict) -> dict:
+    """Per-layer pore-network volume fractions + connectivity index (#274)."""
+    return {
+        "pore_macro_frac": [round(v, 4) for v in pore.get("macro", [])],
+        "pore_meso_frac": [round(v, 4) for v in pore.get("meso", [])],
+        "pore_micro_frac": [round(v, 4) for v in pore.get("micro", [])],
+        "pore_crypto_frac": [round(v, 4) for v in pore.get("crypto", [])],
+        "pore_connectivity": [round(v, 4) for v in pore.get("connectivity", [])],
+    }
+
+
 def _build_soil_state(patch: Patch) -> SoilStateResponse:
     """Build SoilStateResponse from a patch's current soil snapshot."""
     snap = patch.orch.snapshot_soil()
@@ -85,7 +162,6 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
     )
     redox_eh = list(snap.redox_eh) if snap.redox_eh else []
-    pore = snap.pore_network or {}
     ksat_mm_day, porosity = _dynamic_soil_properties(patch)
     root_state = patch.orch.root_state
     root_fracs = list(root_state.layer_fractions) if root_state.layer_fractions else []
@@ -104,42 +180,10 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         microbe_c=list(snap.microbe_c),
         redox_eh=[round(e, 1) for e in redox_eh],
         dominant_acceptor=redox_acceptors,
-        fe_available=(
-            [round(v, 2) for v in snap.micro_fe_avail] if snap.micro_fe_avail else []
-        ),
-        zn_available=(
-            [round(v, 3) for v in snap.micro_zn_avail] if snap.micro_zn_avail else []
-        ),
-        mn_available=(
-            [round(v, 2) for v in snap.micro_mn_avail] if snap.micro_mn_avail else []
-        ),
-        agg_macro=([round(v, 4) for v in snap.agg_macro] if snap.agg_macro else []),
-        agg_meso=([round(v, 4) for v in snap.agg_meso] if snap.agg_meso else []),
-        agg_micro=([round(v, 4) for v in snap.agg_micro] if snap.agg_micro else []),
-        agg_mwd=(
-            [
-                round(
-                    snap.agg_micro[i] * 0.01
-                    + snap.agg_meso[i] * 0.135
-                    + snap.agg_macro[i] * 2.0,
-                    3,
-                )
-                for i in range(len(snap.agg_macro))
-            ]
-            if snap.agg_macro
-            else []
-        ),
-        microbe_n=[round(v, 3) for v in snap.microbe_n] if snap.microbe_n else [],
-        fungal_fraction=(
-            [round(v, 4) for v in snap.microbe_fungal_fraction]
-            if snap.microbe_fungal_fraction
-            else []
-        ),
-        pore_macro_frac=[round(v, 4) for v in pore.get("macro", [])],
-        pore_meso_frac=[round(v, 4) for v in pore.get("meso", [])],
-        pore_micro_frac=[round(v, 4) for v in pore.get("micro", [])],
-        pore_crypto_frac=[round(v, 4) for v in pore.get("crypto", [])],
-        tortuosity=[round(v, 4) for v in pore.get("connectivity", [])],
+        **_micronutrient_fields(snap),
+        **_aggregate_fields(snap),
+        **_biology_fields(snap),
+        **_pore_fields(snap.pore_network or {}),
         ksat_mm_day=ksat_mm_day,
         porosity=porosity,
         root_biomass_g_m2=round(root_state.biomass_g_m2, 2),
@@ -570,7 +614,7 @@ def _build_daily_snapshot(
     n_total = sum(snap.n_no3) + sum(snap.n_nh4)
     theta_top = snap.water_theta[0] if snap.water_theta else 0.0
     pore_macro = (snap.pore_network or {}).get("macro", [])
-    ksat_day, _porosity = _dynamic_soil_properties(p)
+    ksat_day = _dynamic_ksat_mm_day(p)
     return DailySnapshot(
         day_number=day_num,
         date=day_date,

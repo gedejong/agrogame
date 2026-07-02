@@ -27,6 +27,19 @@ func test_biomass_row_renders() -> void:
 	assert_eq(panel._layer_bodies.size(), 1, "Layer body still built with biomass")
 
 
+func test_biomass_row_stem_only_when_root_zero() -> void:
+	# #330: engine reports root_g_m2 == 0, so the split renders stem-only
+	# (no visibly-wrong "R 0" bar) until root biomass is wired through.
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-20cm", "values": {}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers, {"root_g_m2": 0.0, "stem_g_m2": 80.0})
+	assert_eq(panel._layer_bodies.size(), 1, "Layer body still built with stem-only biomass")
+
+
 func test_nutrient_bars_have_icon() -> void:
 	for key: String in NutrientPanel.NUTRIENT_BARS:
 		var cfg: Dictionary = NutrientPanel.NUTRIENT_BARS[key]

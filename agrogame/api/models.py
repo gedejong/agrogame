@@ -116,9 +116,13 @@ class SoilStateResponse(BaseModel):
     pore_crypto_frac: list[float] = Field(
         default_factory=list, description="Cryptopore fraction per layer (<0.2 µm)"
     )
-    tortuosity: list[float] = Field(
+    pore_connectivity: list[float] = Field(
         default_factory=list,
-        description="Pore-network connectivity/tortuosity index per layer (0..1)",
+        description=(
+            "Pore-network connectivity index per layer (0..1): macropore volume "
+            "over total porosity. Higher = better-connected pore space. This is a "
+            "connectivity measure, not tortuosity (which is >=1 and inversely related)."
+        ),
     )
 
     # Dynamic soil properties from aggregation (#253)
@@ -127,7 +131,12 @@ class SoilStateResponse(BaseModel):
         description="Dynamic saturated hydraulic conductivity per layer (mm/day)",
     )
     porosity: list[float] = Field(
-        default_factory=list, description="Dynamic total porosity per layer (0..1)"
+        default_factory=list,
+        description=(
+            "Dynamic total porosity per layer (0..1). This is a macro-shift "
+            "approximation (clamped ~0.30–0.60 from effective_porosity), distinct "
+            "from the pore_*_frac breakdown, which sums to the layer saturation."
+        ),
     )
 
     # Plant biomass surfaced alongside soil for the 3D/biology view (#317)
