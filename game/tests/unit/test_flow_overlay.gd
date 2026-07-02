@@ -194,12 +194,15 @@ func test_multiple_nutrient_events_aggregate() -> void:
 	for tube in overlay._tubes:
 		if tube is FlowTube and tube._label:
 			labels.append(tube._label.text)
+	# Aggregated uptake = 0.3 + 0.4 = 0.7 kg/ha, formatted in the active
+	# display unit (default g/m² -> "0.07"). Confirms summing, not single events.
+	var expected := UiTheme.format_mass(0.7)
 	var found := false
 	for lbl: String in labels:
-		if lbl.contains("N Assimilation") and lbl.contains("0.70"):
+		if lbl.contains("N Assimilation") and lbl.contains(expected):
 			found = true
 			break
-	assert_true(found, "Multiple N events should aggregate to 0.70 kg/ha")
+	assert_true(found, "Multiple N events should aggregate to 0.7 kg/ha (%s)" % expected)
 
 
 func test_rain_connector_added_for_heavy_rain() -> void:
@@ -302,13 +305,14 @@ func test_invalid_filter_rejected() -> void:
 
 
 func test_nutrient_panel_emits_signals() -> void:
+	var empty_layers: Array[Dictionary] = []
 	# Filter signal
 	var panel := PanelContainer.new()
 	panel.set_script(NutrientPanelRef)
 	add_child_autofree(panel)
 	var received: Array = []
 	panel.flow_filter_changed.connect(func(f: String) -> void: received.append(f))
-	panel.show_layers([])
+	panel.show_layers(empty_layers)
 	panel._on_filter_btn("nitrogen")
 	assert_eq(received, ["nitrogen"], "Should emit filter signal")
 	# Toggle signal
@@ -317,7 +321,7 @@ func test_nutrient_panel_emits_signals() -> void:
 	add_child_autofree(panel2)
 	var toggled: Array = []
 	panel2.flow_toggle_changed.connect(func(v: bool) -> void: toggled.append(v))
-	panel2.show_layers([])
+	panel2.show_layers(empty_layers)
 	panel2._on_toggle_btn()
 	assert_eq(toggled, [false], "First toggle should emit false")
 	panel2._on_toggle_btn()

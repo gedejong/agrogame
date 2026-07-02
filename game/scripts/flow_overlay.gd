@@ -603,8 +603,12 @@ func _events_to_configs(events: Array) -> Array[Dictionary]:
 		var tube_cfg := _build_tube_config(ecfg, agg_data[key], total_mag, fx_a, fx_s, fz + z_off)
 		if not tube_cfg.is_empty():
 			configs.append(tube_cfg)
-	# Rain connector
-	var rain_total: float = agg.get("WaterInfiltrated", 0.0)
+	# Rain connector. WaterInfiltrated is a "down" event, so its aggregate
+	# is keyed per layer ("WaterInfiltrated_L<idx>"); sum across layers.
+	var rain_total := 0.0
+	for rain_key: String in agg:
+		if rain_key.begins_with("WaterInfiltrated"):
+			rain_total += agg[rain_key]
 	if rain_total > RAIN_CONNECTOR_MM:
 		var rain_mag: float = clampf(rain_total / 15.0, 0.1, 1.0)
 		(
