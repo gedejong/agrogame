@@ -85,17 +85,35 @@ class AggregationModule:
         intensity: float,
         layer_depths_cm: list[float] | None = None,
     ) -> None:
-        """Apply tillage disturbance to plow-depth layers only.
+        """Apply tillage disturbance, pro-rated by plow-zone overlap.
 
-        Destroys macroaggregates proportional to intensity (0–1).
-        Destroyed macro redistributes to meso (70%) and micro (30%).
-        Only affects layers within plow depth (scales with intensity).
+        Destroys macroaggregates proportional to intensity (0–1). Destroyed
+        macro redistributes to meso (70%) and micro (30%). The plow zone
+        extends from the surface to ``plow_depth_cm × intensity`` (light
+        tillage reaches shallower). Each layer's destruction is scaled by
+        the fraction of its thickness that lies within the plow zone::
 
-        Ref: Six et al. 2000, SSSAJ — tillage destroys 30–70% of macroaggregates.
+            overlap_frac = max(0, min(plow_depth, layer_bottom) - layer_top)
+                           / layer_thickness
+            layer_destruction = destruction_frac × overlap_frac
+
+        So a layer wholly inside the plow zone gets full destruction, a layer
+        wholly below it is untouched, and a layer straddling the plow line is
+        destroyed in proportion to its overlap. This matches
+        ``BioporeModule.apply_tillage`` (#215) — both modules treat tillage
+        depth identically, so a single moldboard pass no longer over-destroys
+        the subsoil portion of a straddling layer.
+
+        Ref: Six et al. 2000, SSSAJ — tillage destroys 30–70% of
+             macroaggregates in the plow layer.
+             Shipitalo & Butt 1999 — disturbance intensity declines with depth.
+             Six et al. 2000 — deep aggregates persist longer than a uniform
+             plow-layer model implies.
 
         Args:
             intensity: Tillage intensity (0.0 = no-till, 1.0 = moldboard plow).
-            layer_depths_cm: Per-layer thickness. If None, all layers affected.
+            layer_depths_cm: Per-layer thickness (cm). If None, every layer
+                receives full destruction (no depth information to pro-rate).
         """
         import math
 
@@ -116,14 +134,22 @@ class AggregationModule:
         # Plow depth scales with intensity (light tillage = shallower)
         plow_depth = p.plow_depth_cm * intensity
         n = len(self.state.micro)
-        cumulative_depth = 0.0
+        cumulative_depth_cm = 0.0
         for i in range(n):
-            # Only affect layers within plow depth
+            overlap_frac = 1.0
             if layer_depths_cm is not None and i < len(layer_depths_cm):
-                cumulative_depth += layer_depths_cm[i]
-                if cumulative_depth - layer_depths_cm[i] >= plow_depth:
+                layer_top_cm = cumulative_depth_cm
+                layer_thickness_cm = layer_depths_cm[i]
+                layer_bottom_cm = layer_top_cm + layer_thickness_cm
+                cumulative_depth_cm = layer_bottom_cm
+                # Layers entirely below the plow zone are untouched.
+                if layer_top_cm >= plow_depth:
                     break
-            macro_lost = self.state.macro[i] * destruction_frac
+                # Pro-rate by the share of the layer inside the plow zone.
+                overlap_cm = max(0.0, min(plow_depth, layer_bottom_cm) - layer_top_cm)
+                overlap_frac = overlap_cm / max(layer_thickness_cm, 1e-9)
+
+            macro_lost = self.state.macro[i] * destruction_frac * overlap_frac
             # Redistribute: 70% → meso, 30% → micro
             # Ref: Six et al. 2004 — breakdown products are mostly meso-sized
             self.state.macro[i] -= macro_lost
