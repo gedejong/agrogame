@@ -847,3 +847,101 @@ def test_tillage_reduces_macro(client) -> None:
             + soil_after["agg_micro"][i]
         )
         assert abs(total - 1.0) < 0.01, f"Layer {i} fractions sum to {total}"
+
+
+# ---------------------------------------------------------------------------
+# AC (#318): action cost preview + soil/crop forecast
+# ---------------------------------------------------------------------------
+def test_preview_action_returns_cost(client) -> None:
+    """POST /action/preview returns cost + affordability without executing."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    balance_before = client.get(f"/api/v1/games/{game_id}/status").json()[
+        "balance_credits"
+    ]
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action/preview",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 20}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["action"] == "irrigate"
+    assert data["cost_credits"] > 0
+    assert data["affordable"] is True
+    # Preview must NOT deduct credits.
+    balance_after = client.get(f"/api/v1/games/{game_id}/status").json()[
+        "balance_credits"
+    ]
+    assert balance_after == balance_before
+
+
+def test_preview_action_unaffordable_flag(client) -> None:
+    """Preview flags actions that exceed the balance as not affordable."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action/preview",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 100000}},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["affordable"] is False
+    assert data["cost_credits"] > data["balance_credits"]
+
+
+def test_preview_action_unknown_action_rejected(client) -> None:
+    game_id = _create_game(client)
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action/preview",
+        json={"field_id": "f1", "action": "nonsense", "params": {}},
+    )
+    assert resp.status_code == 400
+
+
+def test_preview_action_unknown_field_rejected(client) -> None:
+    game_id = _create_game(client)
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action/preview",
+        json={"field_id": "nope", "action": "irrigate", "params": {}},
+    )
+    assert resp.status_code == 404
+
+
+def test_preview_cost_matches_executed_cost(client) -> None:
+    """Contract test (AC4): preview cost == executed /action cost, per action."""
+    cases = [
+        ("irrigate", {"amount_mm": 15}),
+        ("fertilize", {"type": "urea", "amount_kg_ha": 40}),
+        ("tillage", {"intensity": 0.5}),
+        ("plant", {"crop_key": "maize", "patch_idx": 0}),
+        ("harvest", {}),
+    ]
+    for action, params in cases:
+        game_id = _create_game(client)
+        client.post(f"/api/v1/games/{game_id}/step?seed=42")
+        preview = client.post(
+            f"/api/v1/games/{game_id}/action/preview",
+            json={"field_id": "f1", "action": action, "params": params},
+        ).json()
+        executed = client.post(
+            f"/api/v1/games/{game_id}/action",
+            json={"field_id": "f1", "action": action, "params": params},
+        ).json()
+        assert (
+            preview["cost_credits"] == executed["cost_credits"]
+        ), f"{action}: preview {preview} != executed {executed}"
+
+
+def test_forecast_includes_soil_projection(client) -> None:
+    """GET /forecast projects water-stress and mineral-N, not just weather."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    resp = client.get(f"/api/v1/games/{game_id}/forecast?seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["forecast"]) == 5
+    for day in data["forecast"]:
+        assert "water_stress" in day
+        assert "mineral_n_kg_ha" in day
+        assert 0.0 <= day["water_stress"] <= 1.0
+        assert day["mineral_n_kg_ha"] >= 0.0

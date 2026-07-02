@@ -1,10 +1,16 @@
 extends VBoxContainer
-## 5-day weather forecast panel with SVG weather icons.
+## 5-day forecast panel: weather plus projected water-stress and mineral-N
+## decision-support trend lines (#318).
 
 const ICON_SIZE := 16
 const ICON_SUN := "res://assets/icons/icon_sun.svg"
 const ICON_CLOUD := "res://assets/icons/icon_cloud.svg"
 const ICON_RAIN := "res://assets/icons/icon_rain.svg"
+
+## Ks below this projected value flags a water-stress risk (amber/red text).
+const WATER_STRESS_WARN := 0.6
+## Projected mineral N (kg/ha) below this flags an N-shortfall risk.
+const MINERAL_N_WARN_KG_HA := 30.0
 
 var _days: Array = []
 
@@ -32,7 +38,7 @@ func _rebuild_display() -> void:
 	add_child(bg)
 
 	var header := Label.new()
-	header.text = "5-Day Forecast"
+	header.text = "5-Day Outlook"
 	header.uppercase = true
 	header.add_theme_font_size_override("font_size", 12)
 	header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
@@ -58,7 +64,7 @@ func _rebuild_display() -> void:
 		icon.modulate = UiTheme.ICON_TINT
 		row.add_child(icon)
 
-		# Text
+		# Weather text
 		var label := Label.new()
 		label.text = (
 			"%s %.0f\u2013%.0f\u00b0C %.1fmm"
@@ -73,4 +79,20 @@ func _rebuild_display() -> void:
 		label.add_theme_color_override("font_color", UiTheme.BODY_COLOR)
 		row.add_child(label)
 
+		# Soil/crop projection: water-stress + mineral-N trend (#318)
+		var soil := Label.new()
+		var water_stress: float = day.get("water_stress", 1.0)
+		var mineral_n: float = day.get("mineral_n_kg_ha", 0.0)
+		soil.text = "\u2022 W%.0f%% N%.0f" % [water_stress * 100.0, mineral_n]
+		soil.add_theme_font_size_override("font_size", 10)
+		soil.add_theme_color_override("font_color", _projection_color(water_stress, mineral_n))
+		row.add_child(soil)
+
 		content.add_child(row)
+
+
+func _projection_color(water_stress: float, mineral_n: float) -> Color:
+	## Amber/red when the projection crosses a water- or N-shortfall threshold.
+	if water_stress < WATER_STRESS_WARN or mineral_n < MINERAL_N_WARN_KG_HA:
+		return UiTheme.ACCENT_RED
+	return UiTheme.ACCENT_GREEN

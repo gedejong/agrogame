@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 
 from agrogame.api.models import (
+    ActionPreviewResponse,
     ActionRequest,
     ActionResponse,
     CostBreakdown,
@@ -30,6 +31,11 @@ from agrogame.api.models import (
     ReviseRequest,
     SeasonResultResponse,
     SoilStateResponse,
+)
+from agrogame.api.forecast import (
+    project_soil_forecast,
+    root_zone_mineral_n_kg_ha,
+    root_zone_water_mm,
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
@@ -722,24 +728,90 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     )
 
 
+@router.post("/games/{game_id}/action/preview", response_model=ActionPreviewResponse)
+def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
+    """Preview an action's cost without executing it (#318).
+
+    Uses the same ``_compute_action_cost`` as ``/action`` so the frontend
+    cost preview cannot drift from the ledger deduction (single source of
+    truth). Returns whether the current balance covers the cost.
+    """
+    s = _get_session(game_id)
+    if req.field_id not in s.field_manager.fields:
+        raise HTTPException(404, f"Field {req.field_id} not found")
+    if req.action not in _VALID_ACTIONS:
+        raise HTTPException(400, f"Unknown action: {req.action}")
+
+    prices = PriceTable.load()
+    cost = _compute_action_cost(req.action, req.params, prices)
+    return ActionPreviewResponse(
+        action=req.action,
+        cost_credits=cost,
+        balance_credits=s.ledger.balance_credits,
+        affordable=s.ledger.balance_credits >= cost,
+    )
+
+
+def _projection_inputs(patch: Patch) -> tuple[float, float, float, float]:
+    """Extract (available_water_mm, TAW_mm, mineral_N_kg_ha, lai) for a patch."""
+    snap = patch.orch.snapshot_soil()
+    layers = patch.orch.profile.layers
+    depths = [ly.depth_cm for ly in layers]
+    root_depth = patch.orch.root_state.current_depth_cm
+    available, taw = root_zone_water_mm(
+        list(snap.water_theta),
+        depths,
+        [ly.field_capacity for ly in layers],
+        [ly.wilting_point for ly in layers],
+        root_depth,
+    )
+    mineral_n = root_zone_mineral_n_kg_ha(
+        list(snap.n_no3), list(snap.n_nh4), depths, root_depth
+    )
+    return available, taw, mineral_n, patch.orch.canopy.state.lai
+
+
 @router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
 def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastResponse:
-    """Peek ahead in the weather series for the next N days."""
+    """Peek ahead: weather plus projected water-stress and mineral-N (#318).
+
+    The soil/crop trajectory is a lightweight decision-support projection
+    (see ``agrogame.api.forecast``) anchored on the first field's first
+    patch, advanced day-by-day over the forecast weather.
+    """
     s = _get_session(game_id)
     _ensure_weather(s, seed)
 
+    end = min(s.day_index + days, len(s.weather))
+    window = s.weather[s.day_index : end]
+
+    first_field = next(iter(s.field_manager.fields.values()))
+    available, taw, mineral_n, lai = _projection_inputs(first_field.patches[0])
+    projection = project_soil_forecast(
+        available_water_mm=available,
+        total_available_water_mm=taw,
+        mineral_n_kg_ha=mineral_n,
+        lai=lai,
+        weather=[
+            (
+                (rec.tmin_c + rec.tmax_c) / 2.0,
+                rec.shortwave_mj_m2 or 12.0,
+                rec.precip_mm or 0.0,
+            )
+            for rec in window
+        ],
+    )
+
     forecast: list[ForecastDayResponse] = []
-    for i in range(days):
-        idx = s.day_index + i
-        if idx >= len(s.weather):
-            break
-        rec = s.weather[idx]
+    for rec, point in zip(window, projection, strict=True):
         forecast.append(
             ForecastDayResponse(
                 date=rec.day.isoformat() if rec.day else "",
                 tmin_c=round(rec.tmin_c, 1),
                 tmax_c=round(rec.tmax_c, 1),
                 rain_mm=round(rec.precip_mm or 0.0, 1),
+                water_stress=point.water_stress,
+                mineral_n_kg_ha=point.mineral_n_kg_ha,
             )
         )
     return ForecastResponse(current_day=s.day_index, forecast=forecast)

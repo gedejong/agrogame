@@ -229,11 +229,35 @@ class ActionResponse(BaseModel):
     day_number: int
 
 
+class ActionPreviewResponse(BaseModel):
+    """Cost preview for an action, computed from the same source as /action.
+
+    Lets the frontend show the credit cost before execution and block
+    unaffordable actions, staying in sync with the backend cost (#318).
+    """
+
+    action: str
+    cost_credits: int = Field(description="Estimated cost (credits)")
+    balance_credits: int = Field(description="Current ledger balance (credits)")
+    affordable: bool = Field(description="True when balance covers the cost")
+
+
 class ForecastDayResponse(BaseModel):
     date: str
     tmin_c: float
     tmax_c: float
     rain_mm: float
+    # Projected soil/crop decision-support trajectory (#318). Defaults keep
+    # older clients that only read weather fields backward-compatible.
+    water_stress: float = Field(
+        default=1.0,
+        description="Projected FAO-56 water-stress coefficient"
+        " (1.0 = none, 0.0 = severe)",
+    )
+    mineral_n_kg_ha: float = Field(
+        default=0.0,
+        description="Projected root-zone mineral N (NO3 + NH4), kg/ha",
+    )
 
 
 class ForecastResponse(BaseModel):
