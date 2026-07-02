@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.plant.events import NutrientStressComputed
+from agrogame.soil.nutrients import EnvironmentalCache
 from agrogame.soil.micronutrients.constants import (
     PH_AVAIL_FE,
     PH_AVAIL_MN,
@@ -49,23 +50,25 @@ class MicronutrientCycle:
         self.state = state
         self.params = params
         self._n_layers = n_layers
-        self._ph_by_layer: list[float] = [6.8] * n_layers
+        # Shared per-layer environmental cache (#322). Micronutrients only
+        # need the pH signal (default 6.8); it does not consume root
+        # fractions or microbe signals, so those handlers are not
+        # subscribed. ``_ph_by_layer`` aliases the cache's list so existing
+        # readers (and test hooks) keep working via in-place mutation.
+        self._env = EnvironmentalCache(
+            event_bus,
+            n_layers,
+            initial_ph=6.8,
+            subscribe_roots=False,
+            subscribe_microbes=False,
+        )
+        self._ph_by_layer: list[float] = self._env.ph_by_layer
         self._som_c_by_layer: list[float] = [0.0] * n_layers
         # Last Eh per layer, used by _update_availability to skip the
         # aerobic-equilibrium pullback while the layer is in reducing
         # conditions (otherwise daily_step would fight apply_redox_adjustment).
         # Default 400 mV = fully aerobic, matches RedoxState initial value.
         self._last_eh_by_layer: list[float] = [400.0] * n_layers
-        # Subscribe to pH updates
-        from agrogame.soil.chemistry.events import SoilPHUpdated
-
-        event_bus.subscribe(SoilPHUpdated, self._on_ph_updated)
-
-    def _on_ph_updated(self, ev: object) -> None:
-        layer = getattr(ev, "layer", None)
-        ph = getattr(ev, "ph", None)
-        if layer is not None and ph is not None and layer < self._n_layers:
-            self._ph_by_layer[layer] = float(ph)
 
     def set_som_c(self, som_c_by_layer: list[float]) -> None:
         """Update SOM carbon for complexation calculation."""
