@@ -83,27 +83,39 @@ def test_frost_severity_proportional() -> None:
 
 
 def test_heat_during_flowering_reduces_grain() -> None:
-    """Heat wave (tmax > 35C) during flowering should reduce grain yield."""
-    # Use spring wheat with lower heat threshold (32C) and shorter cycle
+    """Heat wave during the anthesis window cuts grain via floret fertility.
+
+    Under the sink-source grain model (#321), heat around anthesis crushes
+    the assimilate source that sets grain NUMBER (the sensitive variable;
+    Fischer 1985). Total grain also falls, though it is partly buffered by
+    kernel-weight compensation (fewer, heavier kernels) when later filling is
+    source-limited (Slafer & Savin 1994) — so the number channel shows the
+    strongest signal.
+    """
+    # Spring wheat: lower heat threshold (32C) and shorter cycle.
     control = _make_orch("spring_wheat")
     heat = _make_orch("spring_wheat")
     # Grow to flowering: spring wheat flowers at ~600 GDD.
     # With tmin=5, tmax=20 (Tbase=0): GDD/day = 12.5, so ~48 days to flower.
     _step(control, 55, tmin=5.0, tmax=20.0)
     _step(heat, 55, tmin=5.0, tmax=20.0)
-    # Both should be in FLOWERING or GRAIN_FILL by now
-    # Apply 5 days of heat during grain fill
+    # Apply 5 days of heat across the peri-anthesis / grain-set window.
     _step(heat, 5, tmin=25.0, tmax=40.0, start_day=55)
     _step(control, 5, tmin=15.0, tmax=28.0, start_day=55)
-    # Continue to maturity
+    # Continue to maturity.
     _step(heat, 40, tmin=15.0, tmax=28.0, start_day=60)
     _step(control, 40, tmin=15.0, tmax=28.0, start_day=60)
-    # Heat should have reduced grain by at least 10% vs control
-    assert heat.canopy.state.grain_biomass_g_m2 < (
-        control.canopy.state.grain_biomass_g_m2 * 0.9
+    # Floret fertility: grain number is substantially reduced (>=20%).
+    assert heat.canopy.state.grain_number < (control.canopy.state.grain_number * 0.8), (
+        f"Heat grain number ({heat.canopy.state.grain_number:.0f}) should be "
+        f"<80% of control ({control.canopy.state.grain_number:.0f})"
+    )
+    # Total grain is also reduced (kernel-weight compensation buffers it).
+    assert (
+        heat.canopy.state.grain_biomass_g_m2 < control.canopy.state.grain_biomass_g_m2
     ), (
         f"Heat grain ({heat.canopy.state.grain_biomass_g_m2:.1f}) should be "
-        f"<90% of control ({control.canopy.state.grain_biomass_g_m2:.1f})"
+        f"below control ({control.canopy.state.grain_biomass_g_m2:.1f})"
     )
 
 

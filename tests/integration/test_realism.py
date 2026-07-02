@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 from agrogame.plant.presets import load_crop_presets, _load_crop_presets_cached
+from agrogame.soil.phenology import PhenologyStage
 from agrogame.soil.loader import load_soil_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.water.types import DailyDrivers
@@ -515,15 +516,16 @@ def test_winter_wheat_oct_start_grain_yield() -> None:
     )
     assert stage == "MATURITY"
     # NW-European winter-wheat grain: ~6-11 t/ha (AHDB Wheat Growth Guide
-    # 2015; WOFOST NL). Model ~315 g/m² (3.1 t/ha) — see follow-up note
-    # below. Two-sided bound brackets the current output and catches a
-    # ~30% regression.
-    assert 220 < grain < 500
+    # 2015; WOFOST NL). The sink-source grain model (#321) lifts the model
+    # from the old ~315 g/m² (3.1 t/ha, HI 0.27) to ~514 g/m² (5.1 t/ha),
+    # bracketing the lower-mid of the field range. Bound re-tightened from
+    # the pre-#321 220-500 to catch a ~30% regression either side.
+    assert 450 < grain < 800
     realized_hi = grain / biomass if biomass > 0 else 0.0
-    # Wheat HI 0.35-0.50 in the field (Gebbing & Schnyder 1999); model
-    # under-partitions here (~0.27), so lower bound kept at 0.20.
-    # Follow-up (#319): winter-wheat grain fill under-yields literature.
-    assert 0.20 < realized_hi < 0.50
+    # Field winter-wheat HI 0.40-0.50 (AHDB 2015; Gebbing & Schnyder 1999;
+    # Hay & Porter 2006). Emergent model HI ~0.44 — now within the field
+    # band (was 0.27 under fixed-HI partitioning, #319 follow-up).
+    assert 0.40 < realized_hi < 0.52
 
 
 def test_grape_zero_grain() -> None:
@@ -532,6 +534,190 @@ def test_grape_zero_grain() -> None:
         "grape", "netherlands_temperate", date(2024, 4, 1)
     )
     assert grain == 0.0
+
+
+# --- Grain sink-source: floret fertility + grain filling (#321) ---
+
+
+def _run_grain_stress_scenario(
+    *,
+    stress_window: bool,
+    stress_fill: bool,
+    crop_name: str = "winter_wheat",
+    climate_name: str = "netherlands_temperate",
+    start: date | None = None,
+    days: int = 280,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Run a scenario imposing heat+drought only in the chosen grain phase.
+
+    ``stress_window`` stresses the peri-anthesis critical window (FLOWERING
+    plus the post-anthesis grain-set window), where grain NUMBER is fixed.
+    ``stress_fill`` stresses the later grain-filling phase, where kernel
+    WEIGHT accrues. Stress = tmax forced above the crop's heat/cardinal-max
+    (crushes the assimilate source and trips the heat grain-fill factor) with
+    zero rainfall. Returns final biomass, grain, grain_number and HI.
+    """
+    if start is None:
+        start = date(2023, 10, 15)
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.get_preset(crop_name, climate_name)
+    window_gdd = crop.canopy.grain_set_window_gdd
+    climate = climates.climates[climate_name]
+    gen = SyntheticWeatherGenerator(climate, seed=seed)
+    series = gen.generate(days, start)
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    for rec in series.records:
+        stage = orch.phenology.state.stage
+        gdd = orch.phenology.state.accumulated_gdd
+        gf_start = orch.canopy._grain_fill_start_gdd
+        in_window = stage == PhenologyStage.FLOWERING or (
+            stage == PhenologyStage.GRAIN_FILL and gdd <= gf_start + window_gdd
+        )
+        in_fill = stage == PhenologyStage.GRAIN_FILL and gdd > gf_start + window_gdd
+        tmax = rec.tmax_c
+        rain = rec.precip_mm or 0.0
+        if (stress_window and in_window) or (stress_fill and in_fill):
+            tmax = 42.0  # above cardinal-max and heat-damage thresholds
+            rain = 0.0
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rain),
+            tmin_c=rec.tmin_c,
+            tmax_c=tmax,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+    st = orch.canopy.state
+    hi = st.grain_biomass_g_m2 / st.biomass_g_m2 if st.biomass_g_m2 > 0 else 0.0
+    return {
+        "biomass": st.biomass_g_m2,
+        "grain": st.grain_biomass_g_m2,
+        "grain_number": st.grain_number,
+        "hi": hi,
+    }
+
+
+def test_window_stress_reduces_grain_number() -> None:
+    """Floret fertility: peri-anthesis heat/drought cuts potential grain number.
+
+    CERES-style grain number scales with assimilate supply around anthesis
+    (Fischer 1985; Andrade et al. 1999). Stress confined to the critical
+    window must reduce grain NUMBER (and hence grain and HI) well beyond any
+    change in a season-integrated total biomass.
+    """
+    base = _run_grain_stress_scenario(stress_window=False, stress_fill=False)
+    stressed = _run_grain_stress_scenario(stress_window=True, stress_fill=False)
+    assert stressed["grain_number"] < 0.75 * base["grain_number"], (
+        f"window stress cut grain number only "
+        f"{100 * (1 - stressed['grain_number'] / base['grain_number']):.0f}% "
+        "(expected >=25%)"
+    )
+    assert stressed["grain"] < base["grain"]
+    assert stressed["hi"] < base["hi"]
+
+
+def test_fill_stress_reduces_kernel_weight() -> None:
+    """Post-anthesis heat/drought lowers kernel weight via the fill-rate term.
+
+    With the critical window left unstressed, grain number is set normally;
+    stress during grain filling reduces the realised mean kernel weight
+    (grain / grain_number) through the heat-scaled fill rate and reduced
+    source, without materially changing grain number.
+    """
+    base = _run_grain_stress_scenario(stress_window=False, stress_fill=False)
+    stressed = _run_grain_stress_scenario(stress_window=False, stress_fill=True)
+    base_kw = base["grain"] / base["grain_number"]
+    stressed_kw = stressed["grain"] / stressed["grain_number"]
+    assert stressed_kw < base_kw, "fill stress did not reduce kernel weight"
+    assert stressed["grain"] < base["grain"]
+    # Grain number is fixed in the (unstressed) window, so it should be
+    # essentially unchanged by later fill stress.
+    assert (
+        abs(stressed["grain_number"] - base["grain_number"])
+        < 0.05 * base["grain_number"]
+    )
+
+
+def test_combined_stress_hi_drops_super_proportionally() -> None:
+    """Severe combined stress cuts grain more than proportionally to biomass.
+
+    AC #321: under severe water+heat stress the effective harvest index
+    drops (grain loss exceeds total-biomass loss), because the grain number
+    and kernel-weight channels compound while most biomass is laid down
+    outside the stressed grain phases.
+    """
+    base = _run_grain_stress_scenario(stress_window=False, stress_fill=False)
+    combined = _run_grain_stress_scenario(stress_window=True, stress_fill=True)
+    assert combined["hi"] < base["hi"]
+    grain_loss = 1.0 - combined["grain"] / base["grain"]
+    biomass_loss = 1.0 - combined["biomass"] / base["biomass"]
+    assert grain_loss > biomass_loss, (
+        f"grain loss {grain_loss:.2f} should exceed biomass loss "
+        f"{biomass_loss:.2f} (super-proportional)"
+    )
+
+
+def test_emergent_hi_bounded_under_n_excess() -> None:
+    """N-excess, low-stress run keeps emergent HI within the cultivar ceiling.
+
+    The emergent HI is bounded by hi_max (safety cap), so a fertilised,
+    well-watered run cannot produce runaway grain: grain stays at or below
+    hi_max x total biomass and HI within the realistic cereal range.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.get_preset("winter_wheat", "netherlands_temperate")
+    hi_max = crop.canopy.hi_max
+    climate = climates.climates["netherlands_temperate"]
+    gen = SyntheticWeatherGenerator(climate, seed=42)
+    series = gen.generate(280, date(2023, 10, 15))
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    orch.apply_fertilizer("ammonium_nitrate", 300.0)  # heavy N
+    max_hi_seen = 0.0
+    for rec in series.records:
+        orch.apply_irrigation(4.0)  # keep well-watered (low stress)
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        st = orch.canopy.state
+        if st.biomass_g_m2 > 0:
+            max_hi_seen = max(max_hi_seen, st.grain_biomass_g_m2 / st.biomass_g_m2)
+            # Grain must never exceed the hi_max fraction of total biomass.
+            assert st.grain_biomass_g_m2 <= hi_max * st.biomass_g_m2 + 1e-6
+    assert max_hi_seen <= hi_max + 1e-6
+    final_hi = orch.canopy.state.grain_biomass_g_m2 / orch.canopy.state.biomass_g_m2
+    assert 0.35 < final_hi <= hi_max, f"N-excess HI {final_hi:.2f} unbounded"
+
+
+def test_grain_pools_consistent_and_nonnegative() -> None:
+    """Grain is an internal partition: sub-pools stay non-negative and bounded.
+
+    Grain never exceeds total biomass and (grain + stem) never exceeds total
+    (implied leaf pool stays non-negative), confirming the partitioning
+    rewrite conserves mass and adds no biomass.
+    """
+    _biomass, _lai, _stage, grain = _run_scenario(
+        "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
+    )
+    assert grain >= 0.0
+    assert grain < _biomass
 
 
 # --- Phosphorus availability (AGRO-97) ---

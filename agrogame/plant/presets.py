@@ -88,7 +88,15 @@ def _build_canopy(raw: dict) -> CanopyParams:
         senescence_grain_fill_max=float(c.get("senescence_grain_fill_max", 2.0)),
         grain_fill_duration_gdd=float(c.get("grain_fill_duration_gdd", 900.0)),
         harvest_index=float(c.get("harvest_index", 0.45)),
+        grains_per_g_source=float(c.get("grains_per_g_source", 0.0)),
+        grain_set_window_gdd=float(c.get("grain_set_window_gdd", 200.0)),
+        potential_kernel_weight_mg=float(c.get("potential_kernel_weight_mg", 40.0)),
+        kernel_fill_rate_mg_per_grain_day=float(
+            c.get("kernel_fill_rate_mg_per_grain_day", 1.0)
+        ),
+        hi_max=float(c.get("hi_max", 0.55)),
         remobilization_fraction=float(c.get("remobilization_fraction", 0.0)),
+        leaf_remob_fraction=float(c.get("leaf_remob_fraction", 0.0)),
         frost_threshold_c=float(c.get("frost_threshold_c", 0.0)),
         frost_damage_fraction=float(c.get("frost_damage_fraction", 0.3)),
         heat_damage_threshold_c=float(c.get("heat_damage_threshold_c", 35.0)),

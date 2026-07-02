@@ -63,3 +63,17 @@ class HeatDamageApplied(BaseEvent):
 
     grain_reduction_factor: float
     tmax_c: float
+
+
+@dataclass(frozen=True)
+class GrainNumberSet(BaseEvent):
+    """Potential grain number frozen at the close of the critical window (#321).
+
+    Diagnostic emitted once per season when the sink-source model fixes the
+    grain number from peri-anthesis assimilate supply. Kernel weight during
+    the subsequent fill phase equals grain_biomass / grain_number.
+    """
+
+    grain_number: float
+    window_source_g_m2: float
+    at_gdd: float
