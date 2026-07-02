@@ -99,7 +99,6 @@ def test_dashboard_facade_one_day_end_to_end() -> None:
     )
 
     et0, et0_pt, par, _rn, tmean, vpd = run.compute_reference_et(rec)
-    run.history["et0_mm"].append(et0)
     run.history["et0_pt_mm"].append(et0_pt)
     run.reset_daily_counters()
     run.step_day(
@@ -123,12 +122,9 @@ def test_dashboard_facade_one_day_end_to_end() -> None:
     run.append_microbes()
     run.append_enzyme_groups()
 
-    # `et0_mm` and `et0_pt_mm` are appended once outside append_day_summary
-    # (see _run_simulation), and `et0_mm` is appended again inside it — a
-    # pre-existing duplicate in the dashboard's per-day book-keeping that
-    # downstream charts have always tolerated. Out of scope for #309 to fix.
-    keys_with_duplicate_first = {"et0_mm"}
-
+    # Every history column gets exactly one entry per simulated day. `et0_mm`
+    # is appended solely by `append_day_summary`; `et0_pt_mm` solely by the
+    # explicit append above (it has no dedicated appender). See #314.
     for key in _EXPECTED_HISTORY_KEYS:
         assert key in run.history, f"history missing key {key!r} — subscriber dropped?"
         val = run.history[key]
@@ -136,10 +132,7 @@ def test_dashboard_facade_one_day_end_to_end() -> None:
             assert len(val) == len(profile.layers), f"{key} per-layer length wrong"
             assert len(val[0]) == 1, f"{key}[0] should have 1 entry, has {len(val[0])}"
         else:
-            expected = 2 if key in keys_with_duplicate_first else 1
-            assert (
-                len(val) == expected
-            ), f"{key} should have {expected} entr(y/ies), has {len(val)}"
+            assert len(val) == 1, f"{key} should have 1 entry, has {len(val)}"
 
 
 def test_dashboard_does_not_import_engine_internals() -> None:

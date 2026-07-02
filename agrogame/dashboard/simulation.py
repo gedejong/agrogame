@@ -53,7 +53,8 @@ def _run_simulation(
         apply_fertilizers(run.n_cycle, i, fert_ops, fert_map)
 
         et0, et0_pt, par, _rn, tmean, vpd = run.compute_reference_et(rec)
-        run.history["et0_mm"].append(et0)
+        # `et0_mm` is appended by `append_day_summary` below; only `et0_pt_mm`
+        # needs an explicit append here (it has no dedicated appender).
         run.history["et0_pt_mm"].append(et0_pt)
 
         run.reset_daily_counters()
