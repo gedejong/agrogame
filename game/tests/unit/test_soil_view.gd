@@ -18,7 +18,9 @@ func test_profile_layers_sandy() -> void:
 func test_profile_layers_clay() -> void:
 	var layers: Array = SoilViewScript.get_profile_layers("clay")
 	assert_eq(layers.size(), 3, "Clay has 3 layers")
-	assert_eq(layers[0]["texture"], "clay")
+	# Distinct horizons (#206): loamy A-horizon topsoil over clay B/C subsoil.
+	assert_eq(layers[0]["texture"], "loam", "Topsoil A-horizon is loam")
+	assert_eq(layers[1]["texture"], "clay", "Subsoil B-horizon is clay")
 
 
 func test_profile_layers_organic() -> void:
@@ -89,15 +91,23 @@ func test_refresh_rebuilds_roots() -> void:
 		}
 	]
 	view.show_cutaway(columns)
-	# Count dynamic (root) nodes in the column container
-	var container: Node3D = view.get_child(0)
-	var dynamic_count := 0
-	for sub: Node in container.get_children():
-		if sub.has_meta("soil_view_dynamic"):
-			dynamic_count += 1
-	assert_gt(dynamic_count, 0, "Should have root quads tagged as dynamic")
-	# Refresh with deeper roots — dynamic nodes should be rebuilt
+	# Roots are shader-based (#222): layer materials carry root_texture +
+	# root_strength uniforms rather than separate tagged nodes.
+	for mat: ShaderMaterial in view._layer_materials:
+		assert_gt(
+			float(mat.get_shader_parameter("root_strength")),
+			0.0,
+			"Root strength active when root_depth_cm > 0",
+		)
+		assert_not_null(mat.get_shader_parameter("root_texture"), "Root texture set")
+	# Refresh with deeper roots — root uniforms should be rebuilt, still active.
 	var columns2: Array[Dictionary] = columns.duplicate(true)
 	columns2[0]["root_depth_cm"] = 40.0
 	columns2[0]["soil_state"] = {"water_theta": [0.25, 0.26, 0.23]}
 	view.show_cutaway(columns2)
+	for mat: ShaderMaterial in view._layer_materials:
+		assert_gt(
+			float(mat.get_shader_parameter("root_strength")),
+			0.0,
+			"Root strength still active after refresh with deeper roots",
+		)

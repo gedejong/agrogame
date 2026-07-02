@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.atmosphere.et import Evapotranspiration
-from agrogame.atmosphere.et.ports import (
+from agrogame.params.ports import (
     CanopyView as ETCanopyView,
     RootDistribution as ETRootDistribution,
     WaterProfile as ETWaterProfile,
@@ -24,9 +24,9 @@ _LN2 = math.log(2.0)
 class ETRuntime:
     """Wire Evapotranspiration to the EventBus; partitions ET daily.
 
-    Field types are the local ports in :mod:`agrogame.atmosphere.et.ports`
+    Field types are the shared ports in :mod:`agrogame.params.ports`
     so the atmosphere package never imports concrete soil/plant classes
-    directly (#300, ADR-008). The orchestrator passes whatever soil-water
+    directly (#300, #310, ADR-008). The orchestrator passes whatever soil-water
     profile, water state, water model, root state, and canopy module it
     has wired up; structural typing matches them to the ports.
     """

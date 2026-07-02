@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 
-from .ports import WaterProfile, WaterState, WaterActuator
+from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 
 from .params import EtParams
 from agrogame.weather.constants import (

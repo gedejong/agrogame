@@ -165,8 +165,8 @@ def _run_simulation(
         n_layers = len(soil_profile.layers)
         root_fracs = tuple([1.0 / n_layers] * n_layers)
         actual = etmod.actual_et(
-            soil_profile,  # type: ignore[arg-type]
-            wstate,  # type: ignore[arg-type]
+            soil_profile,
+            wstate,
             water,  # type: ignore[arg-type]
             comps,
             root_fracs,

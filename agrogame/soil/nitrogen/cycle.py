@@ -20,18 +20,12 @@ from agrogame.events import EventBus
 
 if TYPE_CHECKING:
     from agrogame.soil.som.events import SOMDecomposed
-from agrogame.plant.roots.events import RootDistributionUpdated
-from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained, WaterInfiltrated
 from agrogame.soil.water.events import TranspirationByLayer
 from agrogame.soil.redox.module import RedoxModule
 from agrogame.soil.redox.events import N2OEmitted
-from agrogame.soil.microbes.events import (
-    MicrobialActivityComputed,
-    MicrobialFBUpdated,
-)
-from typing import Protocol
-from collections.abc import Sequence
+from agrogame.soil.nutrients import EnvironmentalCache
+from agrogame.params.ports import SoilProfileView, WaterState
 
 
 from .events import (
@@ -45,26 +39,6 @@ from .state import SoilNitrogenState
 from .types import NitrogenFluxes
 
 
-class _SoilLayer(Protocol):
-    field_capacity: float
-    saturation: float
-    depth_cm: float
-
-
-class _WaterProfile(Protocol):
-    layers: Sequence[_SoilLayer]
-
-
-class _WaterState(Protocol):
-    theta: Sequence[float]
-
-    def layer_storage_mm(self, profile: _WaterProfile, idx: int) -> float: ...
-
-    def set_layer_storage_mm(
-        self, profile: _WaterProfile, idx: int, _mm: float
-    ) -> None: ...
-
-
 class NitrogenCycle:
     """Nitrogen processes and event integration for the soil profile."""
 
@@ -72,8 +46,8 @@ class NitrogenCycle:
         self,
         event_bus: EventBus,
         state: SoilNitrogenState,
-        water_state: _WaterState | None = None,
-        profile: _WaterProfile | None = None,
+        water_state: WaterState | None = None,
+        profile: SoilProfileView | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state
@@ -85,17 +59,15 @@ class NitrogenCycle:
         event_bus.subscribe(WaterDrained, self._on_water_drained)
         event_bus.subscribe(WaterInfiltrated, self._on_infiltrated)
         event_bus.subscribe(TranspirationByLayer, self._on_transpiration_by_layer)
-        # Subscribe to root distribution updates to cache latest fractions
-        self._root_fractions_cached: list[float] | None = None
-        event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
-        # Cache per-layer pH updates from chemistry
-        self._ph_by_layer_cached: list[float] = [7.0] * self._n_layers
-        event_bus.subscribe(SoilPHUpdated, self._on_soil_ph_updated)
-        # Cache microbial coupling signals (activity, F:B)
-        self._microbe_activity_by_layer: list[float] = [1.0] * self._n_layers
-        self._fungal_fraction_by_layer: list[float] = [0.4] * self._n_layers
-        event_bus.subscribe(MicrobialActivityComputed, self._on_microbe_activity)
-        event_bus.subscribe(MicrobialFBUpdated, self._on_microbe_fb)
+        # Shared per-layer environmental cache (#322): pH, root fractions,
+        # microbe activity and fungal fraction + their handlers. Nitrogen
+        # normalises incoming root fractions and defaults pH to 7.0.
+        self._env = EnvironmentalCache(
+            event_bus,
+            self._n_layers,
+            initial_ph=7.0,
+            normalize_root_fractions=True,
+        )
         # SOM-driven N mineralization (AGRO-79)
         self._som_mineralized_n: list[float] = [0.0] * self._n_layers
         from agrogame.soil.som.events import SOMDecomposed
@@ -188,34 +160,6 @@ class NitrogenCycle:
             if uptake > 0.0:
                 self.state.no3[idx] -= uptake
 
-    def _on_root_distribution(self, event: RootDistributionUpdated) -> None:
-        fracs = [max(0.0, f) for f in event.fractions]
-        s = sum(fracs) or 1.0
-        fracs = [f / s for f in fracs]
-        # Trim or pad to number of layers
-        if len(fracs) >= self._n_layers:
-            self._root_fractions_cached = fracs[: self._n_layers]
-        else:
-            pad = [0.0] * (self._n_layers - len(fracs))
-            self._root_fractions_cached = fracs + pad
-
-    def _on_soil_ph_updated(self, event: SoilPHUpdated) -> None:
-        if 0 <= event.layer < self._n_layers:
-            self._ph_by_layer_cached[event.layer] = float(event.ph)
-
-    def _on_microbe_activity(self, event: MicrobialActivityComputed) -> None:
-        if 0 <= event.layer < self._n_layers:
-            # Clamp to [0, 1] so microbes can only dampen rates, not blow them up
-            self._microbe_activity_by_layer[event.layer] = max(
-                0.0, min(1.0, float(event.activity_index))
-            )
-
-    def _on_microbe_fb(self, event: MicrobialFBUpdated) -> None:
-        if 0 <= event.layer < self._n_layers:
-            self._fungal_fraction_by_layer[event.layer] = max(
-                0.0, min(1.0, float(event.fungal_fraction))
-            )
-
     def _on_som_decomposed(self, event: SOMDecomposed) -> None:
         """Inject SOM-mineralized N into the NH4 pool (AGRO-79)."""
         if not (0 <= event.layer < self._n_layers):
@@ -243,12 +187,12 @@ class NitrogenCycle:
         """
         if root_fractions is None:
             root_fractions = (
-                self._root_fractions_cached
-                if self._root_fractions_cached is not None
+                self._env.root_fractions
+                if self._env.root_fractions is not None
                 else [1.0 / self._n_layers] * self._n_layers
             )
         if ph_by_layer is None:
-            ph_by_layer = self._ph_by_layer_cached
+            ph_by_layer = self._env.ph_by_layer
 
         temp_factor = 2.0 ** ((temperature_c - 20.0) / 10.0)
 
@@ -387,7 +331,7 @@ class NitrogenCycle:
         if org <= 0.0:
             return 0.0
         # Microbial activity scales mineralization (dampening only)
-        activity = self._microbe_activity_by_layer[idx]
+        activity = self._env.microbe_activity_by_layer[idx]
         rate = 0.001 * temp_factor * moisture_factor * activity
         delta = min(org, rate * org)
         if delta <= 0.0:
@@ -410,8 +354,8 @@ class NitrogenCycle:
             return 0.0
         # Microbial coupling: dampen by activity and by fungal dominance
         # (bacteria are primary nitrifiers)
-        activity = self._microbe_activity_by_layer[idx]
-        bact_share = 1.0 - self._fungal_fraction_by_layer[idx]
+        activity = self._env.microbe_activity_by_layer[idx]
+        bact_share = 1.0 - self._env.fungal_fraction_by_layer[idx]
         fb_weight = 0.7 + 0.3 * bact_share  # 0.7..1.0
         rate = (
             0.15

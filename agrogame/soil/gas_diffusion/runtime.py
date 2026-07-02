@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.soil.gas_diffusion.module import GasDiffusionModule
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.state import PoreNetworkState
 from agrogame.soil.water.state import SoilWaterState
 
@@ -36,7 +36,7 @@ class GasDiffusionRuntime:
 
     event_bus: EventBus
     module: GasDiffusionModule
-    profile: SoilProfile
+    profile: SoilProfileView
     water_state: SoilWaterState
     pore_state: PoreNetworkState
     co2_respiration_supplier: Callable[[int], list[float]] = field(

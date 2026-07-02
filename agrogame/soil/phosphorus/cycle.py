@@ -13,20 +13,14 @@ AGRO-25 acceptance criteria:
 
 from __future__ import annotations
 
-from typing import Protocol
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from agrogame.events import EventBus
-from agrogame.plant.roots.events import RootDistributionUpdated
-from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.water.events import WaterDrained
-from agrogame.soil.microbes.events import (
-    MicrobialActivityComputed,
-    MicrobialFBUpdated,
-)
+from agrogame.soil.nutrients import EnvironmentalCache
 
 from agrogame.soil.nitrogen.events import NutrientLeached
+from agrogame.params.ports import SoilProfileView, WaterState
 
 from .events import PhosphorusFixationOccurred
 from .state import SoilPhosphorusState
@@ -40,22 +34,6 @@ from .constants import (
 )
 
 
-class _SoilLayer(Protocol):
-    field_capacity: float
-    saturation: float
-    depth_cm: float
-
-
-class _WaterProfile(Protocol):
-    layers: Sequence[_SoilLayer]
-
-
-class _WaterState(Protocol):
-    theta: Sequence[float]
-
-    def layer_storage_mm(self, profile: _WaterProfile, idx: int) -> float: ...
-
-
 class PhosphorusCycle:
     """Phosphorus processes and event integration for the soil profile."""
 
@@ -63,8 +41,8 @@ class PhosphorusCycle:
         self,
         event_bus: EventBus,
         state: SoilPhosphorusState,
-        water_state: _WaterState | None = None,
-        profile: _WaterProfile | None = None,
+        water_state: WaterState | None = None,
+        profile: SoilProfileView | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.state = state
@@ -79,17 +57,16 @@ class PhosphorusCycle:
 
         # Subscribe to water movement events (minimal P movement)
         event_bus.subscribe(WaterDrained, self._on_water_drained)
-        # Cache root distribution
-        self._root_fractions_cached: list[float] | None = None
-        event_bus.subscribe(RootDistributionUpdated, self._on_root_distribution)
-        # Cache per-layer pH from chemistry
-        self._ph_by_layer_cached: list[float] = [6.8] * self._n_layers
-        event_bus.subscribe(SoilPHUpdated, self._on_soil_ph_updated)
-        # Cache microbe signals
-        self._microbe_activity_by_layer: list[float] = [1.0] * self._n_layers
-        self._fungal_fraction_by_layer: list[float] = [0.4] * self._n_layers
-        event_bus.subscribe(MicrobialActivityComputed, self._on_microbe_activity)
-        event_bus.subscribe(MicrobialFBUpdated, self._on_microbe_fb)
+        # Shared per-layer environmental cache (#322): pH, root fractions,
+        # microbe activity and fungal fraction + their handlers. Phosphorus
+        # defaults pH to 6.8 and stores root fractions without renormalising
+        # (only padding), matching the historical behaviour.
+        self._env = EnvironmentalCache(
+            event_bus,
+            self._n_layers,
+            initial_ph=6.8,
+            normalize_root_fractions=False,
+        )
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
@@ -110,29 +87,6 @@ class PhosphorusCycle:
             NutrientLeached(nutrient="P", amount_kg_ha=moved, layer=from_idx)
         )
 
-    def _on_root_distribution(self, event: RootDistributionUpdated) -> None:
-        fracs = list(event.fractions)
-        if len(fracs) < self._n_layers:
-            pad = [0.0] * (self._n_layers - len(fracs))
-            fracs = fracs + pad
-        self._root_fractions_cached = fracs
-
-    def _on_soil_ph_updated(self, event: SoilPHUpdated) -> None:
-        if 0 <= event.layer < self._n_layers:
-            self._ph_by_layer_cached[event.layer] = float(event.ph)
-
-    def _on_microbe_activity(self, event: MicrobialActivityComputed) -> None:
-        if 0 <= event.layer < self._n_layers:
-            self._microbe_activity_by_layer[event.layer] = max(
-                0.0, min(1.0, float(event.activity_index))
-            )
-
-    def _on_microbe_fb(self, event: MicrobialFBUpdated) -> None:
-        if 0 <= event.layer < self._n_layers:
-            self._fungal_fraction_by_layer[event.layer] = max(
-                0.0, min(1.0, float(event.fungal_fraction))
-            )
-
     # --- Daily update ---------------------------------------------------
     def daily_step(
         self,
@@ -145,12 +99,12 @@ class PhosphorusCycle:
         self._release_slow_fertilizer_for_day()
         if root_fractions is None:
             root_fractions = (
-                self._root_fractions_cached
-                if self._root_fractions_cached is not None
+                self._env.root_fractions
+                if self._env.root_fractions is not None
                 else [1.0 / self._n_layers] * self._n_layers
             )
         if ph_by_layer is None:
-            ph_by_layer = self._ph_by_layer_cached
+            ph_by_layer = self._env.ph_by_layer
 
         temp_factor = 2.0 ** ((temperature_c - 25.0) / 10.0)
 
@@ -226,7 +180,7 @@ class PhosphorusCycle:
         base_daily = (0.005 / 30.0, 0.02 / 30.0)
         # Use mid value scaled by temp and moisture
         # Microbial activity scales mineralization (dampening only)
-        activity = self._microbe_activity_by_layer[idx]
+        activity = self._env.microbe_activity_by_layer[idx]
         rate = (
             0.5
             * (base_daily[0] + base_daily[1])
@@ -272,7 +226,7 @@ class PhosphorusCycle:
                 continue
             # Fungi can enhance P acquisition via enzymes/mycorrhizae;
             # apply modest boost with fungal share
-            fb_boost = 1.0 + 0.15 * self._fungal_fraction_by_layer[i]
+            fb_boost = 1.0 + 0.15 * self._env.fungal_fraction_by_layer[i]
             avail_eff = (
                 self.state.available_p[i]
                 * self._ph_availability(ph_by_layer[i])

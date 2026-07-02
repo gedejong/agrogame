@@ -10,19 +10,22 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
+      # Docstring gate (pydocstyle D rules) for the pilot packages. Runs in the
+      # same pre-commit-managed environment as the ruff hook above, so it needs
+      # neither a global ruff on PATH nor a populated poetry venv. rev is pinned
+      # to match the poetry-locked ruff 0.5.7. `pass_filenames: false` keeps the
+      # check scoped to the two pilot package directories regardless of which
+      # files are staged.
+      - id: ruff
+        alias: ruff-docstrings-pilot
+        name: ruff docstrings (pilot packages)
+        args: ["agrogame/soil/water", "agrogame/events", "--select", "D"]
+        pass_filenames: false
 
   - repo: https://github.com/pycqa/flake8
     rev: "6.1.0"
     hooks:
       - id: flake8
-
-  - repo: local
-    hooks:
-      - id: ruff-docstrings-pilot
-        name: ruff docstrings (pilot packages)
-        entry: poetry run ruff check agrogame/soil/water agrogame/events --select D
-        language: system
-        pass_filenames: false
 
   # GDScript quality — skips gracefully if gdtoolkit not installed
   - repo: local

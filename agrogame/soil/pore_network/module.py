@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from agrogame.events import EventBus
 from agrogame.soil.aggregation.state import SoilAggregationState
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.pore_network.events import PoreNetworkComputed
 from agrogame.soil.pore_network.params import PoreNetworkParams
 from agrogame.soil.pore_network.state import PoreNetworkState
@@ -54,7 +54,7 @@ class PoreNetworkModule:
 
     def compute(
         self,
-        profile: SoilProfile,
+        profile: SoilProfileView,
         agg_state: SoilAggregationState | None = None,
     ) -> None:
         """Derive pore fractions for all layers.

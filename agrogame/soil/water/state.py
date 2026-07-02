@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView, WaterProfile
 
 
 class SoilWaterState:
@@ -18,7 +18,7 @@ class SoilWaterState:
     water model.
     """
 
-    def __init__(self, profile: SoilProfile):
+    def __init__(self, profile: SoilProfileView):
         """Initialize state with theta set to field capacity per layer.
 
         Args:
@@ -31,13 +31,13 @@ class SoilWaterState:
         """Initialize empty macropore domain state (all layers at theta=0)."""
         self.theta_macro = [0.0] * n_layers
 
-    def layer_storage_mm(self, profile: SoilProfile, idx: int) -> float:
+    def layer_storage_mm(self, profile: WaterProfile, idx: int) -> float:
         """Return water storage of a layer as depth (mm)."""
         layer = profile.layers[idx]
         return self.theta[idx] * layer.depth_cm * 10.0
 
     def set_layer_storage_mm(
-        self, profile: SoilProfile, idx: int, storage_mm: float
+        self, profile: SoilProfileView, idx: int, storage_mm: float
     ) -> None:
         """Set water storage of a layer from depth (mm), clamped to saturation."""
         layer = profile.layers[idx]

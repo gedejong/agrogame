@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.soil.models import SoilProfile
+from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.aggregation.module import AggregationModule
 from agrogame.soil.microbes.events import MicrobialFBUpdated
@@ -24,7 +24,7 @@ class AggregationRuntime:
 
     event_bus: EventBus
     module: AggregationModule
-    profile: SoilProfile
+    profile: SoilProfileView
     water_state: SoilWaterState
     _day_count: int = 0
     _root_fractions: list[float] | None = None
