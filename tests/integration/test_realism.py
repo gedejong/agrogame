@@ -578,10 +578,16 @@ def test_p_availability_through_280d_winter_wheat() -> None:
 
 
 def test_pore_distribution_loam_temperate() -> None:
-    """Loam soil should have physically realistic pore distribution.
+    """Default loam should have literature-realistic macroporosity (#340).
 
-    Ref: Rawls et al. 1982 Table 2 — loam: total porosity 45-55%,
-    macropores 5-25%, micropores 5-25%.
+    Surface macroporosity (>50 um, air capacity) for a medium-textured
+    loam falls in the ~5-15% band, not the ~20% that results from
+    equating macropores with the whole gravitational-drainage pool.
+
+    Refs: Cameron & Buchan 2006, Encyclopedia of Soil Science — air
+    capacity / macroporosity of medium soils ~5-15%; Reynolds et al.
+    2002 Geoderma & 2009 Geoderma — air-capacity indicators (optimum
+    ~0.05-0.15); Luxmoore 1981, SSSAJ — >50 um macropore class.
     """
     from agrogame.soil.aggregation.state import SoilAggregationState
     from agrogame.soil.pore_network import (
@@ -597,15 +603,72 @@ def test_pore_distribution_loam_temperate() -> None:
     state = PoreNetworkState.empty(n)
     PoreNetworkModule(PoreNetworkParams(), state).compute(profile, agg)
 
+    # Surface layer: assert the calibrated literature band explicitly.
+    assert 0.05 <= state.macro[0] <= 0.15, (
+        f"Surface loam macroporosity {state.macro[0]:.3f} outside the "
+        f"literature air-capacity band [0.05, 0.15] (Cameron & Buchan 2006)"
+    )
+
     for i, layer in enumerate(profile.layers):
         total = state.total_porosity(i)
         assert (
             abs(total - layer.saturation) < 1e-6
         ), f"Layer {i}: sum {total:.4f} != sat {layer.saturation}"
         assert (
-            0.03 <= state.macro[i] <= 0.30
-        ), f"Layer {i}: macro {state.macro[i]:.3f} outside [0.03, 0.30]"
+            0.03 <= state.macro[i] <= 0.15
+        ), f"Layer {i}: macro {state.macro[i]:.3f} outside [0.03, 0.15]"
         assert 0.0 <= state.connectivity[i] <= 1.0
+
+
+def test_dynamic_ksat_loam_literature_range() -> None:
+    """Dynamic ksat for a default loam is a defensible matric Ksat (#340).
+
+    Saturated hydraulic conductivity (matric) for loam from the canonical
+    pedotransfer databases:
+      - Carsel & Parrish 1988, Water Resour. Res. — loam Ksat = 24.96
+        cm/day = 249.6 mm/day.
+      - Rawls, Brakensiek & Saxton 1982, Trans. ASAE — loam Ksat = 13.2
+        mm/hr = 316.8 mm/day.
+    The engine surfaces base ``ksat_mm_per_hour`` (preset) x 24 x an
+    aggregation modifier, landing at ~240-360 mm/day across the profile —
+    squarely in the PTF band. (#253's ~50 mm/day expectation conflated
+    matric Ksat with field-infiltration rate.)
+
+    The aggregation/tillage modifier (``effective_ksat_factor``, 0.5-2.5x)
+    must move ksat sensibly: degraded/compacted soil below the baseline,
+    well-aggregated soil above it.
+    """
+    from agrogame.soil.aggregation.dynamic_state import effective_ksat_factor
+    from agrogame.soil.aggregation.state import SoilAggregationState
+
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    n = len(profile.layers)
+    agg = SoilAggregationState.from_layers(n)  # default tilled soil
+
+    ksat_day = [
+        layer.ksat_mm_per_hour * 24.0 * effective_ksat_factor(agg.macro[i])
+        for i, layer in enumerate(profile.layers)
+    ]
+    # Every layer within the literature matric-Ksat band for loam.
+    for i, ks in enumerate(ksat_day):
+        assert 100.0 <= ks <= 450.0, (
+            f"Layer {i}: dynamic ksat {ks:.1f} mm/day outside the loam "
+            f"matric-Ksat band [100, 450] (Carsel & Parrish 1988; Rawls 1982)"
+        )
+
+    # Tillage/aggregation modifier moves ksat sensibly and monotonically.
+    degraded = effective_ksat_factor(0.05)
+    baseline = effective_ksat_factor(0.25)
+    well_aggregated = effective_ksat_factor(0.60)
+    assert degraded < baseline < well_aggregated, (
+        "Aggregation modifier must increase ksat with macroaggregate "
+        f"fraction: {degraded:.2f} < {baseline:.2f} < {well_aggregated:.2f}"
+    )
+    # Degraded soil roughly halves ksat; well-aggregated soil raises it.
+    base_ksat_day = profile.layers[0].ksat_mm_per_hour * 24.0
+    assert base_ksat_day * degraded < base_ksat_day * baseline
+    assert base_ksat_day * well_aggregated > base_ksat_day * baseline
 
 
 # --- Dual-porosity flow (#213) ---
