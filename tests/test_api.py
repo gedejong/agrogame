@@ -847,3 +847,135 @@ def test_tillage_reduces_macro(client) -> None:
             + soil_after["agg_micro"][i]
         )
         assert abs(total - 1.0) < 0.01, f"Layer {i} fractions sum to {total}"
+
+
+# ---------------------------------------------------------------------------
+# Soil-response expansion — biology (#317), pore network (#274),
+# dynamic soil properties (#253)
+# ---------------------------------------------------------------------------
+def test_step_response_includes_microbial_biology(client) -> None:
+    """Soil state exposes microbial N + fungal fraction, root/stem biomass (#317)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=40&seed=42")
+    assert resp.status_code == 200
+    soil = resp.json()["patches"]["f1"][0]["soil_state"]
+
+    # Per-layer microbial N (kg/ha) and fungal fraction (0..1)
+    for key in ("microbe_n", "fungal_fraction"):
+        assert key in soil, f"{key} missing from soil_state"
+        assert isinstance(soil[key], list)
+        assert len(soil[key]) > 0
+    assert all(v >= 0.0 for v in soil["microbe_n"])
+    assert all(0.0 <= f <= 1.0 for f in soil["fungal_fraction"])
+    # microbe_n and microbe_c should have matching per-layer length
+    assert len(soil["microbe_n"]) == len(soil["microbe_c"])
+
+    # Root + stem biomass surfaced (#317)
+    assert "root_biomass_g_m2" in soil
+    assert "root_layer_fractions" in soil
+    assert "stem_biomass_g_m2" in soil
+    assert soil["root_biomass_g_m2"] >= 0.0
+    # A maize crop mid-season should have accumulated some stem biomass.
+    assert soil["stem_biomass_g_m2"] > 0.0
+    # Root layer fractions are populated once the crop is rooting: non-negative,
+    # summing to ~1 across the rooted profile.
+    assert soil["root_layer_fractions"]
+    assert all(f >= 0.0 for f in soil["root_layer_fractions"])
+    assert abs(sum(soil["root_layer_fractions"]) - 1.0) < 0.02
+
+
+def test_step_response_includes_pore_network(client) -> None:
+    """Soil state exposes per-layer pore fractions + connectivity (#274)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    soil = resp.json()["patches"]["f1"][0]["soil_state"]
+
+    for key in (
+        "pore_macro_frac",
+        "pore_meso_frac",
+        "pore_micro_frac",
+        "pore_crypto_frac",
+        "pore_connectivity",
+    ):
+        assert key in soil, f"{key} missing from soil_state"
+        assert isinstance(soil[key], list)
+        assert len(soil[key]) > 0
+        assert all(v >= 0.0 for v in soil[key])
+
+    # Connectivity index is bounded 0..1.
+    assert all(0.0 <= t <= 1.0 for t in soil["pore_connectivity"])
+
+    # Pore fractions sum to total porosity per layer (Greenland 1977).
+    n = len(soil["pore_macro_frac"])
+    for i in range(n):
+        pore_sum = (
+            soil["pore_macro_frac"][i]
+            + soil["pore_meso_frac"][i]
+            + soil["pore_micro_frac"][i]
+            + soil["pore_crypto_frac"][i]
+        )
+        # Total porosity of arable soils is roughly 0.3–0.6 m³/m³.
+        assert 0.2 <= pore_sum <= 0.65, f"Layer {i} pore sum {pore_sum} implausible"
+
+    # Surface macroporosity sparkline field present and plausible.
+    snaps = resp.json().get("daily_snapshots", [])
+    if snaps:
+        assert "pore_macro_frac_surface" in snaps[0]
+        assert 0.0 <= snaps[0]["pore_macro_frac_surface"] <= 0.30
+
+
+def test_step_response_includes_dynamic_soil_properties(client) -> None:
+    """Soil state exposes dynamic ksat (mm/day) + porosity per layer (#253)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    soil = resp.json()["patches"]["f1"][0]["soil_state"]
+
+    for key in ("ksat_mm_day", "porosity"):
+        assert key in soil, f"{key} missing from soil_state"
+        assert isinstance(soil[key], list)
+        assert len(soil[key]) > 0
+    # ksat positive; loam surface ksat is O(10–200 mm/day) but bounded well below.
+    assert all(k > 0.0 for k in soil["ksat_mm_day"])
+    assert soil["ksat_mm_day"][0] < 5000.0
+    # Dynamic porosity clamped to physical bounds by effective_porosity().
+    assert all(0.30 <= p <= 0.60 for p in soil["porosity"])
+
+    snaps = resp.json().get("daily_snapshots", [])
+    if snaps:
+        assert "ksat_surface" in snaps[0]
+        assert snaps[0]["ksat_surface"] > 0.0
+
+
+def test_tillage_lowers_dynamic_ksat(client) -> None:
+    """Tillage destroys macroaggregates → dynamic surface ksat drops (#253)."""
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=3&seed=42")
+    assert resp.status_code == 200
+    ksat_before = resp.json()["patches"]["f1"][0]["soil_state"]["ksat_mm_day"][0]
+
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "tillage", "params": {"intensity": 1.0}},
+    )
+    assert resp.status_code == 200
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    assert resp.status_code == 200
+    ksat_after = resp.json()["patches"]["f1"][0]["soil_state"]["ksat_mm_day"][0]
+    assert (
+        ksat_after < ksat_before
+    ), f"Tillage should lower dynamic ksat: {ksat_before} → {ksat_after}"
+
+
+def test_bare_soil_has_zero_plant_biomass(client) -> None:
+    """Before emergence, root/stem biomass are zero but microbes populated (#317)."""
+    game_id = _create_game(client)
+    # One day: crop has not emerged yet, so no root/stem biomass.
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    assert resp.status_code == 200
+    soil = resp.json()["patches"]["f1"][0]["soil_state"]
+    assert soil["stem_biomass_g_m2"] == 0.0
+    # Microbial fields still populated for bare/unemerged soil.
+    assert len(soil["microbe_n"]) > 0
+    assert any(v > 0.0 for v in soil["microbe_n"])
