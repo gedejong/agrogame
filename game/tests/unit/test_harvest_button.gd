@@ -6,6 +6,12 @@ const FarmViewScene = preload("res://scenes/farm_view.tscn")
 
 
 ## Spy that records execute_action calls in place of the real ApiClient.
+##
+## Models the REAL harvest contract: the `harvest` action response itself
+## carries the settlement (grain + revenue + profit), because the backend
+## `execute_action` harvest branch settles the season inline. `get_report`
+## can be toggled to return the historical 400/failure case (mid-season
+## report unavailable) so the failure-handling path is exercised.
 class ApiClientSpy:
 	extends Node
 
@@ -14,6 +20,8 @@ class ApiClientSpy:
 	var last_game_id: String = ""
 	var action_calls: int = 0
 	var report_calls: int = 0
+	# When false, get_report reports failure (as a real mid-season 400 would).
+	var report_succeeds: bool = true
 
 	func execute_action(
 		game_id: String, action: String, params: Dictionary, callback: Callable
@@ -22,11 +30,27 @@ class ApiClientSpy:
 		last_game_id = game_id
 		last_action = action
 		last_params = params
-		# Simulate a successful backend response.
-		callback.call(true, {"action": action, "cost_credits": 50, "balance_credits": 9950})
+		# Real harvest response: cost charged, crop settled, P&L returned.
+		(
+			callback
+			. call(
+				true,
+				{
+					"action": action,
+					"cost_credits": 50,
+					"balance_credits": 9950,
+					"grain_g_m2": 120.0,
+					"revenue_credits": 1200,
+					"profit_credits": 400,
+				}
+			)
+		)
 
 	func get_report(_game_id: String, callback: Callable) -> void:
 		report_calls += 1
+		if not report_succeeds:
+			callback.call(false, {})
+			return
 		callback.call(true, {"revenue_credits": 1200, "profit_credits": 400})
 
 
@@ -82,7 +106,7 @@ func test_harvest_press_calls_execute_action() -> void:
 	assert_true(spy.last_params.has("patch_idx"), "Sends target patch_idx")
 
 
-func test_harvest_clears_crop_and_fetches_report() -> void:
+func test_harvest_clears_crop_and_surfaces_pnl() -> void:
 	var view := _make_view()
 	view._tile_data[0]["crop_key"] = "maize"
 	view._tile_data[0]["crop_stage"] = 3
@@ -92,8 +116,29 @@ func test_harvest_clears_crop_and_fetches_report() -> void:
 	# Completion callback fired synchronously by the spy.
 	assert_eq(view._tile_data[0]["crop_key"], "", "Crop cleared after harvest")
 	assert_eq(view._tile_data[0]["crop_stage"], 0, "Crop stage reset after harvest")
-	assert_eq(spy.report_calls, 1, "Harvest report fetched after settlement")
 	assert_true(view.harvest_btn.disabled, "Harvest re-disabled once crop is gone")
+	# P&L comes from the harvest action response itself (real contract).
+	assert_string_contains(view.status_label.text, "revenue")
+	assert_string_contains(view.status_label.text, "profit")
+	# The detailed report is still fetched opportunistically.
+	assert_eq(spy.report_calls, 1, "Detailed report fetched after settlement")
+
+
+func test_harvest_handles_unavailable_report() -> void:
+	# Real backend returned HTTP 400 on a mid-season /report before this fix.
+	# The action response already surfaced P&L; a report failure must degrade
+	# gracefully with a visible note rather than silently swallowing.
+	var view := _make_view()
+	var spy: ApiClientSpy = view._api_client
+	spy.report_succeeds = false
+	view._tile_data[0]["crop_key"] = "maize"
+	view._tile_data[0]["crop_stage"] = 3
+	view._select_tile(0, 0)
+	view._on_harvest_pressed()
+	assert_eq(spy.report_calls, 1, "Report fetch attempted")
+	# Action-response P&L stays visible; failure appends a clear note.
+	assert_string_contains(view.status_label.text, "revenue")
+	assert_string_contains(view.status_label.text, "detailed report unavailable")
 
 
 func test_harvest_noop_on_bare_patch() -> void:

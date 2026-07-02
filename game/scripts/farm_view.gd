@@ -801,7 +801,7 @@ func _on_harvest_complete(
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
-	# Clear the harvested crop from the affected patch tiles.
+	# Backend really settled + cleared the crop, so this clear survives /step.
 	for i in range(_tile_data.size()):
 		if _tile_data[i]["soil_type"] == soil_type:
 			_tile_data[i]["crop_key"] = ""
@@ -809,18 +809,21 @@ func _on_harvest_complete(
 			_tile_data[i]["lai"] = 0.0
 			_tile_data[i]["grain_g_m2"] = 0.0
 			_update_crop_visuals(i)
-	status_label.text = "Harvested %s — %d credits" % [crop_key, cost]
+	# Yield + P&L come straight from the harvest action's settlement response.
+	status_label.text = (
+		"Harvested %s (cost %d credits) — revenue %d | profit %d credits"
+		% [crop_key, cost, int(data.get("revenue_credits", 0)), int(data.get("profit_credits", 0))]
+	)
 	_update_harvest_button()
-	# Refresh patch state and surface the season harvest report (yield + P&L).
+	# The action response is authoritative for P&L; fetch the season report only
+	# to confirm the fuller breakdown is available and note the gap if it is not.
 	_api_client.get_report(_game_id, _on_harvest_report_received)
 
 
-func _on_harvest_report_received(success: bool, data: Dictionary) -> void:
+func _on_harvest_report_received(success: bool, _data: Dictionary) -> void:
+	# Report failure (e.g. mid-season 400) just notes the gap; P&L already shown.
 	if not success:
-		return
-	var revenue: int = int(data.get("revenue_credits", 0))
-	var profit: int = int(data.get("profit_credits", 0))
-	status_label.text = "Harvest report: revenue %d | profit %d credits" % [revenue, profit]
+		status_label.text += " (detailed report unavailable)"
 
 
 func _setup_crop_popup() -> void:

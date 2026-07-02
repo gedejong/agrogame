@@ -33,7 +33,7 @@ from agrogame.api.models import (
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
-from agrogame.game.field import FieldManager, Patch, PatchConfig
+from agrogame.game.field import Field, FieldManager, Patch, PatchConfig
 from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
@@ -386,6 +386,69 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
+def _harvest_action(
+    s: GameSession, field: Field, prices: PriceTable
+) -> tuple[float, int, int]:
+    """Harvest a field's standing crop and settle season economics.
+
+    Finalizes the crop via the domain layer (``Field.harvest`` →
+    ``orch.harvest``: appends crop history, applies any legume N credit),
+    settles revenue against the harvested grain (``EconomicLedger.settle_season``),
+    records a ``SeasonResult`` so ``GET /report`` succeeds mid-season, and
+    clears the crop off each patch so subsequent day responses report a bare
+    patch.
+
+    Returns ``(grain_g_m2, revenue_credits, profit_credits)``.
+    """
+    from agrogame.game.turn import SeasonResult
+
+    # Grain averaged across patches, captured before harvest resets state.
+    grain_g_m2 = sum(
+        p.orch.canopy.state.grain_biomass_g_m2 for p in field.patches
+    ) / len(field.patches)
+    crop_key = field.patches[0].config.crop_key
+
+    # Finalize the crop in the domain layer (history + N fixation credit).
+    field.harvest()
+
+    # Settle season economics once — revenue from the harvested grain.
+    revenue = 0
+    profit = 0
+    if not s.season_settled:
+        profit = s.ledger.settle_season(grain_g_m2, crop_key, prices)
+        revenue = s.ledger.season_revenue
+        s.season_settled = True
+
+    # Record a SeasonResult so GET /report works in the day-by-day loop.
+    if not s.turn_manager:
+        s.turn_manager = GameTurnManager(
+            orch=field.patches[0].orch,
+            weather=s.weather,
+            crop_key=crop_key,
+        )
+    s.turn_manager.current_day = s.day_index
+    s.turn_manager.result = SeasonResult(
+        total_days=s.day_index,
+        grain_g_m2=grain_g_m2,
+        grain_kg_ha=grain_g_m2 * 10.0,
+        pause_count=0,
+        crop_key=crop_key,
+    )
+
+    # Clear the standing crop so subsequent responses show a bare patch.
+    for patch in field.patches:
+        patch.config = PatchConfig(
+            soil_profile_key=patch.config.soil_profile_key,
+            crop_key="",
+            climate_key=patch.config.climate_key,
+            area_fraction=patch.config.area_fraction,
+        )
+        patch.orch.canopy.state.grain_biomass_g_m2 = 0.0
+        patch.orch.canopy.state.lai = 0.0
+
+    return grain_g_m2, revenue, profit
+
+
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
     """Generate weather for the session if not yet generated."""
     if s.weather and s.day_index < len(s.weather):
@@ -674,7 +737,12 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
 
     # Apply action
     field = s.field_manager.fields[req.field_id]
-    if req.action == "plant":
+    grain_g_m2 = 0.0
+    revenue_credits = 0
+    profit_credits = 0
+    if req.action == "harvest":
+        grain_g_m2, revenue_credits, profit_credits = _harvest_action(s, field, prices)
+    elif req.action == "plant":
         # Plant targets a specific patch (or all if no patch_idx given)
         crop_key = req.params.get("crop_key", "maize")
         patch_idx = req.params.get("patch_idx", -1)
@@ -719,6 +787,9 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         cost_credits=cost,
         balance_credits=s.ledger.balance_credits,
         day_number=s.day_index,
+        grain_g_m2=round(grain_g_m2, 1),
+        revenue_credits=revenue_credits,
+        profit_credits=profit_credits,
     )
 
 
