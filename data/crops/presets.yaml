@@ -25,7 +25,14 @@ crops:
       leaf_fraction_vegetative: 0.7
       leaf_fraction_flowering: 0.4
       leaf_fraction_grain_fill: 0.15
-      harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55
+      harvest_index: 0.50          # DSSAT CERES-Maize: 0.45-0.55 (legacy fallback)
+      # Sink-source grain model (#321): grain number from silking-window
+      # growth (Andrade et al. 1999), then kernel fill. Kernel ~250-300 mg.
+      grains_per_g_source: 6.0
+      grain_set_window_gdd: 200.0
+      potential_kernel_weight_mg: 290.0
+      kernel_fill_rate_mg_per_grain_day: 9.0
+      hi_max: 0.55                  # CERES-Maize HI ceiling
       remobilization_fraction: 0.037  # NL posterior (AGRO-92)
       frost_threshold_c: 0.0        # DSSAT: maize killed at 0C
       frost_damage_fraction: 0.4
@@ -87,8 +94,16 @@ crops:
       senescence_flowering_fraction: 0.3  # lower canopy leaves start dying
       senescence_grain_fill_max: 1.8  # gradual canopy decline
       grain_fill_duration_gdd: 900.0
-      harvest_index: 0.45          # APSIM wheat: 0.40-0.50
-      remobilization_fraction: 0.025 # 2.5%/day (Gebbing & Schnyder 1999)
+      harvest_index: 0.45          # APSIM wheat: 0.40-0.50 (legacy fallback)
+      # Sink-source grain model (#321): grains from spike growth around
+      # anthesis (Fischer 1985), kernel ~40-45 mg (Gebbing & Schnyder 1999).
+      grains_per_g_source: 95.0
+      grain_set_window_gdd: 250.0
+      potential_kernel_weight_mg: 42.0
+      kernel_fill_rate_mg_per_grain_day: 1.5
+      hi_max: 0.55                  # field winter-wheat HI ceiling (safety)
+      remobilization_fraction: 0.08  # stem reserves (Gebbing & Schnyder 1999)
+      leaf_remob_fraction: 0.03      # senescing-leaf protein/C to grain (#321)
       frost_threshold_c: -2.0       # Winter wheat tolerates mild frost
       frost_damage_fraction: 0.2
       heat_damage_threshold_c: 32.0  # C3 crop, sensitive to heat
@@ -123,8 +138,15 @@ crops:
       leaf_fraction_flowering: 0.35
       leaf_fraction_grain_fill: 0.10
       grain_fill_duration_gdd: 700.0
-      harvest_index: 0.45          # spring wheat similar to winter
-      remobilization_fraction: 0.025
+      harvest_index: 0.45          # spring wheat similar to winter (legacy fallback)
+      # Sink-source grain model (#321): as winter wheat (Fischer 1985).
+      grains_per_g_source: 110.0
+      grain_set_window_gdd: 200.0
+      potential_kernel_weight_mg: 42.0
+      kernel_fill_rate_mg_per_grain_day: 1.5
+      hi_max: 0.50
+      remobilization_fraction: 0.06
+      leaf_remob_fraction: 0.02      # senescing-leaf protein/C to grain (#321)
       frost_threshold_c: -1.0       # Spring wheat less frost-hardy
       frost_damage_fraction: 0.25
       heat_damage_threshold_c: 32.0
@@ -160,7 +182,13 @@ crops:
       leaf_fraction_vegetative: 0.7
       leaf_fraction_flowering: 0.45
       leaf_fraction_grain_fill: 0.15
-      harvest_index: 0.45          # DSSAT CERES-Rice: 0.40-0.50
+      harvest_index: 0.45          # DSSAT CERES-Rice: 0.40-0.50 (legacy fallback)
+      # Sink-source grain model (#321): panicle grain set, kernel ~22-27 mg.
+      grains_per_g_source: 200.0
+      grain_set_window_gdd: 250.0
+      potential_kernel_weight_mg: 25.0
+      kernel_fill_rate_mg_per_grain_day: 1.0
+      hi_max: 0.50
       remobilization_fraction: 0.02
       frost_threshold_c: 10.0      # Tropical crop, very frost-sensitive
       frost_damage_fraction: 0.5
@@ -196,7 +224,13 @@ crops:
       leaf_fraction_vegetative: 0.65
       leaf_fraction_flowering: 0.35
       leaf_fraction_grain_fill: 0.10
-      harvest_index: 0.35          # APSIM sorghum: 0.30-0.40
+      harvest_index: 0.35          # APSIM sorghum: 0.30-0.40 (legacy fallback)
+      # Sink-source grain model (#321): panicle grain set, kernel ~25-30 mg.
+      grains_per_g_source: 120.0
+      grain_set_window_gdd: 200.0
+      potential_kernel_weight_mg: 28.0
+      kernel_fill_rate_mg_per_grain_day: 1.2
+      hi_max: 0.45                  # APSIM sorghum HI ceiling
       remobilization_fraction: 0.029  # Bayesian posterior (AGRO-102)
       frost_threshold_c: 2.0       # Tropical C4, frost-sensitive
       frost_damage_fraction: 0.4

@@ -9,7 +9,13 @@ from agrogame.plant.stress import compute_water_stress
 
 from .params import CanopyParams
 from .types import CanopyState, CanopyFluxes
-from .events import LightIntercepted, BiomassAccumulated, LAIUpdated, Harvested
+from .events import (
+    LightIntercepted,
+    BiomassAccumulated,
+    LAIUpdated,
+    Harvested,
+    GrainNumberSet,
+)
 
 
 class CanopyModule:
@@ -41,6 +47,10 @@ class CanopyModule:
         self._current_stage: PhenologyStage = PhenologyStage.PLANTED
         self._grain_fill_start_gdd: float = 0.0
         self._current_gdd: float = 0.0
+        # Sink-source grain model (#321): biomass at anthesis and a freeze
+        # flag for the peri-anthesis grain-number window.
+        self._lag_start_biomass: float = 0.0
+        self._grain_number_frozen: bool = False
 
     def _on_gdd_accumulated(self, event: GddAccumulated) -> None:
         self._current_gdd = event.total_gdd
@@ -52,6 +62,11 @@ class CanopyModule:
             self.state.lai = max(self.state.lai, self.params.initial_lai_at_emergence)
         if event.to_stage == PhenologyStage.GRAIN_FILL:
             self._grain_fill_start_gdd = event.at_gdd
+            # Anchor the peri-anthesis grain-number window (#321): grain
+            # number will be set from biomass accrued past this point.
+            self._lag_start_biomass = self.state.biomass_g_m2
+            self._grain_number_frozen = False
+            self.state.grain_number = 0.0
 
     @property
     def _senescence_multiplier(self) -> float:
@@ -138,6 +153,9 @@ class CanopyModule:
         self.state.biomass_g_m2 *= frac
         self.state.stem_biomass_g_m2 *= frac
         self.state.grain_biomass_g_m2 *= frac
+        self.state.grain_number *= frac  # reset grain number for next cycle (#321)
+        self._lag_start_biomass *= frac
+        self._grain_number_frozen = False
         self.state.last_water_stress = 1.0  # Reset to no-stress after harvest
         if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
             self.event_bus.emit(
@@ -181,6 +199,150 @@ class CanopyModule:
             self.event_bus.emit(LAIUpdated(previous_lai=prev, new_lai=self.state.lai))
         return self.state.lai
 
+    def _update_grain_number(self) -> None:
+        """Set (then freeze) potential grain number over the critical window.
+
+        Grain number is proportional to assimilate accrued during the
+        post-anthesis lag/critical window (Andrade et al. 1999 for maize;
+        Fischer 1985 for wheat; DSSAT CERES G1 coefficient analogue). Cold,
+        water and N stress all lower it via the reduced source growth. Once
+        the window (``grain_set_window_gdd``) closes the number is frozen, so
+        later filling changes kernel weight, never grain number.
+        """
+        p = self.params
+        window_end = self._grain_fill_start_gdd + p.grain_set_window_gdd
+        if self._current_gdd <= window_end:
+            lag_growth = self.state.biomass_g_m2 - self._lag_start_biomass
+            self.state.grain_number = p.grains_per_g_source * max(0.0, lag_growth)
+        elif not self._grain_number_frozen:
+            self._grain_number_frozen = True
+            if self.event_bus is not None:
+                self.event_bus.emit(
+                    GrainNumberSet(
+                        grain_number=self.state.grain_number,
+                        window_source_g_m2=self.state.grain_number
+                        / p.grains_per_g_source,
+                        at_gdd=self._current_gdd,
+                    )
+                )
+
+    def _partition_grain(
+        self, biomass_inc: float, leaf_fraction: float, heat_grain_factor: float
+    ) -> None:
+        """Partition the day's non-leaf increment (and reserves) into grain/stem.
+
+        Sink-source model (``grains_per_g_source > 0``): a daily fill *demand*
+        (single-kernel rate x grain number, slowed by post-anthesis heat and
+        bounded by the remaining total sink = number x potential kernel
+        weight) is met from current assimilate first, then from remobilised
+        reserves. Grain number thus sets total yield, the fill rate governs
+        kernel weight, and stress on either lowers grain (CERES-style; Andrade
+        et al. 1999; Fischer 1985). Falls back to the legacy fixed-HI split
+        for non-grain / un-migrated presets. Mutates grain and stem in place.
+        """
+        p = self.params
+        nonleaf = biomass_inc * (1.0 - leaf_fraction)
+        in_grain_fill = self._current_stage == PhenologyStage.GRAIN_FILL
+        if p.grains_per_g_source <= 0.0:
+            self._partition_grain_legacy(biomass_inc, nonleaf, heat_grain_factor)
+            return
+        if not in_grain_fill:
+            self.state.stem_biomass_g_m2 += nonleaf
+            return
+        self._update_grain_number()
+        total_sink = self.state.grain_number * p.potential_kernel_weight_mg * 1e-3
+        remaining_total = max(0.0, total_sink - self.state.grain_biomass_g_m2)
+        # Potential fill demand today = single-kernel rate x number (CERES G2),
+        # slowed by post-anthesis heat stress, never beyond the remaining sink.
+        demand = min(
+            self.state.grain_number
+            * p.kernel_fill_rate_mg_per_grain_day
+            * 1e-3
+            * heat_grain_factor,
+            remaining_total,
+        )
+        # Meet demand from current assimilate first; surplus source -> stem.
+        from_source = min(nonleaf, demand)
+        self.state.stem_biomass_g_m2 += nonleaf - from_source
+        deficit = demand - from_source
+        remob = self._draw_reserves(deficit) if deficit > 0.0 else 0.0
+        self.state.grain_biomass_g_m2 += from_source + remob
+
+    def _partition_grain_legacy(
+        self, biomass_inc: float, nonleaf: float, heat_grain_factor: float
+    ) -> None:
+        """Legacy fixed harvest-index allocation (grains_per_g_source == 0).
+
+        Preserved verbatim so non-grain (grape HI=0) and un-migrated presets
+        behave exactly as before this feature.
+        """
+        p = self.params
+        in_grain_fill = self._current_stage == PhenologyStage.GRAIN_FILL
+        grain_inc = (
+            biomass_inc * p.harvest_index * heat_grain_factor if in_grain_fill else 0.0
+        )
+        stem = nonleaf - grain_inc
+        if stem < 0.0:  # keep stem >= 0 when HI > (1 - leaf_fraction)
+            grain_inc += stem
+            stem = 0.0
+        self.state.grain_biomass_g_m2 += grain_inc
+        self.state.stem_biomass_g_m2 += stem
+        if (
+            in_grain_fill
+            and p.remobilization_fraction > 0.0
+            and self.state.stem_biomass_g_m2 > 0.0
+        ):
+            remob = self.state.stem_biomass_g_m2 * p.remobilization_fraction
+            self.state.stem_biomass_g_m2 -= remob
+            self.state.grain_biomass_g_m2 += remob
+
+    def _draw_reserves(self, deficit: float) -> float:
+        """Remobilise stem then senescing-leaf reserves to meet grain demand.
+
+        Gebbing & Schnyder 1999: 30-50% of grain carbon comes from
+        pre-anthesis reserves (stem) plus remobilised flag-leaf/canopy protein
+        as leaves senesce. Internal transfer (total biomass unchanged); drawn
+        only up to the day's unmet demand. Returns the mass moved to grain.
+        """
+        p = self.params
+        drawn = 0.0
+        if p.remobilization_fraction > 0.0 and self.state.stem_biomass_g_m2 > 0.0:
+            take = min(
+                self.state.stem_biomass_g_m2 * p.remobilization_fraction, deficit
+            )
+            if take > 0.0:
+                self.state.stem_biomass_g_m2 -= take
+                drawn += take
+        if p.leaf_remob_fraction > 0.0 and drawn < deficit:
+            # Implied leaf pool = total - stem - grain; moving it to grain
+            # reduces the implied leaf automatically (mass conserved).
+            leaf = (
+                self.state.biomass_g_m2
+                - self.state.stem_biomass_g_m2
+                - self.state.grain_biomass_g_m2
+            )
+            if leaf > 0.0:
+                take = min(leaf * p.leaf_remob_fraction, deficit - drawn)
+                if take > 0.0:
+                    drawn += take
+        return drawn
+
+    def _apply_harvest_index_cap(self) -> None:
+        """Bound cumulative grain to ``hi_max`` x total biomass (#321).
+
+        Safety ceiling that prevents runaway grain under low-stress / high-N
+        conditions; the surplus is returned to stem so total biomass is
+        conserved. Active only for the sink-source model.
+        """
+        p = self.params
+        if p.grains_per_g_source <= 0.0 or p.hi_max <= 0.0:
+            return
+        max_grain = p.hi_max * self.state.biomass_g_m2
+        excess = self.state.grain_biomass_g_m2 - max_grain
+        if excess > 0.0:
+            self.state.grain_biomass_g_m2 = max_grain
+            self.state.stem_biomass_g_m2 += excess
+
     def daily_step(
         self,
         incident_par_mj_m2: float,
@@ -200,29 +362,8 @@ class CanopyModule:
         # matching DSSAT/APSIM physiological maturity convention).
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
-        if self._current_stage == PhenologyStage.GRAIN_FILL:
-            # heat_grain_factor < 1.0 reduces grain during heat stress (AGRO-34)
-            grain_inc = biomass_inc * self.params.harvest_index * heat_grain_factor
-        else:
-            grain_inc = 0.0
-        stem_biomass = biomass_inc * (1.0 - leaf_fraction) - grain_inc
-        # Guard against negative stem when HI > (1 - leaf_fraction)
-        if stem_biomass < 0.0:
-            grain_inc += stem_biomass  # reduce grain to keep stem >= 0
-            stem_biomass = 0.0
-        self.state.grain_biomass_g_m2 += grain_inc
-        self.state.stem_biomass_g_m2 += stem_biomass
-        # Remobilize pre-anthesis stem reserves to grain during grain fill
-        # (Gebbing & Schnyder 1999; APSIM stem_remobilisation_fraction).
-        # Total biomass unchanged — internal transfer only.
-        if (
-            self._current_stage == PhenologyStage.GRAIN_FILL
-            and self.params.remobilization_fraction > 0.0
-            and self.state.stem_biomass_g_m2 > 0.0
-        ):
-            remob = self.state.stem_biomass_g_m2 * self.params.remobilization_fraction
-            self.state.stem_biomass_g_m2 -= remob
-            self.state.grain_biomass_g_m2 += remob
+        self._partition_grain(biomass_inc, leaf_fraction, heat_grain_factor)
+        self._apply_harvest_index_cap()
         self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
         if self.event_bus is not None and biomass_inc > 0.0:
             self.event_bus.emit(
