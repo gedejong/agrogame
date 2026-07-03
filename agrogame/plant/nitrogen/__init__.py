@@ -12,7 +12,7 @@ Plénet & Lemaire 1999). The ratio is the N nutrition index (NNI); a
 documented NNI->stress mapping produces a continuous stress factor that
 the canopy folds into its Liebig minimum on RUE.
 
-See ADR-012 for the whole-shoot vs per-organ decision and the placement
+See ADR-013 for the whole-shoot vs per-organ decision and the placement
 of this cross-community layer.
 """
 

@@ -1,4 +1,4 @@
-# ADR-012: Whole-shoot plant-nitrogen accounting (critical-N dilution)
+# ADR-013: Whole-shoot plant-nitrogen accounting (critical-N dilution)
 
 ## Status
 
