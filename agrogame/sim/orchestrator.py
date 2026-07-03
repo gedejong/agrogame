@@ -817,6 +817,11 @@ class FullSimulationOrchestrator:
         self._day_counter = 0
         self._last_biomass_inc_g_m2 = 0.0
         self._pending_root_canopy_inc_g_m2 = 0.0
+        # Reset the per-day CO₂ buffer to its fresh-init state (#352). Without
+        # this, day 1 of the new season would read the prior season's buffered
+        # respiration into the gas-diffusion / SOM chain. Matches the __init__
+        # initialisation: one zeroed entry per soil layer.
+        self._co2_buffer = [0.0] * len(self.profile.layers)
         # Capture soil state before tearing down subscriptions.
         soil = self.snapshot_soil()
 
