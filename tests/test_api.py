@@ -798,6 +798,111 @@ def test_harvest_action_enables_report_mid_season(client) -> None:
     assert rj["revenue_credits"] > 0
 
 
+def test_double_harvest_is_noop(client) -> None:
+    """A second harvest on a bare patch is a no-op: no charge, no clobber (#341).
+
+    Regression: `execute_action` had no guard, so re-harvesting an
+    already-harvested patch charged another 50 credits (revenue 0) and
+    overwrote `turn_manager.result` with a zero-grain SeasonResult.
+    """
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    first = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert first.status_code == 200
+    assert first.json()["status"] == "executed"
+    balance_after_first = first.json()["balance_credits"]
+
+    report_after_first = client.get(f"/api/v1/games/{game_id}/report").json()
+
+    # Second harvest: the patch is now bare, so it must be a no-op.
+    second = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert second.status_code == 200
+    sj = second.json()
+    assert sj["status"] == "no-op", "Re-harvest of a bare patch is a no-op"
+    assert sj["cost_credits"] == 0, "No labor charged for a no-op harvest"
+    assert sj["revenue_credits"] == 0
+    assert sj["balance_credits"] == balance_after_first, "Balance unchanged"
+
+    # turn_manager.result / report is not clobbered by the no-op.
+    report_after_second = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert (
+        report_after_second["revenue_credits"] == report_after_first["revenue_credits"]
+    )
+    # The per-patch yield captured at the real harvest also survives the no-op.
+    assert (
+        report_after_second["patches"]["f1"][0]["grain_t_ha"]
+        == report_after_first["patches"]["f1"][0]["grain_t_ha"]
+    )
+
+
+def test_report_preserves_per_patch_yield_after_harvest(client) -> None:
+    """/report keeps per-patch grain_t_ha and crop after harvest clears the crop (#341).
+
+    Regression: clearing the crop zeroed `grain_biomass_g_m2`, so the per-patch
+    `grain_t_ha` in /report read 0.0 even though grain was harvested.
+    """
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    harvest = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert harvest.status_code == 200
+    grain_g_m2 = harvest.json()["grain_g_m2"]
+    assert grain_g_m2 > 0.0
+
+    report = client.get(f"/api/v1/games/{game_id}/report")
+    assert report.status_code == 200
+    patch = report.json()["patches"]["f1"][0]
+    # Per-patch yield reflects the harvested grain, not the cleared 0.0.
+    assert patch["grain_t_ha"] > 0.0, "Per-patch yield preserved after harvest"
+    # /report serializes grain_t_ha as round(grain_g_m2 / 100.0, 2), so compare
+    # like-for-like at 2-dp resolution. abs=0.01 (one hundredths step) absorbs the
+    # action response's own 1-dp grain rounding landing on the far side of a
+    # hundredths boundary, while still asserting the yield is preserved to 2 dp.
+    assert patch["grain_t_ha"] == pytest.approx(round(grain_g_m2 / 100.0, 2), abs=0.01)
+    # Crop identity survives the clear, so the GYGA lookup resolves to maize's
+    # water-limited potential (11.0) rather than the 10.0 empty-crop default.
+    assert patch["crop_key"] == "maize"
+    assert patch["gyga_potential_t_ha"] == 11.0
+
+
+def test_replant_resets_harvested_yield_in_report(client) -> None:
+    """Replanting after harvest clears the stale per-patch yield in /report (#341)."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+
+    # Replant a fresh crop; the just-harvested yield must not carry over.
+    plant = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={
+            "field_id": "f1",
+            "action": "plant",
+            "params": {"crop_key": "maize", "patch_idx": 0},
+        },
+    )
+    assert plant.status_code == 200
+
+    report = client.get(f"/api/v1/games/{game_id}/report")
+    assert report.status_code == 200
+    patch = report.json()["patches"]["f1"][0]
+    # Fresh crop, no grain yet — report reads live state, not the prior harvest.
+    assert patch["crop_key"] == "maize"
+    assert patch["grain_t_ha"] == 0.0
+
+
 def test_step_response_includes_redox_state(client) -> None:
     """Step response should include redox_eh and dominant_acceptor (#235).
 

@@ -49,6 +49,11 @@ class Patch:
 
     def __init__(self, config: PatchConfig) -> None:
         self.config = config
+        # Per-patch harvested yield, captured before the crop is cleared so the
+        # harvest report retains the per-patch/GYGA breakdown (#341). ``None``
+        # means the patch has not been harvested this season.
+        self.harvested_grain_g_m2: float | None = None
+        self.harvested_crop_key: str | None = None
         crops = load_crop_presets(Path("data/crops/presets.yaml"))
         climates = load_climate_presets(Path("data/climate/presets.yaml"))
         soil_lib = load_soil_presets(Path("soils/presets.yaml"))
