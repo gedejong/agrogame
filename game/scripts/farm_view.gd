@@ -75,6 +75,7 @@ var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
+var _fertilizer_popup: PopupMenu = null
 var _cutaway := SoilCutawayController.new()
 var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
@@ -128,6 +129,7 @@ func _ready() -> void:
 	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
+	_setup_fertilizer_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
 	_stress_icons = StressIcons.new()
@@ -805,18 +807,36 @@ func _on_irrigate() -> void:
 	)
 
 
+func _setup_fertilizer_popup() -> void:
+	_fertilizer_popup = PopupMenu.new()
+	for i in range(FertilizerPicker.option_count()):
+		# Separate the picker into per-type groups for readability.
+		if FertilizerPicker.starts_new_group(i):
+			_fertilizer_popup.add_separator()
+		_fertilizer_popup.add_item(FertilizerPicker.label_for(i), i)
+	_fertilizer_popup.id_pressed.connect(_on_fertilizer_selected)
+	UiTheme.style_popup_menu(_fertilizer_popup)
+	$UILayer.add_child(_fertilizer_popup)
+
+
 func _on_fertilize() -> void:
+	var btn_rect := fertilize_btn.get_global_rect()
+	_fertilizer_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
+	_fertilizer_popup.popup()
+
+
+func _on_fertilizer_selected(option_id: int) -> void:
+	var params: Dictionary = FertilizerPicker.params_for(option_id)
+	if params.is_empty():
+		return
+	var fert_type: String = params["type"]
+	var amount: float = params["amount_kg_ha"]
+	var cost: int = FertilizerPicker.cost_for(fert_type, amount)
+	var name: String = FertilizerPicker.LABELS.get(fert_type, fert_type)
 	_ensure_game(
 		func() -> void:
-			(
-				_api_client
-				. execute_action(
-					_game_id,
-					"fertilize",
-					{"type": "urea", "amount_kg_ha": 50},
-					_on_action_complete,
-				)
-			)
+			status_label.text = "Applying %s %d kg/ha — est. %d credits" % [name, int(amount), cost]
+			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
 	)
 
 

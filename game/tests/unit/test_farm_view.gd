@@ -54,3 +54,13 @@ func test_preview_irrigate_params_match_handler() -> void:
 	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
 		if spec["action"] == "irrigate":
 			assert_eq(spec["params"].get("amount_mm"), 20)
+
+
+func test_preview_fertilize_baseline_params_match_picker_default() -> void:
+	# The Fertilize button previews a representative default cost; that spec
+	# must be a valid FertilizerPicker option (urea 50 kg/ha) so the baseline
+	# label agrees with the ledger deduction for that selection.
+	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+		if spec["action"] == "fertilize":
+			assert_eq(spec["params"].get("type"), "urea")
+			assert_eq(spec["params"].get("amount_kg_ha"), 50)
