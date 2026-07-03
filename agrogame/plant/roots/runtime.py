@@ -20,12 +20,13 @@ class RootsRuntime:
     """Wire RootModule to the EventBus; subscribes to DayTick to advance roots daily.
 
     ``canopy_increment_provider`` is an injected port (ADR-008) returning the
-    pending above-ground biomass increment (g/m²) accumulated since the last
-    root step, and resetting it on read. It decouples the root package from
-    ``soil.canopy`` (which the ``plant_vs_soil`` import contract forbids
-    importing): the orchestrator observes ``BiomassAccumulated`` and supplies
-    the value. A crop-parameterised fraction of it is allocated to root
-    biomass each day.
+    below-ground share of the daily assimilate pool (g/m²) accumulated since
+    the last root step, and resetting it on read. The canopy already partitions
+    the single finite pool into shoot and root shares (Σ = 1, #337), so the
+    value returned here is the root share directly — no partition fraction is
+    re-applied. It decouples the root package from ``soil.canopy`` (which the
+    ``plant_vs_soil`` import contract forbids importing): the orchestrator
+    observes ``BiomassAccumulated`` and supplies the value.
     """
 
     event_bus: EventBus
@@ -40,11 +41,15 @@ class RootsRuntime:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
 
     def _daily_root_allocation(self) -> float:
-        """Fraction of the pending canopy biomass increment routed to roots."""
+        """Below-ground share of today's assimilate pool routed to roots.
+
+        The canopy already reserved this share from the single finite pool
+        (Σ shoot+root = 1, #337); the provider returns it directly, so no
+        partition fraction is re-applied here.
+        """
         if self.canopy_increment_provider is None:
             return 0.0
-        canopy_inc = max(0.0, self.canopy_increment_provider())
-        return self.module.params.root_allocation_fraction * canopy_inc
+        return max(0.0, self.canopy_increment_provider())
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "plant_structure":

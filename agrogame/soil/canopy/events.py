@@ -13,8 +13,11 @@ class LightIntercepted(BaseEvent):
 
 @dataclass(frozen=True)
 class BiomassAccumulated(BaseEvent):
-    increment_g_m2: float
-    total_g_m2: float
+    increment_g_m2: float  # shoot share added to canopy biomass this day
+    total_g_m2: float  # cumulative shoot (canopy) biomass
+    # Below-ground share of the same finite assimilate pool routed to roots
+    # (#337). Total new plant tissue this day = increment_g_m2 + this.
+    root_increment_g_m2: float = 0.0
 
 
 @dataclass(frozen=True)

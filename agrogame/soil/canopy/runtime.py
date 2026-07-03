@@ -17,6 +17,10 @@ class CanopyRuntime:
 
     event_bus: EventBus
     canopy: CanopyModule
+    # Below-ground share of the daily assimilate pool (#337). Sourced from the
+    # frozen RootParams.root_allocation_fraction and wired in by the
+    # orchestrator; the canopy withholds this share from shoot/grain each day.
+    root_allocation_fraction: float = 0.0
     _last_water: float = 1.0
     _last_n: float = 1.0
     _last_p: float = 1.0
@@ -217,6 +221,7 @@ class CanopyRuntime:
             water_stress=effective_water,
             n_stress=nutrient_stress,
             heat_grain_factor=heat_grain_factor,
+            root_allocation_fraction=self.root_allocation_fraction,
         )
         # Damage checks (wilt, frost, waterlogging) — AGRO-34
         self._check_wilt_damage(water)
