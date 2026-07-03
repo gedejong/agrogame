@@ -13,8 +13,14 @@ static func is_affordable(cost: int, balance: int) -> bool:
 	return balance >= cost
 
 
-static func format_button_label(base_label: String, cost: int) -> String:
-	"""Append the estimated cost to a button label, e.g. 'Irrigate (40cr)'."""
+static func format_button_label(base_label: String, cost: int, from_price: bool = false) -> String:
+	"""Append the estimated cost to a button label, e.g. 'Irrigate (40cr)'.
+
+	Set from_price for a multi-tier action whose cost is a lower bound, e.g.
+	'Fertilize (from 75cr)', so the label does not read as a fixed price.
+	"""
+	if from_price:
+		return "%s (from %dcr)" % [base_label, cost]
 	return "%s (%dcr)" % [base_label, cost]
 
 

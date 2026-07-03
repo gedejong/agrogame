@@ -65,6 +65,28 @@ static func cost_for(fert_type: String, amount_kg_ha: float) -> int:
 	return int(LABOR_PER_ACTION + per_kg * amount_kg_ha)
 
 
+## Option id of the cheapest tier — the "from" price the Fertilize button
+## previews and gates on, so the button only blocks when no tier is affordable.
+static func cheapest_option_id() -> int:
+	var best_id: int = 0
+	var best_cost: int = cost_for(type_for(0), amount_for(0))
+	for i in range(1, option_count()):
+		var candidate: int = cost_for(type_for(i), amount_for(i))
+		if candidate < best_cost:
+			best_cost = candidate
+			best_id = i
+	return best_id
+
+
+## True when balance covers this option's estimated cost. Out of range → false,
+## used to grey out unaffordable tiers in the picker menu.
+static func is_affordable(option_id: int, balance: int) -> bool:
+	var fert_type: String = type_for(option_id)
+	if fert_type.is_empty():
+		return false
+	return balance >= cost_for(fert_type, amount_for(option_id))
+
+
 ## Picker label, e.g. "Urea (N)  50 kg/ha — 100 cr". Empty when out of range.
 static func label_for(option_id: int) -> String:
 	var fert_type: String = type_for(option_id)

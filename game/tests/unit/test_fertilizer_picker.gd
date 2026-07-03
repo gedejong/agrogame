@@ -87,6 +87,38 @@ func test_label_shows_type_amount_and_cost() -> void:
 	assert_string_contains(label, "100 cr")
 
 
+# #349 review: the Fertilize button gates on the cheapest tier, not urea-50.
+func test_cheapest_option_is_lowest_cost() -> void:
+	var cheapest: int = FertilizerPicker.cheapest_option_id()
+	var cheapest_cost: int = FertilizerPicker.cost_for(
+		FertilizerPicker.type_for(cheapest), FertilizerPicker.amount_for(cheapest)
+	)
+	# labor(50) + 1 * 25 = 75 for urea/ammonium_nitrate at the smallest tier.
+	assert_eq(cheapest_cost, 75, "cheapest tier costs 75 cr")
+	for i in range(FertilizerPicker.option_count()):
+		var cost: int = FertilizerPicker.cost_for(
+			FertilizerPicker.type_for(i), FertilizerPicker.amount_for(i)
+		)
+		assert_true(cost >= cheapest_cost, "no option is cheaper than cheapest_option_id")
+
+
+func test_is_affordable_reflects_option_cost() -> void:
+	var cheapest: int = FertilizerPicker.cheapest_option_id()
+	assert_true(FertilizerPicker.is_affordable(cheapest, 75), "exact cheapest balance affordable")
+	assert_false(
+		FertilizerPicker.is_affordable(cheapest, 74), "one short of cheapest not affordable"
+	)
+	# tsp at 100 kg/ha = 50 + 2*100 = 250 cr (last option, type-major layout).
+	var tsp_100: int = FertilizerPicker.option_count() - 1
+	assert_false(FertilizerPicker.is_affordable(tsp_100, 100), "250 cr tier blocked at 100 cr")
+	assert_true(FertilizerPicker.is_affordable(tsp_100, 250), "250 cr tier affordable at 250 cr")
+
+
+func test_is_affordable_out_of_range_is_false() -> void:
+	assert_false(FertilizerPicker.is_affordable(-1, 999999))
+	assert_false(FertilizerPicker.is_affordable(FertilizerPicker.option_count(), 999999))
+
+
 func test_starts_new_group_marks_type_boundaries() -> void:
 	var n: int = FertilizerPicker.AMOUNTS_KG_HA.size()
 	assert_false(FertilizerPicker.starts_new_group(0), "first option is not a boundary")
