@@ -149,6 +149,37 @@ def test_custom_mineralization_rate_changes_output() -> None:
     assert fast_flux.mineralized_kg_ha > base_flux.mineralized_kg_ha
 
 
+def test_self_mineralization_enabled_by_default() -> None:
+    """Default params mineralise the cycle's own organic-N pool (#351)."""
+    profile = _profile("loam")
+    assert NitrogenRateParams().enable_self_mineralization is True
+    flux = NitrogenCycle(
+        EventBus(), SoilNitrogenState(profile), profile=cast(Any, profile)
+    ).daily_step(temperature_c=20.0)
+    assert flux.mineralized_kg_ha > 0.0
+
+
+def test_self_mineralization_disabled_is_noop() -> None:
+    """With self-mineralisation off, SOM is the sole source (#351).
+
+    The cycle must not draw its own organic-N pool, so mineralised N is zero
+    and the ``organic_n`` pool is unchanged — leaving SOM's ``SOMDecomposed``
+    events as the only mineralisation input in the orchestrated sim.
+    """
+    profile = _profile("loam")
+    state = SoilNitrogenState(profile)
+    before = list(state.organic_n)
+    cycle = NitrogenCycle(
+        EventBus(),
+        state,
+        profile=cast(Any, profile),
+        params=NitrogenRateParams(enable_self_mineralization=False),
+    )
+    flux = cycle.daily_step(temperature_c=20.0)
+    assert flux.mineralized_kg_ha == 0.0
+    assert state.organic_n == before
+
+
 # --- Clay modulation (AC3) -----------------------------------------------
 
 

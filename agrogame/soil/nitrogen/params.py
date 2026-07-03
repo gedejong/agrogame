@@ -56,6 +56,21 @@ class NitrogenRateParams:
             multiplier (coarse, well-aerated soils).
         denit_clay_max_mult: Upper clamp on the denitrification clay
             multiplier (heavy clay soils).
+        enable_self_mineralization: When True (default), the cycle mineralises
+            its own ``SoilNitrogenState.organic_n`` pool via
+            ``mineralization_base_rate`` — the original AGRO-17 behaviour, kept
+            so a standalone ``NitrogenCycle`` (and its unit tests) still
+            produce mineral N without a SOM module. When False, the cycle does
+            no self-mineralisation and treats the SOM module (3-pool RothC;
+            Coleman & Jenkinson 1996) as the *single* authoritative
+            N-mineralisation source, injected via ``SOMDecomposed`` events.
+            The orchestrated full sim runs with this False (#351): previously
+            both this pool *and* the SOM pool mineralised the same organic
+            matter into NH4 every day, roughly 5× realistic net mineralisation
+            (~1-3 kg N/ha/day; Stanford & Smith 1972, SSSAJ). That
+            double-counting pinned root-zone mineral N implausibly high
+            (~340-500 kg/ha), so uptake always met demand and neither N stress
+            nor fertiliser carried consequence.
     """
 
     mineralization_base_rate: float = 0.001
@@ -70,3 +85,6 @@ class NitrogenRateParams:
     denit_clay_sensitivity: float = 0.5
     denit_clay_min_mult: float = 0.5
     denit_clay_max_mult: float = 2.0
+
+    # SOM-authoritative mineralisation (#351): see class docstring.
+    enable_self_mineralization: bool = True
