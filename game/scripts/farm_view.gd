@@ -60,11 +60,14 @@ const _STAGE_MAP := {
 	"maturity": 4,
 }
 
-## Fixed-cost action buttons and the exact params their handlers send, so
-## the previewed cost label matches the eventual ledger deduction (#318).
+## Action buttons and the exact params their handlers send, so the previewed
+## cost label matches the eventual ledger deduction (#318). Fertilize spans
+## several priced tiers (#349), so it carries no fixed params: the preview
+## resolves the cheapest tier at request time (see _preview_params_for) and its
+## button shows a "from" price, gating only when no tier is affordable.
 const _PREVIEW_ACTIONS: Array[Dictionary] = [
 	{"action": "irrigate", "label": "Irrigate", "params": {"amount_mm": 20}},
-	{"action": "fertilize", "label": "Fertilize", "params": {"type": "urea", "amount_kg_ha": 50}},
+	{"action": "fertilize", "label": "Fertilize", "params": {}, "variable_cost": true},
 	{"action": "tillage", "label": "Tillage", "params": {"intensity": 0.8}},
 ]
 
@@ -75,11 +78,15 @@ var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
+var _fertilizer_popup: PopupMenu = null
 var _cutaway := SoilCutawayController.new()
 var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
+## Last known credit balance, used to grey out unaffordable fertilizer tiers.
+## -1 means "not yet known" (before the first cost preview) → nothing disabled.
+var _balance_credits: int = -1
 var _wind_strength: float = 0.15
 var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
@@ -128,6 +135,7 @@ func _ready() -> void:
 	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
+	_setup_fertilizer_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
 	_stress_icons = StressIcons.new()
@@ -525,9 +533,17 @@ func _preview_action_at(i: int) -> void:
 	_api_client.preview_action(
 		_game_id,
 		spec["action"],
-		spec["params"],
+		_preview_params_for(spec),
 		func(success: bool, data: Dictionary) -> void: _on_preview_cost(success, data, i)
 	)
+
+
+func _preview_params_for(spec: Dictionary) -> Dictionary:
+	## Fertilize has no fixed tier: preview (and gate on) the cheapest option so
+	## the button only blocks when no tier is affordable (#349 review).
+	if spec["action"] == "fertilize":
+		return FertilizerPicker.params_for(FertilizerPicker.cheapest_option_id())
+	return spec["params"]
 
 
 func _on_preview_cost(success: bool, data: Dictionary, i: int) -> void:
@@ -545,7 +561,9 @@ func _apply_cost_to_button(i: int, data: Dictionary) -> void:
 	var cost: int = data.get("cost_credits", 0)
 	var balance: int = data.get("balance_credits", 0)
 	var affordable: bool = data.get("affordable", true)
-	btn.text = ActionCost.format_button_label(spec["label"], cost)
+	_balance_credits = balance
+	var variable_cost: bool = spec.get("variable_cost", false)
+	btn.text = ActionCost.format_button_label(spec["label"], cost, variable_cost)
 	btn.tooltip_text = ActionCost.tooltip_text(spec["action"], cost, balance)
 	btn.disabled = not affordable
 
@@ -590,6 +608,7 @@ func _apply_day_result(data: Dictionary) -> void:
 
 	date_label.text = "Day %d | %s" % [day_num, cur_date]
 	credits_label.text = "%d" % balance
+	_balance_credits = balance
 	var rain_mm: float = w.get("rain_mm", 0.0)
 	weather_label.text = (
 		"%.0f–%.0f°C  %.1fmm"
@@ -805,18 +824,53 @@ func _on_irrigate() -> void:
 	)
 
 
+func _setup_fertilizer_popup() -> void:
+	_fertilizer_popup = PopupMenu.new()
+	for i in range(FertilizerPicker.option_count()):
+		# Separate the picker into per-type groups for readability.
+		if FertilizerPicker.starts_new_group(i):
+			_fertilizer_popup.add_separator()
+		_fertilizer_popup.add_item(FertilizerPicker.label_for(i), i)
+	_fertilizer_popup.id_pressed.connect(_on_fertilizer_selected)
+	UiTheme.style_popup_menu(_fertilizer_popup)
+	$UILayer.add_child(_fertilizer_popup)
+
+
 func _on_fertilize() -> void:
+	_apply_item_affordability()
+	var btn_rect := fertilize_btn.get_global_rect()
+	_fertilizer_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
+	_fertilizer_popup.popup()
+
+
+func _apply_item_affordability() -> void:
+	## Grey out picker tiers the player cannot afford, so a selection never
+	## previews one price then hits a backend 400 for another (#349 review).
+	## Balance unknown (< 0, before any preview) leaves every tier selectable.
+	for idx in range(_fertilizer_popup.item_count):
+		if _fertilizer_popup.is_item_separator(idx):
+			continue
+		var option_id: int = _fertilizer_popup.get_item_id(idx)
+		var affordable: bool = (
+			_balance_credits < 0 or FertilizerPicker.is_affordable(option_id, _balance_credits)
+		)
+		_fertilizer_popup.set_item_disabled(idx, not affordable)
+
+
+func _on_fertilizer_selected(option_id: int) -> void:
+	var params: Dictionary = FertilizerPicker.params_for(option_id)
+	if params.is_empty():
+		return
+	var fert_type: String = params["type"]
+	var amount: float = params["amount_kg_ha"]
+	var cost: int = FertilizerPicker.cost_for(fert_type, amount)
+	var display_name: String = FertilizerPicker.LABELS.get(fert_type, fert_type)
 	_ensure_game(
 		func() -> void:
-			(
-				_api_client
-				. execute_action(
-					_game_id,
-					"fertilize",
-					{"type": "urea", "amount_kg_ha": 50},
-					_on_action_complete,
-				)
+			status_label.text = (
+				"Applying %s %d kg/ha — est. %d credits" % [display_name, int(amount), cost]
 			)
+			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
 	)
 
 

@@ -54,3 +54,13 @@ func test_preview_irrigate_params_match_handler() -> void:
 	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
 		if spec["action"] == "irrigate":
 			assert_eq(spec["params"].get("amount_mm"), 20)
+
+
+func test_preview_fertilize_is_variable_cost() -> void:
+	# Fertilize spans several priced tiers (#349 review), so its spec carries no
+	# fixed params: the preview resolves the cheapest tier at request time and
+	# the button shows a "from" price, gating only when no tier is affordable.
+	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+		if spec["action"] == "fertilize":
+			assert_true(spec.get("variable_cost", false), "fertilize previews a from-price")
+			assert_true(spec["params"].is_empty(), "fertilize params resolved dynamically")

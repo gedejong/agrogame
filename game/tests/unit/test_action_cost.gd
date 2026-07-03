@@ -21,6 +21,16 @@ func test_format_button_label_appends_cost() -> void:
 	)
 
 
+func test_format_button_label_from_price_marks_lower_bound() -> void:
+	# Multi-tier actions (fertilizer picker, #349) show a "from" price so the
+	# label does not read as a fixed cost.
+	assert_eq(
+		ActionCostScript.format_button_label("Fertilize", 75, true),
+		"Fertilize (from 75cr)",
+		"Variable-cost label shows a from-price",
+	)
+
+
 func test_tooltip_affordable_shows_cost_and_balance() -> void:
 	var tip: String = ActionCostScript.tooltip_text("irrigate", 40, 100)
 	assert_true(tip.contains("40"), "Tooltip mentions cost")
