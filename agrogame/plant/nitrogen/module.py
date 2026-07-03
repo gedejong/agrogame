@@ -57,9 +57,9 @@ class PlantNitrogenModule:
         if shoot_dm_kg_ha <= _MIN_SHOOT_DM_KG_HA:
             return 1.0
         shoot_dm_t_ha = shoot_dm_kg_ha / 1000.0
+        # crit is a * W^-b with a > 0 and W > 0 (validated params), so it is
+        # always strictly positive — no divide-by-zero guard needed here.
         crit = self.critical_n_pct(shoot_dm_t_ha)
-        if crit <= 0.0:
-            return 1.0
         return self.actual_n_pct(n_stock_kg_ha, shoot_dm_kg_ha) / crit
 
     def demand_to_critical(
@@ -88,9 +88,10 @@ class PlantNitrogenModule:
         ``nni_stress_min`` (-> ``stress_floor``) and ``nni_stress_ref``
         (-> 1.0), clamped. Luxury uptake (NNI > ``nni_stress_ref``) is capped
         at 1.0 — no growth bonus. With the default parameters
-        (min=0, ref=1, floor=0) this is exactly ``clamp(NNI, 0..1)`` as in
-        the issue AC; the anchors exist as a documented calibration lever
-        (CERES-Maize NFAC style; Jones et al. 2003).
+        (min=0, ref=1, floor=0.05) this is ``clamp(NNI, 0.05..1)`` — the
+        issue AC's ``clamp(NNI, 0..1)`` with a small floor so a starved crop
+        does not hard-zero RUE in one step; the anchors exist as a documented
+        calibration lever (CERES-Maize NFAC style; Jones et al. 2003).
         """
         p = self.params
         span = p.nni_stress_ref - p.nni_stress_min

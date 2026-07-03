@@ -1,9 +1,9 @@
 # ADR-012: Whole-shoot plant-nitrogen accounting (critical-N dilution)
 
-- Status: Accepted
-- Date: 2026-07-03
-- Issue: [#360](https://github.com/gedejong/agrogame/issues/360)
-  (follow-up to #351 / #357)
+## Status
+
+Accepted (2026-07-03) — [#360](https://github.com/gedejong/agrogame/issues/360)
+(follow-up to #351 / #357).
 
 ## Context
 

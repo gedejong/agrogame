@@ -939,29 +939,30 @@ class FullSimulationOrchestrator:
         self._co2_buffer = [0.0] * n
         return out
 
-    def _compute_nutrient_demand(self) -> tuple[float, float]:
-        """Compute N and P demand from previous day's biomass increment.
+    def _compute_plant_p_demand(self) -> float:
+        """Compute P demand from previous day's biomass increment.
 
         Demand = biomass_increment (g/m² → kg/ha) × tissue_conc × soil_fraction.
         The soil_fraction (0.5) accounts for the fact that only ~50% of the
-        plant's N requirement comes from same-day soil uptake; the rest is
+        plant's requirement comes from same-day soil uptake; the rest is
         remobilized from older tissue (Ritchie et al. 1998, DSSAT CERES).
-        Ref: DSSAT CERES (Jones et al. 2003); APSIM N-demand algorithm.
+        Ref: DSSAT CERES (Jones et al. 2003); APSIM nutrient-demand algorithm.
+
+        N no longer uses this biomass-increment formula — the stock-based
+        critical-N deficit in :meth:`_compute_plant_n_demand` (#360) supersedes
+        it. P keeps the increment formula.
         """
         crop = self._current_crop
         if crop is None:
-            return 0.0, 0.0
+            return 0.0
         # 1 g/m² = 10 kg/ha (10,000 m² per ha)
         inc_kg_ha = self._last_biomass_inc_g_m2 * 10.0
-        # Only ~50% of theoretical N demand is taken from soil each day;
+        # Only ~50% of theoretical P demand is taken from soil each day;
         # the rest comes from internal remobilization of older tissue.
         soil_fraction = 0.5
-        n_demand = inc_kg_ha * crop.tissue_n_conc_kg_kg * soil_fraction
         p_demand = inc_kg_ha * crop.tissue_p_conc_kg_kg * soil_fraction
         # Small baseline for maintenance uptake when growth is minimal
-        n_demand = max(n_demand, 0.1)
-        p_demand = max(p_demand, 0.01)
-        return n_demand, p_demand
+        return max(p_demand, 0.01)
 
     def _compute_plant_n_demand(self) -> float:
         """Stock-based whole-shoot N demand for the critical-N model (#360).
@@ -972,7 +973,7 @@ class FullSimulationOrchestrator:
         stock model the plant requests enough N to reach critical, so an
         N-rich soil lets the stock track the critical curve (NNI -> 1) while a
         poor soil holds it below. P demand keeps its own formula
-        (``_compute_nutrient_demand``). Uptake stays soil-supply limited.
+        (``_compute_plant_p_demand``). Uptake stays soil-supply limited.
         """
         if self._current_crop is None:
             return 0.1
@@ -1014,7 +1015,7 @@ class FullSimulationOrchestrator:
         # Compute dynamic demand unless the caller explicitly provides values.
         # N uses the stock-based critical-N deficit (#360); P keeps the
         # biomass-increment formula.
-        _, dyn_p = self._compute_nutrient_demand()
+        dyn_p = self._compute_plant_p_demand()
         dyn_n = self._compute_plant_n_demand()
         n_demand = plant_n_demand_kg_ha if plant_n_demand_kg_ha is not None else dyn_n
         p_demand = plant_p_demand_kg_ha if plant_p_demand_kg_ha is not None else dyn_p
