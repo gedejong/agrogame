@@ -14,6 +14,7 @@ from pathlib import Path
 
 
 from agrogame.plant.presets import load_crop_presets, _load_crop_presets_cached
+from agrogame.plant.events import NutrientStressComputed
 from agrogame.soil.phenology import PhenologyStage
 from agrogame.soil.loader import load_soil_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -289,6 +290,24 @@ def test_sorghum_outperforms_in_sahel() -> None:
 # --- Management invariants (irrigation, fertilization) — AC #319 ---
 
 
+def _deplete_soil_nitrogen(orch: FullSimulationOrchestrator, frac: float) -> None:
+    """Zero mineral N and scale every organic-N reservoir by ``frac``.
+
+    Scales both the nitrogen-cycle ``organic_n`` pool (kept for mass balance)
+    and the authoritative SOM pool N (labile/intermediate/stable), so the soil
+    is genuinely N-limited under the SOM-authoritative mineralisation of #351.
+    """
+    n = len(orch.n_state.no3)
+    orch.n_state.no3 = [0.0] * n
+    orch.n_state.nh4 = [0.0] * n
+    orch.n_state.organic_n = [x * frac for x in orch.n_state.organic_n]
+    som = orch.som
+    if som is not None:
+        for layer in som.state.layers:
+            for pool in (layer.labile, layer.intermediate, layer.stable):
+                pool.n_kg_ha *= frac
+
+
 def _run_managed_scenario(
     crop_name: str,
     climate_name: str,
@@ -304,8 +323,11 @@ def _run_managed_scenario(
     """Run a scenario with optional daily irrigation / one-shot N fertilizer.
 
     Returns final above-ground biomass (g/m²). ``deplete_soil_n_frac`` scales
-    the initial organic-N pool and zeroes mineral N to create an N-limited
-    soil for the fertilizer-response invariant.
+    the initial organic-N pools and zeroes mineral N to create an N-limited
+    soil for the fertilizer-response invariant. Since SOM (3-pool RothC) is
+    now the authoritative N-mineralisation source (#351), the depletion also
+    scales the SOM pools' N so the soil is *genuinely* N-poor — scaling only
+    the (now inert) ``organic_n`` pool would leave SOM refilling mineral N.
     """
     _load_crop_presets_cached.cache_clear()
     _load_climate_presets_cached.cache_clear()
@@ -323,12 +345,7 @@ def _run_managed_scenario(
         profile, crop=crop, latitude_deg=climate.latitude_deg
     )
     if deplete_soil_n_frac is not None:
-        n = len(orch.n_state.no3)
-        orch.n_state.no3 = [0.0] * n
-        orch.n_state.nh4 = [0.0] * n
-        orch.n_state.organic_n = [
-            x * deplete_soil_n_frac for x in orch.n_state.organic_n
-        ]
+        _deplete_soil_nitrogen(orch, deplete_soil_n_frac)
     if fertilizer_kg_ha > 0.0:
         orch.apply_fertilizer("ammonium_nitrate", fertilizer_kg_ha)
 
@@ -370,32 +387,171 @@ def test_irrigated_beats_rainfed_in_arid_sahel() -> None:
 
 
 def test_fertilized_beats_unfertilized_on_n_depleted_soil() -> None:
-    """N fertilizer must raise biomass on an N-limited soil.
+    """N fertilizer must raise biomass *substantially* on an N-limited soil.
 
-    Invariant (AC #319): on an N-depleted soil, adding mineral N relieves
-    the nutrient constraint and increases growth (DSSAT/APSIM N-response;
-    liebig-law-of-the-minimum). We deplete the loam to 10% organic N with
-    zero mineral N, then compare 0 vs 200 kg/ha ammonium-nitrate.
+    Invariant (AC #351): on a strongly N-depleted soil, adding mineral N
+    relieves the nutrient constraint and increases growth by far more than the
+    ~3% seen before the mineralisation double-count was removed. We deplete the
+    loam to 15% of its organic N (both the nitrogen-cycle pool *and* the
+    authoritative SOM pools) with zero mineral N, then compare 0 vs 200 kg/ha
+    ammonium-nitrate.
 
-    NOTE (follow-up finding, #319): the modelled response is directional
-    but small (~+40 g/m², ~+3%). The current canopy/RUE growth model is
-    only weakly N-limited, so fertilizer barely moves yield even on a
-    strongly depleted soil. Flagged for calibration follow-up; the test
-    asserts only the sign of the response so it stays honest.
+    Magnitude, not just sign (AC #351): with SOM as the single mineralisation
+    source (#351), a genuinely N-poor soil supplies almost no N, so an
+    unfertilised crop nearly fails while 200 kg N/ha restores substantial
+    growth — the multiplicative response reported for strongly N-responsive
+    tropical soils (e.g. Vanlauwe et al. 2011, unfertilised maize commonly
+    <1 t/ha rising several-fold with mineral N; DSSAT/APSIM N-response,
+    Liebig's law of the minimum).
     """
     unfertilized = _run_managed_scenario(
-        "maize", "kenya_highlands", date(2024, 3, 1), deplete_soil_n_frac=0.10
+        "maize", "kenya_highlands", date(2024, 3, 1), deplete_soil_n_frac=0.15
     )
     fertilized = _run_managed_scenario(
         "maize",
         "kenya_highlands",
         date(2024, 3, 1),
-        deplete_soil_n_frac=0.10,
+        deplete_soil_n_frac=0.15,
         fertilizer_kg_ha=200.0,
     )
+    # Sign.
     assert fertilized > unfertilized, (
         f"Fertilized maize {fertilized:.0f} should exceed unfertilized "
         f"{unfertilized:.0f} on an N-depleted soil"
+    )
+    # Magnitude: the unfertilised crop is strongly N-limited and 200 kg N/ha
+    # restores substantial growth. Response is far above the historical ~3%.
+    assert unfertilized < 300.0, (
+        f"Unfertilized maize {unfertilized:.0f} g/m² should be strongly "
+        f"N-limited (<300) on a soil depleted to 15% of its organic N"
+    )
+    assert fertilized > 700.0, (
+        f"Fertilized maize {fertilized:.0f} g/m² should recover substantial "
+        f"growth with 200 kg N/ha"
+    )
+    assert fertilized - unfertilized > 400.0, (
+        f"Fertilizer lift {fertilized - unfertilized:.0f} g/m² should be a "
+        f"large absolute response (materially larger than the historical ~3%)"
+    )
+    assert fertilized > 3.0 * max(unfertilized, 1.0), (
+        f"Fertilizer response {fertilized / max(unfertilized, 1.0):.1f}× "
+        f"should be several-fold on a strongly N-depleted soil"
+    )
+
+
+def _run_n_trajectory(
+    crop_name: str,
+    climate_name: str,
+    start: date,
+    days: int = 150,
+    *,
+    fertilizer_kg_ha: float = 0.0,
+    deplete_soil_n_frac: float | None = None,
+) -> tuple[list[float], list[float]]:
+    """Run a scenario and capture per-day root-zone mineral N and N stress.
+
+    Returns ``(mineral_n_series, n_stress_series)`` where mineral N is the
+    whole-profile NO3+NH4 (kg/ha) at end of each day and N stress is the
+    emitted ``NutrientStressComputed`` satisfaction factor for N (1.0 = fully
+    satisfied, →0 = starved; the frontend warns when this drops below 0.7).
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.get_preset(crop_name, climate_name)
+    climate = climates.climates[climate_name]
+    series = SyntheticWeatherGenerator(climate, seed=42).generate(days, start)
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    if deplete_soil_n_frac is not None:
+        _deplete_soil_nitrogen(orch, deplete_soil_n_frac)
+    if fertilizer_kg_ha > 0.0:
+        orch.apply_fertilizer("ammonium_nitrate", fertilizer_kg_ha)
+
+    n_stress: list[float] = []
+
+    def _on_n(ev: NutrientStressComputed) -> None:
+        if ev.nutrient == "N":
+            n_stress.append(float(ev.stress))
+
+    orch.event_bus.subscribe(NutrientStressComputed, _on_n)
+
+    mineral_n: list[float] = []
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        mineral_n.append(sum(orch.n_state.no3) + sum(orch.n_state.nh4))
+    return mineral_n, n_stress
+
+
+def test_default_root_zone_mineral_n_in_plausible_band() -> None:
+    """A default (unfertilized) run keeps root-zone mineral N plausible (AC #351).
+
+    Before removing the mineralisation double-count, root-zone mineral N sat
+    implausibly high (~340-500 kg/ha) and never drew down. Growing-season
+    mineral N (NO3+NH4) in temperate arable topsoils is typically tens to low
+    hundreds of kg/ha and is drawn down by crop uptake (e.g. Stanford & Smith
+    1972; typical residual soil nitrate well under ~150 kg/ha). With SOM as the
+    single mineralisation source the profile total stays in a plausible band
+    and draws down under uptake rather than being pinned high.
+    """
+    for crop_name, climate_name, start, days in (
+        ("maize", "netherlands_temperate", date(2024, 4, 15), 150),
+        ("winter_wheat", "netherlands_temperate", date(2023, 10, 15), 280),
+    ):
+        mineral_n, _ = _run_n_trajectory(crop_name, climate_name, start, days)
+        peak = max(mineral_n)
+        assert peak < 300.0, (
+            f"{crop_name}: peak root-zone mineral N {peak:.0f} kg/ha is "
+            f"implausibly high (should not be pinned near the old ~500)"
+        )
+        # Draw-down: the season minimum must fall well below the peak, i.e.
+        # crop uptake visibly depletes the pool rather than it staying flat.
+        assert min(mineral_n) < 0.5 * peak, (
+            f"{crop_name}: mineral N did not draw down under uptake "
+            f"(min {min(mineral_n):.0f}, peak {peak:.0f} kg/ha)"
+        )
+
+
+def test_n_warning_fires_under_genuine_deficiency() -> None:
+    """The frontend N-warning signal fires under real deficiency (AC #351).
+
+    The Godot frontend warns "Nitrogen low" when the exposed N stress exceeds
+    0.3, i.e. when the emitted satisfaction factor drops below 0.7. Before the
+    fix, mineral N was pinned high so satisfaction stayed ≈1.0 and the warning
+    was inert. On a genuinely N-deficient soil the satisfaction factor must now
+    drop below the 0.7 threshold on essentially every growing day, and it must
+    fire far more often than on a nutrient-replete soil.
+    """
+    _, deficient = _run_n_trajectory(
+        "maize", "kenya_highlands", date(2024, 3, 1), deplete_soil_n_frac=0.15
+    )
+    _, replete = _run_n_trajectory("maize", "kenya_highlands", date(2024, 3, 1))
+    assert deficient, "expected N stress samples"
+
+    def _warn_days(series: list[float]) -> int:
+        return sum(1 for s in series if s < 0.7)
+
+    deficient_warn = _warn_days(deficient)
+    replete_warn = _warn_days(replete)
+    # Fires under genuine deficiency: nearly every day is a warning day.
+    assert deficient_warn >= 0.9 * len(deficient), (
+        f"N-warning should fire under genuine deficiency: only "
+        f"{deficient_warn}/{len(deficient)} days below the 0.7 threshold"
+    )
+    # Discriminates: fires much less on a nutrient-replete soil.
+    assert deficient_warn > replete_warn, (
+        f"N-warning should fire more under deficiency ({deficient_warn}) than "
+        f"on a replete soil ({replete_warn})"
     )
 
 

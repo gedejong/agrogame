@@ -359,6 +359,12 @@ class NitrogenCycle:
     def _mineralize_layer(
         self, idx: int, temp_factor: float, moisture_factor: float
     ) -> float:
+        # SOM-authoritative mode (#351): when self-mineralisation is disabled
+        # the SOM module (3-pool RothC) is the sole N-mineralisation source
+        # via SOMDecomposed events, avoiding double-counting the same organic
+        # matter. The organic_n pool is then held inert (no draw-down here).
+        if not self._params.enable_self_mineralization:
+            return 0.0
         org = self.state.organic_n[idx]
         if org <= 0.0:
             return 0.0

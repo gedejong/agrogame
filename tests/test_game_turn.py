@@ -49,7 +49,9 @@ def _make_orch_and_weather(
 def test_season_completes_no_pauses() -> None:
     orch, weather = _make_orch_and_weather(days=50)
     # High frost threshold = no frost pauses, disable drought
-    cfg = PauseConfig(frost_temp_c=-50.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=-50.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, pause_config=cfg, crop_key="maize")
 
     pauses = list(mgr.run_season())
@@ -66,7 +68,9 @@ def test_season_completes_no_pauses() -> None:
 def test_frost_pauses_execution() -> None:
     orch, weather = _make_orch_and_weather(days=100)
     # Low frost threshold to trigger easily in NL spring
-    cfg = PauseConfig(frost_temp_c=5.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=5.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, pause_config=cfg)
 
     pauses = []
@@ -81,6 +85,38 @@ def test_frost_pauses_execution() -> None:
 
 
 # ---------------------------------------------------------------------------
+# AC (#351): genuine N deficiency pauses execution
+# ---------------------------------------------------------------------------
+def test_nutrient_deficiency_pauses_execution() -> None:
+    """A strongly N-depleted soil trips the N-deficiency pause (#351).
+
+    With SOM as the single mineralisation source, a genuinely N-poor soil
+    starves the crop, N stress collapses, and the game pauses to warn the
+    player — behaviour that was inert while mineral N stayed pinned high.
+    """
+    orch, weather = _make_orch_and_weather(days=100)
+    # Genuinely N-poor: zero mineral N and 15% of organic N in every reservoir.
+    n = len(orch.n_state.no3)
+    orch.n_state.no3 = [0.0] * n
+    orch.n_state.nh4 = [0.0] * n
+    orch.n_state.organic_n = [x * 0.15 for x in orch.n_state.organic_n]
+    if orch.som is not None:
+        for layer in orch.som.state.layers:
+            for pool in (layer.labile, layer.intermediate, layer.stable):
+                pool.n_kg_ha *= 0.15
+    # Disable frost/drought so only the N pause can fire.
+    cfg = PauseConfig(
+        frost_temp_c=-50.0, drought_consecutive_days=999, n_deficiency_threshold=0.5
+    )
+    mgr = GameTurnManager(orch, weather, pause_config=cfg)
+
+    reasons = [pause.reason for pause in mgr.run_season()]
+    assert PauseReason.NUTRIENT_DEFICIENCY in reasons, (
+        f"expected an N-deficiency pause on a strongly depleted soil, " f"got {reasons}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # AC: player can revise plan after pause and resume
 # ---------------------------------------------------------------------------
 def test_revise_plan_after_pause() -> None:
@@ -91,7 +127,9 @@ def test_revise_plan_after_pause() -> None:
             ManagementEvent(day=50, action="irrigate", params={"amount_mm": 30.0}),
         ]
     )
-    cfg = PauseConfig(frost_temp_c=5.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=5.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, plan=plan, pause_config=cfg)
 
     revised = False
@@ -149,7 +187,9 @@ def test_serialization_mid_season() -> None:
             ManagementEvent(day=30, action="irrigate", params={"amount_mm": 20}),
         ]
     )
-    cfg = PauseConfig(frost_temp_c=5.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=5.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, plan=plan, pause_config=cfg, crop_key="maize")
 
     # Run until first pause
@@ -176,7 +216,9 @@ def test_serialization_mid_season() -> None:
 # ---------------------------------------------------------------------------
 def test_phase_transitions() -> None:
     orch, weather = _make_orch_and_weather(days=20)
-    cfg = PauseConfig(frost_temp_c=-50.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=-50.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, pause_config=cfg)
 
     assert mgr.phase == SeasonPhase.PLANNING
@@ -189,7 +231,9 @@ def test_phase_transitions() -> None:
 # ---------------------------------------------------------------------------
 def test_season_result_fields() -> None:
     orch, weather = _make_orch_and_weather(days=30)
-    cfg = PauseConfig(frost_temp_c=-50.0, drought_consecutive_days=999)
+    cfg = PauseConfig(
+        frost_temp_c=-50.0, drought_consecutive_days=999, n_deficiency_threshold=0.0
+    )
     mgr = GameTurnManager(orch, weather, pause_config=cfg, crop_key="maize")
     list(mgr.run_season())
 

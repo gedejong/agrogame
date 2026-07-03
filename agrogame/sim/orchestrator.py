@@ -18,6 +18,7 @@ from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.soil.nitrogen import SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
+from agrogame.soil.nitrogen.params import NitrogenRateParams
 from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.chemistry import SoilChemistryModule
@@ -404,11 +405,16 @@ class FullSimulationOrchestrator:
         profile = self.profile
         n_layers = len(profile.layers)
         self.water_model = CascadingBucketWaterModel(event_bus=self.event_bus)
+        # SOM is the authoritative N-mineralisation source in the full sim
+        # (#351): disable the cycle's own organic-N mineralisation so organic
+        # matter is not mineralised twice (once here, once by the SOM RothC
+        # module via SOMDecomposed). See NitrogenRateParams docstring.
         self.n_cycle = NitrogenCycle(
             self.event_bus,
             self.n_state,
             water_state=self.water_state,
             profile=profile,
+            params=NitrogenRateParams(enable_self_mineralization=False),
         )
         self.p_cycle = PhosphorusCycle(
             self.event_bus,
