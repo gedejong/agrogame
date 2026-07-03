@@ -144,6 +144,42 @@ class TestResetCrop:
 
 
 # ---------------------------------------------------------------------------
+# reset_crop resets the per-day CO2 buffer to fresh-init (#352)
+# ---------------------------------------------------------------------------
+class TestCo2BufferReset:
+    def test_co2_buffer_resets_on_reset_crop(self) -> None:
+        """Day 1 of a new season must read a fresh-init CO2 buffer, not the
+        prior season's buffered respiration (#352).
+
+        The per-day CO2 buffer (SOM ``CO2Respired`` → gas-diffusion source)
+        is orchestrator-owned and accumulates within a season. Verified
+        across two full reset cycles per the multi-cycle testing convention.
+        """
+        crops, climate, profile = _load_presets()
+        fresh_init = [0.0] * len(profile.layers)
+        orch = FullSimulationOrchestrator(
+            profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
+        )
+
+        # Season 1: buffer should carry the last day's respiration (non-zero),
+        # otherwise the test would trivially pass.
+        _run_season(orch, days=100)
+        assert any(
+            v != 0.0 for v in orch._co2_buffer
+        ), "expected non-zero CO2 buffer after a season for a meaningful test"
+
+        # Cycle 1: reset → buffer is fresh-init on day 1 of season 2.
+        orch.reset_crop(crops.crops["spring_wheat"])
+        assert orch._co2_buffer == fresh_init
+
+        # Cycle 2: run another full season, reset again, still fresh-init.
+        _run_season(orch, start=date(2025, 4, 1), days=100, seed=99)
+        assert any(v != 0.0 for v in orch._co2_buffer)
+        orch.reset_crop(crops.crops["maize"])
+        assert orch._co2_buffer == fresh_init
+
+
+# ---------------------------------------------------------------------------
 # AC2: harvest returns soil snapshot
 # ---------------------------------------------------------------------------
 class TestHarvest:
