@@ -990,6 +990,11 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     first_field = next(iter(s.field_manager.fields.values()))
     balance_before = s.ledger.balance_credits
     if not s.season_settled:
+        # Pre-harvest path only: this branch runs while the crop is still
+        # standing (season not yet settled), so live canopy grain is the real
+        # grain. Do NOT switch this to the captured harvested_grain_g_m2 — that
+        # is for the post-harvest per-patch report below, where the crop has
+        # been cleared.
         total_grain = sum(
             p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
         ) / len(first_field.patches)

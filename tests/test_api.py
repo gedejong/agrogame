@@ -835,6 +835,11 @@ def test_double_harvest_is_noop(client) -> None:
     assert (
         report_after_second["revenue_credits"] == report_after_first["revenue_credits"]
     )
+    # The per-patch yield captured at the real harvest also survives the no-op.
+    assert (
+        report_after_second["patches"]["f1"][0]["grain_t_ha"]
+        == report_after_first["patches"]["f1"][0]["grain_t_ha"]
+    )
 
 
 def test_report_preserves_per_patch_yield_after_harvest(client) -> None:
@@ -859,7 +864,11 @@ def test_report_preserves_per_patch_yield_after_harvest(client) -> None:
     patch = report.json()["patches"]["f1"][0]
     # Per-patch yield reflects the harvested grain, not the cleared 0.0.
     assert patch["grain_t_ha"] > 0.0, "Per-patch yield preserved after harvest"
-    assert patch["grain_t_ha"] == pytest.approx(grain_g_m2 / 100.0, rel=1e-3)
+    # /report serializes grain_t_ha as round(grain_g_m2 / 100.0, 2), so compare
+    # like-for-like at 2-dp resolution. abs=0.01 (one hundredths step) absorbs the
+    # action response's own 1-dp grain rounding landing on the far side of a
+    # hundredths boundary, while still asserting the yield is preserved to 2 dp.
+    assert patch["grain_t_ha"] == pytest.approx(round(grain_g_m2 / 100.0, 2), abs=0.01)
     # Crop identity survives the clear, so the GYGA lookup resolves to maize's
     # water-limited potential (11.0) rather than the 10.0 empty-crop default.
     assert patch["crop_key"] == "maize"
