@@ -903,6 +903,189 @@ def test_replant_resets_harvested_yield_in_report(client) -> None:
     assert patch["grain_t_ha"] == 0.0
 
 
+# ---------------------------------------------------------------------------
+# AC (#359): harvest honors patch_idx, resets _current_crop, mid-season P&L
+# ---------------------------------------------------------------------------
+def _session(game_id: str):
+    """Grab the in-memory GameSession for white-box assertions."""
+    from agrogame.api.state import games
+
+    return games[game_id]
+
+
+def test_harvest_targets_requested_patch_only(client) -> None:
+    """Harvesting patch_idx=1 clears only that patch; others stay standing (#359).
+
+    Regression: `_harvest_action` harvested every patch regardless of the
+    requested `patch_idx`, so a multi-patch field lost all its standing crops.
+    """
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "executed"
+
+    step = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    patches = step.json()["patches"]["f1"]
+    # Only patch 1 is cleared; patches 0 and 2 keep their standing maize.
+    assert patches[0]["crop_key"] == "maize", "Patch 0 untouched"
+    assert patches[1]["crop_key"] == "", "Patch 1 harvested and cleared"
+    assert patches[2]["crop_key"] == "maize", "Patch 2 untouched"
+
+
+def test_harvest_targets_each_patch_across_two_cycles(client) -> None:
+    """Sequentially harvesting patch 0 then patch 2 clears exactly those (#359)."""
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    # Cycle 1: harvest patch 0.
+    r0 = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert r0.json()["status"] == "executed"
+    step1 = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    p1 = step1.json()["patches"]["f1"]
+    assert p1[0]["crop_key"] == ""
+    assert p1[1]["crop_key"] == "maize"
+    assert p1[2]["crop_key"] == "maize"
+
+    # Cycle 2: harvest patch 2 — patch 1 still stands, patch 0 stays bare.
+    r2 = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 2}},
+    )
+    assert r2.json()["status"] == "executed"
+    step2 = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    p2 = step2.json()["patches"]["f1"]
+    assert p2[0]["crop_key"] == ""
+    assert p2[1]["crop_key"] == "maize", "Patch 1 still standing after two harvests"
+    assert p2[2]["crop_key"] == ""
+
+
+def test_harvest_on_bare_target_is_noop_even_if_other_patches_stand(client) -> None:
+    """Harvesting an already-bare patch is a no-op though other patches stand (#359).
+
+    The no-op guard must be scoped to the requested patch, not "any patch has a
+    crop" — otherwise re-harvesting patch 0 would fire on patch 1's crop.
+    """
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    first = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert first.json()["status"] == "executed"
+
+    # Patch 0 is now bare; re-harvesting it must no-op even though patches 1/2
+    # still carry crops.
+    second = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    sj = second.json()
+    assert sj["status"] == "no-op"
+    assert sj["cost_credits"] == 0
+
+
+def test_harvest_out_of_range_patch_idx_is_noop(client) -> None:
+    """Out-of-range patch_idx harvests nothing (no-op), never the wrong patch (#359)."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 5}},
+    )
+    assert resp.json()["status"] == "no-op"
+    # The still-standing crop is untouched.
+    step = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    assert step.json()["patches"]["f1"][0]["crop_key"] == "maize"
+
+
+def test_harvest_resets_current_crop(client) -> None:
+    """Harvest clears orch._current_crop so no stale crop reference persists (#359)."""
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    sess = _session(game_id)
+    orch = sess.field_manager.fields["f1"].patches[0].orch
+    assert orch._current_crop is not None, "Crop present before harvest"
+
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert orch._current_crop is None, "Harvest resets _current_crop to None"
+
+
+def test_harvest_resets_current_crop_per_targeted_patch(client) -> None:
+    """Only the targeted patch's _current_crop is reset; others keep theirs (#359)."""
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    sess = _session(game_id)
+    patches = sess.field_manager.fields["f1"].patches
+    assert all(p.orch._current_crop is not None for p in patches)
+
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
+    )
+    assert patches[0].orch._current_crop is not None, "Patch 0 crop reference kept"
+    assert patches[1].orch._current_crop is None, "Patch 1 crop reference reset"
+    assert patches[2].orch._current_crop is not None, "Patch 2 crop reference kept"
+
+
+def test_report_balance_delta_mid_season_reflects_pnl(client) -> None:
+    """balance_delta equals the running P&L after a mid-season harvest (#359).
+
+    Regression: /report computed balance_delta as (balance_after -
+    balance_before) around its own settlement. A mid-season harvest action had
+    already settled the season, so that difference was 0 even though the sale
+    changed the balance.
+    """
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    harvest = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    hj = harvest.json()
+    assert hj["profit_credits"] != 0
+
+    report = client.get(f"/api/v1/games/{game_id}/report").json()
+    # Running P&L is revenue − season costs, matching the harvest action's profit.
+    assert report["balance_delta"] != 0, "Mid-season balance_delta must not read 0"
+    assert report["balance_delta"] == hj["profit_credits"]
+    assert report["balance_delta"] == (
+        report["revenue_credits"] - report["total_cost_credits"]
+    )
+
+
+def test_report_balance_delta_full_season_equals_profit(client) -> None:
+    """When /report settles the season itself, balance_delta is still the P&L (#359)."""
+    game_id = _create_game(client)
+    # Full season settled by /report (no mid-season harvest action).
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "irrigate", "params": {"amount_mm": 20}},
+    )
+    client.post(f"/api/v1/games/{game_id}/step?days=200&seed=42")
+
+    report = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert report["balance_delta"] == report["profit_credits"]
+    assert report["balance_delta"] == (
+        report["revenue_credits"] - report["total_cost_credits"]
+    )
+
+
 def test_step_response_includes_redox_state(client) -> None:
     """Step response should include redox_eh and dominant_acceptor (#235).
 

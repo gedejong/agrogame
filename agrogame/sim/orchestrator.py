@@ -797,7 +797,11 @@ class FullSimulationOrchestrator:
         """Finalize current crop and return soil state for next season.
 
         Appends the current crop to history and applies any N fixation
-        credit (legumes) to the soil organic N pool in the top layer.
+        credit (legumes) to the soil organic N pool in the top layer, then
+        clears ``_current_crop`` (#359) so the finalized crop is not left as a
+        stale reference. A second ``harvest()`` before ``reset_crop()`` is then
+        a no-op (no double history entry or N credit), and downstream reads
+        (``_compute_nutrient_demand``) correctly see a bare patch.
         """
         if self._current_crop is not None:
             self.crop_history.append(self._current_crop.key or self._current_crop.name)
@@ -806,6 +810,7 @@ class FullSimulationOrchestrator:
             credit = self._current_crop.n_fixation_credit_kg_ha
             if credit > 0.0:
                 self.n_state.organic_n[0] += credit
+            self._current_crop = None
         return self.snapshot_soil()
 
     def reset_crop(self, new_crop: CropPreset) -> None:

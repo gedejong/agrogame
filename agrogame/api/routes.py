@@ -480,40 +480,68 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
-def _field_has_standing_crop(field: Field) -> bool:
-    """True if any patch still has a crop planted (non-empty ``crop_key``).
+def _target_patches(field: Field, patch_idx: int) -> list[Patch]:
+    """Patches a harvest targets (#359).
 
-    Harvest clears ``crop_key`` to ``""`` on each patch, so a bare (already
-    harvested or never planted) field has no standing crop and re-harvesting it
-    must be a no-op (#341).
+    A ``patch_idx >= 0`` that is in range targets that single patch; a negative
+    index (the default when the request omits ``patch_idx``) targets every patch
+    in the field. An out-of-range index targets nothing, so the caller's
+    standing-crop guard turns the action into a no-op rather than harvesting the
+    wrong patch.
     """
-    return any(patch.config.crop_key for patch in field.patches)
+    if patch_idx < 0:
+        return list(field.patches)
+    if patch_idx < len(field.patches):
+        return [field.patches[patch_idx]]
+    return []
+
+
+def _field_has_standing_crop(field: Field, patch_idx: int = -1) -> bool:
+    """True if any targeted patch still has a crop planted (non-empty ``crop_key``).
+
+    Harvest clears ``crop_key`` to ``""`` on the targeted patch(es), so a bare
+    (already harvested or never planted) target has no standing crop and
+    re-harvesting it must be a no-op (#341). When ``patch_idx`` is given, only
+    that patch is considered, so harvesting patch B never fires on the crop
+    still standing on patch A (#359).
+    """
+    return any(patch.config.crop_key for patch in _target_patches(field, patch_idx))
 
 
 def _harvest_action(
-    s: GameSession, field: Field, prices: PriceTable
+    s: GameSession, field: Field, prices: PriceTable, patch_idx: int = -1
 ) -> tuple[float, int, int]:
-    """Harvest a field's standing crop and settle season economics.
+    """Harvest the targeted patch(es) and settle season economics.
 
-    Finalizes the crop via the domain layer (``Field.harvest`` →
-    ``orch.harvest``: appends crop history, applies any legume N credit),
-    settles revenue against the harvested grain (``EconomicLedger.settle_season``),
-    records a ``SeasonResult`` so ``GET /report`` succeeds mid-season, and
-    clears the crop off each patch so subsequent day responses report a bare
-    patch.
+    ``patch_idx`` selects a single patch; the default (-1) harvests the whole
+    field (#359). Finalizes each targeted crop via the domain layer
+    (``Patch.harvest`` → ``orch.harvest``: appends crop history, applies any
+    legume N credit, resets ``_current_crop``), settles revenue against the
+    harvested grain (``EconomicLedger.settle_season``), records a
+    ``SeasonResult`` so ``GET /report`` succeeds mid-season, and clears the crop
+    off the targeted patch(es) so subsequent day responses report a bare patch.
+    Non-targeted patches are left standing.
 
     Returns ``(grain_g_m2, revenue_credits, profit_credits)``.
     """
     from agrogame.game.turn import SeasonResult
 
-    # Grain averaged across patches, captured before harvest resets state.
-    grain_g_m2 = sum(
-        p.orch.canopy.state.grain_biomass_g_m2 for p in field.patches
-    ) / len(field.patches)
-    crop_key = field.patches[0].config.crop_key
+    # The no-op guard rejects an empty/bare target before we are called, so
+    # `targets` is guaranteed non-empty here.
+    targets = _target_patches(field, patch_idx)
 
-    # Finalize the crop in the domain layer (history + N fixation credit).
-    field.harvest()
+    # Grain averaged across the targeted patches, captured before harvest
+    # resets state.
+    grain_g_m2 = sum(p.orch.canopy.state.grain_biomass_g_m2 for p in targets) / len(
+        targets
+    )
+    crop_key = targets[0].config.crop_key
+
+    # Finalize each targeted crop in the domain layer (history + N fixation
+    # credit + _current_crop reset). Only the requested patch(es) are finalized,
+    # so a multi-patch field leaves the non-targeted patches standing (#359).
+    for patch in targets:
+        patch.harvest()
 
     # Settle season economics once — revenue from the harvested grain.
     revenue = 0
@@ -526,7 +554,7 @@ def _harvest_action(
     # Record a SeasonResult so GET /report works in the day-by-day loop.
     if not s.turn_manager:
         s.turn_manager = GameTurnManager(
-            orch=field.patches[0].orch,
+            orch=targets[0].orch,
             weather=s.weather,
             crop_key=crop_key,
         )
@@ -542,7 +570,7 @@ def _harvest_action(
     # Clear the standing crop so subsequent responses show a bare patch.
     # Capture per-patch grain + crop before clearing so GET /report keeps the
     # per-patch/GYGA breakdown after harvest (#341).
-    for patch in field.patches:
+    for patch in targets:
         patch.harvested_grain_g_m2 = patch.orch.canopy.state.grain_biomass_g_m2
         patch.harvested_crop_key = patch.config.crop_key
         patch.config = PatchConfig(
@@ -837,9 +865,16 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
 
     field = s.field_manager.fields[req.field_id]
 
-    # Guard: harvesting a bare patch is a no-op — no charge, no result clobber
-    # (#341). The frontend gates the UI path, but the backend must be safe too.
-    if req.action == "harvest" and not _field_has_standing_crop(field):
+    # Harvest targets a specific patch (or the whole field if no patch_idx).
+    harvest_patch_idx = int(req.params.get("patch_idx", -1))
+
+    # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
+    # no result clobber (#341). The frontend gates the UI path, but the backend
+    # must be safe too. Scoped to the requested patch so a multi-patch field
+    # only no-ops when that patch is bare (#359).
+    if req.action == "harvest" and not _field_has_standing_crop(
+        field, harvest_patch_idx
+    ):
         return ActionResponse(
             status="no-op",
             action=req.action,
@@ -865,7 +900,9 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     revenue_credits = 0
     profit_credits = 0
     if req.action == "harvest":
-        grain_g_m2, revenue_credits, profit_credits = _harvest_action(s, field, prices)
+        grain_g_m2, revenue_credits, profit_credits = _harvest_action(
+            s, field, prices, harvest_patch_idx
+        )
     elif req.action == "plant":
         # Plant targets a specific patch (or all if no patch_idx given)
         crop_key = req.params.get("crop_key", "maize")
@@ -1135,7 +1172,12 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
         profit_credits=s.ledger.season_profit,
         balance_before=balance_before,
         balance_after=balance_after,
-        balance_delta=balance_after - balance_before,
+        # Running P&L for the season = revenue − all season costs (#359). Using
+        # season_profit (not balance_after − balance_before) makes this correct
+        # whether the season was already settled by a mid-season harvest action
+        # — in which case balance_after == balance_before, so the old expression
+        # read 0 — or settled here by /report itself.
+        balance_delta=s.ledger.season_profit,
     )
 
 
