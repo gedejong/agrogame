@@ -537,17 +537,33 @@ def _harvest_action(
     )
     crop_key = targets[0].config.crop_key
 
+    # Area actually harvested. The field is modelled as 1 ha with patch
+    # `area_fraction`s summing to 1.0, so a full-field harvest settles 1.0 ha
+    # (unchanged) while a single patch settles only its fractional share.
+    # Without this, a single patch's grain *density* was settled as a full
+    # hectare, so one patch could out-earn the whole field (#359 review).
+    area_ha = sum(p.config.area_fraction for p in targets)
+
     # Finalize each targeted crop in the domain layer (history + N fixation
     # credit + _current_crop reset). Only the requested patch(es) are finalized,
     # so a multi-patch field leaves the non-targeted patches standing (#359).
     for patch in targets:
         patch.harvest()
 
-    # Settle season economics once — revenue from the harvested grain.
+    # Settle season economics once — revenue from the harvested grain, scaled to
+    # the harvested area.
+    #
+    # ADR-003 limitation (deferred): settlement is single-shot per season
+    # (`season_settled`). Staggered per-patch harvests within one season credit
+    # revenue only for the first harvest; later patches settle 0. That is the
+    # single-settlement-per-season economic model, not a defect of patch
+    # targeting — but per-patch targeting now exposes it. Proper per-patch
+    # revenue accrual belongs in an ADR-003 follow-up. Full-field harvest
+    # (patch_idx = -1) is unaffected.
     revenue = 0
     profit = 0
     if not s.season_settled:
-        profit = s.ledger.settle_season(grain_g_m2, crop_key, prices)
+        profit = s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=area_ha)
         revenue = s.ledger.season_revenue
         s.season_settled = True
 
@@ -866,7 +882,15 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     field = s.field_manager.fields[req.field_id]
 
     # Harvest targets a specific patch (or the whole field if no patch_idx).
-    harvest_patch_idx = int(req.params.get("patch_idx", -1))
+    # Validate at the API boundary so a malformed patch_idx yields a clean 422
+    # rather than an unhandled ValueError/TypeError → 500.
+    raw_patch_idx = req.params.get("patch_idx", -1)
+    try:
+        harvest_patch_idx = int(raw_patch_idx)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
+        ) from exc
 
     # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
     # no result clobber (#341). The frontend gates the UI path, but the backend

@@ -1042,6 +1042,59 @@ def test_harvest_resets_current_crop_per_targeted_patch(client) -> None:
     assert patches[2].orch._current_crop is not None, "Patch 2 crop reference kept"
 
 
+def test_harvest_single_patch_revenue_is_area_scaled(client) -> None:
+    """A single patch settles only its area share, never out-earning the field (#359).
+
+    Regression: `_harvest_action` settled a single patch's grain *density* with
+    the default ``area_ha=1.0``, so one patch was credited as a whole hectare and
+    could out-earn a full-field harvest. Settlement now scales by the targeted
+    patches' ``area_fraction`` sum.
+    """
+    # Full-field harvest (patch_idx defaults to -1 → whole 1 ha field).
+    field_game = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{field_game}/step?days=110&seed=42")
+    full = client.post(
+        f"/api/v1/games/{field_game}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {}},
+    ).json()
+    assert full["status"] == "executed"
+    full_revenue = full["revenue_credits"]
+    assert full_revenue > 0
+
+    # Single-patch harvest on an identical game/seed.
+    patch_game = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{patch_game}/step?days=110&seed=42")
+    single = client.post(
+        f"/api/v1/games/{patch_game}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
+    ).json()
+    assert single["status"] == "executed"
+    single_revenue = single["revenue_credits"]
+
+    assert single_revenue > 0, "A harvested patch still earns its area share"
+    assert single_revenue < full_revenue, (
+        "One patch (~1/3 ha) must not out-earn the whole field — "
+        f"single={single_revenue}, full={full_revenue}"
+    )
+
+
+def test_harvest_bad_patch_idx_returns_422(client) -> None:
+    """A malformed patch_idx yields a clean 422, not an unhandled 500 (#359 review).
+
+    Regression: `int(req.params.get("patch_idx", -1))` raised ValueError/TypeError
+    on non-numeric input, surfacing as a 500. The API boundary now validates it.
+    """
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    for bad in ("not-an-int", None, [1, 2]):
+        resp = client.post(
+            f"/api/v1/games/{game_id}/action",
+            json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": bad}},
+        )
+        assert resp.status_code == 422, f"patch_idx={bad!r} should be a 422"
+
+
 def test_report_balance_delta_mid_season_reflects_pnl(client) -> None:
     """balance_delta equals the running P&L after a mid-season harvest (#359).
 
