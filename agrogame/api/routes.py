@@ -474,6 +474,16 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
+def _field_has_standing_crop(field: Field) -> bool:
+    """True if any patch still has a crop planted (non-empty ``crop_key``).
+
+    Harvest clears ``crop_key`` to ``""`` on each patch, so a bare (already
+    harvested or never planted) field has no standing crop and re-harvesting it
+    must be a no-op (#341).
+    """
+    return any(patch.config.crop_key for patch in field.patches)
+
+
 def _harvest_action(
     s: GameSession, field: Field, prices: PriceTable
 ) -> tuple[float, int, int]:
@@ -524,7 +534,11 @@ def _harvest_action(
     )
 
     # Clear the standing crop so subsequent responses show a bare patch.
+    # Capture per-patch grain + crop before clearing so GET /report keeps the
+    # per-patch/GYGA breakdown after harvest (#341).
     for patch in field.patches:
+        patch.harvested_grain_g_m2 = patch.orch.canopy.state.grain_biomass_g_m2
+        patch.harvested_crop_key = patch.config.crop_key
         patch.config = PatchConfig(
             soil_profile_key=patch.config.soil_profile_key,
             crop_key="",
@@ -815,6 +829,19 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
 
+    field = s.field_manager.fields[req.field_id]
+
+    # Guard: harvesting a bare patch is a no-op — no charge, no result clobber
+    # (#341). The frontend gates the UI path, but the backend must be safe too.
+    if req.action == "harvest" and not _field_has_standing_crop(field):
+        return ActionResponse(
+            status="no-op",
+            action=req.action,
+            cost_credits=0,
+            balance_credits=s.ledger.balance_credits,
+            day_number=s.day_index,
+        )
+
     from agrogame.game.economy import PriceTable
 
     prices = PriceTable.load()
@@ -828,7 +855,6 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     s.ledger.record_cost(s.day_index, req.action, f"{req.action} {req.params}", cost)
 
     # Apply action
-    field = s.field_manager.fields[req.field_id]
     grain_g_m2 = 0.0
     revenue_credits = 0
     profit_credits = 0
@@ -845,6 +871,10 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
             climate_key = patch.config.climate_key
             preset = crops.get_preset(crop_key, climate_key)
             patch.orch.reset_crop(preset)
+            # Clear any prior-season harvested yield so /report reflects the
+            # freshly planted crop, not the last harvest (#341).
+            patch.harvested_grain_g_m2 = None
+            patch.harvested_crop_key = None
             # Re-subscribe recorder (reset_crop clears all event bus subscriptions)
             from agrogame.events.recorder import EventRecorder
 
@@ -972,10 +1002,18 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     for fid, fld in s.field_manager.fields.items():
         patch_reports[fid] = []
         for i, p in enumerate(fld.patches):
-            grain_g_m2 = p.orch.canopy.state.grain_biomass_g_m2
+            # Prefer the grain + crop captured at harvest so the per-patch
+            # breakdown survives the crop being cleared (#341); fall back to
+            # the live canopy state for a still-standing crop.
+            grain_g_m2 = (
+                p.harvested_grain_g_m2
+                if p.harvested_grain_g_m2 is not None
+                else p.orch.canopy.state.grain_biomass_g_m2
+            )
+            crop_key = p.harvested_crop_key or p.config.crop_key
             grain_t_ha = grain_g_m2 / 100.0
             climate = p.config.climate_key
-            gyga = _GYGA_YIELDS.get(p.config.crop_key, {}).get(climate, 10.0)
+            gyga = _GYGA_YIELDS.get(crop_key, {}).get(climate, 10.0)
             ratio = min(grain_t_ha / gyga, 1.0) if gyga > 0 else 0.0
             snap = p.orch.snapshot_soil()
             som_total = (
@@ -986,7 +1024,7 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
             patch_reports[fid].append(
                 PatchYieldReport(
                     patch_idx=i,
-                    crop_key=p.config.crop_key,
+                    crop_key=crop_key,
                     soil_profile=p.config.soil_profile_key,
                     grain_t_ha=round(grain_t_ha, 2),
                     gyga_potential_t_ha=gyga,
