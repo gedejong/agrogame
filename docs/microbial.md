@@ -42,13 +42,31 @@ synthetic substrate values from the old SimpleSOMRuntime placeholder.
 
 The N cycle also subscribes to `SOMDecomposed` events to inject SOM-driven
 N mineralization directly into the NH4 pool, replacing the fixed-rate
-organic_n mineralization for SOM-coupled N. This creates a coherent
+`organic_n` mineralization for SOM-coupled N. This creates a coherent
 SOM → microbes → N cycle pipeline:
 
 1. SOM pools decompose → emit `SubstrateAvailable` (C) + `SOMDecomposed` (N)
 2. Microbial module consumes substrate → Monod growth → emit `MicrobialActivityComputed`
 3. N cycle consumes `SOMDecomposed` → adds mineralized N to NH4
-4. N cycle uses `MicrobialActivityComputed` to modulate residual mineralization
+4. N cycle uses `MicrobialActivityComputed` to modulate its own residual
+   `organic_n` mineralization — **in standalone mode only** (see below)
+
+**SOM-authoritative in the full sim (#351).** The full
+`FullSimulationOrchestrator` builds the nitrogen cycle with
+`NitrogenRateParams.enable_self_mineralization = False`, so the 3-pool RothC
+SOM module (Coleman & Jenkinson 1996) is the *single* authoritative
+mineralization source and its N flux enters via `SOMDecomposed` (step 3). In
+this path there is no residual `organic_n` mineralization left to modulate, so
+step 4 is inert and the `organic_n` pool is kept inert for mass balance; the
+"replaces the fixed-rate `organic_n` mineralization" statement above is
+therefore literally true in the full sim. Running both paths at once
+double-counted the same physical soil organic N and roughly quintupled net
+mineralization (~14 vs ~1–3 kg N/ha/day; Stanford & Smith 1972).
+
+In **standalone mode** (`enable_self_mineralization = True`, the default —
+preserving unit-test and standalone-cycle behaviour) the cycle still runs its
+own `organic_n` mineralization and step 4's `MicrobialActivityComputed`
+modulation applies as described.
 
 See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md), and extracted notes under [Soil Microbiology](mdc:docs/soil-microbiology/index.md).
 

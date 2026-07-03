@@ -498,11 +498,20 @@ def test_default_root_zone_mineral_n_in_plausible_band() -> None:
 
     Before removing the mineralisation double-count, root-zone mineral N sat
     implausibly high (~340-500 kg/ha) and never drew down. Growing-season
-    mineral N (NO3+NH4) in temperate arable topsoils is typically tens to low
-    hundreds of kg/ha and is drawn down by crop uptake (e.g. Stanford & Smith
-    1972; typical residual soil nitrate well under ~150 kg/ha). With SOM as the
-    single mineralisation source the profile total stays in a plausible band
-    and draws down under uptake rather than being pinned high.
+    whole-profile mineral N (NO3+NH4) in temperate arable soils is typically
+    tens to low hundreds of kg/ha and is drawn down by crop uptake (e.g.
+    Stanford & Smith 1972). With SOM as the single mineralisation source the
+    profile total sits in a genuinely bounded band and draws down under uptake
+    rather than being pinned high.
+
+    The band is pinned on both sides so the test cannot be satisfied by a run
+    that *crashed* mineral N toward zero (which the old ``peak < 300`` +
+    draw-down pair would have passed): the seasonal peak must be at least
+    ~100 kg/ha (a functioning SOM-mineralising soil supplies a meaningful pool)
+    and at most ~250 kg/ha (low hundreds, not pinned near the old ~500). These
+    bounds bracket the literature "low hundreds" range with margin; they are
+    not fitted to the current run (measured peaks ≈190 / ≈235 kg/ha for the two
+    scenarios sit comfortably inside).
     """
     for crop_name, climate_name, start, days in (
         ("maize", "netherlands_temperate", date(2024, 4, 15), 150),
@@ -510,9 +519,18 @@ def test_default_root_zone_mineral_n_in_plausible_band() -> None:
     ):
         mineral_n, _ = _run_n_trajectory(crop_name, climate_name, start, days)
         peak = max(mineral_n)
-        assert peak < 300.0, (
+        # Upper bound: low hundreds of kg/ha, not pinned near the old ~500.
+        assert peak < 250.0, (
             f"{crop_name}: peak root-zone mineral N {peak:.0f} kg/ha is "
             f"implausibly high (should not be pinned near the old ~500)"
+        )
+        # Lower floor: a functioning SOM-mineralising soil must still supply a
+        # meaningful mineral-N pool; a peak collapsed toward 0 signals a broken
+        # mineralisation source rather than a plausible band.
+        assert peak > 100.0, (
+            f"{crop_name}: peak root-zone mineral N {peak:.0f} kg/ha is "
+            f"implausibly low — the SOM mineralisation source looks broken, "
+            f"not merely drawn down"
         )
         # Draw-down: the season minimum must fall well below the peak, i.e.
         # crop uptake visibly depletes the pool rather than it staying flat.
