@@ -9,9 +9,11 @@ indicator that would cue a player to fertilise exactly when soil N is building.
 This test establishes maize on ``loam_temperate`` for ~20 days, then compares a
 5-day forecast against 5 real no-action engine steps on the *same* weather. The
 core assertion is sign agreement; exact magnitude is not asserted because the
-engine's steeper rise is partly a root-zone-geometry effect (the rooting depth
-deepens into more soil each day) that a constant-root-depth heuristic projector
-deliberately does not model.
+engine's steeper rise reflects several source-boosting terms the heuristic
+forecast deliberately omits: rhizosphere priming (up to +50 % on ``k_labile``
+in rooted layers, arguably the largest contributor), aggregate protection, and
+a root-zone-geometry effect (the rooting depth deepens into more soil each day
+while the constant-root-depth projector holds it fixed).
 """
 
 from __future__ import annotations
@@ -106,7 +108,7 @@ def _forecast_inputs(orch: FullSimulationOrchestrator) -> dict[str, float]:
         "mineral_n_kg_ha": _root_zone_mineral_n(orch),
         "lai": orch.canopy.state.lai,
         "som_labile_n_kg_ha": root_zone_som_labile_n_kg_ha(labile_n, depths, rd),
-        "root_zone_wfps": wfps,
+        "root_zone_wfps_frac": wfps,
     }
 
 
@@ -146,8 +148,9 @@ def test_forecast_mineral_n_trend_agrees_with_engine_sign() -> None:
 
     # Defensible tolerance: the forecast is a conservative but correctly-signed
     # estimate. It should not *overshoot* the engine's rise (the engine's larger
-    # increase includes root-zone deepening the heuristic does not model), and
-    # its per-day net mineralisation should sit in a realistic band
+    # increase includes rhizosphere priming, aggregate protection, and root-zone
+    # deepening — none of which the heuristic models), and its per-day net
+    # mineralisation should sit in a realistic band
     # (~0-3 kg N/ha/day; Stanford & Smith 1972).
     assert 0.0 < forecast_delta < engine_delta
     assert forecast_delta / _HORIZON_DAYS < 3.0

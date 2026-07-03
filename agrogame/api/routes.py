@@ -1016,7 +1016,7 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
             for rec in window
         ],
         som_labile_n_kg_ha=som_labile_n,
-        root_zone_wfps=wfps,
+        root_zone_wfps_frac=wfps,
     )
 
     forecast: list[ForecastDayResponse] = []

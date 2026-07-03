@@ -216,7 +216,7 @@ def test_mineralization_source_increases_n_without_uptake() -> None:
         lai=0.0,
         weather=[(20.0, 12.0, 0.0)] * 5,
         som_labile_n_kg_ha=60.0,
-        root_zone_wfps=0.6,
+        root_zone_wfps_frac=0.6,
     )
     assert pts[-1].mineral_n_kg_ha > 100.0
     assert all(b.mineral_n_kg_ha >= a.mineral_n_kg_ha for a, b in pairwise(pts))
@@ -232,7 +232,7 @@ def test_source_flips_sign_vs_sink_only() -> None:
         "mineral_n_kg_ha": 90.0,
         "lai": 1.0,
         "weather": [(18.0, 12.0, 0.0)] * 5,
-        "root_zone_wfps": 0.6,
+        "root_zone_wfps_frac": 0.6,
     }
     with_source = project_soil_forecast(som_labile_n_kg_ha=80.0, **kwargs)
     sink_only = project_soil_forecast(som_labile_n_kg_ha=0.0, **kwargs)
@@ -248,7 +248,7 @@ def test_mineralization_scales_with_temperature() -> None:
         "mineral_n_kg_ha": 100.0,
         "lai": 0.0,
         "som_labile_n_kg_ha": 80.0,
-        "root_zone_wfps": 0.6,
+        "root_zone_wfps_frac": 0.6,
     }
     warm = project_soil_forecast(weather=[(28.0, 12.0, 0.0)] * 5, **base)
     cold = project_soil_forecast(weather=[(8.0, 12.0, 0.0)] * 5, **base)
@@ -265,7 +265,7 @@ def test_high_uptake_overrides_source_and_depletes() -> None:
         lai=5.0,
         weather=[(20.0, 15.0, 0.0)] * 6,
         som_labile_n_kg_ha=40.0,
-        root_zone_wfps=0.6,
+        root_zone_wfps_frac=0.6,
     )
     assert pts[-1].mineral_n_kg_ha < 100.0
     assert all(p.mineral_n_kg_ha >= 0.0 for p in pts)
@@ -281,6 +281,6 @@ def test_dry_soil_suppresses_mineralization() -> None:
         lai=0.0,
         weather=[(20.0, 12.0, 0.0)] * 5,
         som_labile_n_kg_ha=60.0,
-        root_zone_wfps=0.0,
+        root_zone_wfps_frac=0.0,
     )
     assert pts[-1].mineral_n_kg_ha == pytest.approx(100.0)

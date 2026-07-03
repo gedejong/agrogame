@@ -242,7 +242,7 @@ def project_soil_forecast(
     lai: float,
     weather: list[tuple[float, float, float]],
     som_labile_n_kg_ha: float = 0.0,
-    root_zone_wfps: float = _SOM_MOISTURE_OPTIMUM_WFPS,
+    root_zone_wfps_frac: float = _SOM_MOISTURE_OPTIMUM_WFPS,
     depletion_fraction_p: float = _DEPLETION_FRACTION_P,
 ) -> list[SoilForecastPoint]:
     """Project water-stress and mineral-N ``len(weather)`` days ahead.
@@ -253,12 +253,21 @@ def project_soil_forecast(
 
     Mineral N gains a **net-mineralisation source** from the labile SOM pool
     (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
-    crop uptake and drainage leaching. ``root_zone_wfps`` sets the moisture
+    crop uptake and drainage leaching. ``root_zone_wfps_frac`` sets the moisture
     factor for decomposition and is held constant over the horizon (moisture
     swings slowly relative to temperature; temperature drives the daily
     variation via a Q10=2 response). When ``som_labile_n_kg_ha`` is zero the
     projection is sink-only, preserving the pre-#353 behaviour for callers
     that do not supply an SOM pool.
+
+    Scope: this is a deliberately *conservative* net-mineralisation estimate.
+    It reproduces only the labile-pool RothC kinetics, so it undershoots the
+    engine's root-zone mineral-N rise because it omits several source-boosting
+    terms the engine applies: rhizosphere priming (up to +50 % on ``k_labile``
+    in rooted layers — arguably the largest omitted contributor), aggregate
+    protection, and root-zone deepening (the engine's rooting depth grows into
+    fresh soil each day while the forecast holds it constant). The forecast
+    therefore targets *sign* agreement with the engine, not exact magnitude.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
@@ -267,7 +276,7 @@ def project_soil_forecast(
     taw = max(0.0, total_available_water_mm)
     mineral_n = max(0.0, mineral_n_kg_ha)
     labile_n = max(0.0, som_labile_n_kg_ha)
-    moist_f = _som_moisture_factor(max(0.0, root_zone_wfps))
+    moist_f = _som_moisture_factor(max(0.0, root_zone_wfps_frac))
 
     points: list[SoilForecastPoint] = []
     for temp_mean_c, shortwave_mj_m2, rain_mm in weather:
