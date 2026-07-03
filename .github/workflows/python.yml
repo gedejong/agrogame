@@ -19,6 +19,10 @@ on:
       - 'pyproject.toml'
       - 'poetry.lock'
       - '.github/workflows/python.yml'
+  # Run on the merge queue's temporary merge branch so the `test` check reports
+  # against main+PR. No paths filter here: the queue must always get a result,
+  # otherwise a required check never reports and the queue stalls.
+  merge_group:
   release:
     types: [ published ]
 
