@@ -11,6 +11,15 @@ balance and a mineral-N pool over the forecast horizon using the upcoming
 weather. It is intended for "what is likely to happen if I do nothing"
 guidance, and is labelled as an estimate in the UI.
 
+The mineral-N pool is driven by a **net-mineralisation source** (from soil
+organic matter) as well as the crop-uptake and drainage-leaching sinks.
+Without the source term the projection was sink-only and trended *opposite*
+to the engine in early-season temperate soils, where SOM mineralisation is
+the dominant N flux and the real root-zone mineral N accumulates (#353). The
+source term mirrors the engine's labile-SOM kinetics so forecast and engine
+agree in sign — after #351/#357 the three-pool SOM module is the single
+authoritative net-mineralisation source in the engine.
+
 References
 ----------
 * Water-stress coefficient Ks: FAO-56 Irrigation & Drainage Paper
@@ -20,6 +29,11 @@ References
   vegetative growth): Bender et al. 2013, Agronomy Journal 105(1).
 * Nitrate mobility / drainage-driven leaching: standard mass-flow argument
   (nitrate travels with drainage water; leaching rises with deep drainage).
+* Net N mineralisation from labile SOM: RothC three-pool kinetics
+  (Coleman & Jenkinson 1996) with a Q10=2 temperature response and the
+  Linn & Doran (1984) moisture response; net rate ~1-3 kg N ha⁻¹ d⁻¹ in
+  early-season temperate loam (Stanford & Smith 1972). This mirrors
+  ``agrogame.soil.som.pools.ThreePoolSOM`` so the two stay in sign agreement.
 """
 
 from __future__ import annotations
@@ -28,6 +42,7 @@ import math
 from dataclasses import dataclass
 
 from agrogame.atmosphere.et.module import Evapotranspiration
+from agrogame.soil.som.pools import SOMPoolParams
 
 # --- Heuristic projection constants (documented above) ---------------------
 _DEPLETION_FRACTION_P = 0.5  # FAO-56 readily-available fraction (generic p)
@@ -36,6 +51,16 @@ _PEAK_N_UPTAKE_KG_HA_DAY = 3.0  # maize-scale peak uptake (Bender et al. 2013)
 _CANOPY_EXTINCTION_K = 0.6  # Beer's-law light-extinction coefficient
 _LEACH_DRAINAGE_HALF_MM = 200.0  # drainage scale for the leaching fraction
 _LEACH_MAX_FRACTION = 0.3  # cap on daily mineral-N loss to leaching
+
+# --- Net-mineralisation constants (mirror ThreePoolSOM; see module docstring)
+# The rate constant and humification fraction are read from the engine's own
+# ``SOMPoolParams`` so any recalibration of the SOM module flows through to the
+# forecast automatically and the two cannot silently drift apart.
+_SOM_PARAMS = SOMPoolParams()
+_SOM_K_LABILE = _SOM_PARAMS.k_labile  # labile SOM decay (1/day), RothC-scale
+_SOM_HUMIFICATION_LABILE = _SOM_PARAMS.humification_labile_to_inter
+_SOM_Q10_REF_C = 25.0  # RothC Q10=2 reference temperature (°C)
+_SOM_MOISTURE_OPTIMUM_WFPS = 0.6  # Linn & Doran (1984) decomposition optimum
 
 # g/m² of N-in-a-layer converts to kg/ha by ×10 (1 g/m² = 10 kg/ha).
 _G_M2_TO_KG_HA = 10.0
@@ -115,6 +140,80 @@ def root_zone_mineral_n_kg_ha(
     return total_g_m2 * _G_M2_TO_KG_HA
 
 
+def root_zone_som_labile_n_kg_ha(
+    som_labile_n: list[float],
+    layer_depths_cm: list[float],
+    root_depth_cm: float,
+) -> float:
+    """Sum root-zone labile SOM organic N (kg/ha).
+
+    This is the pool the engine mineralises from after #351/#357 (the labile
+    RothC pool dominates the daily net-mineralisation flux). Unlike mineral N,
+    SOM pools are already stored per layer in kg/ha, so no g/m² conversion is
+    applied — only the root-zone layer weighting.
+    """
+    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
+    total = 0.0
+    for i, frac in enumerate(fractions):
+        if frac <= 0.0 or i >= len(som_labile_n):
+            continue
+        total += som_labile_n[i] * frac
+    return total
+
+
+def root_zone_wfps(
+    theta: list[float],
+    saturation: list[float],
+    layer_depths_cm: list[float],
+    root_depth_cm: float,
+    default: float = _SOM_MOISTURE_OPTIMUM_WFPS,
+) -> float:
+    """Root-zone-weighted water-filled pore space (theta/saturation), 0-1.
+
+    Feeds the moisture factor of the mineralisation source term. Layers with
+    non-positive saturation are skipped; if no rooted layer has usable
+    saturation, the neutral ``default`` (the decomposition optimum) is returned
+    so the moisture factor neither zeroes out nor inflates the source term.
+    """
+    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
+    weighted = 0.0
+    total_frac = 0.0
+    for i, frac in enumerate(fractions):
+        if frac <= 0.0 or i >= len(theta) or i >= len(saturation):
+            continue
+        sat = saturation[i]
+        if sat <= 0.0:
+            continue
+        weighted += (theta[i] / sat) * frac
+        total_frac += frac
+    if total_frac <= 0.0:
+        return default
+    return weighted / total_frac
+
+
+def _som_temperature_factor(temp_c: float) -> float:
+    """RothC Q10=2 temperature response centred on 25 °C.
+
+    Mirrors ``ThreePoolSOM._temperature_factor`` (Coleman & Jenkinson 1996) so
+    the forecast scales mineralisation with temperature identically to the
+    engine.
+    """
+    return float(2.0 ** ((temp_c - _SOM_Q10_REF_C) / 10.0))
+
+
+def _som_moisture_factor(wfps: float) -> float:
+    """Decomposition moisture response, optimum at 60 % WFPS.
+
+    Mirrors ``ThreePoolSOM._moisture_factor`` (Linn & Doran 1984): rises
+    linearly to the optimum, then declines toward saturation.
+    """
+    if wfps <= 0.0:
+        return 0.0
+    if wfps <= _SOM_MOISTURE_OPTIMUM_WFPS:
+        return min(1.0, wfps / _SOM_MOISTURE_OPTIMUM_WFPS)
+    return max(0.0, 1.0 - (wfps - _SOM_MOISTURE_OPTIMUM_WFPS) / 0.4)
+
+
 def water_stress_coefficient(
     available_water_mm: float,
     total_available_water_mm: float,
@@ -142,6 +241,8 @@ def project_soil_forecast(
     mineral_n_kg_ha: float,
     lai: float,
     weather: list[tuple[float, float, float]],
+    som_labile_n_kg_ha: float = 0.0,
+    root_zone_wfps: float = _SOM_MOISTURE_OPTIMUM_WFPS,
     depletion_fraction_p: float = _DEPLETION_FRACTION_P,
 ) -> list[SoilForecastPoint]:
     """Project water-stress and mineral-N ``len(weather)`` days ahead.
@@ -149,6 +250,15 @@ def project_soil_forecast(
     ``weather`` is a list of ``(temp_mean_c, shortwave_mj_m2, rain_mm)`` tuples
     for the forecast days. LAI and root depth are held constant over the short
     horizon (a reasonable approximation for a ~5-7 day outlook).
+
+    Mineral N gains a **net-mineralisation source** from the labile SOM pool
+    (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
+    crop uptake and drainage leaching. ``root_zone_wfps`` sets the moisture
+    factor for decomposition and is held constant over the horizon (moisture
+    swings slowly relative to temperature; temperature drives the daily
+    variation via a Q10=2 response). When ``som_labile_n_kg_ha`` is zero the
+    projection is sink-only, preserving the pre-#353 behaviour for callers
+    that do not supply an SOM pool.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
@@ -156,6 +266,8 @@ def project_soil_forecast(
     available = max(0.0, available_water_mm)
     taw = max(0.0, total_available_water_mm)
     mineral_n = max(0.0, mineral_n_kg_ha)
+    labile_n = max(0.0, som_labile_n_kg_ha)
+    moist_f = _som_moisture_factor(max(0.0, root_zone_wfps))
 
     points: list[SoilForecastPoint] = []
     for temp_mean_c, shortwave_mj_m2, rain_mm in weather:
@@ -175,7 +287,22 @@ def project_soil_forecast(
             drainage = max(0.0, water_after)
             available = max(0.0, water_after)
 
-        # Mineral-N: crop uptake (canopy- and stress-scaled) then leaching.
+        # --- Net N mineralisation source (labile SOM pool) -----------------
+        # #351/#357 made the three-pool SOM module the single authoritative
+        # net-mineralisation source. Mirror its labile-pool kinetics:
+        #   decomposed_N = labile_N · k_labile · f(T) · f(moisture)
+        # of which the humified fraction stays in SOM and the remainder is
+        # released to the mineral pool. Draining the labile pool as it
+        # mineralises reproduces the engine's gentle day-to-day deceleration.
+        # Without this source the projection trended opposite to the engine in
+        # early-season loam (#353). Coleman & Jenkinson (1996); Linn & Doran
+        # (1984); net rate ~1-3 kg N/ha/day (Stanford & Smith 1972).
+        decomposed_n = labile_n * _SOM_K_LABILE * _som_temperature_factor(temp_mean_c)
+        decomposed_n *= moist_f
+        labile_n = max(0.0, labile_n - decomposed_n)
+        mineral_n += decomposed_n * (1.0 - _SOM_HUMIFICATION_LABILE)
+
+        # Mineral-N sinks: crop uptake (canopy- and stress-scaled) then leaching.
         uptake = _PEAK_N_UPTAKE_KG_HA_DAY * canopy_cover * ks
         mineral_n = max(0.0, mineral_n - uptake)
         leach_fraction = min(

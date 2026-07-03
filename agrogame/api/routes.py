@@ -39,7 +39,9 @@ from agrogame.api.models import (
 from agrogame.api.forecast import (
     project_soil_forecast,
     root_zone_mineral_n_kg_ha,
+    root_zone_som_labile_n_kg_ha,
     root_zone_water_mm,
+    root_zone_wfps,
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
@@ -945,8 +947,15 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
     )
 
 
-def _projection_inputs(patch: Patch) -> tuple[float, float, float, float]:
-    """Extract (available_water_mm, TAW_mm, mineral_N_kg_ha, lai) for a patch."""
+def _projection_inputs(
+    patch: Patch,
+) -> tuple[float, float, float, float, float, float]:
+    """Extract projection inputs for a patch.
+
+    Returns ``(available_water_mm, TAW_mm, mineral_N_kg_ha, lai,
+    som_labile_N_kg_ha, root_zone_wfps)``. The labile SOM N and WFPS feed the
+    forecast's net-mineralisation source term (#353).
+    """
     snap = patch.orch.snapshot_soil()
     layers = patch.orch.profile.layers
     depths = [ly.depth_cm for ly in layers]
@@ -961,7 +970,18 @@ def _projection_inputs(patch: Patch) -> tuple[float, float, float, float]:
     mineral_n = root_zone_mineral_n_kg_ha(
         list(snap.n_no3), list(snap.n_nh4), depths, root_depth
     )
-    return available, taw, mineral_n, patch.orch.canopy.state.lai
+    som = patch.orch.som
+    labile_n_by_layer = (
+        [ly.labile.n_kg_ha for ly in som.state.layers] if som is not None else []
+    )
+    som_labile_n = root_zone_som_labile_n_kg_ha(labile_n_by_layer, depths, root_depth)
+    wfps = root_zone_wfps(
+        list(snap.water_theta),
+        [ly.saturation for ly in layers],
+        depths,
+        root_depth,
+    )
+    return available, taw, mineral_n, patch.orch.canopy.state.lai, som_labile_n, wfps
 
 
 @router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
@@ -979,7 +999,9 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
     window = s.weather[s.day_index : end]
 
     first_field = next(iter(s.field_manager.fields.values()))
-    available, taw, mineral_n, lai = _projection_inputs(first_field.patches[0])
+    available, taw, mineral_n, lai, som_labile_n, wfps = _projection_inputs(
+        first_field.patches[0]
+    )
     projection = project_soil_forecast(
         available_water_mm=available,
         total_available_water_mm=taw,
@@ -993,6 +1015,8 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
             )
             for rec in window
         ],
+        som_labile_n_kg_ha=som_labile_n,
+        root_zone_wfps=wfps,
     )
 
     forecast: list[ForecastDayResponse] = []
