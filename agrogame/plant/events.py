@@ -21,6 +21,26 @@ class WaterStressComputed(BaseEvent):
 
 
 @dataclass(frozen=True)
+class PlantNUptakeComputed(BaseEvent):
+    """Daily soil N uptake handed off to whole-shoot plant-N accounting (#360).
+
+    Emitted by the nitrogen runtime on the ``nutrients`` phase, once soil N
+    uptake has been resolved (mass-flow limited, unchanged). The plant-N
+    runtime consumes it to grow the whole-shoot N stock and derive the graded
+    NNI-based stress. This decouples the soil-side uptake from the plant-side
+    critical-N model without the soil layer importing plant logic.
+
+    Attributes:
+        uptake_kg_ha: N taken up from the soil this day (kg/ha).
+        demand_kg_ha: N demand requested for the day (kg/ha), passed through
+            for diagnostics and the downstream stress event.
+    """
+
+    uptake_kg_ha: float
+    demand_kg_ha: float
+
+
+@dataclass(frozen=True)
 class NutrientStressComputed(BaseEvent):
     """Nutrient stress signals computed from uptake vs demand proxies.
 

@@ -439,6 +439,180 @@ def test_fertilized_beats_unfertilized_on_n_depleted_soil() -> None:
     )
 
 
+def _run_n_dose_with_nni(
+    fertilizer_kg_ha: float,
+    *,
+    days: int = 150,
+    deplete_soil_n_frac: float = 0.15,
+) -> tuple[float, list[float]]:
+    """N-depleted Kenya-highlands maize at one N rate (#360 dose-response).
+
+    Returns ``(final_biomass_g_m2, nni_series)`` where ``nni_series`` is the
+    end-of-day whole-shoot N nutrition index. Mirrors ``_run_managed_scenario``
+    but also captures the NNI trajectory.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    profile = load_soil_presets(Path("soils/presets.yaml")).soils["loam_temperate"]
+    crop = crops.get_preset("maize", "kenya_highlands")
+    climate = climates.climates["kenya_highlands"]
+    series = SyntheticWeatherGenerator(climate, seed=42).generate(
+        days, date(2024, 3, 1)
+    )
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    _deplete_soil_nitrogen(orch, deplete_soil_n_frac)
+    if fertilizer_kg_ha > 0.0:
+        orch.apply_fertilizer("ammonium_nitrate", fertilizer_kg_ha)
+    nni: list[float] = []
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        nni.append(orch.plant_n_nni)
+    return orch.canopy.state.biomass_g_m2, nni
+
+
+def test_graded_n_dose_response_is_monotone_and_smooth() -> None:
+    """N fertiliser 0-240 kg/ha gives a graded, monotone, saturating response.
+
+    AC #360: the stock-based critical-N model must produce a *graded* (not
+    bimodal Liebig on/off) dose-response. On the N-depleted Kenya-highlands
+    maize scenario, end-of-season biomass must rise monotonically with N rate,
+    saturate (diminishing returns), and show no single step dominating the
+    lift. Magnitude bands follow the sharpened validation plan and the
+    Mitscherlich-type field response (e.g. Vanlauwe et al. 2011; George et al.
+    1993 maize N-response): strongly N-limited at 0 kg, substantial recovery by
+    240 kg, agronomic optimum (~90% of max) reached by ~120-160 kg N/ha.
+    """
+    from itertools import pairwise
+
+    rates = [0, 40, 80, 120, 160, 240]
+    biomass = {r: _run_n_dose_with_nni(float(r))[0] for r in rates}
+
+    # Strictly ordered (graded), monotone non-decreasing.
+    ordered = [biomass[r] for r in rates]
+    assert ordered == sorted(ordered), f"Dose-response not monotone: {biomass}"
+    for lo, hi in pairwise(rates):
+        assert biomass[hi] > biomass[lo], (
+            f"{hi} kg ({biomass[hi]:.0f}) should exceed {lo} kg "
+            f"({biomass[lo]:.0f}) — strictly graded"
+        )
+
+    # Magnitude bands (validation plan).
+    assert biomass[0] < 300.0, f"0 kg maize {biomass[0]:.0f} should be N-limited"
+    assert biomass[240] > 700.0, f"240 kg maize {biomass[240]:.0f} should recover"
+
+    # Smooth & saturating: no single step exceeds ~60% of the total lift, and
+    # the marginal gains diminish (a saturating, not linear, curve).
+    lift = biomass[240] - biomass[0]
+    steps = [biomass[hi] - biomass[lo] for lo, hi in pairwise(rates)]
+    assert max(steps) < 0.60 * lift, (
+        f"Largest single step {max(steps):.0f} exceeds 60% of the total lift "
+        f"{lift:.0f} — response is too step-like (bimodal)"
+    )
+    # Diminishing returns: the last 80 kg (160->240) adds less than the first
+    # 80 kg (0->80).
+    assert (biomass[240] - biomass[160]) < (biomass[80] - biomass[0]), (
+        "Response should saturate: high-N increments must be smaller than "
+        "low-N increments"
+    )
+    # Agronomic optimum: ~90% of the max response reached by 160 kg N/ha.
+    assert (biomass[160] - biomass[0]) > 0.85 * lift, (
+        f"90% of the N response should be reached by ~160 kg/ha; got "
+        f"{(biomass[160] - biomass[0]) / lift:.2f} of the lift"
+    )
+
+
+def test_nni_trajectory_responds_to_fertiliser() -> None:
+    """NNI tracks N status: starved stays sub-critical, fed reaches sufficiency.
+
+    AC #360 / validation plan step 2: on the N-depleted soil the unfertilised
+    crop's NNI falls below 1 (sub-critical) and stays there, while a fertilised
+    (160 kg N/ha) crop reaches N sufficiency (NNI >= 1) at least during early
+    growth and maintains a substantially higher N status all season.
+    """
+    _, nni0 = _run_n_dose_with_nni(0.0)
+    _, nni160 = _run_n_dose_with_nni(160.0)
+    half = len(nni0) // 2
+    # Second-half means: post-establishment N status (a near-zero canopy
+    # reports the unstressed default 1.0, which is "no data", not sufficiency).
+    late0 = sum(nni0[half:]) / len(nni0[half:])
+    late160 = sum(nni160[half:]) / len(nni160[half:])
+
+    # Unfertilised: strongly sub-critical, and stays there.
+    assert late0 < 0.2, f"Unfertilised NNI should stay sub-critical; got {late0:.2f}"
+    assert nni0[-1] < 0.2, f"Unfertilised NNI should end sub-critical; {nni0[-1]:.2f}"
+
+    # Fertilised: reaches N sufficiency (NNI >= 1) at least during early growth.
+    assert max(nni160) >= 1.0, (
+        f"Fertilised NNI should reach sufficiency at least transiently; "
+        f"max {max(nni160):.2f}"
+    )
+    # And a materially higher sustained N status than the starved crop.
+    assert late160 > late0 + 0.3, (
+        f"Fertilised late-season NNI {late160:.2f} should clearly exceed "
+        f"unfertilised {late0:.2f}"
+    )
+
+
+def test_plant_n_stock_resets_across_seasons() -> None:
+    """The whole-shoot N stock is per-season state that resets on reset_crop.
+
+    AC #360 (persistence): the plant-N stock is intentionally non-persisted —
+    a new crop starts with ~0 shoot N. Verified across two full cropping
+    cycles: the stock accumulates in season 1, resets to zero on reset_crop,
+    and rebuilds in season 2 with the same graded response.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    profile = load_soil_presets(Path("soils/presets.yaml")).soils["loam_temperate"]
+    crop = crops.get_preset("maize", "kenya_highlands")
+    climate = climates.climates["kenya_highlands"]
+
+    def _season(orch: FullSimulationOrchestrator) -> float:
+        series = SyntheticWeatherGenerator(climate, seed=42).generate(
+            120, date(2024, 3, 1)
+        )
+        orch.apply_fertilizer("ammonium_nitrate", 160.0)
+        for rec in series.records:
+            orch.step_day(
+                drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+                tmin_c=rec.tmin_c,
+                tmax_c=rec.tmax_c,
+                par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+                sim_date=rec.day,
+            )
+        return orch.canopy.state.biomass_g_m2
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+    biomass1 = _season(orch)
+    assert orch.plant_n_stock_kg_ha > 0.0
+    assert biomass1 > 0.0
+
+    orch.reset_crop(crop)
+    # Fresh season: stock cleared, N status reset to unstressed.
+    assert orch.plant_n_stock_kg_ha == 0.0
+    assert orch.plant_n_nni == 1.0
+
+    biomass2 = _season(orch)
+    assert orch.plant_n_stock_kg_ha > 0.0
+    # Season 2 rebuilds a comparable crop (soil state carried over, so not
+    # identical, but the same order of magnitude — the stock is not stuck).
+    assert biomass2 > 0.5 * biomass1
+
+
 def _run_n_trajectory(
     crop_name: str,
     climate_name: str,

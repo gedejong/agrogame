@@ -55,6 +55,7 @@ nav:
       - Biopore Calibration: adr/ADR-009-biopore-calibration.md
       - Pore-chain Phase Ordering: adr/ADR-010-pore-chain-phase-ordering.md
       - Dashboard Façade: adr/ADR-011-dashboard-facade.md
+      - Whole-shoot Plant-N Accounting: adr/ADR-012-plant-nitrogen-stock.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md

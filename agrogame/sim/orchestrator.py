@@ -10,6 +10,12 @@ from agrogame.soil.phenology import (
 )
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
+from agrogame.plant.nitrogen import (
+    PlantNitrogenModule,
+    PlantNitrogenParams,
+    PlantNitrogenState,
+)
+from agrogame.plant.nitrogen.runtime import PlantNitrogenRuntime
 from agrogame.plant.presets import CropPreset
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.models import SoilProfile
@@ -152,6 +158,11 @@ class SoilSnapshot:
 
     Captures water, nitrogen, phosphorus, microbial, and chemistry pools
     so they can be persisted to disk and restored for multi-season simulation.
+
+    The whole-shoot plant-N stock (#360) is intentionally *not* captured
+    here: it is a within-season plant property that resets to zero for each
+    new crop (a fresh seedling holds ~no shoot N). ``reset_crop`` rebuilds
+    ``plant_n_state`` fresh, so no round-trip is needed.
     """
 
     water_theta: list[float] = field(default_factory=list)
@@ -276,6 +287,23 @@ def _default_phen_params() -> CropPhenologyParams:
     )
 
 
+def _plant_n_params(crop: CropPreset | None) -> PlantNitrogenParams:
+    """Build whole-shoot critical-N params from a crop preset (#360).
+
+    Uses the crop's fitted dilution coefficients when present (maize, wheat);
+    otherwise falls back to PlantNitrogenParams' documented generic-C3 default
+    (Greenwood et al. 1990).
+    """
+    if crop is None:
+        return PlantNitrogenParams()
+    overrides: dict[str, float] = {}
+    if crop.n_crit_a is not None:
+        overrides["n_crit_a"] = crop.n_crit_a
+    if crop.n_crit_b is not None:
+        overrides["n_crit_b"] = crop.n_crit_b
+    return PlantNitrogenParams(**overrides)
+
+
 def _default_canopy_params() -> CanopyParams:
     return CanopyParams(
         extinction_coefficient_k=0.6,
@@ -371,6 +399,11 @@ class FullSimulationOrchestrator:
         self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
         self.roots = RootModule(root_params, event_bus=self.event_bus)
         self.root_state = RootState()
+        # Whole-shoot plant-N accounting (#360). Fresh stock each season —
+        # intentionally non-persisted (see SoilSnapshot docstring): a new
+        # crop starts with ~0 shoot N.
+        self.plant_n_module = PlantNitrogenModule(_plant_n_params(crop))
+        self.plant_n_state = PlantNitrogenState()
 
     def _build_soil_state(self) -> None:
         """Create fresh mutable soil-state containers.
@@ -568,6 +601,16 @@ class FullSimulationOrchestrator:
             lambda: NitrogenRuntime(
                 self.event_bus, self.n_cycle, gas_state=self.gas_state
             ),
+            # Consumes NitrogenRuntime's PlantNUptakeComputed and emits the
+            # graded NNI-based N stress the canopy reads (#360). Registered
+            # right after NitrogenRuntime so the stock is updated the same
+            # nutrients-phase tick the uptake is resolved.
+            lambda: PlantNitrogenRuntime(
+                self.event_bus,
+                self.plant_n_module,
+                self.plant_n_state,
+                shoot_biomass_provider=lambda: self.canopy.state.biomass_g_m2,
+            ),
             lambda: MicronutrientRuntime(self.event_bus, self.micro_cycle),
             lambda: PhosphorusRuntime(self.event_bus, self.p_cycle),
             lambda: self._make_som_runtime(pv),
@@ -686,6 +729,16 @@ class FullSimulationOrchestrator:
     def som(self) -> Any:
         """Public access to the SOM module (ThreePoolSOM or None)."""
         return self._som_runtime.som
+
+    @property
+    def plant_n_nni(self) -> float:
+        """Current whole-shoot N nutrition index (NNI); 1.0 = at critical N."""
+        return self.plant_n_state.nni
+
+    @property
+    def plant_n_stock_kg_ha(self) -> float:
+        """Current accumulated whole-shoot N stock (kg/ha)."""
+        return self.plant_n_state.n_stock_kg_ha
 
     def snapshot_soil(self) -> SoilSnapshot:
         """Capture current soil state as a serializable snapshot."""
@@ -910,6 +963,25 @@ class FullSimulationOrchestrator:
         p_demand = max(p_demand, 0.01)
         return n_demand, p_demand
 
+    def _compute_plant_n_demand(self) -> float:
+        """Stock-based whole-shoot N demand for the critical-N model (#360).
+
+        Deficit between the current shoot N stock and the critical-N target
+        for the current shoot DM (see PlantNitrogenModule.demand_to_critical).
+        This replaces the legacy same-day 0.5-remobilisation N demand: with a
+        stock model the plant requests enough N to reach critical, so an
+        N-rich soil lets the stock track the critical curve (NNI -> 1) while a
+        poor soil holds it below. P demand keeps its own formula
+        (``_compute_nutrient_demand``). Uptake stays soil-supply limited.
+        """
+        if self._current_crop is None:
+            return 0.1
+        demand = self.plant_n_module.demand_to_critical(
+            self.canopy.state.biomass_g_m2,
+            self.plant_n_state.n_stock_kg_ha,
+        )
+        return max(0.1, demand)
+
     def step_day(
         self,
         drivers: DailyDrivers,
@@ -939,9 +1011,11 @@ class FullSimulationOrchestrator:
                     f"choose from 'irrigate', 'fertilize', 'tillage'"
                 )
 
-        # Compute dynamic demand from previous day's biomass increment
-        # unless the caller explicitly provides values.
-        dyn_n, dyn_p = self._compute_nutrient_demand()
+        # Compute dynamic demand unless the caller explicitly provides values.
+        # N uses the stock-based critical-N deficit (#360); P keeps the
+        # biomass-increment formula.
+        _, dyn_p = self._compute_nutrient_demand()
+        dyn_n = self._compute_plant_n_demand()
         n_demand = plant_n_demand_kg_ha if plant_n_demand_kg_ha is not None else dyn_n
         p_demand = plant_p_demand_kg_ha if plant_p_demand_kg_ha is not None else dyn_p
 
