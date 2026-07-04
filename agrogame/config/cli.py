@@ -66,9 +66,9 @@ def _cmd_watch(args: argparse.Namespace) -> int:  # pragma: no cover - long-runn
 
 
 def _cmd_wizard(args: argparse.Namespace) -> int:
-    # Minimal placeholder to satisfy acceptance criteria; can be expanded
-    print("Interactive builder is not yet implemented. Use 'build' for now.")
-    return 0
+    from agrogame.config.wizard import run_wizard
+
+    return run_wizard(sys.stdin, sys.stdout)
 
 
 def build_parser() -> argparse.ArgumentParser:

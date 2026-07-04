@@ -29,8 +29,20 @@ def test_handler_filters_extensions(tmp_path: Path) -> None:
     assert seen == [y]
 
 
-def test_cli_wizard(capsys: pytest.CaptureFixture[str]) -> None:
-    code = main(["wizard"])  # placeholder implementation
+def test_cli_wizard(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The `wizard` subcommand drives run_wizard over stdin/stdout."""
+    import io
+
+    out_path = tmp_path / "soil.yaml"
+    # soil path, accept defaults, then supply the output path.
+    script = "soil\n\n\n" + "\n" * 9 + f"{out_path}\n"
+    monkeypatch.setattr("sys.stdin", io.StringIO(script))
+    code = main(["wizard"])
     out = capsys.readouterr().out
     assert code == 0
-    assert "Interactive builder" in out
+    assert "Scaffold which config?" in out
+    assert out_path.exists()
