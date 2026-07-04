@@ -924,9 +924,16 @@ func _on_harvest_complete(
 			_tile_data[i]["grain_g_m2"] = 0.0
 			_update_crop_visuals(i)
 	# Yield + P&L come straight from the harvest action's settlement response.
+	var grain_g_m2: float = data.get("grain_g_m2", 0.0)
 	status_label.text = (
-		"Harvested %s (cost %d credits) — revenue %d | profit %d credits"
-		% [crop_key, cost, int(data.get("revenue_credits", 0)), int(data.get("profit_credits", 0))]
+		"Harvested %s: %.0f g/m² grain (cost %d credits) — revenue %d | profit %d credits"
+		% [
+			crop_key,
+			grain_g_m2,
+			cost,
+			int(data.get("revenue_credits", 0)),
+			int(data.get("profit_credits", 0)),
+		]
 	)
 	_update_harvest_button()
 	# The action response is authoritative for P&L; fetch the season report only

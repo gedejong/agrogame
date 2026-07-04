@@ -23,8 +23,14 @@ class CanopyModule:
 
     Responsibilities:
     - Compute intercepted PAR via Beer-Lambert law (k, LAI)
-    - Convert intercepted PAR to biomass using RUE and stress/temperature factors
-    - Partition biomass into leaf and stem fractions by growth stage
+    - Convert intercepted PAR to the day's total assimilate pool using RUE and
+      stress/temperature factors
+    - Partition that single finite pool competitively between root and shoot
+      (Σ fractions = 1) so assimilate sent below ground is unavailable to
+      shoot/grain — a true source–sink tradeoff, not an additive bolt-on
+      (#337; DSSAT CERES root:shoot; WOFOST FR fraction-to-roots; APSIM
+      stage-dependent partitioning)
+    - Partition the shoot share into leaf and stem fractions by growth stage
     - Update LAI from leaf biomass only, with SLA and senescence
     - Smooth senescence ramp during grain fill (not a step function)
 
@@ -350,30 +356,55 @@ class CanopyModule:
         water_stress: float,
         n_stress: float,
         heat_grain_factor: float = 1.0,
+        root_allocation_fraction: float = 0.0,
     ) -> CanopyFluxes:
+        """Grow the canopy for one day from a single finite assimilate pool.
+
+        The RUE step yields the day's *total* assimilate (``gross_inc``). It is
+        partitioned competitively into a below-ground share
+        (``root_allocation_fraction × gross``) and a shoot share (the
+        remainder); the two sum to the pool, so allocating more to roots
+        directly reduces the shoot/grain increment (a true source–sink
+        tradeoff) and roots never inflate total NPP (#337). Only the shoot
+        share drives leaf/stem/grain partitioning and LAI. The below-ground
+        share is returned on ``CanopyFluxes.root_increment_g_m2`` for the
+        caller to route to the root module. ``root_allocation_fraction``
+        defaults to 0.0, which reproduces the pre-#337 shoot-only behaviour.
+
+        Refs: DSSAT CERES root:shoot; WOFOST FR fraction-to-roots (Boogaard
+        et al. 2014); APSIM stage-dependent biomass partitioning.
+        """
         self.state.last_water_stress = water_stress
         fx = self.calculate_light_interception(incident_par_mj_m2)
-        biomass_inc = self.calculate_biomass_growth(
+        gross_inc = self.calculate_biomass_growth(
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
+        # Split the single finite pool root vs shoot before any shoot
+        # partitioning, so the root share is genuinely withheld from shoot/grain.
+        root_frac = min(max(root_allocation_fraction, 0.0), 1.0)
+        root_inc = root_frac * gross_inc
+        biomass_inc = gross_inc - root_inc  # shoot share = (1 - root_frac) × gross
         self.state.biomass_g_m2 += biomass_inc
-        # Partition into leaf, stem, and grain so sub-pools sum to total.
-        # Grain only accumulates during GRAIN_FILL (stops at maturity,
-        # matching DSSAT/APSIM physiological maturity convention).
+        # Partition the shoot share into leaf, stem, and grain so sub-pools sum
+        # to the shoot total. Grain only accumulates during GRAIN_FILL (stops at
+        # maturity, matching DSSAT/APSIM physiological maturity convention).
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
         self._partition_grain(biomass_inc, leaf_fraction, heat_grain_factor)
         self._apply_harvest_index_cap()
         self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
-        if self.event_bus is not None and biomass_inc > 0.0:
+        if self.event_bus is not None and gross_inc > 0.0:
             self.event_bus.emit(
                 BiomassAccumulated(
-                    increment_g_m2=biomass_inc, total_g_m2=self.state.biomass_g_m2
+                    increment_g_m2=biomass_inc,
+                    total_g_m2=self.state.biomass_g_m2,
+                    root_increment_g_m2=root_inc,
                 )
             )
         return CanopyFluxes(
             intercepted_par_mj_m2=fx.intercepted_par_mj_m2,
             biomass_increment_g_m2=biomass_inc,
+            root_increment_g_m2=root_inc,
         )
 
     def daily_step_with_transpiration(
@@ -384,11 +415,12 @@ class CanopyModule:
         potential_transpiration_mm: float,
         n_stress: float,
         heat_grain_factor: float = 1.0,
+        root_allocation_fraction: float = 0.0,
     ) -> CanopyFluxes:
         """Variant that derives water stress from ET supply/demand.
 
         Computes water stress via compute_water_stress(actual, demand) and
-        delegates to daily_step.
+        delegates to daily_step (forwarding the root partition fraction, #337).
         """
         ws = compute_water_stress(actual_transpiration_mm, potential_transpiration_mm)
         return self.daily_step(
@@ -397,4 +429,5 @@ class CanopyModule:
             water_stress=ws,
             n_stress=n_stress,
             heat_grain_factor=heat_grain_factor,
+            root_allocation_fraction=root_allocation_fraction,
         )

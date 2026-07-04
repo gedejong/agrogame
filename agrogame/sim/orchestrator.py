@@ -116,19 +116,17 @@ class SimulationOrchestrator:
             temp_factor=temp_factor,
             water_stress=water_stress,
             n_stress=n_stress,
+            root_allocation_fraction=self.roots.params.root_allocation_fraction,
         )
-        # Allocate a crop-parameterised fraction of today's canopy biomass
-        # increment to roots (#330). In a full coupling, we'd also pass real
-        # nutrient signals and constraints.
+        # Route the below-ground share the canopy already reserved from today's
+        # single assimilate pool to roots (#337): a true source–sink split, not
+        # an add-on. In a full coupling, we'd also pass real nutrient signals.
         stage = self.phenology.state.stage
-        daily_root = self.roots.params.root_allocation_fraction * max(
-            0.0, fx.biomass_increment_g_m2
-        )
         _ = self.roots.daily_step(
             state=self.root_state,
             profile=None,  # type: ignore[arg-type]
             stage=stage,
-            daily_root_biomass_g_m2=daily_root,
+            daily_root_biomass_g_m2=max(0.0, fx.root_increment_g_m2),
             nutrient_signal=None,
             constraints=None,
         )
@@ -624,7 +622,11 @@ class FullSimulationOrchestrator:
             lambda: AggregationRuntime(
                 self.event_bus, self.agg_module, pv, self.water_state
             ),
-            lambda: CanopyRuntime(self.event_bus, self.canopy),
+            lambda: CanopyRuntime(
+                self.event_bus,
+                self.canopy,
+                root_allocation_fraction=self.roots.params.root_allocation_fraction,
+            ),
         ]
         bookkeeping: list[_RuntimeFactory] = [
             self._subscribe_biomass_bookkeeping,
@@ -850,7 +852,11 @@ class FullSimulationOrchestrator:
         """Finalize current crop and return soil state for next season.
 
         Appends the current crop to history and applies any N fixation
-        credit (legumes) to the soil organic N pool in the top layer.
+        credit (legumes) to the soil organic N pool in the top layer, then
+        clears ``_current_crop`` (#359) so the finalized crop is not left as a
+        stale reference. A second ``harvest()`` before ``reset_crop()`` is then
+        a no-op (no double history entry or N credit), and downstream reads
+        (``_compute_nutrient_demand``) correctly see a bare patch.
         """
         if self._current_crop is not None:
             self.crop_history.append(self._current_crop.key or self._current_crop.name)
@@ -859,6 +865,7 @@ class FullSimulationOrchestrator:
             credit = self._current_crop.n_fixation_credit_kg_ha
             if credit > 0.0:
                 self.n_state.organic_n[0] += credit
+            self._current_crop = None
         return self.snapshot_soil()
 
     def reset_crop(self, new_crop: CropPreset) -> None:
@@ -903,16 +910,23 @@ class FullSimulationOrchestrator:
         self._wire_runtimes()
 
     def _on_biomass_accumulated(self, ev: Any) -> None:
-        inc = float(ev.increment_g_m2)
-        self._last_biomass_inc_g_m2 = inc
-        # Accumulate for shoot→root allocation (#330); drained by RootsRuntime.
-        self._pending_root_canopy_inc_g_m2 += inc
+        shoot_inc = float(ev.increment_g_m2)
+        root_inc = float(getattr(ev, "root_increment_g_m2", 0.0))
+        # N/P demand tracks *total* new tissue (shoot + root): both draw
+        # nutrients, and the sum equals the day's assimilate pool, so demand
+        # magnitude is unchanged by the source–sink split (#337; DSSAT CERES /
+        # APSIM N-demand from prior-day growth).
+        self._last_biomass_inc_g_m2 = shoot_inc + root_inc
+        # Below-ground share of the pool, drained by RootsRuntime (#337).
+        self._pending_root_canopy_inc_g_m2 += root_inc
 
     def _consume_root_canopy_increment(self) -> float:
-        """Return the pending canopy biomass increment and reset it (#330).
+        """Return the pending below-ground assimilate share and reset it (#337).
 
-        Injected into RootsRuntime as its ``canopy_increment_provider`` port
-        so the plant package needs no import of ``soil.canopy``.
+        The canopy already partitioned the single finite pool into shoot and
+        root shares; this returns the accumulated root share. Injected into
+        RootsRuntime as its ``canopy_increment_provider`` port so the plant
+        package needs no import of ``soil.canopy``.
         """
         inc = self._pending_root_canopy_inc_g_m2
         self._pending_root_canopy_inc_g_m2 = 0.0
