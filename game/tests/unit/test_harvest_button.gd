@@ -124,6 +124,23 @@ func test_harvest_clears_crop_and_surfaces_pnl() -> void:
 	assert_eq(spy.report_calls, 1, "Detailed report fetched after settlement")
 
 
+func test_harvest_status_line_shows_grain_yield() -> void:
+	# #359: the harvested grain yield (g/m²) must appear in the status line,
+	# alongside the existing cost/revenue/profit P&L.
+	var view := _make_view()
+	view._tile_data[0]["crop_key"] = "maize"
+	view._tile_data[0]["crop_stage"] = 3
+	view._select_tile(0, 0)
+	view._on_harvest_pressed()
+	# Spy returns grain_g_m2 = 120.0 → "120 g/m² grain".
+	assert_string_contains(view.status_label.text, "grain")
+	assert_string_contains(view.status_label.text, "g/m")
+	assert_string_contains(view.status_label.text, "120")
+	# P&L still present.
+	assert_string_contains(view.status_label.text, "revenue")
+	assert_string_contains(view.status_label.text, "profit")
+
+
 func test_harvest_handles_unavailable_report() -> void:
 	# Real backend returned HTTP 400 on a mid-season /report before this fix.
 	# The action response already surfaced P&L; a report failure must degrade
