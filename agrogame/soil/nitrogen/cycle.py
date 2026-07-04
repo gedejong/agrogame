@@ -83,6 +83,30 @@ class NitrogenCycle:
         # behavior is unchanged.
         self._aerobic_fraction_override: list[float] | None = None
 
+    # --- SOM net-mineralisation flux diagnostic (#365) ---------------------
+    @property
+    def som_mineralized_n_by_layer(self) -> list[float]:
+        """Per-layer net SOM→mineral-N flux from the most recent day (kg/ha).
+
+        This is the *actual* net N mineralised by the 3-pool SOM module and
+        injected into NH4 via :class:`SOMDecomposed` (SOM-authoritative mode,
+        #351/#357). ``daily_step`` resets the accumulator at the start of each
+        nutrients phase and the SOM runtime (which subscribes to ``DayTick``
+        after the N cycle) fills it during the same phase, so reading this at
+        end-of-day yields that day's mineralisation flux.
+
+        Note: only positive net mineralisation is injected today (SOM-side
+        immobilisation is not drawn from the mineral pool), so this is a
+        gross-positive mineralisation flux, not a signed net including
+        immobilisation.
+        """
+        return list(self._som_mineralized_n)
+
+    @property
+    def som_mineralized_n_total(self) -> float:
+        """Whole-profile net SOM→mineral-N flux from the most recent day (kg/ha)."""
+        return sum(self._som_mineralized_n)
+
     def set_aerobic_fraction_override(
         self, aerobic_fraction: list[float] | None
     ) -> None:
