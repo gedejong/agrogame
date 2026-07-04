@@ -1111,6 +1111,42 @@ def test_forecast_includes_soil_projection(client) -> None:
         assert day["mineral_n_kg_ha"] >= 0.0
 
 
+def test_forecast_mineral_n_trend_matches_engine_sign(client) -> None:
+    """GET /forecast mineral-N trend agrees in sign with real engine steps (#353).
+
+    Early-season loam maize accumulates root-zone mineral N (SOM net
+    mineralisation dominates the tiny uptake). The projection must trend the
+    same way, not opposite (the sink-only bug). We compare a 5-day forecast
+    anchored on the established state against 5 real no-action engine steps.
+    """
+    game_id = _create_game(client)
+
+    def _profile_mineral_n(step_resp: dict) -> float:
+        soil = step_resp["patches"]["f1"][0]["soil_state"]
+        return sum(soil["n_no3"]) + sum(soil["n_nh4"])  # whole-profile g/m²
+
+    # Establish ~20 days; the final step response gives the anchor soil state.
+    before = _profile_mineral_n(
+        client.post(f"/api/v1/games/{game_id}/step?days=20&seed=42").json()
+    )
+
+    fc = client.get(f"/api/v1/games/{game_id}/forecast?days=5&seed=42").json()[
+        "forecast"
+    ]
+    forecast_n = [d["mineral_n_kg_ha"] for d in fc]
+    assert forecast_n[-1] > forecast_n[0], "forecast N should rise, not fall"
+
+    # Step 5 real no-action days on the same weather and re-read profile N.
+    after = _profile_mineral_n(
+        client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42").json()
+    )
+
+    engine_delta = after - before
+    forecast_delta = forecast_n[-1] - forecast_n[0]
+    assert engine_delta > 0.0, "engine profile mineral N should rise here"
+    assert (forecast_delta > 0) == (engine_delta > 0), "sign disagreement (#353)"
+
+
 # ---------------------------------------------------------------------------
 # Soil-response expansion — biology (#317), pore network (#274),
 # dynamic soil properties (#253)
