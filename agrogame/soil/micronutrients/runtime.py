@@ -35,7 +35,11 @@ class MicronutrientRuntime:
     def _on_biomass(self, ev: object) -> None:
         inc = getattr(ev, "increment_g_m2", None)
         if inc is not None:
-            self._last_biomass_inc = float(inc)
+            # Total new tissue (shoot + root) drives micronutrient demand; the
+            # sum equals the day's assimilate pool, unchanged by the source–sink
+            # split (#337).
+            root_inc = getattr(ev, "root_increment_g_m2", 0.0) or 0.0
+            self._last_biomass_inc = float(inc) + float(root_inc)
 
     def _on_roots(self, ev: object) -> None:
         fracs = getattr(ev, "fractions", None)

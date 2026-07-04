@@ -43,4 +43,7 @@ class CanopyState:
 @dataclass
 class CanopyFluxes:
     intercepted_par_mj_m2: float
-    biomass_increment_g_m2: float
+    biomass_increment_g_m2: float  # shoot share of the daily assimilate pool
+    # Below-ground share of the same finite pool, partitioned to roots (#337).
+    # biomass_increment_g_m2 + root_increment_g_m2 = the day's total assimilate.
+    root_increment_g_m2: float = 0.0

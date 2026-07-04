@@ -78,3 +78,104 @@ def test_compute_water_stress_monotonic() -> None:
         actual_transpiration_mm=4.0, potential_transpiration_mm=4.0
     )
     assert 0.0 <= s1 <= s2 <= s3 <= 1.0
+
+
+# --- #337: single-pool competitive root/shoot partitioning ------------------
+
+
+def _fresh_canopy_with_lai(lai: float = 3.0) -> CanopyModule:
+    params = CanopyParams(
+        extinction_coefficient_k=0.6,
+        radiation_use_efficiency_g_per_mj=3.0,
+        specific_leaf_area_m2_per_g=0.02,
+        lai_max=6.0,
+        senescence_rate_per_day=0.0,
+    )
+    canopy = CanopyModule(params)
+    canopy.state.lai = lai
+    return canopy
+
+
+def test_root_allocation_default_zero_is_shoot_only() -> None:
+    """Default fraction 0.0 reproduces pre-#337 shoot-only behaviour."""
+    canopy = _fresh_canopy_with_lai()
+    fx = canopy.daily_step(
+        incident_par_mj_m2=12.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    assert fx.root_increment_g_m2 == 0.0
+    # Whole pool went to shoot.
+    assert canopy.state.biomass_g_m2 == fx.biomass_increment_g_m2 > 0.0
+
+
+def test_daily_pool_conserved_shoot_plus_root_equals_gross() -> None:
+    """Shoot + root shares sum to the day's gross assimilate (Σ = 1, #337).
+
+    Roots draw from the same finite pool, so they never inflate total NPP.
+    """
+    ref = _fresh_canopy_with_lai()
+    intercepted = ref.calculate_light_interception(12.0).intercepted_par_mj_m2
+    gross = ref.calculate_biomass_growth(
+        intercepted, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+    )
+    canopy = _fresh_canopy_with_lai()
+    fx = canopy.daily_step(
+        incident_par_mj_m2=12.0,
+        temp_factor=1.0,
+        water_stress=1.0,
+        n_stress=1.0,
+        root_allocation_fraction=0.25,
+    )
+    assert abs((fx.biomass_increment_g_m2 + fx.root_increment_g_m2) - gross) < 1e-9
+    assert abs(fx.root_increment_g_m2 - 0.25 * gross) < 1e-9
+    assert abs(fx.biomass_increment_g_m2 - 0.75 * gross) < 1e-9
+    # Shoot biomass grew by only the shoot share, not the whole pool.
+    assert abs(canopy.state.biomass_g_m2 - 0.75 * gross) < 1e-9
+
+
+def test_higher_root_fraction_lowers_shoot_same_total_pool() -> None:
+    """A higher root fraction reduces the shoot increment (true tradeoff).
+
+    The total pool (shoot + root) is identical for both fractions on the same
+    day — allocating more below ground does not create free biomass (#337).
+    """
+    low = _fresh_canopy_with_lai().daily_step(
+        incident_par_mj_m2=12.0,
+        temp_factor=1.0,
+        water_stress=1.0,
+        n_stress=1.0,
+        root_allocation_fraction=0.15,
+    )
+    high = _fresh_canopy_with_lai().daily_step(
+        incident_par_mj_m2=12.0,
+        temp_factor=1.0,
+        water_stress=1.0,
+        n_stress=1.0,
+        root_allocation_fraction=0.30,
+    )
+    assert high.biomass_increment_g_m2 < low.biomass_increment_g_m2
+    assert high.root_increment_g_m2 > low.root_increment_g_m2
+    low_total = low.biomass_increment_g_m2 + low.root_increment_g_m2
+    high_total = high.biomass_increment_g_m2 + high.root_increment_g_m2
+    assert abs(low_total - high_total) < 1e-9
+
+
+def test_root_fraction_clamped_to_unit_interval() -> None:
+    """Out-of-range fractions clamp so shoot/root shares stay non-negative."""
+    over = _fresh_canopy_with_lai().daily_step(
+        incident_par_mj_m2=12.0,
+        temp_factor=1.0,
+        water_stress=1.0,
+        n_stress=1.0,
+        root_allocation_fraction=1.5,
+    )
+    assert over.biomass_increment_g_m2 == 0.0  # clamped to 1.0 → all to root
+    assert over.root_increment_g_m2 > 0.0
+    under = _fresh_canopy_with_lai().daily_step(
+        incident_par_mj_m2=12.0,
+        temp_factor=1.0,
+        water_stress=1.0,
+        n_stress=1.0,
+        root_allocation_fraction=-0.5,
+    )
+    assert under.root_increment_g_m2 == 0.0  # clamped to 0.0 → all to shoot
+    assert under.biomass_increment_g_m2 > 0.0

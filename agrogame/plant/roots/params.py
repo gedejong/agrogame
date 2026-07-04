@@ -13,12 +13,15 @@ class RootParams:
     growth_rate_cm_per_day: float = 1.5
     distribution: str = "exponential"  # or "uniform"
     turnover_rate_per_day: float = 0.005
-    # Fraction of the daily above-ground (canopy) biomass increment that is
-    # allocated to root biomass. A season-averaged root:shoot partitioning
-    # coefficient: cereals sit around 0.1–0.3 (DSSAT CERES root:shoot;
-    # APSIM stage-dependent partitioning; WOFOST FR fraction-to-roots table,
-    # Boogaard et al. 2014). Modelled here as a constant seasonal average
-    # rather than a stage-declining table for simplicity.
+    # Below-ground share of the single finite daily assimilate pool (#337).
+    # Competitive partition coefficient (Σ shoot+root = 1): assimilate routed
+    # here is withheld from shoot/grain, so raising it lowers shoot/grain and
+    # never inflates total NPP. The *standing* root:shoot ratio that emerges
+    # differs from this input fraction (turnover trims roots; shoot carries
+    # more standing mass), so it is not tautological. Season-averaged constant
+    # rather than a stage-declining table for simplicity; cereals partition
+    # ~0.1–0.3 to roots (DSSAT CERES root:shoot; APSIM stage-dependent
+    # partitioning; WOFOST FR fraction-to-roots table, Boogaard et al. 2014).
     root_allocation_fraction: float = 0.2
     proliferation_strength: float = 0.0  # 0 disables nutrient-driven bias
     stage_multipliers: dict[PhenologyStage, float] | None = None
