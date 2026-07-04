@@ -50,6 +50,50 @@ class TestNcycleSOMConsumption:
         )
         assert state.nh4[0] == pytest.approx(nh4_before + 3.0)
 
+    def test_flux_diagnostic_accumulates_and_resets(self) -> None:
+        """som_mineralized_n_by_layer surfaces the daily flux and resets (#365).
+
+        The diagnostic must (a) accumulate the per-layer SOM→mineral-N injected
+        by SOMDecomposed within a day, and (b) reset at the start of each
+        ``daily_step`` so it reports *this* day's flux, not a running total.
+        Exercised across two daily cycles per the multi-cycle requirement.
+        """
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        bus = EventBus()
+        state = SoilNitrogenState(profile)
+        cycle = NitrogenCycle(bus, state)
+
+        # Day 1: two decomposition events in different layers accumulate.
+        bus.emit(
+            SOMDecomposed(
+                layer=0, pool="all", decomposed_c_kg_ha=50.0, mineralized_n_kg_ha=3.0
+            )
+        )
+        bus.emit(
+            SOMDecomposed(
+                layer=1, pool="all", decomposed_c_kg_ha=40.0, mineralized_n_kg_ha=2.0
+            )
+        )
+        flux = cycle.som_mineralized_n_by_layer
+        assert flux[0] == pytest.approx(3.0)
+        assert flux[1] == pytest.approx(2.0)
+        assert cycle.som_mineralized_n_total == pytest.approx(5.0)
+        # Property returns a copy — mutating it must not corrupt internal state.
+        flux[0] = 999.0
+        assert cycle.som_mineralized_n_by_layer[0] == pytest.approx(3.0)
+
+        # Day 2: daily_step resets the accumulator before new events arrive.
+        cycle.daily_step(temperature_c=15.0)
+        assert cycle.som_mineralized_n_total == pytest.approx(0.0)
+        bus.emit(
+            SOMDecomposed(
+                layer=0, pool="all", decomposed_c_kg_ha=20.0, mineralized_n_kg_ha=1.5
+            )
+        )
+        assert cycle.som_mineralized_n_by_layer[0] == pytest.approx(1.5)
+        assert cycle.som_mineralized_n_total == pytest.approx(1.5)
+
     def test_negative_mineralization_ignored(self) -> None:
         """Negative mineralized_n (immobilization) should not add to NH4."""
         soil_lib = load_soil_presets(Path("soils/presets.yaml"))
