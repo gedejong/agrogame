@@ -169,29 +169,35 @@ def test_demand_trajectory_rise_then_decline() -> None:
     # Simulate 120 days — covers emergence through grain fill / maturity
     _step_days(orch, 120)
     assert len(n_demands) >= 100
-    # Split into thirds: early (veg), mid (flowering), late (grain fill/maturity)
+    # Split into thirds: early (establishment/grand growth), mid, late.
     third = len(n_demands) // 3
     early = n_demands[:third]
     mid = n_demands[third : 2 * third]
+    late = n_demands[2 * third :]
     early_avg = sum(early) / len(early)
     mid_avg = sum(mid) / len(mid)
-    # Demand ramps up as the crop enters grand growth: mid-season (active
-    # growth) exceeds the early vegetative phase.
-    assert mid_avg > early_avg, (
-        f"Mid-season demand ({mid_avg:.4f}) should exceed early vegetative "
-        f"demand ({early_avg:.4f}) as the crop enters grand growth"
+    late_avg = sum(late) / len(late)
+    # Demand rises above the pre-emergence baseline once the crop establishes.
+    assert max(n_demands) > 1.0
+    # Stock-based critical-N demand (#360): N demand is the deficit between
+    # the shoot N stock and the critical-N target. It is largest while the
+    # crop rapidly builds its shoot N stock from ~0 during establishment and
+    # grand growth, then declines toward maturity as growth slows and the
+    # stock nears its (diluting) critical target. This front-loads demand
+    # relative to the previous biomass-increment-proportional formula (whose
+    # peak lagged into mid-season) — hence early >= mid >= late here.
+    assert early_avg > late_avg, (
+        f"Early-season demand ({early_avg:.4f}) should exceed late-season "
+        f"demand ({late_avg:.4f}): the shoot N stock is built up front then "
+        f"tapers toward maturity"
+    )
+    assert mid_avg >= late_avg, (
+        f"Mid-season demand ({mid_avg:.4f}) should not fall below "
+        f"late-season demand ({late_avg:.4f})"
     )
     # Peak demand should occur in the first 2/3 of the season and come back
-    # down before maturity — i.e. demand rises then declines, it does not
-    # climb monotonically to the end.
-    #
-    # NOTE (#351): this scenario is now genuinely N-limited during grand
-    # growth (SOM is the single mineralisation source), so the newly-active
-    # N-stress feedback throttles mid-season growth and keeps late-season
-    # demand from cleanly dropping below mid under this constant-weather
-    # harness. The rise-then-peak signal (asserted here) is the robust
-    # phenological invariant; a strict mid>late third-average ordering is no
-    # longer meaningful once N limitation reshapes the growth curve.
+    # down before maturity — demand rises then declines, it does not climb
+    # monotonically to the end.
     peak_idx = n_demands.index(max(n_demands))
     assert (
         peak_idx < 2 * third

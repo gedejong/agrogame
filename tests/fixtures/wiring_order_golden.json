@@ -57,6 +57,9 @@
   "PhosphorusFixationOccurred": [
     "SoilChemistryModule._on_p_fix"
   ],
+  "PlantNUptakeComputed": [
+    "PlantNitrogenRuntime._on_uptake"
+  ],
   "RedoxChanged": [
     "NitrogenRuntime._on_redox_changed",
     "MicronutrientRuntime._on_redox_changed",

@@ -98,6 +98,7 @@ def test_vpd_reduces_growth_in_hot_dry() -> None:
 
 def test_wilt_damage_reduces_lai() -> None:
     """Prolonged severe stress should permanently reduce LAI."""
+    from agrogame.plant.presets import load_crop_presets
     from agrogame.soil.loader import load_soil_presets
     from agrogame.sim.orchestrator import FullSimulationOrchestrator
     from agrogame.soil.water.types import DailyDrivers
@@ -107,7 +108,17 @@ def test_wilt_damage_reduces_lai() -> None:
     profile = lib.soils["loam_temperate"]
     start = date(2024, 7, 1)
 
-    orch = FullSimulationOrchestrator(profile)
+    # Use a real maize crop with adequate N so the crop establishes a genuine
+    # canopy that drought can then knock down. Under the stock-based critical-N
+    # model (#360), the bare ``crop=None`` orchestrator requests only a token
+    # 0.1 kg N/ha/day and never builds a stock, so its canopy stays tiny
+    # (LAI ~0.6), transpires little, and drought never bites — which invalidates
+    # this test's large-canopy premise. Supplying a real crop + fertiliser
+    # isolates *water-stress wilt damage* from N-limitation, mirroring the
+    # adaptation already made to ``test_demand_trajectory_rise_then_decline``.
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    orch = FullSimulationOrchestrator(profile, crop=crops.crops["maize"])
+    orch.apply_fertilizer("ammonium_nitrate", 200.0)
     # Build up some LAI with good conditions
     for i in range(30):
         orch.step_day(

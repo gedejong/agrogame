@@ -4,8 +4,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
-from agrogame.plant.events import NutrientStressComputed
-from agrogame.plant.stress import StressCalculator
+from agrogame.plant.events import PlantNUptakeComputed
 from agrogame.soil.gas_diffusion.state import GasDiffusionState
 from agrogame.soil.redox.events import RedoxChanged
 
@@ -21,18 +20,22 @@ class NitrogenRuntime:
     tick from gas-diffusion's ``anaerobic_microsite_frac`` so
     denitrification rates respond to actual O₂ rather than the WFPS
     proxy.
+
+    N stress is *not* computed here (#360). The mass-flow-limited soil N
+    uptake is handed off via :class:`PlantNUptakeComputed` to the
+    whole-shoot plant-N accounting, which derives the graded NNI-based
+    stress. Keeping uptake soil-side and stress plant-side keeps the two
+    concerns decoupled.
     """
 
     event_bus: EventBus
     cycle: NitrogenCycle
     gas_state: GasDiffusionState | None = None
-    _stress: StressCalculator | None = None
     _eh_by_layer: list[float] | None = None
 
     def __post_init__(self) -> None:
-        """Subscribe to DayTick + RedoxChanged; create stress calculator."""
+        """Subscribe to DayTick + RedoxChanged."""
         self.event_bus.subscribe(DayTick, self._on_day_tick)
-        self._stress = StressCalculator("liebig")
         self.event_bus.subscribe(RedoxChanged, self._on_redox_changed)
 
     def _on_redox_changed(self, ev: RedoxChanged) -> None:
@@ -68,15 +71,11 @@ class NitrogenRuntime:
             plant_demand_kg_ha=demand,
             eh_by_layer=self._eh_by_layer,
         )
-        if self._stress is not None:
-            stress = self._stress.nutrient_from_uptake_demand(
-                uptake_kg_ha=flux.plant_uptake_kg_ha, demand_kg_ha=demand
+        # Hand the day's soil N uptake to the whole-shoot plant-N model,
+        # which accumulates the stock and emits the graded NNI stress (#360).
+        self.event_bus.emit(
+            PlantNUptakeComputed(
+                uptake_kg_ha=flux.plant_uptake_kg_ha,
+                demand_kg_ha=demand,
             )
-            self.event_bus.emit(
-                NutrientStressComputed(
-                    nutrient="N",
-                    uptake_kg_ha=flux.plant_uptake_kg_ha,
-                    demand_kg_ha=demand,
-                    stress=stress,
-                )
-            )
+        )
