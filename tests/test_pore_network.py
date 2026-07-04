@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from agrogame.events import EventBus
+from agrogame.events.recorder import EventRecorder
 from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.models import (
@@ -348,6 +349,58 @@ def test_event_emitted_on_compute() -> None:
     assert events[0].layer == 0
     assert events[0].macro > 0
     assert events[0].connectivity > 0
+
+
+# ---------- AC (#339): PoreNetworkComputed captured by EventRecorder ----------
+
+
+def test_pore_event_captured_by_recorder_with_documented_fields() -> None:
+    """#339: the pore-structure event is recorded by ``EventRecorder``
+    carrying every documented field, with values matching state.
+
+    #274's AC named a ``PoreStructureChanged`` event; the engine emits
+    ``PoreNetworkComputed`` (a derived-diagnostic ``*Computed`` event per
+    ``docs/conventions.md``). This asserts the recorder — the generic
+    ``BaseEvent`` subscriber used by the visualization tooling — captures
+    that event end-to-end, not just a bespoke type-specific subscriber.
+    """
+    bus = EventBus()
+    recorder = EventRecorder(bus)
+    recorder.set_day(7)
+
+    profile = _make_profile("loam")
+    state = PoreNetworkState.empty(3)
+    module = PoreNetworkModule(PoreNetworkParams(), state, event_bus=bus)
+    module.compute(profile)
+
+    pore_events = [e for e in recorder.events if e.event_type == "PoreNetworkComputed"]
+    assert len(pore_events) == 3, "One recorded event per layer"
+
+    # Recorder metadata: correct type name, source module, and day tag.
+    for rec in pore_events:
+        assert rec.module_name == "agrogame.soil.pore_network.events"
+        assert rec.day_index == 7
+
+    # Every documented field is present in the captured payload and equals
+    # the module's state for that layer (the event contract must not drift).
+    documented_fields = ("layer", "macro", "meso", "micro", "crypto", "connectivity")
+    for i, rec in enumerate(pore_events):
+        for f in documented_fields:
+            assert f in rec.data, f"Recorded event missing documented field '{f}'"
+        assert rec.data["layer"] == i
+        assert rec.data["macro"] == state.macro[i]
+        assert rec.data["meso"] == state.meso[i]
+        assert rec.data["micro"] == state.micro[i]
+        assert rec.data["crypto"] == state.crypto[i]
+        assert rec.data["connectivity"] == state.connectivity[i]
+        # Captured fractions still satisfy the #211 mass-balance invariant.
+        recorded_sum = (
+            rec.data["macro"]
+            + rec.data["meso"]
+            + rec.data["micro"]
+            + rec.data["crypto"]
+        )
+        assert abs(recorded_sum - profile.layers[i].saturation) < 1e-9
 
 
 # ---------- AC: No event bus is OK ----------
