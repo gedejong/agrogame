@@ -1,0 +1,2810 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../quality-bar/">
+      
+      
+        <link rel="next" href="../architecture/overview/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Conventions - AgroGame Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#code-conventions" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AgroGame Docs" class="md-header__button md-logo" aria-label="AgroGame Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AgroGame Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Conventions
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/databuildcompany/agrogame" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    databuildcompany/agrogame
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AgroGame Docs" class="md-nav__button md-logo" aria-label="AgroGame Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AgroGame Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/databuildcompany/agrogame" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    databuildcompany/agrogame
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge Base
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Knowledge Base
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../knowledge-base/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../atmosphere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atmosphere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../game/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sim
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soil/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weather/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weather
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Context
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quick Context
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../water/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../et/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ET (PT/PM + VPD)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaporation-residue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaporation & Residue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interception/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interception
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nitrogen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nitrogen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phosphorus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phosphorus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../microbial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Microbial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../microbial_tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Microbial Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phenology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phenology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../canopy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Canopy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostics & Plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Events Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture (compressed)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-bar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Bar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conventions
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-module-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Module shape
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Module shape">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documented-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documented exceptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Naming
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Naming">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pydantic-vs-dataclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pydantic vs dataclass
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-method-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Method names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-event-tense" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Event tense
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-variable-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Variable naming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-test-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Test layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-coverage-exclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Coverage exclusions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-knowledge-base-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Knowledge-base pages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Knowledge-base pages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allowlist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allowlist
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-pre-commit-and-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Pre-commit and CI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-where-things-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Where things live
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/soil-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil Module
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/water_model_abstraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water Model Abstraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/plant-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plant Module
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/ports-and-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ports & Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/event-driven-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event-driven Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/water-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water Balance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/nutrient-cycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nutrient Cycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/crop-growth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crop Growth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADRs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ADRs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-001-game-state-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game State Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-002-multi-field-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-field Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-003-economic-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Economic Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-004-game-loop-turn-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game Loop & Turns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-005-frontend-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frontend Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-006-performance-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-007-3d-rendering-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Rendering Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-008-import-layering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import Layering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-009-biopore-calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biopore Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-010-pore-chain-phase-ordering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pore-chain Phase Ordering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-011-dashboard-facade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Façade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-012-biomass-partitioning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biomass Partitioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-013-plant-nitrogen-stock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whole-shoot Plant-N Accounting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../research-correctness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-module-shape" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Module shape
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Module shape">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documented-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documented exceptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Naming
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Naming">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pydantic-vs-dataclass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pydantic vs dataclass
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-method-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Method names
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-event-tense" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Event tense
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-variable-naming" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Variable naming
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-test-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Test layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-coverage-exclusions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Coverage exclusions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-knowledge-base-pages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Knowledge-base pages
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Knowledge-base pages">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#allowlist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Allowlist
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-pre-commit-and-ci" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Pre-commit and CI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-where-things-live" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. Where things live
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="code-conventions">Code Conventions<a class="headerlink" href="#code-conventions" title="Permanent link">&para;</a></h1>
+<p>Concise reference for AgroGame Python conventions. Aimed at someone landing a
+new module: read this in five minutes, then go build. Documents what the
+codebase already does — not aspirational future state. Drift fixes are tracked
+under audit umbrella <strong>#280</strong>.</p>
+<p>For frontend (Godot/GDScript) conventions, see
+<a href="https://github.com/gedejong/agrogame/blob/main/CLAUDE.md">CLAUDE.md</a> §
+"Code Style (GDScript)".</p>
+<h2 id="1-module-shape">1. Module shape<a class="headerlink" href="#1-module-shape" title="Permanent link">&para;</a></h2>
+<p>Canonical layout for a domain module under <code>agrogame/soil/</code> or <code>agrogame/plant/</code>:</p>
+<div class="highlight"><pre><span></span><code>agrogame/&lt;area&gt;/&lt;module&gt;/
+  __init__.py     # public API exports + __all__
+  params.py       # frozen *Params dataclass(es)
+  state.py        # mutable *State dataclass(es)
+  module.py       # *Module — pure logic; subscribes nothing
+  runtime.py      # *Runtime — wires the module to the EventBus
+  events.py       # frozen domain events (BaseEvent subclasses)
+</code></pre></div>
+<p>Reference implementation: <code>agrogame/soil/aggregation/</code> — canonical layout
+and orchestrator-wired in <code>sim/orchestrator.py</code>. Other close-to-canonical
+modules: <code>agrogame/soil/micronutrients/</code>, <code>agrogame/soil/redox/</code>.</p>
+<h3 id="documented-exceptions">Documented exceptions<a class="headerlink" href="#documented-exceptions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Deviation</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agrogame/sim/</code></td>
+<td>Flat (<code>orchestrator.py</code>, <code>engine.py</code>, <code>builder.py</code>, <code>calendar.py</code>, <code>management.py</code>)</td>
+<td>Composition root — no domain state of its own</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/som/</code></td>
+<td><code>pools.py</code> instead of <code>state.py</code></td>
+<td>Three-pool RothC names the pool, not generic state</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/microbes/</code></td>
+<td><code>biomass.py</code> + <code>responses.py</code></td>
+<td>Pre-canonical; rename tracked in #288</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/water/</code></td>
+<td>Adds <code>models/</code> sub-package, <code>legacy.py</code>, <code>scs.py</code>, <code>constants.py</code>, <code>types.py</code></td>
+<td>Multiple water-balance implementations + SCS curve number table</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/chemistry/</code></td>
+<td>Only <code>module.py</code> + <code>events.py</code></td>
+<td>No mutable state yet; tracked in #288</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/pore_network/</code>, <code>gas_diffusion/</code>, <code>biopores/</code></td>
+<td><code>runtime.py</code> exists but not yet orchestrator-wired</td>
+<td>Wiring deferred to #284</td>
+</tr>
+<tr>
+<td><code>agrogame/soil/canopy/</code>, <code>phenology/</code>, <code>agrogame/plant/roots/</code></td>
+<td><code>types.py</code> replaces <code>state.py</code>; extra <code>factory.py</code> builds the module from presets</td>
+<td>Older convention from before the canonical shape was agreed; rename optional</td>
+</tr>
+<tr>
+<td><code>agrogame/atmosphere/</code></td>
+<td>Only contains <code>et/</code></td>
+<td>Single-child wrapper — collapse if no second child appears</td>
+</tr>
+</tbody>
+</table>
+<p>When introducing a new module, follow the canonical layout. When deviating,
+add a row to the table above.</p>
+<h2 id="2-naming">2. Naming<a class="headerlink" href="#2-naming" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Convention</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Immutable parameters</td>
+<td><code>&lt;Domain&gt;Params</code> (frozen <code>@dataclass</code>)</td>
+<td><code>BioporeParams</code>, <code>PoreNetworkParams</code></td>
+</tr>
+<tr>
+<td>Mutable state</td>
+<td><code>&lt;Domain&gt;State</code> (<code>@dataclass</code>, mutable lists)</td>
+<td><code>BioporeState</code>, <code>RedoxState</code></td>
+</tr>
+<tr>
+<td>Pure-logic class</td>
+<td><code>&lt;Domain&gt;Module</code></td>
+<td><code>BioporeModule</code>, <code>PoreNetworkModule</code></td>
+</tr>
+<tr>
+<td>Event-bus runtime</td>
+<td><code>&lt;Domain&gt;Runtime</code></td>
+<td><code>BioporesRuntime</code>, <code>AggregationRuntime</code></td>
+</tr>
+<tr>
+<td>Domain events</td>
+<td><code>*Updated</code> / <code>*Applied</code> / <code>*Occurred</code> / <code>*Changed</code></td>
+<td><code>RootTurnoverOccurred</code></td>
+</tr>
+<tr>
+<td>Diagnostic events</td>
+<td><code>*Computed</code></td>
+<td><code>WaterStressComputed</code>, <code>PoreNetworkComputed</code></td>
+</tr>
+</tbody>
+</table>
+<p>The runtime suffix may be plural (<code>BioporesRuntime</code>) when the domain itself
+is plural and the singular form looks awkward — <code>*Module</code> and <code>*Params</code> stay
+singular regardless. Ad-hoc and not worth a rename; flagged for review under #282.</p>
+<h3 id="pydantic-vs-dataclass">Pydantic vs dataclass<a class="headerlink" href="#pydantic-vs-dataclass" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Pydantic <code>BaseModel</code></strong> only at I/O boundaries: configuration loading
+  (<code>agrogame/soil/models.py</code>, <code>agrogame/params/models.py</code>), the API
+  (<code>agrogame/api/models.py</code>), and YAML preset loaders.</li>
+<li><strong><code>@dataclass</code></strong> for everything internal — module state, params, events,
+  ad-hoc result records.</li>
+</ul>
+<p>Rationale: Pydantic carries a validation/serialization tax that's only
+worthwhile at trust boundaries. Internal flow is faster and clearer with
+plain dataclasses.</p>
+<h2 id="3-method-names">3. Method names<a class="headerlink" href="#3-method-names" title="Permanent link">&para;</a></h2>
+<p><code>daily_step(...)</code> is the canonical name for the once-per-day computation on
+a <code>*Module</code>. Existing aliases that predate the convention:
+- <code>update_daily</code> — <code>agrogame/soil/water/legacy.py</code>,
+  <code>agrogame/soil/water/models/cascading.py</code>,
+  <code>agrogame/soil/water/models/dual_porosity.py</code>, <code>agrogame/soil/phenology/module.py</code>
+- <code>compute</code> — <code>agrogame/soil/pore_network/module.py</code></p>
+<p><code>step_day</code> exists at the orchestrator/field layer
+(<code>agrogame/sim/orchestrator.py</code>, <code>agrogame/game/field.py</code>) and is
+intentional — different abstraction, not a <code>*Module</code> daily step.</p>
+<p>Rename tracked in <strong>#282</strong>.</p>
+<p>Real example from <code>agrogame/soil/redox/module.py:41</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">RedoxModule</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">daily_step</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">theta</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+        <span class="n">saturation</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+        <span class="n">root_fractions</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">],</span>
+        <span class="n">temperature_c</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+        <span class="n">o2_concentration_frac</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span>
+</code></pre></div>
+<p>The runtime calls <code>daily_step</code> from a <code>DayTick</code> handler. Modules don't
+subscribe to events themselves — that's the runtime's job. Some modules
+(e.g. <code>BioporeModule</code>) instead expose verb-named methods
+(<code>apply_decay</code>, <code>apply_tillage</code>, <code>process_root_turnover</code>) that the
+runtime dispatches to from different events; those modules don't have
+a single <code>daily_step</code>.</p>
+<h2 id="4-event-tense">4. Event tense<a class="headerlink" href="#4-event-tense" title="Permanent link">&para;</a></h2>
+<p>Past-tense for <strong>state changes</strong>: <code>WaterDrained</code>, <code>RootDepthChanged</code>,
+<code>MineralizationOccurred</code>, <code>FrostDamageApplied</code>, <code>BioporeCreated</code>.</p>
+<p><code>*Computed</code> only for <strong>derived diagnostics</strong> with no state mutation:
+<code>WaterStressComputed</code>, <code>NutrientStressComputed</code>, <code>MicrobialActivityComputed</code>.</p>
+<p>Some legacy events still use the present tense (<code>PoreNetworkComputed</code>,
+<code>LAIUpdated</code>, <code>AggregateStructureUpdated</code>, <code>SoilPHUpdated</code>). These are
+flagged for renaming in <strong>#283</strong>; new events must follow this rule.</p>
+<p>When in doubt: did the event signal a side-effect on a <code>*State</code> instance?
+→ past tense (<code>*Updated</code>, <code>*Occurred</code>). Did the event carry a value derived
+from current state? → <code>*Computed</code>.</p>
+<p>Events are frozen <code>@dataclass</code> subclasses of <code>agrogame.events.BaseEvent</code>.
+Payloads must be lightweight (lists/tuples of primitives, not whole state
+objects).</p>
+<h2 id="5-variable-naming">5. Variable naming<a class="headerlink" href="#5-variable-naming" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>theta</code></strong> in code for volumetric water content (m³/m³). Used everywhere
+  in water/nutrient/micronutrient modules.</li>
+<li><strong><code>soil_moisture</code></strong> only in user-facing strings: dashboard labels, API
+  documentation, log messages aimed at the player.</li>
+<li><code>water_content</code> is <strong>not</strong> an internal name — kept only in user-docs prose.</li>
+</ul>
+<p>This split keeps numerical code consistent (single name across thousands of
+references) while still letting UX surface a friendlier label.</p>
+<h2 id="6-test-layout">6. Test layout<a class="headerlink" href="#6-test-layout" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code>tests/
+  unit/test_*.py            # pure unit tests (no I/O, no orchestrator)
+  integration/test_*.py     # multi-module simulation slices, realism
+  e2e/*.spec.ts             # Playwright frontend tests
+  conftest.py               # shared fixtures
+</code></pre></div>
+<p>Currently many unit tests live as <strong>flat <code>tests/test_*.py</code> files</strong>. Relocation
+to <code>tests/unit/</code> is mechanical and tracked in <strong>#287</strong>. New unit tests should
+go in <code>tests/unit/</code> directly.</p>
+<p>Realism tests in <code>tests/integration/test_realism.py</code> must:
+- Cite a literature range or source in a comment.
+- Assert a numeric range, not just <code>&gt; 0</code>.</p>
+<p>Use <code>tests/conftest.py</code> fixtures for anything cross-cutting. Local helpers
+(like <code>_loam_profile()</code>) duplicated across test modules should be promoted —
+extraction tracked in <strong>#286</strong>.</p>
+<h2 id="7-coverage-exclusions">7. Coverage exclusions<a class="headerlink" href="#7-coverage-exclusions" title="Permanent link">&para;</a></h2>
+<p><code>.coveragerc</code> currently excludes (verbatim):</p>
+<ul>
+<li><code>agrogame/dashboard/*</code> — Streamlit/Plotly dashboard; heavy optional deps,
+  imported locally inside guarded functions; requires <code>poetry install -E dashboard</code>.</li>
+<li><code>agrogame/plots/*</code> — Matplotlib plotting helpers; same rationale.</li>
+<li><code>agrogame/weather/cli.py</code> — single CLI bootstrap; exercised via smoke
+  tests, not worth line-by-line coverage.</li>
+</ul>
+<p><code>game/</code> (Godot/GDScript) is not measured by <code>pytest --cov</code> at all — it has
+its own GUT-based file-coverage check (<code>game/tests/check_coverage.sh</code>).</p>
+<p>Criterion when proposing a new exclusion: is the code a thin wrapper around
+an optional dep, or a CLI bootstrap that's exercised by smoke tests but not
+worth full coverage? If yes, add to <code>.coveragerc</code> and note here.</p>
+<p>The base coverage threshold is <strong>92%</strong> (was 97% before optional-extras
+exclusions; current effective coverage hovers around 95%).</p>
+<h2 id="8-knowledge-base-pages">8. Knowledge-base pages<a class="headerlink" href="#8-knowledge-base-pages" title="Permanent link">&para;</a></h2>
+<p>Every package directly under <code>agrogame/</code> (with the explicit allowlist below)
+must have a <code>docs/&lt;page&gt;.md</code> whose YAML frontmatter binds it to the Python
+module. The schema lives in
+<a href="../knowledge-base-schema.json"><code>docs/knowledge-base-schema.json</code></a> and is
+enforced by <code>scripts/check_docs_coverage.py</code> in pre-commit (manual stage) and
+the <code>Quality</code> CI job. See <a href="../knowledge-base/">Knowledge Base index</a>.</p>
+<p>Each required package's <code>__init__.py</code> first paragraph must contain an
+absolute GitHub URL to its docs page
+(<code>https://github.com/gedejong/agrogame/blob/main/docs/&lt;page&gt;.md</code>) so the link
+resolves whether rendered by mkdocstrings, read in source, or surfaced by
+<code>help()</code>.</p>
+<h3 id="allowlist">Allowlist<a class="headerlink" href="#allowlist" title="Permanent link">&para;</a></h3>
+<p>Packages directly under <code>agrogame/</code> that are exempt from the docs-page gate
+(declared in <code>PACKAGE_ALLOWLIST</code> in <code>scripts/check_docs_coverage.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>agrogame.analysis</code></td>
+<td>Calibration / sensitivity analysis scripts — no science surface of its own</td>
+</tr>
+<tr>
+<td><code>agrogame.config</code></td>
+<td>Configuration loaders — covered by <code>agrogame.events</code> (ConfigReloaded)</td>
+</tr>
+<tr>
+<td><code>agrogame.dashboard</code></td>
+<td>Streamlit dashboard — optional dep, imported locally</td>
+</tr>
+<tr>
+<td><code>agrogame.params</code></td>
+<td>Parameter library / Pydantic schemas — referenced from each domain page</td>
+</tr>
+<tr>
+<td><code>agrogame.plots</code></td>
+<td>Matplotlib helpers — optional dep, imported locally</td>
+</tr>
+</tbody>
+</table>
+<p>The top-level <code>agrogame/cli.py</code> is a single CLI bootstrap and not a package;
+the gate keys on directories with <code>__init__.py</code>.</p>
+<p>The check is intentionally allowlist-driven (rather than opt-in) — the gate's
+value is preventing drift, not enforcing heroics. Adding a new package
+under <code>agrogame/</code> requires either a docs page or an allowlist entry.</p>
+<h2 id="9-pre-commit-and-ci">9. Pre-commit and CI<a class="headerlink" href="#9-pre-commit-and-ci" title="Permanent link">&para;</a></h2>
+<p>Pre-commit (fast, ~5 s): <code>black</code>, <code>ruff</code>, <code>flake8</code>, <code>gdlint</code>, <code>gdformat</code>,
+file-coverage check.</p>
+<p>Manual stage (CI mirror): <code>mypy</code>, <code>xenon</code>, <code>importlinter</code>, <code>deptry</code>, full
+<code>pytest</code>, GUT (Godot tests). Run with
+<code>pre-commit run --hook-stage manual --all-files</code>.</p>
+<p><code>vulture --min-confidence 80</code> runs in CI (<code>quality.yml</code>) but <strong>not</strong> in
+pre-commit by design — false positives on dataclass fields and event
+payloads make the local hook noisy. Safe to add later if a config tightens
+the false-positive rate.</p>
+<h2 id="10-where-things-live">10. Where things live<a class="headerlink" href="#10-where-things-live" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>You're looking for</th>
+<th>Path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Soil-water-balance day step</td>
+<td><code>agrogame/soil/water/models/cascading.py</code></td>
+</tr>
+<tr>
+<td>Per-layer pore size distribution</td>
+<td><code>agrogame/soil/pore_network/state.py</code></td>
+</tr>
+<tr>
+<td>Daily orchestration sequence</td>
+<td><code>agrogame/sim/orchestrator.py:FullSimulationOrchestrator</code></td>
+</tr>
+<tr>
+<td>YAML soil presets</td>
+<td><code>data/soils/presets.yaml</code></td>
+</tr>
+<tr>
+<td>Crop presets</td>
+<td><code>data/crops/presets.yaml</code></td>
+</tr>
+<tr>
+<td>Climate presets</td>
+<td><code>data/climate/presets.yaml</code></td>
+</tr>
+<tr>
+<td>Public events</td>
+<td><code>agrogame/&lt;area&gt;/&lt;module&gt;/events.py</code></td>
+</tr>
+<tr>
+<td>Architecture decisions</td>
+<td><code>docs/adr/ADR-*.md</code></td>
+</tr>
+</tbody>
+</table>
+<p>When you find code that violates these conventions, first check the
+exception table in §1. If it's not there, file an audit follow-up issue
+labelled <code>audit:#280</code> with a clear "what / why / where".</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
