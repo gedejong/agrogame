@@ -722,6 +722,111 @@ def test_default_root_zone_mineral_n_in_plausible_band() -> None:
         )
 
 
+def _run_som_mineralisation_flux(
+    crop_name: str,
+    climate_name: str,
+    start: date,
+    days: int = 30,
+) -> tuple[list[list[float]], list[float]]:
+    """Run a scenario and capture the daily SOM net-mineralisation flux.
+
+    Returns ``(per_layer_flux, layer_depth_cm)`` where ``per_layer_flux`` is a
+    list of per-day per-layer net SOM→mineral-N fluxes (kg N/ha/day), read from
+    the #365 diagnostic on the nitrogen cycle after each day.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("data/soils/presets.yaml"))
+    profile = soil_lib.soils["loam_temperate"]
+    crop = crops.get_preset(crop_name, climate_name)
+    climate = climates.climates[climate_name]
+    series = SyntheticWeatherGenerator(climate, seed=42).generate(days, start)
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+
+    per_layer_flux: list[list[float]] = []
+    for rec in series.records:
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+        per_layer_flux.append(list(orch.n_cycle.som_mineralized_n_by_layer))
+    depths = [ly.depth_cm for ly in profile.layers]
+    return per_layer_flux, depths
+
+
+def test_early_season_net_mineralisation_flux_in_band() -> None:
+    """Early-season SOM net-mineralisation *flux* stays in the topsoil band (#365).
+
+    This is a **flux** test (kg N/ha/day), deliberately distinct from the
+    standing-*pool* band test ``test_default_root_zone_mineral_n_in_plausible_band``
+    (which pins the NO3+NH4 stock, kg/ha). It measures the *actual* net N
+    mineralised by the 3-pool SOM module and injected into the mineral pool
+    (surfaced via ``NitrogenCycle.som_mineralized_n_by_layer``, #365), which was
+    previously accumulated then discarded.
+
+    **Aggregation basis (the load-bearing correction).** Stanford & Smith (1972)
+    report a topsoil/plough-layer net-mineralisation potential of roughly
+    1–3 kg N/ha/day during the warm growing season — it is a *fixed topsoil
+    depth* figure, NOT a per-arbitrary-discretisation-layer rate and NOT a
+    whole-1 m-profile rate. Comparing a per-layer engine rate (which shrinks as
+    you add layers) or a full-profile integral (which grows with depth) to it is
+    a category error. We therefore assert on the **window-invariant fixed
+    topsoil 0–25 cm** basis (here exactly layer 0), which is directly comparable
+    to the literature figure.
+
+    Decision gate (#365 AC): the fixed-topsoil flux sits inside the band
+    (measured 30-day mean ≈2.6, max ≈3.7 kg N/ha/day for established maize on
+    ``loam_temperate``), so SOM kinetics/priming are *not* re-tuned. The
+    whole-profile integral (≈7 kg N/ha/day) is higher only because it sums 1 m
+    of soil, not because the kinetics are over-fast; it must not be compared to
+    the topsoil band.
+    """
+    per_layer_flux, depths = _run_som_mineralisation_flux(
+        "maize", "netherlands_temperate", date(2024, 4, 15), days=30
+    )
+    tops = [sum(depths[:i]) for i in range(len(depths))]  # top of each layer, cm
+    topsoil_cm = 25.0
+
+    # Fixed topsoil 0–25 cm basis (window-invariant): layers whose top < 25 cm.
+    topsoil_daily = [
+        sum(f for i, f in enumerate(day) if tops[i] < topsoil_cm)
+        for day in per_layer_flux
+    ]
+    profile_daily = [sum(day) for day in per_layer_flux]
+
+    topsoil_mean = sum(topsoil_daily) / len(topsoil_daily)
+    profile_mean = sum(profile_daily) / len(profile_daily)
+
+    # Functioning source: net mineralisation must be strictly positive each day.
+    assert min(topsoil_daily) > 0.0, (
+        f"topsoil net-mineralisation flux went non-positive "
+        f"(min {min(topsoil_daily):.3f} kg N/ha/day) — SOM source looks broken"
+    )
+    # Within the Stanford & Smith (1972) topsoil band, with warm-season margin.
+    assert 1.0 <= topsoil_mean <= 4.0, (
+        f"fixed-topsoil (0–25 cm) net-mineralisation flux {topsoil_mean:.2f} "
+        f"kg N/ha/day is outside the Stanford & Smith (1972) ~1–3 kg N/ha/day "
+        f"topsoil band (asserted 1.0–4.0 with margin)"
+    )
+    # Sanity: the whole-profile integral is larger (more depth) but bounded; it
+    # is NOT comparable to the topsoil band and must not be crushed to fit it.
+    assert profile_mean > topsoil_mean, (
+        "whole-profile flux should exceed the 0–25 cm topsoil flux (it "
+        "integrates more depth)"
+    )
+    assert profile_mean < 12.0, (
+        f"whole-profile net-mineralisation flux {profile_mean:.2f} kg N/ha/day "
+        f"is implausibly high even for a 1 m profile integral"
+    )
+
+
 def test_n_warning_fires_under_genuine_deficiency() -> None:
     """The frontend N-warning signal fires under real deficiency (AC #351).
 
