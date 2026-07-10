@@ -13,7 +13,6 @@ const TILE_HEIGHT := 0.1
 ## How many real-world meters one tile represents.
 ## Crop heights and soil depths are divided by this to get world units.
 const METERS_PER_TILE := 2.0
-const MAX_HISTORY_DAYS := 365
 
 const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
 const SOIL_TEXTURES := {
@@ -91,8 +90,9 @@ var _wind_strength: float = 0.15
 var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 var _debug_console: DebugConsole = null
+var _debug := FarmViewDebug.new()
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
-## Capped at MAX_HISTORY_DAYS. Cleared on season reset.
+## Capped at FarmViewHistory.MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
 
 @onready var camera_rig: Node3D = $CameraRig
@@ -153,7 +153,7 @@ func _ready() -> void:
 	status_label.text = "3D view \u2014 click tile to select"
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
-		_debug_auto_start()
+		_start_debug_driver()
 
 
 func _apply_ui_theme() -> void:
@@ -358,36 +358,6 @@ func _update_tile_shader(idx: int) -> void:
 	_tile_materials[idx].set_shader_parameter("moisture_frac", moisture_frac)
 
 
-func _update_weather_lighting(weather: Dictionary) -> void:
-	## Adjust sun, ambient, and fog based on weather conditions.
-	var rain_mm: float = weather.get("rain_mm", 0.0)
-	var tmin: float = weather.get("tmin_c", 10.0)
-	var tmax: float = weather.get("tmax_c", 20.0)
-	var overcast: float = clampf(rain_mm / 10.0, 0.0, 1.0)
-	# Wet-bulb depression proxy: large tmax-tmin = dry, small = humid.
-	var temp_spread: float = maxf(tmax - tmin, 1.0)
-	# Intentionally produces nonzero humidity on dry days with small temp spread
-	# (e.g., calm overcast mornings with dew) — this creates subtle ground fog.
-	var humidity_proxy: float = clampf((rain_mm / 5.0) + (1.0 - temp_spread / 15.0) * 0.5, 0.0, 1.0)
-	# Sun: dim and cool on rainy days
-	var sunny_color := Color(0.95, 0.9, 0.8)
-	var overcast_color := Color(0.65, 0.65, 0.7)
-	sun.light_color = sunny_color.lerp(overcast_color, overcast)
-	sun.light_energy = lerpf(1.15, 0.5, overcast)
-	var e := env.environment
-	if not e:
-		return
-	# Ambient: slightly brighter on overcast (diffuse sky), but greyer
-	e.ambient_light_energy = lerpf(0.4, 0.5, overcast)
-	var amb_sunny := Color(0.4, 0.42, 0.5)
-	var amb_overcast := Color(0.3, 0.3, 0.35)
-	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
-	# Fog: driven by humidity proxy, not just rain
-	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
-	# Animated fog wisps
-	fog_clouds.set_fog_intensity(humidity_proxy)
-
-
 func _update_crop_visuals(idx: int) -> void:
 	# LOD: adjust leaf segments based on camera distance to tile
 	var cam: Camera3D = get_viewport().get_camera_3d()
@@ -407,18 +377,12 @@ func _on_debug_wind(strength: float, direction: Vector2) -> void:
 	_wind_strength = strength
 	_wind_ms = strength * WIND_SCALE_MAX_MS
 	_wind_dir = direction
-	_apply_wind_to_all_crops()
+	FarmViewDebug.apply_wind_to_all_crops(_crop_sprites, _wind_strength, _wind_dir)
 	rain.set_wind(_wind_ms, _wind_dir)
 
 
 func _on_debug_rain(raining: bool, intensity: float) -> void:
 	rain.set_raining(raining, intensity)
-
-
-func _apply_wind_to_all_crops() -> void:
-	for sprites: Array in _crop_sprites:
-		if sprites.size() > 0:
-			CropRenderer3D.set_wind(sprites[0], _wind_strength, _wind_dir)
 
 
 # --- API integration (same flow as 2D farm_view.gd) ---
@@ -634,50 +598,17 @@ func _apply_day_result(data: Dictionary) -> void:
 	_wind_dir = Vector2(cos(day_seed), sin(day_seed))
 	rain.set_raining(rain_mm > 1.0, rain_mm)
 	rain.set_wind(_wind_ms, _wind_dir)
-	_update_weather_lighting(w)
+	FarmViewDebug.update_weather_lighting(w, sun, env, fog_clouds)
 	# Update all crop plants with current wind
-	_apply_wind_to_all_crops()
+	FarmViewDebug.apply_wind_to_all_crops(_crop_sprites, _wind_strength, _wind_dir)
 
 	var snapshots: Array = data.get("daily_snapshots", [])
-	_apply_daily_snapshots(snapshots)
+	FarmViewHistory.append_snapshots(snapshots, _daily_history, SOIL_TYPES)
 
 	var patches: Dictionary = data.get("patches", {})
 	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
-		_inject_debug_stress_events(patches)
+		FarmViewDebug.inject_debug_stress_events(patches)
 	_apply_patch_data(patches, not snapshots.is_empty())
-
-
-func _apply_daily_snapshots(snapshots: Array) -> void:
-	## Append lightweight per-day snapshots to _daily_history.
-	for snap: Dictionary in snapshots:
-		var patch_idx: int = snap.get("patch_idx", 0)
-		var patch_soil: String = ""
-		if patch_idx < SOIL_TYPES.size():
-			patch_soil = SOIL_TYPES[patch_idx]
-		if patch_soil.is_empty():
-			continue
-		if not _daily_history.has(patch_soil):
-			_daily_history[patch_soil] = []
-		(
-			_daily_history[patch_soil]
-			. append(
-				{
-					"crop_stage": snap.get("crop_stage", ""),
-					"lai": snap.get("lai", 0.0),
-					"grain_g_m2": snap.get("grain_g_m2", 0.0),
-					"water_stress": 1.0 - snap.get("water_stress", 1.0),
-					"theta_surface": snap.get("soil_theta_surface", 0.0),
-					"n_available": snap.get("n_available_total", 0.0),
-					"redox_eh_surface": snap.get("redox_eh_surface", 400.0),
-					"fe_available_surface": snap.get("fe_available_surface", 10.0),
-					"zn_available_surface": snap.get("zn_available_surface", 1.2),
-					"mn_available_surface": snap.get("mn_available_surface", 18.0),
-					"agg_mwd_surface": snap.get("agg_mwd_surface", 1.0),
-				}
-			)
-		)
-		if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
-			_daily_history[patch_soil].pop_front()
 
 
 func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
@@ -696,65 +627,8 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 			var grain: float = patch.get("grain_g_m2", 0.0)
 			var som: float = patch.get("som_total_c_g_m2", 0.0)
 			# Accumulate per-patch history (skip when daily_snapshots covered it)
-			if not skip_history and not patch_soil.is_empty():
-				if not _daily_history.has(patch_soil):
-					_daily_history[patch_soil] = []
-				var soil_state: Dictionary = patch.get("soil_state", {})
-				var no3_arr: Array = soil_state.get("n_no3", [])
-				var nh4_arr: Array = soil_state.get("n_nh4", [])
-				var n_total: float = 0.0
-				for v: float in no3_arr:
-					n_total += v
-				for v: float in nh4_arr:
-					n_total += v
-				(
-					_daily_history[patch_soil]
-					. append(
-						{
-							"crop_stage": stage_name,
-							"lai": lai,
-							"grain_g_m2": grain,
-							# API water_stress = transpiration supply/demand (1=no stress, 0=severe).
-							# Invert so graph shows stress intensity (0=healthy, 1=severe).
-							"water_stress": 1.0 - patch.get("water_stress", 1.0),
-							"theta_surface": theta,
-							"n_available": n_total,
-							"redox_eh_surface":
-							(
-								soil_state.get("redox_eh", [400.0])[0]
-								if soil_state.get("redox_eh", [])
-								else 400.0
-							),
-							"fe_available_surface":
-							(
-								soil_state.get("fe_available", [10.0])[0]
-								if soil_state.get("fe_available", [])
-								else 10.0
-							),
-							"zn_available_surface":
-							(
-								soil_state.get("zn_available", [1.2])[0]
-								if soil_state.get("zn_available", [])
-								else 1.2
-							),
-							"mn_available_surface":
-							(
-								soil_state.get("mn_available", [18.0])[0]
-								if soil_state.get("mn_available", [])
-								else 18.0
-							),
-							"agg_mwd_surface":
-							(
-								soil_state.get("agg_mwd", [1.0])[0]
-								if soil_state.get("agg_mwd", [])
-								else 1.0
-							),
-						}
-					)
-				)
-				# Cap history length
-				if _daily_history[patch_soil].size() > MAX_HISTORY_DAYS:
-					_daily_history[patch_soil].pop_front()
+			if not skip_history:
+				FarmViewHistory.append_patch(patch, patch_soil, _daily_history)
 			# Extract per-nutrient stress from events (#262)
 			var n_stress: float = 0.0
 			var p_stress: float = 0.0
@@ -1052,67 +926,21 @@ func _show_soil_cutaway() -> void:
 		status_label.text = "No soil data available"
 
 
-func _inject_debug_stress_events(patches: Dictionary) -> void:
-	## Add fake stress events to each patch for visual debugging.
-	var fake := [
-		{"event_type": "FrostDamageApplied", "module": "debug", "data": {"severity": 0.5}},
+func _start_debug_driver() -> void:
+	## Hand the debug demo driver the callables it needs to drive this view.
+	_debug.start(
 		{
-			"event_type": "HeatDamageApplied",
-			"module": "debug",
-			"data": {"grain_reduction_factor": 0.5}
-		},
-		{"event_type": "WaterloggingDetected", "module": "debug", "data": {"theta": 0.45}},
-		{"event_type": "WaterStressComputed", "module": "debug", "data": {"stress": 0.2}},
-		{
-			"event_type": "NutrientStressComputed",
-			"module": "debug",
-			"data": {"nutrient": "N", "stress": 0.1}
-		},
-		{
-			"event_type": "NutrientStressComputed",
-			"module": "debug",
-			"data": {"nutrient": "P", "stress": 0.3}
-		},
-	]
-	for field_key: String in patches:
-		var patch_list: Array = patches[field_key]
-		for patch: Dictionary in patch_list:
-			var events: Array = patch.get("events", [])
-			events.append_array(fake)
-			patch["events"] = events
-
-
-func _debug_auto_start() -> void:
-	_ensure_game(func() -> void: _debug_plant_crops())
-
-
-func _debug_plant_crops() -> void:
-	var crops := [["maize", 0], ["spring_wheat", 1], ["sorghum", 2]]
-	_debug_plant_next(crops, 0)
-
-
-func _debug_plant_next(crops: Array, idx: int) -> void:
-	if idx >= crops.size():
-		_debug_step_and_show()
-		return
-	var c: Array = crops[idx]
-	_api_client.execute_action(
-		_game_id,
-		"plant",
-		{"crop_key": c[0], "patch_idx": c[1]},
-		func(_s: bool, _d: Dictionary) -> void: _debug_plant_next(crops, idx + 1)
+			"api": _api_client,
+			"game_id_fn": func() -> String: return _game_id,
+			"ensure_game_fn": _ensure_game,
+			"apply_step_fn": _apply_debug_step,
+			"select_tile_fn": _select_tile,
+			"show_cutaway_fn": _show_soil_cutaway,
+		}
 	)
 
 
-func _debug_step_and_show() -> void:
-	_api_client.step_day(
-		_game_id,
-		21,
-		func(success: bool, data: Dictionary) -> void:
-			if not success:
-				return
-			_last_step_data = data
-			_apply_day_result(data)
-			_select_tile(1, 3)
-			_show_soil_cutaway()
-	)
+func _apply_debug_step(data: Dictionary) -> void:
+	## Cache the demo step result and refresh the view from it.
+	_last_step_data = data
+	_apply_day_result(data)
