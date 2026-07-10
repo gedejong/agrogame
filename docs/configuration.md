@@ -38,6 +38,49 @@ Defaults listed below are the values applied by the preset loaders
 (`agrogame/plant/presets.py`, `agrogame/weather/presets.py`) when an optional
 field is omitted; required fields have no default and must be supplied.
 
+### Config wizard
+
+`agrogame wizard` scaffolds a new crop or soil configuration interactively. It
+seeds defaults from bundled templates (maize, loam), shows an inline unit +
+range hint on every prompt, validates each value as you type (re-prompting on
+out-of-range or non-numeric input), and runs a full-document validation before
+writing. Press Enter to accept a default.
+
+```bash
+poetry run agrogame wizard
+```
+
+Example transcript (soil path, accepting defaults):
+
+```text
+Scaffold which config? (crop/soil) [crop]: soil
+Soil key [default loam]:
+Display name [default Loam - Custom]:
+field_capacity [0-0.8 m3/m3, default 0.25]:
+wilting_point [0-0.8 m3/m3, default 0.12]:
+saturation [0-0.8 m3/m3, default 0.45]:
+bulk_density_g_cm3 [0.5-2 g/cm3, default 1.45]:
+ksat_mm_per_hour [0-500 mm/h, default 15.0]:
+organic_matter_pct [0-100 %, default 2.0]:
+initial_no3_kg_ha [0-500 kg/ha, default 10.0]:
+initial_nh4_kg_ha [0-500 kg/ha, default 4.0]:
+initial_p_kg_ha [0-500 kg/ha, default 20.0]:
+Output path (YAML): my_soil.yaml
+Wrote my_soil.yaml
+```
+
+The wizard writes the runtime shapes:
+
+- **crop** emits `crops.<key>.{phenology,canopy,roots}` — the shape
+  `load_crop_presets` consumes (validated against the `crop_preset` schema).
+- **soil** emits the `data/soils/presets.yaml` shape (validated against the
+  `soil` schema and the `SoilLibrary` model).
+
+If the chosen output path already exists, the wizard asks for confirmation
+before overwriting; declining leaves the original file untouched. The input
+source is injectable (`run_wizard(in_stream, out_stream)`), so the flow is
+unit-testable without a TTY.
+
 ---
 
 ## Crop parameters — `crop.json`
