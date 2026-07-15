@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -42,6 +43,7 @@ from agrogame.api.forecast import (
     root_zone_som_labile_n_kg_ha,
     root_zone_water_mm,
     root_zone_wfps,
+    stage_depth_multiplier,
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
@@ -1008,19 +1010,45 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
     )
 
 
-def _projection_inputs(
-    patch: Patch,
-) -> tuple[float, float, float, float, float, float]:
-    """Extract projection inputs for a patch.
+@dataclass(frozen=True)
+class _ProjectionInputs:
+    """Anchor-day inputs threaded into ``project_soil_forecast`` (#318/#353/#366).
 
-    Returns ``(available_water_mm, TAW_mm, mineral_N_kg_ha, lai,
-    som_labile_N_kg_ha, root_zone_wfps)``. The labile SOM N and WFPS feed the
-    forecast's net-mineralisation source term (#353).
+    Beyond the collapsed root-zone scalars, this carries the **per-layer** mineral
+    N arrays, layer depths, current root depth and the engine root-growth params
+    so the forecast can project root-zone deepening (#366).
     """
-    snap = patch.orch.snapshot_soil()
-    layers = patch.orch.profile.layers
+
+    available_water_mm: float
+    total_available_water_mm: float
+    mineral_n_kg_ha: float
+    lai: float
+    som_labile_n_kg_ha: float
+    root_zone_wfps_frac: float
+    n_no3_by_layer: list[float]
+    n_nh4_by_layer: list[float]
+    layer_depths_cm: list[float]
+    root_depth_cm: float
+    root_growth_rate_cm_per_day: float
+    root_max_depth_cm: float
+    root_stage_multiplier: float
+
+
+def _projection_inputs(patch: Patch) -> _ProjectionInputs:
+    """Extract anchor-day projection inputs for a patch.
+
+    The labile SOM N and WFPS feed the net-mineralisation source term (#353);
+    the per-layer mineral N, layer depths, root depth and root-growth params
+    (from ``orch.roots.params`` / ``orch.phenology.state.stage``) feed the
+    root-zone deepening source (#366).
+    """
+    orch = patch.orch
+    snap = orch.snapshot_soil()
+    layers = orch.profile.layers
     depths = [ly.depth_cm for ly in layers]
-    root_depth = patch.orch.root_state.current_depth_cm
+    root_depth = orch.root_state.current_depth_cm
+    n_no3 = list(snap.n_no3)
+    n_nh4 = list(snap.n_nh4)
     available, taw = root_zone_water_mm(
         list(snap.water_theta),
         depths,
@@ -1028,10 +1056,8 @@ def _projection_inputs(
         [ly.wilting_point for ly in layers],
         root_depth,
     )
-    mineral_n = root_zone_mineral_n_kg_ha(
-        list(snap.n_no3), list(snap.n_nh4), depths, root_depth
-    )
-    som = patch.orch.som
+    mineral_n = root_zone_mineral_n_kg_ha(n_no3, n_nh4, depths, root_depth)
+    som = orch.som
     labile_n_by_layer = (
         [ly.labile.n_kg_ha for ly in som.state.layers] if som is not None else []
     )
@@ -1042,7 +1068,22 @@ def _projection_inputs(
         depths,
         root_depth,
     )
-    return available, taw, mineral_n, patch.orch.canopy.state.lai, som_labile_n, wfps
+    root_params = orch.roots.params
+    return _ProjectionInputs(
+        available_water_mm=available,
+        total_available_water_mm=taw,
+        mineral_n_kg_ha=mineral_n,
+        lai=orch.canopy.state.lai,
+        som_labile_n_kg_ha=som_labile_n,
+        root_zone_wfps_frac=wfps,
+        n_no3_by_layer=n_no3,
+        n_nh4_by_layer=n_nh4,
+        layer_depths_cm=depths,
+        root_depth_cm=root_depth,
+        root_growth_rate_cm_per_day=root_params.growth_rate_cm_per_day,
+        root_max_depth_cm=root_params.max_depth_cm,
+        root_stage_multiplier=stage_depth_multiplier(orch.phenology.state.stage),
+    )
 
 
 @router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
@@ -1060,14 +1101,12 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
     window = s.weather[s.day_index : end]
 
     first_field = next(iter(s.field_manager.fields.values()))
-    available, taw, mineral_n, lai, som_labile_n, wfps = _projection_inputs(
-        first_field.patches[0]
-    )
+    pi = _projection_inputs(first_field.patches[0])
     projection = project_soil_forecast(
-        available_water_mm=available,
-        total_available_water_mm=taw,
-        mineral_n_kg_ha=mineral_n,
-        lai=lai,
+        available_water_mm=pi.available_water_mm,
+        total_available_water_mm=pi.total_available_water_mm,
+        mineral_n_kg_ha=pi.mineral_n_kg_ha,
+        lai=pi.lai,
         weather=[
             (
                 (rec.tmin_c + rec.tmax_c) / 2.0,
@@ -1076,8 +1115,15 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
             )
             for rec in window
         ],
-        som_labile_n_kg_ha=som_labile_n,
-        root_zone_wfps_frac=wfps,
+        som_labile_n_kg_ha=pi.som_labile_n_kg_ha,
+        root_zone_wfps_frac=pi.root_zone_wfps_frac,
+        n_no3_by_layer=pi.n_no3_by_layer,
+        n_nh4_by_layer=pi.n_nh4_by_layer,
+        layer_depths_cm=pi.layer_depths_cm,
+        root_depth_cm=pi.root_depth_cm,
+        root_growth_rate_cm_per_day=pi.root_growth_rate_cm_per_day,
+        root_max_depth_cm=pi.root_max_depth_cm,
+        root_stage_multiplier=pi.root_stage_multiplier,
     )
 
     forecast: list[ForecastDayResponse] = []
