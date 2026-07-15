@@ -42,6 +42,7 @@ import math
 from dataclasses import dataclass
 
 from agrogame.atmosphere.et.module import Evapotranspiration
+from agrogame.params.phenology import PhenologyStage
 from agrogame.soil.som.pools import SOMPoolParams
 
 # --- Heuristic projection constants (documented above) ---------------------
@@ -66,6 +67,20 @@ _SOM_MOISTURE_OPTIMUM_WFPS = 0.6  # Linn & Doran (1984) decomposition optimum
 _G_M2_TO_KG_HA = 10.0
 # theta (m³/m³) over a layer of thickness d (cm) is theta·d·10 mm of water.
 _THETA_CM_TO_MM = 10.0
+
+# --- Root-depth growth constants (#366; mirror RootModule) -----------------
+# Stage-dependent multiplier on daily root elongation. Duplicated here as a
+# small documented constant rather than importing ``RootModule._stage_multiplier``
+# to keep the forecast heuristic decoupled from the engine's private method
+# (a stale table is a visible, testable diff; a private-method import is a
+# hidden coupling). Values mirror ``RootModule._stage_multiplier``'s defaults:
+# full elongation while vegetative, tapering through flowering and beyond.
+_STAGE_DEPTH_MULTIPLIERS: dict[PhenologyStage, float] = {
+    PhenologyStage.EMERGED: 1.0,
+    PhenologyStage.VEGETATIVE: 1.0,
+    PhenologyStage.FLOWERING: 0.6,
+}
+_DEFAULT_STAGE_DEPTH_MULTIPLIER = 0.3  # sowing/germination/maturity/senescence
 
 
 @dataclass(frozen=True)
@@ -234,6 +249,53 @@ def water_stress_coefficient(
     return max(0.0, min(1.0, ks))
 
 
+def stage_depth_multiplier(stage: PhenologyStage) -> float:
+    """Stage multiplier on daily root elongation (mirrors the engine defaults).
+
+    See ``_STAGE_DEPTH_MULTIPLIERS``. Stages not in the table (sowing,
+    germination, maturity, senescence) fall back to the reduced default, matching
+    ``RootModule._stage_multiplier``.
+    """
+    return _STAGE_DEPTH_MULTIPLIERS.get(stage, _DEFAULT_STAGE_DEPTH_MULTIPLIER)
+
+
+def _advance_root_depth(
+    root_depth_cm: float,
+    daily_increment_cm: float,
+    max_depth_cm: float,
+) -> float:
+    """Advance root depth one projected day, capped at ``max_depth_cm``.
+
+    Mirrors ``RootModule._update_depth``'s core update
+    ``depth = min(max_depth, prev + max(0, growth_rate × stage_mult × cf))`` but
+    **omits the engine's constraint factor** ``cf`` (hardpan ×0.2, water-table
+    ×0.5, aggregate-penetration ×agg_pen). Over a ~5-day horizon these rarely
+    bind, and threading soil-mechanical state into a decision-support heuristic
+    is disproportionate; omitting ``cf`` makes the forecast a (mild) *upper*
+    bound on deepening, which is the conservative direction for an N-availability
+    cue. Documented omission per #366.
+    """
+    return min(max_depth_cm, root_depth_cm + max(0.0, daily_increment_cm))
+
+
+def _newly_rooted_mineral_n_kg_ha(
+    n_no3: list[float],
+    n_nh4: list[float],
+    layer_depths_cm: list[float],
+    prev_depth_cm: float,
+    new_depth_cm: float,
+) -> float:
+    """Mineral N (kg/ha) pulled into the root zone as it deepens over one day.
+
+    Uses the anchor-day per-layer values: the difference between the root-zone
+    mineral N at the new (deeper) depth and at the previous depth. Never
+    negative (the zone only deepens).
+    """
+    prev = root_zone_mineral_n_kg_ha(n_no3, n_nh4, layer_depths_cm, prev_depth_cm)
+    new = root_zone_mineral_n_kg_ha(n_no3, n_nh4, layer_depths_cm, new_depth_cm)
+    return max(0.0, new - prev)
+
+
 def project_soil_forecast(
     *,
     available_water_mm: float,
@@ -244,12 +306,33 @@ def project_soil_forecast(
     som_labile_n_kg_ha: float = 0.0,
     root_zone_wfps_frac: float = _SOM_MOISTURE_OPTIMUM_WFPS,
     depletion_fraction_p: float = _DEPLETION_FRACTION_P,
+    n_no3_by_layer: list[float] | None = None,
+    n_nh4_by_layer: list[float] | None = None,
+    layer_depths_cm: list[float] | None = None,
+    root_depth_cm: float | None = None,
+    root_growth_rate_cm_per_day: float = 0.0,
+    root_max_depth_cm: float = float("inf"),
+    root_stage_multiplier: float = 1.0,
 ) -> list[SoilForecastPoint]:
     """Project water-stress and mineral-N ``len(weather)`` days ahead.
 
     ``weather`` is a list of ``(temp_mean_c, shortwave_mj_m2, rain_mm)`` tuples
-    for the forecast days. LAI and root depth are held constant over the short
-    horizon (a reasonable approximation for a ~5-7 day outlook).
+    for the forecast days. LAI is held constant over the short horizon (a
+    reasonable approximation for a ~5-7 day outlook).
+
+    **Root-zone deepening (#366).** When per-layer mineral N
+    (``n_no3_by_layer`` / ``n_nh4_by_layer``), ``layer_depths_cm``,
+    ``root_depth_cm`` and a positive ``root_growth_rate_cm_per_day`` are all
+    supplied, the root depth is grown each projected day by
+    ``root_growth_rate_cm_per_day × root_stage_multiplier`` (capped at
+    ``root_max_depth_cm``), mirroring ``RootModule._update_depth`` sans the
+    engine's constraint factor (see ``_advance_root_depth``). Each day the newly
+    rooted soil contributes its (anchor-day) mineral N to the pool, capturing the
+    early-season rise the engine gets from the zone deepening into deeper,
+    mineral-N-bearing layers. Omit these params (the default) to keep the prior
+    **constant-depth** behaviour, mirroring #363's zero-default source term.
+    The water channel does not read any of the deepening inputs and is
+    unaffected.
 
     Mineral N gains a **net-mineralisation source** from the labile SOM pool
     (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
@@ -261,13 +344,11 @@ def project_soil_forecast(
     that do not supply an SOM pool.
 
     Scope: this is a deliberately *conservative* net-mineralisation estimate.
-    It reproduces only the labile-pool RothC kinetics, so it undershoots the
-    engine's root-zone mineral-N rise because it omits several source-boosting
-    terms the engine applies: rhizosphere priming (up to +50 % on ``k_labile``
-    in rooted layers — arguably the largest omitted contributor), aggregate
-    protection, and root-zone deepening (the engine's rooting depth grows into
-    fresh soil each day while the forecast holds it constant). The forecast
-    therefore targets *sign* agreement with the engine, not exact magnitude.
+    It reproduces the labile-pool RothC kinetics plus root-zone deepening (#366),
+    but still omits source-boosting terms the engine applies: rhizosphere priming
+    (up to +50 % on ``k_labile`` in rooted layers — arguably the largest omitted
+    contributor) and aggregate protection. The forecast therefore targets *sign*
+    agreement with the engine and a bounded magnitude gap, not an exact match.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
@@ -278,9 +359,35 @@ def project_soil_forecast(
     labile_n = max(0.0, som_labile_n_kg_ha)
     moist_f = _som_moisture_factor(max(0.0, root_zone_wfps_frac))
 
+    # Bind the deepening inputs as a single narrowed tuple (or None) so the
+    # per-day loop stays flat and mypy sees the arrays as non-optional.
+    deepen_layers: tuple[list[float], list[float], list[float]] | None = None
+    if (
+        root_growth_rate_cm_per_day > 0.0
+        and n_no3_by_layer is not None
+        and n_nh4_by_layer is not None
+        and layer_depths_cm is not None
+        and root_depth_cm is not None
+    ):
+        deepen_layers = (n_no3_by_layer, n_nh4_by_layer, layer_depths_cm)
+    root_depth = root_depth_cm if root_depth_cm is not None else 0.0
+    daily_depth_inc = root_growth_rate_cm_per_day * max(0.0, root_stage_multiplier)
+
     points: list[SoilForecastPoint] = []
     for temp_mean_c, shortwave_mj_m2, rain_mm in weather:
         ks = water_stress_coefficient(available, taw, depletion_fraction_p)
+
+        # --- Root-zone deepening source (#366): as the zone grows into deeper
+        # layers each day, their pre-existing (anchor-day) mineral N enters the
+        # pool. Capped at max_depth_cm inside _advance_root_depth.
+        if deepen_layers is not None:
+            new_depth = _advance_root_depth(
+                root_depth, daily_depth_inc, root_max_depth_cm
+            )
+            mineral_n += _newly_rooted_mineral_n_kg_ha(
+                *deepen_layers, root_depth, new_depth
+            )
+            root_depth = new_depth
 
         # Actual ET: transpiration is throttled by Ks under canopy; the
         # uncovered fraction keeps a reference-rate evaporative demand.

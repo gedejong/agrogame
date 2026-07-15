@@ -8,6 +8,8 @@ import pytest
 
 from agrogame.api.forecast import (
     SoilForecastPoint,
+    _advance_root_depth,
+    _newly_rooted_mineral_n_kg_ha,
     _som_moisture_factor,
     _som_temperature_factor,
     project_soil_forecast,
@@ -15,8 +17,12 @@ from agrogame.api.forecast import (
     root_zone_som_labile_n_kg_ha,
     root_zone_water_mm,
     root_zone_wfps,
+    stage_depth_multiplier,
     water_stress_coefficient,
 )
+from agrogame.params.phenology import PhenologyStage
+from agrogame.plant.roots.module import RootModule
+from agrogame.plant.roots.params import RootParams
 from agrogame.soil.som.pools import ThreePoolSOM
 
 
@@ -284,3 +290,143 @@ def test_dry_soil_suppresses_mineralization() -> None:
         root_zone_wfps_frac=0.0,
     )
     assert pts[-1].mineral_n_kg_ha == pytest.approx(100.0)
+
+
+# --- Root-zone deepening source (#366) -------------------------------------
+
+
+def test_stage_depth_multiplier_mirrors_engine_defaults() -> None:
+    # The forecast duplicates the stage table rather than importing the engine's
+    # private method; it must match RootModule._stage_multiplier for every stage.
+    engine = RootModule(RootParams())
+    for stage in PhenologyStage:
+        assert stage_depth_multiplier(stage) == pytest.approx(
+            engine._stage_multiplier(stage)
+        )
+    # Spot-check the documented values.
+    assert stage_depth_multiplier(PhenologyStage.VEGETATIVE) == 1.0
+    assert stage_depth_multiplier(PhenologyStage.FLOWERING) == 0.6
+    assert stage_depth_multiplier(PhenologyStage.MATURITY) == 0.3
+
+
+def test_advance_root_depth_mirrors_engine_and_caps() -> None:
+    # depth += growth_rate * stage_mult, capped at max_depth (RootModule).
+    assert _advance_root_depth(30.0, 2.0, 120.0) == pytest.approx(32.0)
+    # Cap: never exceed max_depth_cm even with a large increment.
+    assert _advance_root_depth(119.0, 5.0, 120.0) == pytest.approx(120.0)
+    assert _advance_root_depth(120.0, 5.0, 120.0) == pytest.approx(120.0)
+    # Negative increment cannot pull roots back up.
+    assert _advance_root_depth(30.0, -5.0, 120.0) == pytest.approx(30.0)
+
+
+def test_newly_rooted_mineral_n_pulls_deeper_layer_n() -> None:
+    # Roots 20 -> 30 cm across a 25 cm layer-1 / layer-2 boundary: the increment
+    # is the extra rooted fraction of each layer's (anchor-day) mineral N.
+    n_no3 = [10.0, 8.0]
+    n_nh4 = [0.0, 0.0]
+    depths = [25.0, 35.0]
+    inc = _newly_rooted_mineral_n_kg_ha(n_no3, n_nh4, depths, 20.0, 30.0)
+    # layer1: (25-20)/25 * 10 g/m2 = 2.0; layer2: (30-25)/35 * 8 = 1.142857; ×10
+    assert inc == pytest.approx((2.0 + 8.0 * 5.0 / 35.0) * 10.0)
+    # No deepening -> no increment.
+    assert _newly_rooted_mineral_n_kg_ha(n_no3, n_nh4, depths, 30.0, 30.0) == 0.0
+
+
+def test_deepening_adds_more_n_than_constant_depth() -> None:
+    # Same anchor + weather; supplying root-growth params pulls deeper-layer N in
+    # as the zone deepens, so the horizon N exceeds the constant-depth path.
+    base = {
+        "available_water_mm": 100.0,
+        "total_available_water_mm": 120.0,
+        "mineral_n_kg_ha": root_zone_mineral_n_kg_ha(
+            [8.0, 6.0], [4.0, 3.0], [25.0, 35.0], 20.0
+        ),
+        "lai": 0.0,
+        "weather": [(18.0, 12.0, 0.0)] * 5,
+        "som_labile_n_kg_ha": 0.0,
+    }
+    const_depth = project_soil_forecast(**base)
+    deepening = project_soil_forecast(
+        **base,
+        n_no3_by_layer=[8.0, 6.0],
+        n_nh4_by_layer=[4.0, 3.0],
+        layer_depths_cm=[25.0, 35.0],
+        root_depth_cm=20.0,
+        root_growth_rate_cm_per_day=2.0,
+        root_max_depth_cm=120.0,
+        root_stage_multiplier=1.0,
+    )
+    assert deepening[-1].mineral_n_kg_ha > const_depth[-1].mineral_n_kg_ha
+    # Water channel is untouched by the deepening inputs.
+    assert [p.water_stress for p in deepening] == [p.water_stress for p in const_depth]
+
+
+def test_deepening_defaults_are_backward_compatible() -> None:
+    # Omitting the root-growth params reproduces the constant-depth projection
+    # exactly (mirrors #363's zero-default source term).
+    kwargs = {
+        "available_water_mm": 100.0,
+        "total_available_water_mm": 120.0,
+        "mineral_n_kg_ha": 90.0,
+        "lai": 2.0,
+        "weather": [(18.0, 12.0, 0.0)] * 5,
+        "som_labile_n_kg_ha": 60.0,
+        "root_zone_wfps_frac": 0.6,
+    }
+    baseline = project_soil_forecast(**kwargs)
+    # Passing per-layer arrays but zero growth rate must not deepen either.
+    zero_growth = project_soil_forecast(
+        **kwargs,
+        n_no3_by_layer=[8.0, 6.0],
+        n_nh4_by_layer=[4.0, 3.0],
+        layer_depths_cm=[25.0, 35.0],
+        root_depth_cm=20.0,
+        root_growth_rate_cm_per_day=0.0,
+    )
+    assert [p.mineral_n_kg_ha for p in zero_growth] == [
+        p.mineral_n_kg_ha for p in baseline
+    ]
+
+
+def test_deepening_respects_depth_cap_no_overshoot() -> None:
+    # No mineralisation / uptake / leaching, so the only mineral-N flux is the
+    # deepening source — isolating the depth cap.
+    common = {
+        "available_water_mm": 100.0,
+        "total_available_water_mm": 120.0,
+        "lai": 0.0,
+        "som_labile_n_kg_ha": 0.0,
+        "n_no3_by_layer": [8.0, 6.0],
+        "n_nh4_by_layer": [4.0, 3.0],
+        "layer_depths_cm": [25.0, 60.0],
+        "root_growth_rate_cm_per_day": 5.0,
+        "root_stage_multiplier": 1.0,
+        "root_max_depth_cm": 60.0,
+    }
+    weather = [(18.0, 12.0, 0.0)] * 5
+
+    # Root depth already at the cap: no deepening source at all.
+    anchor_at_cap = root_zone_mineral_n_kg_ha(
+        [8.0, 6.0], [4.0, 3.0], [25.0, 60.0], 60.0
+    )
+    at_cap = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor_at_cap, root_depth_cm=60.0, **common
+    )
+    assert at_cap[-1].mineral_n_kg_ha == pytest.approx(anchor_at_cap)
+
+    # Start at 58 with +5 cm/day and a 60 cm cap: the cap is hit on day 1, so a
+    # 5-day horizon reaches the *same* mineral N as a 1-day horizon — no
+    # overshoot past the cap on later days.
+    anchor_58 = root_zone_mineral_n_kg_ha([8.0, 6.0], [4.0, 3.0], [25.0, 60.0], 58.0)
+    capped_5d = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor_58, root_depth_cm=58.0, **common
+    )
+    capped_1d = project_soil_forecast(
+        weather=weather[:1], mineral_n_kg_ha=anchor_58, root_depth_cm=58.0, **common
+    )
+    assert capped_5d[-1].mineral_n_kg_ha == pytest.approx(capped_1d[-1].mineral_n_kg_ha)
+    # And exactly 2 cm of layer 2 was pulled in (58->60), nothing more.
+    # Layer 2 mineral N = (no3 6 + nh4 3) g/m²; 2/60 of it ×10 = 3.0 kg/ha.
+    assert capped_5d[-1].mineral_n_kg_ha - anchor_58 == pytest.approx(
+        (6.0 + 3.0) * 2.0 / 60.0 * 10.0
+    )

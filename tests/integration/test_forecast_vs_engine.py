@@ -29,6 +29,7 @@ from agrogame.api.forecast import (
     root_zone_mineral_n_kg_ha,
     root_zone_som_labile_n_kg_ha,
     root_zone_water_mm,
+    stage_depth_multiplier,
 )
 from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -184,6 +185,114 @@ def test_sink_only_projection_would_trend_wrong_way() -> None:
 
     assert sink_only[-1].mineral_n_kg_ha - anchor_n < 0.0  # the old wrong sign
     assert with_source[-1].mineral_n_kg_ha - anchor_n > 0.0  # corrected sign
+
+
+def _deepening_kwargs(orch: FullSimulationOrchestrator) -> dict[str, object]:
+    """Root-growth inputs threaded into the deepening path (#366)."""
+    layers = orch.profile.layers
+    return {
+        "n_no3_by_layer": list(orch.n_state.no3),
+        "n_nh4_by_layer": list(orch.n_state.nh4),
+        "layer_depths_cm": [ly.depth_cm for ly in layers],
+        "root_depth_cm": orch.root_state.current_depth_cm,
+        "root_growth_rate_cm_per_day": orch.roots.params.growth_rate_cm_per_day,
+        "root_max_depth_cm": orch.roots.params.max_depth_cm,
+        "root_stage_multiplier": stage_depth_multiplier(orch.phenology.state.stage),
+    }
+
+
+def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
+    """Root-zone deepening (#366) lifts the forecast Δ to the engine's order.
+
+    Pinned scenario: established maize on ``loam_temperate`` (NL, seed 42),
+    20-day establishment, 5-day no-action horizon — the exact anchor the #353
+    reference numbers were measured on (anchor ≈ 239.6, engine Δ ≈ +96 kg/ha).
+
+    Measured on this scenario:
+
+        =========================  ======  ======  ======
+        series                     anchor    +5 d       Δ
+        =========================  ======  ======  ======
+        engine                      239.6   338.1   +98.5
+        forecast, constant depth      "     242.1    +2.5
+        forecast, deepening (#366)    "     447.7  +208.1
+        =========================  ======  ======  ======
+
+    Tolerance (AC5) — **not** the provisional ±20%. Pre-measurement showed the
+    omit-constraint design (recommended in refinement) overshoots the engine Δ
+    by ~2.1×. The residual gap is understood and bounded: the newly-rooted-N
+    accounting is accurate (feeding the engine's *realized* +5.03 cm increment
+    yields forecast Δ ≈ +106, i.e. ratio ≈ 1.08, inside ±20%); the whole ~2×
+    overshoot is the engine's aggregate-penetration constraint factor
+    (cf ≈ 0.5), deliberately omitted here (see ``_advance_root_depth``). Per the
+    refinement's provisional clause we do not *force* ±20% by threading
+    soil-mechanical state into the heuristic; instead we assert a documented,
+    defensible band: sign agreement, deepening strictly tighter than the
+    constant-depth undershoot, and Δ within one order of magnitude (1.0×–3.0×)
+    of the engine's. A follow-up may mirror the aggregate-penetration factor to
+    reach ±20%.
+    """
+    orch, records = _build(_ESTABLISH_DAYS + _HORIZON_DAYS)
+    for rec in records[:_ESTABLISH_DAYS]:
+        _step(orch, rec)
+
+    inputs = _forecast_inputs(orch)
+    anchor_n = inputs["mineral_n_kg_ha"]
+    deep_kwargs = _deepening_kwargs(orch)
+    window = records[_ESTABLISH_DAYS : _ESTABLISH_DAYS + _HORIZON_DAYS]
+    weather = [
+        ((r.tmin_c + r.tmax_c) / 2.0, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
+        for r in window
+    ]
+
+    const_depth = project_soil_forecast(weather=weather, **inputs)
+    deepening = project_soil_forecast(weather=weather, **inputs, **deep_kwargs)
+    const_delta = const_depth[-1].mineral_n_kg_ha - anchor_n
+    deep_delta = deepening[-1].mineral_n_kg_ha - anchor_n
+
+    for rec in window:
+        _step(orch, rec)
+    engine_delta = _root_zone_mineral_n(orch) - anchor_n
+
+    # Sign agreement (#353 property) must survive.
+    assert engine_delta > 0.0, f"engine did not rise: {engine_delta:.2f}"
+    assert deep_delta > 0.0, f"deepening forecast did not rise: {deep_delta:.2f}"
+
+    # Deepening is load-bearing: it captures far more of the engine's rise than
+    # the constant-depth projection (which sees only mineralisation, +~2.5).
+    assert deep_delta > const_delta
+
+    # Documented order-of-magnitude band (see docstring): the deepening Δ reaches
+    # the engine's rise (unlike constant-depth's ~2.5 % of it) without exceeding
+    # ~3× it. Measured ratio here ≈ 2.1.
+    ratio = deep_delta / engine_delta
+    assert 1.0 < ratio < 3.0, f"deepening Δ ratio {ratio:.2f} outside [1.0, 3.0]"
+
+
+def test_forecast_deepening_leaves_water_channel_unchanged() -> None:
+    """#366 must not perturb the water-stress channel (no #318/#353 regression).
+
+    Same anchor + weather, with and without the deepening inputs: every day's
+    ``water_stress`` must be byte-identical. Only the mineral-N channel reads the
+    root-growth params.
+    """
+    orch, records = _build(_ESTABLISH_DAYS + _HORIZON_DAYS)
+    for rec in records[:_ESTABLISH_DAYS]:
+        _step(orch, rec)
+
+    inputs = _forecast_inputs(orch)
+    window = records[_ESTABLISH_DAYS : _ESTABLISH_DAYS + _HORIZON_DAYS]
+    weather = [
+        ((r.tmin_c + r.tmax_c) / 2.0, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
+        for r in window
+    ]
+
+    const_depth = project_soil_forecast(weather=weather, **inputs)
+    deepening = project_soil_forecast(
+        weather=weather, **inputs, **_deepening_kwargs(orch)
+    )
+
+    assert [p.water_stress for p in const_depth] == [p.water_stress for p in deepening]
 
 
 if __name__ == "__main__":  # pragma: no cover
