@@ -23,6 +23,7 @@ class Calendar:
         par_mj_m2: float | None = None,
         plant_n_demand_kg_ha: float | None = None,
         plant_p_demand_kg_ha: float | None = None,
+        plant_s_demand_kg_ha: float | None = None,
     ) -> None:
         emit = self.event_bus.emit
         order: list[Phase] = (
@@ -52,5 +53,6 @@ class Calendar:
                     par_mj_m2=par_mj_m2,
                     plant_n_demand_kg_ha=plant_n_demand_kg_ha,
                     plant_p_demand_kg_ha=plant_p_demand_kg_ha,
+                    plant_s_demand_kg_ha=plant_s_demand_kg_ha,
                 )
             )

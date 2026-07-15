@@ -7,6 +7,7 @@ crops:
     # DSSAT CERES-Maize: whole-plant N 2.5-3.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.030
     tissue_p_conc_kg_kg: 0.003
+    tissue_s_conc_kg_kg: 0.0015
     # Whole-shoot critical-N dilution N_crit% = 3.40*W^-0.37 (#360)
     # Plénet & Lemaire (2000) Plant & Soil 216:65-82 (orig. 1999).
     n_crit_a: 3.40
@@ -72,6 +73,7 @@ crops:
     # APSIM-Wheat: whole-plant N ~2.0-2.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
+    tissue_s_conc_kg_kg: 0.0018
     # Whole-shoot critical-N dilution N_crit% = 5.35*W^-0.442 (#360)
     # Justes et al. (1994) Ann. Bot. 74:397-407.
     n_crit_a: 5.35
@@ -129,6 +131,7 @@ crops:
     name: "Spring Wheat (Triticum aestivum)"
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
+    tissue_s_conc_kg_kg: 0.0018
     # Whole-shoot critical-N dilution N_crit% = 5.35*W^-0.442 (#360)
     # Justes et al. (1994) Ann. Bot. 74:397-407.
     n_crit_a: 5.35
@@ -178,6 +181,7 @@ crops:
     # DSSAT CERES-Rice: whole-plant N ~2.0-2.5%; P ~0.25%
     tissue_n_conc_kg_kg: 0.022
     tissue_p_conc_kg_kg: 0.0025
+    tissue_s_conc_kg_kg: 0.0015
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -222,6 +226,7 @@ crops:
     # DSSAT CERES-Sorghum: whole-plant N ~2.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
+    tissue_s_conc_kg_kg: 0.0017
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -266,6 +271,7 @@ crops:
     # Legumes: higher N from fixation, tissue N ~4-5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.045
     tissue_p_conc_kg_kg: 0.003
+    tissue_s_conc_kg_kg: 0.0025
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 40.0
@@ -303,6 +309,7 @@ crops:
     # Perennial vine: lower tissue N ~1.5-2.0%; P ~0.2%
     tissue_n_conc_kg_kg: 0.018
     tissue_p_conc_kg_kg: 0.002
+    tissue_s_conc_kg_kg: 0.0015
     phenology:
       base_temperature_c: 10.0
       max_temperature_c: 35.0

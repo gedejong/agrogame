@@ -14,6 +14,7 @@ class StressFactors:
     water: float = 1.0
     nitrogen: float = 1.0
     phosphorus: float = 1.0
+    sulfur: float = 1.0
 
 
 def compute_water_stress(
@@ -84,16 +85,26 @@ class StressCalculator:
         # Linear interpolation between [crit, opt]
         return (val - crit) / (opt - crit)
 
-    def combine(self, water: float, nitrogen: float, phosphorus: float) -> float:
+    def combine(
+        self,
+        water: float,
+        nitrogen: float,
+        phosphorus: float,
+        sulfur: float = 1.0,
+    ) -> float:
         """Combine stress factors according to configured method.
 
         - liebig: minimum of the individual factors
         - multiplicative: product of the individual factors
+
+        ``sulfur`` defaults to 1.0 (no limitation) so existing callers that
+        pass only water/N/P are unaffected.
         """
         w = max(0.0, min(1.0, float(water)))
         n = max(0.0, min(1.0, float(nitrogen)))
         p = max(0.0, min(1.0, float(phosphorus)))
+        s = max(0.0, min(1.0, float(sulfur)))
         if self.combine_method == "multiplicative":
-            return w * n * p
+            return w * n * p * s
         # Default Liebig's law (most limiting factor)
-        return min(w, n, p)
+        return min(w, n, p, s)
