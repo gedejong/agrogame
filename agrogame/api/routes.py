@@ -197,6 +197,8 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         root_biomass_g_m2=round(root_state.biomass_g_m2, 2),
         root_layer_fractions=[round(v, 4) for v in root_fracs],
         stem_biomass_g_m2=round(patch.orch.canopy.state.stem_biomass_g_m2, 2),
+        plant_n_nni=round(patch.orch.plant_n_nni, 2),
+        plant_n_stock_kg_ha=round(patch.orch.plant_n_stock_kg_ha, 1),
         som_total_c_g_m2=round(som_total, 2),
         theta_surface=round(snap.water_theta[0], 4) if snap.water_theta else 0.0,
     )
@@ -755,6 +757,8 @@ def _build_daily_snapshot(
         water_stress=round(p.orch.canopy.state.last_water_stress, 2),
         soil_theta_surface=round(theta_top, 4),
         n_available_total=round(n_total, 1),
+        plant_n_nni=round(p.orch.plant_n_nni, 2),
+        plant_n_stock_kg_ha=round(p.orch.plant_n_stock_kg_ha, 1),
         redox_eh_surface=(round(snap.redox_eh[0], 1) if snap.redox_eh else 400.0),
         fe_available_surface=(
             round(snap.micro_fe_avail[0], 2) if snap.micro_fe_avail else 10.0

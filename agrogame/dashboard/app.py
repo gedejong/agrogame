@@ -220,7 +220,7 @@ def _render_stress_metrics(history: Mapping[str, Any], upto: int | None) -> None
     if not history.get("water_stress"):
         return
     idx = -1 if upto is None else upto - 1
-    c_ws, c_ns, c_ps = st.columns(3)
+    c_ws, c_ns, c_ps, c_nni = st.columns(4)
     with c_ws:
         ws_last = history["water_stress"][idx]
         st.metric("Water stress", f"{float(ws_last):.2f}")
@@ -240,6 +240,20 @@ def _render_stress_metrics(history: Mapping[str, Any], upto: int | None) -> None
         p_val = p_series[idx] if p_series else None
         if p_val is not None:
             st.metric("P stress", f"{float(p_val):.2f}")
+    with c_nni:
+        nni_series = history.get("plant_n_nni", [])
+        if nni_series:
+            nni_val = float(nni_series[idx] or 0.0)
+            st.metric(
+                "Plant N index (NNI)",
+                f"{nni_val:.2f}",
+                help=(
+                    "Whole-shoot N nutrition index (actual/critical N). "
+                    "Sufficiency at NNI ≈ 1.0; below 1 the crop is "
+                    "N-deficient, above 1 indicates luxury uptake. Reads "
+                    "1.0 before emergence."
+                ),
+            )
 
 
 def _render_yield_projection(history: Mapping[str, Any]) -> None:

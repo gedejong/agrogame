@@ -55,6 +55,8 @@ _EXPECTED_HISTORY_KEYS = (
     "n_stress",
     "p_stress",
     "n_total_kgha",
+    "plant_n_nni",
+    "plant_n_stock_kgha",
     "micro_c_total",
     "micro_n_total",
     "micro_fb_avg",
