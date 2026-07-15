@@ -49,7 +49,8 @@
         "organic_matter_pct": { "type": "number", "minimum": 0 },
         "initial_no3_kg_ha": { "type": "number" },
         "initial_nh4_kg_ha": { "type": "number" },
-        "initial_p_kg_ha": { "type": "number" }
+        "initial_p_kg_ha": { "type": "number" },
+        "initial_s_kg_ha": { "type": "number" }
       }
     }
   }
