@@ -1418,6 +1418,72 @@ def test_step_response_includes_microbial_biology(client) -> None:
     assert abs(sum(soil["root_layer_fractions"]) - 1.0) < 0.02
 
 
+def test_step_response_includes_plant_n_nni(client) -> None:
+    """Soil state + daily snapshots expose plant-N NNI and shoot-N stock (#367).
+
+    NNI is bounded below by 0 but *not* above by 1 — raw NNI exceeds 1 under
+    luxury uptake (only the derived N-stress mapping caps at 1.0). The settled
+    end-of-window value sits near/at critical N (~1.0); the per-day trajectory
+    additionally shows a transient luxury spike the day shoot DM first appears
+    (observed ~4.6 at emergence, decaying within days), because the critical-N
+    dilution curve reads high %N against near-zero biomass. We therefore band
+    the settled state tightly (0..2.5) and the per-day series loosely (0..6.0)
+    — enough to catch unit/sign errors without flagging the real emergence
+    transient.
+    """
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=40&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    # End-of-window soil state carries both scalar fields.
+    soil = data["patches"]["f1"][0]["soil_state"]
+    for key in ("plant_n_nni", "plant_n_stock_kg_ha"):
+        assert key in soil, f"{key} missing from soil_state"
+        assert isinstance(soil[key], int | float)
+    assert soil["plant_n_stock_kg_ha"] >= 0.0
+    assert soil["plant_n_nni"] >= 0.0
+    assert 0.0 <= soil["plant_n_nni"] <= 2.5
+    # Stock accumulates as the crop takes up N over the window.
+    assert soil["plant_n_stock_kg_ha"] > 0.0
+
+    # Per-day snapshots carry the trajectory (needed for the sparkline).
+    snaps = data["daily_snapshots"]
+    assert snaps
+    for s in snaps:
+        assert "plant_n_nni" in s
+        assert "plant_n_stock_kg_ha" in s
+        assert s["plant_n_stock_kg_ha"] >= 0.0
+        assert 0.0 <= s["plant_n_nni"] <= 6.0
+
+
+def test_plant_n_pre_emergence_sentinel(client) -> None:
+    """Pre-emergence / post-``reset_crop`` sentinel: NNI defaults to 1.0 and
+    stock to 0.0, so an older client and a not-yet-rooted patch both read a
+    sensible value with no divide-by-zero on near-zero shoot DM (#367 / #364).
+
+    The sentinel proper (``stock == 0.0``) is the field default / reset value;
+    once a live sim runs a day a trivial baseline uptake (~0.1 kg/ha) appears,
+    so the running pre-emergence check bounds stock as negligible rather than
+    exactly zero, while NNI holds the 1.0 sentinel.
+    """
+    from agrogame.api.models import DailySnapshot, SoilStateResponse
+
+    for model in (SoilStateResponse, DailySnapshot):
+        assert model.model_fields["plant_n_nni"].default == 1.0
+        assert model.model_fields["plant_n_stock_kg_ha"].default == 0.0
+
+    # Live pre-emergence day: NNI holds the sentinel, stock is negligible.
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
+    assert resp.status_code == 200
+    snaps = resp.json()["daily_snapshots"]
+    assert snaps, "expected at least one daily snapshot"
+    day1 = snaps[0]
+    assert day1["plant_n_nni"] == 1.0
+    assert 0.0 <= day1["plant_n_stock_kg_ha"] < 1.0
+
+
 def test_step_response_includes_pore_network(client) -> None:
     """Soil state exposes per-layer pore fractions + connectivity (#274)."""
     game_id = _create_game(client)

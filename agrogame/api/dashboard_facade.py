@@ -379,10 +379,16 @@ class DashboardSimulationRun:
                 h["micro_activity_layers"][li][day_index] = val
 
     def append_n_total(self) -> None:
-        """Append the profile-wide mineral N total (NO₃ + NH₄, kg/ha)."""
+        """Append the profile-wide mineral N total (NO₃ + NH₄, kg/ha).
+
+        Also appends the whole-shoot N nutrition index (NNI) and N stock
+        (#367) so the nutrient panel can plot the plant-N trajectory.
+        """
         self.history["n_total_kgha"].append(
             sum(self.orch.n_state.no3) + sum(self.orch.n_state.nh4)
         )
+        self.history["plant_n_nni"].append(float(self.orch.plant_n_nni))
+        self.history["plant_n_stock_kgha"].append(float(self.orch.plant_n_stock_kg_ha))
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +426,8 @@ def new_history(profile: SoilProfile) -> dict[str, Any]:
         "n_stress": [],
         "p_stress": [],
         "n_total_kgha": [],
+        "plant_n_nni": [],
+        "plant_n_stock_kgha": [],
         "micro_c_total": [],
         "micro_n_total": [],
         "micro_fb_avg": [],

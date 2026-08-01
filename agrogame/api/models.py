@@ -151,6 +151,23 @@ class SoilStateResponse(BaseModel):
         default=0.0, description="Canopy stem biomass (g/m²)"
     )
 
+    # Plant N nutrition surfaced alongside soil for the nutrient view (#367)
+    plant_n_nni: float = Field(
+        default=1.0,
+        description=(
+            "Whole-shoot N nutrition index (actual/critical N). 1.0 = at "
+            "critical N (sufficiency); <1 = deficient; may exceed 1 under "
+            "luxury uptake. Defaults to 1.0 pre-emergence / after reset_crop."
+        ),
+    )
+    plant_n_stock_kg_ha: float = Field(
+        default=0.0,
+        description=(
+            "Accumulated whole-shoot N stock (kg/ha). Defaults to 0.0 "
+            "pre-emergence / after reset_crop."
+        ),
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
@@ -245,6 +262,8 @@ class DailySnapshot(BaseModel):
     water_stress: float = 1.0
     soil_theta_surface: float = 0.0
     n_available_total: float = 0.0
+    plant_n_nni: float = 1.0
+    plant_n_stock_kg_ha: float = 0.0
     redox_eh_surface: float = 400.0
     fe_available_surface: float = 10.0
     zn_available_surface: float = 1.2
