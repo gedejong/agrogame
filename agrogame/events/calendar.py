@@ -47,3 +47,4 @@ class DayTick(BaseEvent):
     par_mj_m2: float | None = None
     plant_n_demand_kg_ha: float | None = None
     plant_p_demand_kg_ha: float | None = None
+    plant_s_demand_kg_ha: float | None = None

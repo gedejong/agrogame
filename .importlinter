@@ -50,6 +50,8 @@ ignore_imports =
     agrogame.soil.nitrogen.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.stress
+    agrogame.soil.sulfur.runtime -> agrogame.plant.events
+    agrogame.soil.sulfur.runtime -> agrogame.plant.stress
     agrogame.soil.redox.runtime -> agrogame.plant.roots.events
     agrogame.soil.som.runtime -> agrogame.plant.roots.events
 
@@ -180,6 +182,8 @@ ignore_imports =
     agrogame.soil.nitrogen.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.events
     agrogame.soil.phosphorus.runtime -> agrogame.plant.stress
+    agrogame.soil.sulfur.runtime -> agrogame.plant.events
+    agrogame.soil.sulfur.runtime -> agrogame.plant.stress
     agrogame.soil.redox.runtime -> agrogame.plant.roots.events
     agrogame.soil.som.runtime -> agrogame.plant.roots.events
 

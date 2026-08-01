@@ -27,6 +27,8 @@ from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.nitrogen.params import NitrogenRateParams
 from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
+from agrogame.soil.sulfur import SoilSulfurState
+from agrogame.soil.sulfur.cycle import SulfurCycle
 from agrogame.soil.chemistry import SoilChemistryModule
 from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
 from typing import Any
@@ -39,6 +41,7 @@ from agrogame.atmosphere.et.runtime import ETRuntime
 from agrogame.atmosphere.et.types import EtState
 from agrogame.soil.nitrogen.runtime import NitrogenRuntime
 from agrogame.soil.phosphorus.runtime import PhosphorusRuntime
+from agrogame.soil.sulfur.runtime import SulfurRuntime
 from agrogame.soil.phenology.runtime import PhenologyRuntime
 from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.microbes import MicrobialBiomassModule, MicrobialParams
@@ -416,6 +419,7 @@ class FullSimulationOrchestrator:
         self.water_state = SoilWaterState(profile)
         self.n_state = SoilNitrogenState(profile)
         self.p_state = SoilPhosphorusState(profile)
+        self.s_state = SoilSulfurState(profile)
         # Redox dynamics — Eh computation, CH4 production (AGRO-73)
         self.redox_state = RedoxState.from_layers(n_layers)
         # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
@@ -450,6 +454,14 @@ class FullSimulationOrchestrator:
         self.p_cycle = PhosphorusCycle(
             self.event_bus,
             self.p_state,
+            water_state=self.water_state,
+            profile=profile,
+        )
+        # Sulfur cycle registers its WaterDrained handler after P (ordering
+        # matters for the ADR-010 wiring contract; #212).
+        self.s_cycle = SulfurCycle(
+            self.event_bus,
+            self.s_state,
             water_state=self.water_state,
             profile=profile,
         )
@@ -611,6 +623,7 @@ class FullSimulationOrchestrator:
             ),
             lambda: MicronutrientRuntime(self.event_bus, self.micro_cycle),
             lambda: PhosphorusRuntime(self.event_bus, self.p_cycle),
+            lambda: SulfurRuntime(self.event_bus, self.s_cycle),
             lambda: self._make_som_runtime(pv),
             lambda: MicrobesRuntime(
                 self.event_bus,
@@ -978,6 +991,22 @@ class FullSimulationOrchestrator:
         # Small baseline for maintenance uptake when growth is minimal
         return max(p_demand, 0.01)
 
+    def _compute_plant_s_demand(self) -> float:
+        """Compute S demand from previous day's biomass increment.
+
+        Demand = biomass_increment (g/m² → kg/ha) × tissue_conc × soil_fraction,
+        mirroring the phosphorus demand formula (DSSAT CERES; APSIM). Sulfate
+        uptake is dominantly current-supply driven with limited remobilization,
+        so a modest soil_fraction is applied. Ref: Hawkesford & De Kok (2006).
+        """
+        crop = self._current_crop
+        if crop is None:
+            return 0.0
+        inc_kg_ha = self._last_biomass_inc_g_m2 * 10.0
+        soil_fraction = 0.5
+        s_demand = inc_kg_ha * crop.tissue_s_conc_kg_kg * soil_fraction
+        return max(s_demand, 0.005)
+
     def _compute_plant_n_demand(self) -> float:
         """Stock-based whole-shoot N demand for the critical-N model (#360).
 
@@ -1007,6 +1036,7 @@ class FullSimulationOrchestrator:
         sim_date: date | None = None,
         plant_n_demand_kg_ha: float | None = None,
         plant_p_demand_kg_ha: float | None = None,
+        plant_s_demand_kg_ha: float | None = None,
         target_ph: float = 6.8,
     ) -> None:
         # Execute scheduled management events for this day
@@ -1031,8 +1061,10 @@ class FullSimulationOrchestrator:
         # biomass-increment formula.
         dyn_p = self._compute_plant_p_demand()
         dyn_n = self._compute_plant_n_demand()
+        dyn_s = self._compute_plant_s_demand()
         n_demand = plant_n_demand_kg_ha if plant_n_demand_kg_ha is not None else dyn_n
         p_demand = plant_p_demand_kg_ha if plant_p_demand_kg_ha is not None else dyn_p
+        s_demand = plant_s_demand_kg_ha if plant_s_demand_kg_ha is not None else dyn_s
 
         # Drive daily progression solely via DayTick phases
         self.calendar.tick(
@@ -1044,13 +1076,16 @@ class FullSimulationOrchestrator:
             par_mj_m2=par_mj_m2,
             plant_n_demand_kg_ha=n_demand,
             plant_p_demand_kg_ha=p_demand,
+            plant_s_demand_kg_ha=s_demand,
         )
         self._day_counter += 1
 
     # ------------------------------------------------------------------
     # Player actions
     # ------------------------------------------------------------------
-    _FERTILIZER_TYPES = frozenset({"urea", "ammonium_nitrate", "tsp"})
+    _FERTILIZER_TYPES = frozenset(
+        {"urea", "ammonium_nitrate", "tsp", "gypsum", "elemental_s"}
+    )
 
     def apply_irrigation(self, amount_mm: float) -> None:
         """Add irrigation water to the soil profile.
@@ -1079,7 +1114,9 @@ class FullSimulationOrchestrator:
         """Apply fertilizer to a soil layer.
 
         Args:
-            fert_type: One of "urea", "ammonium_nitrate", "tsp".
+            fert_type: One of "urea", "ammonium_nitrate", "tsp", "gypsum",
+                "elemental_s". For the sulfur types ``amount_kg_ha`` is the
+                elemental sulfur rate (kg S/ha).
             amount_kg_ha: Application rate in kg/ha.
             layer: Target soil layer index (default 0 = top layer).
 
@@ -1103,6 +1140,10 @@ class FullSimulationOrchestrator:
             self.n_cycle.apply_ammonium_nitrate(layer, amount_kg_ha)
         elif fert_type == "tsp":
             self.p_cycle.apply_triple_superphosphate(layer, amount_kg_ha)
+        elif fert_type == "gypsum":
+            self.s_cycle.apply_gypsum(layer, amount_kg_ha)
+        elif fert_type == "elemental_s":
+            self.s_cycle.apply_elemental_s(layer, amount_kg_ha)
 
 
 def build_full_orchestrator(profile: SoilProfile) -> FullSimulationOrchestrator:

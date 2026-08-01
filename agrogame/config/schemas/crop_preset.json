@@ -19,6 +19,7 @@
         "n_fixation_credit_kg_ha": { "type": "number", "minimum": 0 },
         "tissue_n_conc_kg_kg": { "type": "number", "minimum": 0 },
         "tissue_p_conc_kg_kg": { "type": "number", "minimum": 0 },
+        "tissue_s_conc_kg_kg": { "type": "number", "minimum": 0 },
         "n_crit_a": { "type": "number", "exclusiveMinimum": 0 },
         "n_crit_b": { "type": "number", "exclusiveMinimum": 0 },
         "phenology": { "$ref": "#/definitions/phenologyParams" },

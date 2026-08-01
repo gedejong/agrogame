@@ -73,6 +73,10 @@ class SoilLayer(BaseModel):
     initial_p_kg_ha: float = Field(
         ..., description="Initial phosphorus in topsoil layer (kg/ha)"
     )
+    initial_s_kg_ha: float = Field(
+        default=12.0,
+        description="Initial plant-available sulfate S in the layer (kg S/ha)",
+    )
     clay_pct: float | None = Field(
         default=None,
         description="Clay content percentage (%). Derived from texture if not set.",

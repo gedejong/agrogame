@@ -22,6 +22,7 @@
     "NitrogenRuntime._on_day_tick",
     "MicronutrientRuntime._on_day_tick",
     "PhosphorusRuntime._on_day_tick",
+    "SulfurRuntime._on_day_tick",
     "SOMRuntime._on_day_tick",
     "MicrobesRuntime._on_day_tick",
     "AggregationRuntime._on_day_tick",
@@ -41,9 +42,11 @@
   ],
   "MicrobialActivityComputed": [
     "EnvironmentalCache._on_microbe_activity",
+    "EnvironmentalCache._on_microbe_activity",
     "EnvironmentalCache._on_microbe_activity"
   ],
   "MicrobialFBUpdated": [
+    "EnvironmentalCache._on_microbe_fb",
     "EnvironmentalCache._on_microbe_fb",
     "EnvironmentalCache._on_microbe_fb",
     "AggregationRuntime._on_microbes_updated"
@@ -71,6 +74,7 @@
   "RootDistributionUpdated": [
     "EnvironmentalCache._on_root_distribution",
     "EnvironmentalCache._on_root_distribution",
+    "EnvironmentalCache._on_root_distribution",
     "RedoxRuntime._on_root_distribution",
     "MicronutrientRuntime._on_roots",
     "SOMRuntime._on_root_distribution",
@@ -84,6 +88,7 @@
     "NitrogenCycle._on_som_decomposed"
   ],
   "SoilPHUpdated": [
+    "EnvironmentalCache._on_soil_ph_updated",
     "EnvironmentalCache._on_soil_ph_updated",
     "EnvironmentalCache._on_soil_ph_updated",
     "EnvironmentalCache._on_soil_ph_updated"
@@ -102,7 +107,8 @@
   ],
   "WaterDrained": [
     "NitrogenCycle._on_water_drained",
-    "PhosphorusCycle._on_water_drained"
+    "PhosphorusCycle._on_water_drained",
+    "SulfurCycle._on_water_drained"
   ],
   "WaterInfiltrated": [
     "NitrogenCycle._on_infiltrated"

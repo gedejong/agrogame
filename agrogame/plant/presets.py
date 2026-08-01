@@ -24,6 +24,9 @@ class CropPreset:
     # DSSAT: maize ~0.03 N, ~0.003 P; wheat ~0.025 N, ~0.003 P.
     tissue_n_conc_kg_kg: float = 0.03
     tissue_p_conc_kg_kg: float = 0.003
+    # Whole-plant S (kg S / kg DM). Cereals ~0.12-0.2%; brassicas/legumes
+    # higher. N:S in plant tissue is ~15:1. Ref: Hawkesford & De Kok (2006).
+    tissue_s_conc_kg_kg: float = 0.002
     # Whole-shoot critical-N dilution coefficients (#360): N_crit% = a*W^-b,
     # W in t/ha shoot DM. None -> the documented generic-C3 fallback in
     # PlantNitrogenParams (Greenwood et al. 1990). Maize (Plénet & Lemaire)
@@ -178,6 +181,7 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             n_fixation_credit_kg_ha=float(raw.get("n_fixation_credit_kg_ha", 0.0)),
             tissue_n_conc_kg_kg=float(raw.get("tissue_n_conc_kg_kg", 0.03)),
             tissue_p_conc_kg_kg=float(raw.get("tissue_p_conc_kg_kg", 0.003)),
+            tissue_s_conc_kg_kg=float(raw.get("tissue_s_conc_kg_kg", 0.002)),
             n_crit_a=(
                 float(raw["n_crit_a"]) if raw.get("n_crit_a") is not None else None
             ),
