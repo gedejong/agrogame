@@ -112,25 +112,33 @@ class EconomicLedger:
         quarter: int = 3,
         area_ha: float = 1.0,
     ) -> int:
-        """Calculate revenue, compute profit, update balance.
+        """Accrue revenue for a harvest event, recompute profit, update balance.
+
+        Settlement is **additive** (ADR-003 per-patch accrual): each call adds
+        this harvest's revenue to ``season_revenue`` rather than overwriting it,
+        so staggered per-patch harvests within one season accumulate. "Settle
+        exactly once per patch" is enforced by the caller's cleared-crop /
+        zeroed-grain state, not by this method.
 
         Args:
-            grain_g_m2: Grain biomass from simulation (g/m2).
+            grain_g_m2: Grain biomass from simulation (g/m2). For a multi-patch
+                harvest this is the area-weighted mean so ``grain_g_m2 * area_ha``
+                equals the summed per-patch grain-area product.
             crop_key: Crop preset key for price lookup.
             prices: Price table with crop prices.
             quarter: Season quarter (1-4) for seasonal multiplier.
-            area_ha: Field area in hectares.
+            area_ha: Area harvested in hectares.
 
         Returns:
-            Season profit (can be negative).
+            Cumulative season profit (can be negative).
         """
         # grain_g_m2 * 10 = kg/ha (100 g/m2 = 1 t/ha = 1000 kg/ha)
         kg_per_ha = grain_g_m2 * 10.0
         price_per_kg = prices.get_crop_price(crop_key, quarter)
         revenue = int(kg_per_ha * area_ha * price_per_kg)
 
-        self.season_revenue = revenue
-        self.season_profit = revenue - self.season_costs
+        self.season_revenue += revenue
+        self.season_profit = self.season_revenue - self.season_costs
         # Costs already deducted in record_cost(); only add revenue here.
         self.balance_credits += revenue
         return self.season_profit

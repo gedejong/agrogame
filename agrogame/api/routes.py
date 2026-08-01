@@ -536,19 +536,26 @@ def _harvest_action(
     # `targets` is guaranteed non-empty here.
     targets = _target_patches(field, patch_idx)
 
-    # Grain averaged across the targeted patches, captured before harvest
-    # resets state.
-    grain_g_m2 = sum(p.orch.canopy.state.grain_biomass_g_m2 for p in targets) / len(
-        targets
-    )
-    crop_key = targets[0].config.crop_key
-
     # Area actually harvested. The field is modelled as 1 ha with patch
     # `area_fraction`s summing to 1.0, so a full-field harvest settles 1.0 ha
-    # (unchanged) while a single patch settles only its fractional share.
-    # Without this, a single patch's grain *density* was settled as a full
-    # hectare, so one patch could out-earn the whole field (#359 review).
+    # while a single patch settles only its fractional share. Without this, a
+    # single patch's grain *density* was settled as a full hectare, so one patch
+    # could out-earn the whole field (#359 review).
     area_ha = sum(p.config.area_fraction for p in targets)
+
+    # Area-weighted mean grain, captured before harvest resets state. Weighting
+    # by area_fraction makes a full-field harvest settle exactly the sum of the
+    # per-patch harvests for *any* area distribution — not just equal-area
+    # patches (ADR-003): grain_g_m2 * area_ha == Σ(grain_i * area_fraction_i).
+    # For a single patch this reduces to that patch's grain density.
+    grain_g_m2 = (
+        sum(
+            p.orch.canopy.state.grain_biomass_g_m2 * p.config.area_fraction
+            for p in targets
+        )
+        / area_ha
+    )
+    crop_key = targets[0].config.crop_key
 
     # Finalize each targeted crop in the domain layer (history + N fixation
     # credit + _current_crop reset). Only the requested patch(es) are finalized,
@@ -556,22 +563,18 @@ def _harvest_action(
     for patch in targets:
         patch.harvest()
 
-    # Settle season economics once — revenue from the harvested grain, scaled to
-    # the harvested area.
-    #
-    # ADR-003 limitation (deferred): settlement is single-shot per season
-    # (`season_settled`). Staggered per-patch harvests within one season credit
-    # revenue only for the first harvest; later patches settle 0. That is the
-    # single-settlement-per-season economic model, not a defect of patch
-    # targeting — but per-patch targeting now exposes it. Proper per-patch
-    # revenue accrual belongs in an ADR-003 follow-up. Full-field harvest
-    # (patch_idx = -1) is unaffected.
-    revenue = 0
-    profit = 0
-    if not s.season_settled:
-        profit = s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=area_ha)
-        revenue = s.ledger.season_revenue
-        s.season_settled = True
+    # Accrue season economics for this harvest — revenue from the harvested
+    # grain, scaled to the harvested area (ADR-003 per-patch accrual). Settlement
+    # is additive, and "settle exactly once per patch" is enforced by the
+    # cleared-crop guard below (a harvested patch has crop_key="" so it cannot be
+    # re-harvested and is skipped by the end-of-season standing-grain settle),
+    # not by a per-season boolean. Staggered per-patch harvests therefore each
+    # credit their own share; full-field harvest (patch_idx=-1) settles the whole
+    # field in one call.
+    revenue_before = s.ledger.season_revenue
+    profit = s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=area_ha)
+    revenue = s.ledger.season_revenue - revenue_before
+    s.season_settled = True
 
     # Record a SeasonResult so GET /report works in the day-by-day loop.
     if not s.turn_manager:
@@ -605,6 +608,40 @@ def _harvest_action(
         patch.orch.canopy.state.lai = 0.0
 
     return grain_g_m2, revenue, profit
+
+
+def _settle_standing_grain(
+    s: GameSession, field: Field, prices: PriceTable, crop_key: str
+) -> None:
+    """Settle any still-standing (un-harvested) grain on ``field`` exactly once.
+
+    End-of-season path (called from ``GET /report``). Patches already harvested
+    per-patch carry ``crop_key=""`` and were settled at harvest time, so they are
+    skipped here — no double counting (ADR-003). Settlement is area-weighted and
+    accrues onto the ledger's running season total. Grain is zeroed after
+    settling (harvested off), so a repeated ``/report`` settles nothing — this
+    gives idempotency off standing-crop state rather than a per-season boolean.
+    """
+    standing = [p for p in field.patches if p.config.crop_key]
+    if not standing:
+        return
+    total_area = sum(p.config.area_fraction for p in standing)
+    grain_g_m2 = (
+        sum(
+            p.orch.canopy.state.grain_biomass_g_m2 * p.config.area_fraction
+            for p in standing
+        )
+        / total_area
+    )
+    s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=total_area)
+    s.season_settled = True
+    for p in standing:
+        # Capture harvested grain so the per-patch report survives the grain
+        # being zeroed (#341); keep crop_key so the next season's crop reset
+        # still has a preset to plant.
+        p.harvested_grain_g_m2 = p.orch.canopy.state.grain_biomass_g_m2
+        p.harvested_crop_key = p.config.crop_key
+        p.orch.canopy.state.grain_biomass_g_m2 = 0.0
 
 
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
@@ -1194,21 +1231,14 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     end_date = s.current_date
     start_date = end_date - timedelta(days=r.total_days)
 
-    # Settle season economics (idempotent — only once per season)
+    # Settle any still-standing grain (accrues onto the running season total),
+    # then read the balance. Patches already harvested per-patch were settled at
+    # harvest time and are skipped, and the grain is zeroed after settling so a
+    # repeated /report is idempotent (ADR-003 per-patch accrual).
     prices = PriceTable.load()
     first_field = next(iter(s.field_manager.fields.values()))
     balance_before = s.ledger.balance_credits
-    if not s.season_settled:
-        # Pre-harvest path only: this branch runs while the crop is still
-        # standing (season not yet settled), so live canopy grain is the real
-        # grain. Do NOT switch this to the captured harvested_grain_g_m2 — that
-        # is for the post-harvest per-patch report below, where the crop has
-        # been cleared.
-        total_grain = sum(
-            p.orch.canopy.state.grain_biomass_g_m2 for p in first_field.patches
-        ) / len(first_field.patches)
-        s.ledger.settle_season(total_grain, r.crop_key, prices)
-        s.season_settled = True
+    _settle_standing_grain(s, first_field, prices, r.crop_key)
     balance_after = s.ledger.balance_credits
 
     # Build per-patch yield reports

@@ -52,6 +52,17 @@ Economy settles at the end of each season (not daily). When a field is harvested
 
 This aligns with ADR-004 (season-turn settlement) and keeps the economic loop simple: plant, manage, harvest, settle, repeat.
 
+#### Per-patch revenue accrual (staggered harvests) — #371
+
+The V1 ledger settled **once per season**: `EconomicLedger.settle_season()` overwrote `season_revenue`/`season_profit`, and a single `season_settled` boolean in the API layer gated the settlement. That was adequate while a field was harvested atomically, but patch-targeted harvest (#359) lets a player harvest patch 0 on one day and patches 1-2 later. Under single-shot settlement the first harvest settled and flipped the boolean, so every later patch settled 0 — harvested grain that was silently unpaid.
+
+**Decision: settlement accrues per harvest event.** `settle_season()` is now **additive** — each call adds that harvest's revenue to the running `season_revenue` and recomputes `season_profit = season_revenue - season_costs`. Staggered per-patch harvests therefore accumulate to the same total as a single full-field harvest of the same grain.
+
+- **"Settle exactly once per patch" is enforced by state, not a flag.** After a patch is harvested its `crop_key` is cleared to `""`, and `_field_has_standing_crop` rejects re-harvesting a bare patch (#341/#359). The `season_settled` boolean no longer gates settlement; it is retained only as an informational/persisted marker.
+- **End-of-season settlement covers only standing grain.** The `GET /report` path settles the patches that still carry a crop (area-weighted), then zeroes their grain so a repeated report is idempotent. Patches already settled by a per-patch harvest are skipped — no double counting.
+- **Full-field settlement is area-weighted.** A harvest settles the area-weighted mean grain, `grain = Σ(grainᵢ · area_fractionᵢ) / Σ area_fractionᵢ`, scaled by the harvested area `Σ area_fractionᵢ`. Consequently a full-field harvest (`patch_idx = -1`) credits **exactly** the sum of the per-patch harvests for **any** area distribution, not only equal-area patches (the earlier simple-mean full-field settlement matched sum-of-patches only when all patches shared an equal area). Equality holds to within integer-credit rounding across the separate per-patch settlements.
+- **Save/load + reset.** Accrued `season_revenue`/`season_profit`/`season_costs` round-trip through `EconomicLedger.to_dict`/`from_dict`, so a mid-stagger save preserves the running total and harvesting the remaining patches after reload continues to accrue. A harvested patch (`crop_key = ""`) is now reconstructed crop-free (`crop=None`) on load rather than raising a missing-preset lookup. `reset_season()` clears the accrual at the season boundary.
+
 ### Currency
 
 Generic "credits" with no real-world currency mapping. Avoids localization issues, exchange rate complexity, and the implication that the game models real commodity markets. Credits are integers (no fractional credits) to avoid floating-point display issues.
