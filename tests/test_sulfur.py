@@ -94,24 +94,65 @@ def test_pools_initialized_by_layer() -> None:
 
 
 # --- Mineralization ---------------------------------------------------------
-def test_mineralization_rate_1_to_3_percent_per_month_at_25c() -> None:
-    """Validation plan: 1-3% of organic S mineralized per month at 25 °C."""
-    profile = make_profile()
+def test_organic_s_pool_mg_kg_at_3pct_om() -> None:
+    """Corrected organic-S pool for a 3% OM topsoil is ~200-260 mg S/kg.
+
+    pool(mg/kg) = organic_s_kg_ha / soil_mass_kg_ha * 1e6. With
+    ORGANIC_MATTER_S_FRACTION = 0.008 (C:S ~72.5:1, OM 58% C) the top 3% OM
+    layer lands ~240 mg/kg — inside the literature 200-400 mg total-S/kg
+    band (Eriksen 2009; Scherer 2001). The previous 0.0003 gave ~9 mg/kg.
+    """
+    profile = make_profile(organic_matter_pct=3.0)
+    state = SoilSulfurState(profile)
+    top = profile.layers[0]
+    soil_mass_kg_ha = (
+        (top.bulk_density_g_cm3 * 1000.0) * (top.depth_cm / 100.0) * 10000.0
+    )
+    top_mg_kg = state.organic_s[0] / soil_mass_kg_ha * 1e6
+    assert 200.0 <= top_mg_kg <= 260.0, f"3% OM organic-S = {top_mg_kg:.0f} mg/kg"
+
+
+def test_organic_s_pool_scales_to_upper_band_at_5pct_om() -> None:
+    """A ~5% OM topsoil reaches the upper literature band (~330-400 mg/kg).
+
+    Confirms the fraction scales with OM: pool(mg/kg) = 1e4 * OM% * fraction.
+    """
+    profile = make_profile(organic_matter_pct=5.0)
+    state = SoilSulfurState(profile)
+    top = profile.layers[0]
+    soil_mass_kg_ha = (
+        (top.bulk_density_g_cm3 * 1000.0) * (top.depth_cm / 100.0) * 10000.0
+    )
+    top_mg_kg = state.organic_s[0] / soil_mass_kg_ha * 1e6
+    assert 330.0 <= top_mg_kg <= 400.0, f"5% OM organic-S = {top_mg_kg:.0f} mg/kg"
+
+
+def test_mineralization_net_annual_flux_5_to_20_kg_ha() -> None:
+    """Net organic-S mineralization is 5-20 kg S/ha/yr in a temperate season.
+
+    This replaces the old ``1-3%/month at 25 °C`` assertion, which hard-coded
+    a lab-incubation rate that compensated for the (then 25x too-small) pool
+    (#386). The literature *field* net flux is 5-20 kg S/ha/yr (Eriksen 2009;
+    Scherer 2001). Drive a full year of realistic seasonal soil temperatures
+    (mean 12 °C, amplitude 10 °C) and sum the emergent flux on the corrected
+    pool; moisture/microbe factors held at 1.0 to isolate the rate law.
+    """
+    import math
+
+    profile = make_profile(organic_matter_pct=3.0)
     bus = EventBus()
-    # No water_state/profile -> moisture factor 1.0, isolating the rate law.
-    cycle, state = _cycle(profile, bus, with_water=False)
-    organic0 = sum(state.organic_s)
+    cycle, _ = _cycle(profile, bus, with_water=False)
 
     events: list[SulfurMineralized] = []
     bus.subscribe(SulfurMineralized, events.append)
 
-    mineralized = 0.0
-    for _ in range(30):
-        flux = cycle.daily_step(temperature_c=25.0, ph_by_layer=[7.0, 7.0, 7.0])
-        mineralized += flux.mineralized_kg_ha
+    annual = 0.0
+    for day in range(365):
+        temp_c = 12.0 + 10.0 * math.sin(2.0 * math.pi * (day - 100) / 365.0)
+        flux = cycle.daily_step(temperature_c=temp_c, ph_by_layer=[7.0, 7.0, 7.0])
+        annual += flux.mineralized_kg_ha
 
-    frac = mineralized / organic0
-    assert 0.01 <= frac <= 0.03
+    assert 5.0 <= annual <= 20.0, f"annual net S mineralization = {annual:.1f} kg/ha/yr"
     assert events  # SulfurMineralized emitted
 
 

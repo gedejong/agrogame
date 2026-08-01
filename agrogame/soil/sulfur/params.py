@@ -15,10 +15,20 @@ from dataclasses import dataclass
 class SulfurRateParams:
     """Base rate constants for sulfur transformations.
 
-    Mineralization is anchored to the issue validation target (1-3% of
-    organic S per month at the 25 °C reference), consistent with the coupling
-    of S mineralization to C/N turnover (Eriksen 2009, Adv. Agron. 102;
-    Tabatabai & Bremner 1972, SSSAJ).
+    Mineralization is anchored to the emergent *field* net flux: with the
+    corrected organic-S pool (~2,000-2,400 kg S/ha for a 3% OM profile;
+    ORGANIC_MATTER_S_FRACTION = 0.008), net organic-S mineralization must
+    stay in the literature ~5-20 kg S/ha/yr band, i.e. ~0.2-0.9 %/yr net
+    turnover under realistic seasonal soil temperatures. The monthly base
+    bounds below (0.0006-0.0012 /month at the 25 °C reference, temperature-
+    and moisture-scaled) integrate to ~12 kg S/ha/yr over a temperate season
+    — the centre of that band. These are *not* a lab-incubation %/month rate;
+    the previous 0.01-0.03 /month values were a ~25x too-fast lab anchor that
+    compensated for a ~25x too-small pool (#386), yielding a plausible flux
+    for the wrong reasons.
+    Ref: Eriksen (2009) Adv. Agron. 102 (net field S mineralization
+    5-20 kg/ha/yr; C/N/S turnover coupling); Scherer (2001) Eur. J. Agron.
+    14:81-111 (soil-S mineralization and crop response).
 
     SO4 adsorption is reversible and rises with acidity and Fe/Al-oxide
     (clay) surface area, but is markedly weaker and more labile than phosphate
@@ -28,11 +38,13 @@ class SulfurRateParams:
 
     Attributes:
         mineralization_monthly_min: Lower bound of organic-S -> SO4
-            mineralization fraction per month at the reference temperature
-            (1%/month). The realized daily base rate is the mid-point of the
-            two bounds divided by 30.
+            mineralization fraction per month at the 25 °C reference
+            (0.06 %/month). The realized daily base rate is the mid-point of
+            the two bounds divided by 30, then temperature/moisture/microbe
+            scaled. Calibrated so the season-summed net flux lands in the
+            5-20 kg S/ha/yr field band on the corrected organic-S pool.
         mineralization_monthly_max: Upper bound of the monthly mineralization
-            fraction (3%/month).
+            fraction (0.12 %/month at the 25 °C reference).
         adsorption_weekly_min: Weekly SO4-adsorption fraction of the available
             pool at/above neutral pH (equilibrium regime).
         adsorption_weekly_max: Weekly SO4-adsorption fraction under strongly
@@ -47,8 +59,8 @@ class SulfurRateParams:
         adsorption_clay_max_mult: Upper clamp on the clay multiplier.
     """
 
-    mineralization_monthly_min: float = 0.01
-    mineralization_monthly_max: float = 0.03
+    mineralization_monthly_min: float = 0.0006
+    mineralization_monthly_max: float = 0.0012
 
     # SO4 adsorption / desorption (weaker + reversible vs. P fixation)
     adsorption_weekly_min: float = 0.003
