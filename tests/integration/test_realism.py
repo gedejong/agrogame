@@ -90,10 +90,20 @@ def test_winter_wheat_netherlands_autumn_start() -> None:
         "winter_wheat", "netherlands_temperate", date(2023, 10, 15), days=280
     )
     assert stage == "MATURITY"
-    # Autumn-sown winter wheat total AGB: ~12-22 t/ha (1200-2200 g/m²),
-    # AHDB Wheat Growth Guide 2015; WOFOST NL calibration. Model ~1165 g/m².
-    # Lower bound set to bracket the current output and bite on a ~30% drop.
-    assert 800 < biomass < 2200
+    # Autumn-sown winter wheat total AGB: ~12-22 t/ha (1200-2200 g/m²) when S
+    # is non-limiting (AHDB Wheat Growth Guide 2015; WOFOST NL calibration).
+    # Since #385 wired sulfur into the growth-limiting Liebig minimum, this
+    # unfertilized 280-day autumn scenario is now S-limited: mobile sulfate
+    # from the topsoil leaches over the wet NW-European winter, and the slow
+    # (correctly recalibrated, #386) organic-S mineralization (~12 kg S/ha/yr)
+    # cannot meet peak spring demand — the well-documented cause of spring S
+    # deficiency in NW Europe and the reason S fertilization became standard
+    # after atmospheric S deposition declined (Scherer 2001, Eur. J. Agron.
+    # 14:81-111; Eriksen 2009, Adv. Agron. 102). Emergent output ~760 g/m²
+    # (~7.6 t/ha) is a realistic S-deficient, unfertilized wheat yield. The
+    # lower bound brackets this S-limited output and still bites on a further
+    # ~20% regression; the maturity assertion and upper bound are unchanged.
+    assert 600 < biomass < 2200
 
 
 def test_winter_wheat_sahel_fails() -> None:
@@ -1221,6 +1231,94 @@ def test_p_availability_through_280d_winter_wheat() -> None:
     assert p_avail_total > 5.0, (
         f"Available P dropped to {p_avail_total:.1f} kg/ha — "
         f"below physiological minimum"
+    )
+
+
+# --- Organic sulfur pool + mineralization flux (#386) ---
+
+
+def test_organic_s_pool_and_annual_mineralization_flux() -> None:
+    """Organic-S pool magnitude and net annual mineralization sit in range.
+
+    Two literature checks on the recalibrated sulfur module (#386), mirroring
+    the Olsen-P realism test above:
+
+    1. Pool magnitude: a 3% OM topsoil holds ~200-260 mg S/kg
+       (ORGANIC_MATTER_S_FRACTION = 0.008, C:S ~72.5:1, OM 58% C). The prior
+       0.0003 fraction gave ~9 mg/kg — ~25x too small.
+    2. Net flux: season-summed organic-S mineralization is 5-20 kg S/ha/yr
+       under realistic seasonal soil temperatures (mean 12 °C, amplitude
+       10 °C). The old lab-incubation rate (1-3%/month) compensated for the
+       too-small pool to land a plausible flux for the wrong reasons; the
+       corrected pool + rate land 5-20 kg/ha/yr for the right reasons.
+
+    Refs: Eriksen 2009, Adv. Agron. 102; Scherer 2001, Eur. J. Agron.
+    14:81-111; Tabatabai & Bremner 1972, SSSAJ.
+    """
+    import math
+
+    from agrogame.events import EventBus
+    from agrogame.soil.models import SoilLayer, SoilProfile
+    from agrogame.soil.sulfur import SoilSulfurState, SulfurCycle
+
+    def _topsoil(om_pct: float) -> SoilLayer:
+        return SoilLayer(
+            depth_cm=40,
+            texture="loam",
+            field_capacity=0.30,
+            wilting_point=0.12,
+            saturation=0.45,
+            bulk_density_g_cm3=1.3,
+            ksat_mm_per_hour=20,
+            organic_matter_pct=om_pct,
+            initial_no3_kg_ha=0.0,
+            initial_nh4_kg_ha=0.0,
+            initial_p_kg_ha=0.0,
+            initial_s_kg_ha=0.0,
+        )
+
+    def _profile(om_pct: float) -> SoilProfile:
+        # SoilProfile requires >=3 layers; the pool/flux checks read layer 0
+        # (the 3% / 5% OM topsoil) — deeper layers carry the same OM here.
+        return SoilProfile(
+            name=f"om{om_pct}", layers=[_topsoil(om_pct) for _ in range(3)]
+        )
+
+    # 1. Pool magnitude for a 3% OM topsoil (mg S/kg).
+    profile3 = _profile(3.0)
+    state3 = SoilSulfurState(profile3)
+    top = profile3.layers[0]
+    soil_mass_kg_ha = (
+        (top.bulk_density_g_cm3 * 1000.0) * (top.depth_cm / 100.0) * 10000.0
+    )
+    pool_mg_kg = state3.organic_s[0] / soil_mass_kg_ha * 1e6
+    assert 200.0 <= pool_mg_kg <= 260.0, (
+        f"3% OM organic-S pool {pool_mg_kg:.0f} mg/kg outside literature "
+        f"200-260 mg/kg band (Eriksen 2009; Scherer 2001)"
+    )
+
+    # Edge case: a 5% OM topsoil climbs toward the upper literature band.
+    pool5_mg_kg = SoilSulfurState(_profile(5.0)).organic_s[0] / soil_mass_kg_ha * 1e6
+    assert (
+        330.0 <= pool5_mg_kg <= 400.0
+    ), f"5% OM organic-S pool {pool5_mg_kg:.0f} mg/kg not in upper band"
+
+    # 2. Season-summed net mineralization flux under seasonal temperatures.
+    # A realistic profile with OM decreasing by depth (3% / 1.8% / 1.2%);
+    # total organic-S pool ~2,400 kg/ha, so 5-20 kg/ha/yr = ~0.2-0.9 %/yr.
+    flux_layers = [_topsoil(3.0), _topsoil(1.8), _topsoil(1.2)]
+    flux_profile = SoilProfile(name="flux", layers=flux_layers)
+    bus = EventBus()
+    cycle = SulfurCycle(bus, SoilSulfurState(flux_profile))
+    annual_flux = 0.0
+    for day in range(365):
+        temp_c = 12.0 + 10.0 * math.sin(2.0 * math.pi * (day - 100) / 365.0)
+        annual_flux += cycle.daily_step(
+            temperature_c=temp_c, ph_by_layer=[7.0, 7.0, 7.0]
+        ).mineralized_kg_ha
+    assert 5.0 <= annual_flux <= 20.0, (
+        f"net organic-S mineralization {annual_flux:.1f} kg/ha/yr outside "
+        f"literature 5-20 kg S/ha/yr band (Eriksen 2009; Scherer 2001)"
     )
 
 

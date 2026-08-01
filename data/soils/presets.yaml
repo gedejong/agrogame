@@ -105,6 +105,7 @@ soils:
         initial_no3_kg_ha: 10.0
         initial_nh4_kg_ha: 4.0
         initial_p_kg_ha: 20.0
+        initial_s_kg_ha: 35.0
         initial_fe_ppm: 15.0
         initial_zn_ppm: 1.5
         initial_mn_ppm: 12.0
@@ -119,6 +120,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_s_kg_ha: 25.0
         initial_fe_ppm: 10.0
         initial_zn_ppm: 1.0
         initial_mn_ppm: 8.0
@@ -133,6 +135,7 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 10.0
+        initial_s_kg_ha: 15.0
         initial_fe_ppm: 7.0
         initial_zn_ppm: 0.8
         initial_mn_ppm: 5.0
