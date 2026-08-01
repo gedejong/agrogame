@@ -1139,6 +1139,188 @@ def test_report_balance_delta_full_season_equals_profit(client) -> None:
     )
 
 
+# ---------------------------------------------------------------------------
+# AC (#371): per-patch revenue accrual — staggered harvests settle once/season
+# ---------------------------------------------------------------------------
+def _create_uneven_patch_game(client) -> str:
+    """3-patch maize field with unequal area shares (0.5 / 0.3 / 0.2)."""
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [
+                {
+                    "field_id": "f1",
+                    "patches": [
+                        {
+                            "soil_profile_key": "loam_temperate",
+                            "crop_key": "maize",
+                            "climate_key": "netherlands_temperate",
+                            "area_fraction": area,
+                        }
+                        for area in (0.5, 0.3, 0.2)
+                    ],
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    return resp.json()["game_id"]
+
+
+def test_staggered_patch_harvests_accrue_cumulative_revenue(client) -> None:
+    """Harvesting patch 0, then 1, then 2 accrues the cumulative sum (#371).
+
+    Regression: settlement was single-shot per season, so only the first patch
+    credited revenue and patches 1/2 settled 0.
+    """
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=150&seed=42")
+
+    revenues = []
+    for patch_idx in (0, 1, 2):
+        r = client.post(
+            f"/api/v1/games/{game_id}/action",
+            json={
+                "field_id": "f1",
+                "action": "harvest",
+                "params": {"patch_idx": patch_idx},
+            },
+        ).json()
+        assert r["status"] == "executed"
+        assert r["revenue_credits"] > 0, f"Patch {patch_idx} must earn its share"
+        revenues.append(r["revenue_credits"])
+
+    # /report reflects the cumulative staggered total, not just patch 0's.
+    report = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert report["revenue_credits"] == sum(revenues)
+    assert report["revenue_credits"] > revenues[0], "Later patches added revenue"
+
+    # Re-harvesting a cleared patch settles nothing and does not change the total.
+    noop = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    ).json()
+    assert noop["status"] == "no-op"
+    assert noop["revenue_credits"] == 0
+    report_again = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert report_again["revenue_credits"] == sum(revenues), "No double counting"
+
+
+def test_full_field_equals_sum_of_patches_unequal_areas(client) -> None:
+    """Full-field revenue == Σ per-patch revenue even for unequal areas (#371).
+
+    Full-field settlement is area-weighted, so it matches the sum of the
+    per-patch harvests for any area distribution, not only equal-area patches.
+    """
+    # Full-field harvest of an uneven field.
+    full_game = _create_uneven_patch_game(client)
+    client.post(f"/api/v1/games/{full_game}/step?days=150&seed=42")
+    full = client.post(
+        f"/api/v1/games/{full_game}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {}},
+    ).json()
+    assert full["status"] == "executed"
+
+    # Identical game/seed, harvested patch-by-patch.
+    staggered_game = _create_uneven_patch_game(client)
+    client.post(f"/api/v1/games/{staggered_game}/step?days=150&seed=42")
+    per_patch_sum = 0
+    for patch_idx in (0, 1, 2):
+        r = client.post(
+            f"/api/v1/games/{staggered_game}/action",
+            json={
+                "field_id": "f1",
+                "action": "harvest",
+                "params": {"patch_idx": patch_idx},
+            },
+        ).json()
+        per_patch_sum += r["revenue_credits"]
+
+    # Equal within integer rounding across three independent settlements.
+    assert full["revenue_credits"] == pytest.approx(per_patch_sum, abs=3)
+
+
+def test_end_of_season_settles_only_standing_after_partial_harvest(client) -> None:
+    """End-of-season /report settles standing patches once; total == harvest-all (#371).
+
+    After a partial staggered harvest (patch 0 only), the end-of-season path
+    settles the still-standing patches 1/2 exactly once — patch 0 is not
+    re-settled — and the season total equals a full-field harvest of the same
+    grain state.
+    """
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=150&seed=42")
+
+    r0 = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    ).json()
+    assert r0["status"] == "executed"
+
+    # /report is the end-of-season trigger: it settles standing patches 1/2.
+    report = client.get(f"/api/v1/games/{game_id}/report").json()
+    season_total = report["revenue_credits"]
+    assert (
+        season_total > r0["revenue_credits"]
+    ), "Standing grain 1/2 settled at season end"
+
+    # Idempotent: a repeat /report does not re-settle the (now zeroed) grain.
+    report_again = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert report_again["revenue_credits"] == season_total
+
+    # The season total equals a full-field harvest on an identical game/seed.
+    full_game = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{full_game}/step?days=150&seed=42")
+    full = client.post(
+        f"/api/v1/games/{full_game}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {}},
+    ).json()
+    assert season_total == pytest.approx(full["revenue_credits"], abs=3)
+
+
+def test_staggered_harvest_survives_save_load(client, tmp_path, monkeypatch) -> None:
+    """Accrued revenue mid-stagger persists through save/load, keeps accruing (#371)."""
+    import agrogame.api.routes as _routes
+
+    monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)
+
+    game_id = _create_multi_patch_game(client)
+    client.post(f"/api/v1/games/{game_id}/step?days=150&seed=42")
+
+    # Harvest patch 0, then save mid-stagger.
+    r0 = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    ).json()
+    assert r0["revenue_credits"] > 0
+    balance_after_r0 = r0["balance_credits"]
+
+    assert client.post(f"/api/v1/games/{game_id}/save").status_code == 200
+    assert client.post(f"/api/v1/games/{game_id}/load").status_code == 200
+
+    # Accrued revenue + balance survived the round-trip.
+    reloaded = client.get(f"/api/v1/games/{game_id}").json()
+    assert reloaded["balance_credits"] == balance_after_r0
+
+    # Harvesting the remaining patches keeps accruing on top of the restored total.
+    for patch_idx in (1, 2):
+        r = client.post(
+            f"/api/v1/games/{game_id}/action",
+            json={
+                "field_id": "f1",
+                "action": "harvest",
+                "params": {"patch_idx": patch_idx},
+            },
+        ).json()
+        assert r["status"] == "executed"
+        assert r["revenue_credits"] > 0
+
+    report = client.get(f"/api/v1/games/{game_id}/report").json()
+    assert (
+        report["revenue_credits"] > r0["revenue_credits"]
+    ), "Patch 0's accrual survived"
+
+
 def test_step_response_includes_redox_state(client) -> None:
     """Step response should include redox_eh and dominant_acceptor (#235).
 

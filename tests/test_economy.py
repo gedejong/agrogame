@@ -195,3 +195,75 @@ def test_area_ha_scales_revenue(prices: PriceTable) -> None:
     assert ledger_5ha.season_revenue == pytest.approx(
         ledger_1ha.season_revenue * 5, abs=5
     )
+
+
+# ---------------------------------------------------------------------------
+# AC (#371): per-patch revenue accrual — staggered harvests accumulate
+# ---------------------------------------------------------------------------
+def test_settle_season_accrues_across_patches(prices: PriceTable) -> None:
+    """Staggered per-patch settlements add up rather than overwrite (#371).
+
+    Full-field revenue == the sum of area-scaled per-patch settlements because
+    ``settle_season`` is area-weighted: Σ(grain_i * area_i) == grain * 1.0 ha.
+    """
+    staggered = EconomicLedger(balance_credits=0)
+    staggered.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.333)
+    rev_after_first = staggered.season_revenue
+    assert rev_after_first > 0
+    staggered.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.334)
+    staggered.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.333)
+
+    # Cumulative, not overwritten: later patches added to the running total.
+    assert staggered.season_revenue > rev_after_first
+
+    full_field = EconomicLedger(balance_credits=0)
+    full_field.settle_season(300.0, "maize", prices, quarter=3, area_ha=1.0)
+
+    # Sum-of-patches == full-field within integer rounding across three patches.
+    assert staggered.season_revenue == pytest.approx(full_field.season_revenue, abs=3)
+    # Balance rose by exactly the accrued revenue (costs are 0 here).
+    assert staggered.balance_credits == staggered.season_revenue
+
+
+def test_settle_season_profit_tracks_cumulative_revenue(prices: PriceTable) -> None:
+    """season_profit stays consistent with cumulative revenue minus costs (#371)."""
+    ledger = EconomicLedger(balance_credits=10000)
+    ledger.record_cost(0, "seed", "maize", 200)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.5)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.5)
+    assert ledger.season_profit == ledger.season_revenue - ledger.season_costs
+    assert ledger.season_costs == 200
+
+
+def test_accrual_resets_between_seasons(prices: PriceTable) -> None:
+    """reset_season() clears accrued revenue so seasons stay independent (#371)."""
+    ledger = EconomicLedger(balance_credits=0)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.5)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.5)
+    season_1 = ledger.season_revenue
+    assert season_1 > 0
+
+    ledger.reset_season()
+    assert ledger.season_revenue == 0
+    assert ledger.season_profit == 0
+
+    # A fresh season accrues from zero, independent of season 1.
+    ledger.settle_season(200.0, "maize", prices, quarter=3, area_ha=1.0)
+    assert ledger.season_revenue > 0
+    assert ledger.season_revenue != season_1
+
+
+def test_accrual_survives_to_dict_from_dict(prices: PriceTable) -> None:
+    """Mid-stagger accrued revenue round-trips through save/load (#371)."""
+    ledger = EconomicLedger(balance_credits=0)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.333)
+    ledger.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.334)
+    mid_revenue = ledger.season_revenue
+
+    restored = EconomicLedger.from_dict(json.loads(json.dumps(ledger.to_dict())))
+    assert restored.season_revenue == mid_revenue
+    assert restored.balance_credits == ledger.balance_credits
+
+    # Harvesting the remaining patch after reload keeps accruing on top.
+    restored.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.333)
+    assert restored.season_revenue > mid_revenue

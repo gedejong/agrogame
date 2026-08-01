@@ -59,7 +59,15 @@ class Patch:
         soil_lib = load_soil_presets(Path("soils/presets.yaml"))
 
         profile = soil_lib.soils[config.soil_profile_key]
-        crop = crops.get_preset(config.crop_key, config.climate_key)
+        # A harvested (or never-planted) patch has an empty crop_key; it holds no
+        # standing crop, so the orchestrator is built crop-free (crop=None). This
+        # lets a mid-stagger save with some patches already harvested round-trip
+        # through load without a missing-preset lookup (#371).
+        crop = (
+            crops.get_preset(config.crop_key, config.climate_key)
+            if config.crop_key
+            else None
+        )
         climate = climates.climates[config.climate_key]
 
         self.orch = FullSimulationOrchestrator(
