@@ -309,6 +309,33 @@ def test_stage_depth_multiplier_mirrors_engine_defaults() -> None:
     assert stage_depth_multiplier(PhenologyStage.MATURITY) == 0.3
 
 
+def test_stage_depth_multiplier_honours_crop_overrides() -> None:
+    # A crop that customises RootParams.stage_multipliers must be mirrored by the
+    # forecast too, or the depth projection would silently diverge from the engine
+    # (no shipped preset sets one today, but the coupling is now closed). Pass the
+    # same override dict both to the engine and to the forecast helper.
+    overrides = {
+        PhenologyStage.VEGETATIVE: 0.4,  # differs from the 1.0 default
+        PhenologyStage.FLOWERING: 0.9,  # differs from the 0.6 default
+    }
+    engine = RootModule(RootParams(stage_multipliers=overrides))
+    for stage in PhenologyStage:
+        assert stage_depth_multiplier(stage, overrides) == pytest.approx(
+            engine._stage_multiplier(stage)
+        )
+    # Overridden stages take the crop value; unlisted stages keep the default.
+    assert stage_depth_multiplier(PhenologyStage.VEGETATIVE, overrides) == 0.4
+    assert stage_depth_multiplier(PhenologyStage.FLOWERING, overrides) == 0.9
+    assert stage_depth_multiplier(PhenologyStage.MATURITY, overrides) == 0.3
+    # Negative overrides are clamped at 0, matching the engine.
+    assert (
+        stage_depth_multiplier(
+            PhenologyStage.VEGETATIVE, {PhenologyStage.VEGETATIVE: -2.0}
+        )
+        == 0.0
+    )
+
+
 def test_advance_root_depth_mirrors_engine_and_caps() -> None:
     # depth += growth_rate * stage_mult, capped at max_depth (RootModule).
     assert _advance_root_depth(30.0, 2.0, 120.0) == pytest.approx(32.0)

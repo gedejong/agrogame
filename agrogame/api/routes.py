@@ -1082,7 +1082,9 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_depth_cm=root_depth,
         root_growth_rate_cm_per_day=root_params.growth_rate_cm_per_day,
         root_max_depth_cm=root_params.max_depth_cm,
-        root_stage_multiplier=stage_depth_multiplier(orch.phenology.state.stage),
+        root_stage_multiplier=stage_depth_multiplier(
+            orch.phenology.state.stage, root_params.stage_multipliers
+        ),
     )
 
 

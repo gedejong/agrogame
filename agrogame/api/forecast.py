@@ -73,8 +73,11 @@ _THETA_CM_TO_MM = 10.0
 # small documented constant rather than importing ``RootModule._stage_multiplier``
 # to keep the forecast heuristic decoupled from the engine's private method
 # (a stale table is a visible, testable diff; a private-method import is a
-# hidden coupling). Values mirror ``RootModule._stage_multiplier``'s defaults:
-# full elongation while vegetative, tapering through flowering and beyond.
+# hidden coupling). Values mirror the *default* branch of
+# ``RootModule._stage_multiplier``: full elongation while vegetative, tapering
+# through flowering and beyond. Crop-level overrides (``RootParams.stage_multipliers``,
+# wired via ``plant/roots/factory.py``) take precedence when supplied — see
+# ``stage_depth_multiplier``'s ``overrides`` argument.
 _STAGE_DEPTH_MULTIPLIERS: dict[PhenologyStage, float] = {
     PhenologyStage.EMERGED: 1.0,
     PhenologyStage.VEGETATIVE: 1.0,
@@ -249,13 +252,25 @@ def water_stress_coefficient(
     return max(0.0, min(1.0, ks))
 
 
-def stage_depth_multiplier(stage: PhenologyStage) -> float:
-    """Stage multiplier on daily root elongation (mirrors the engine defaults).
+def stage_depth_multiplier(
+    stage: PhenologyStage,
+    overrides: dict[PhenologyStage, float] | None = None,
+) -> float:
+    """Stage multiplier on daily root elongation (mirrors ``RootModule``).
 
-    See ``_STAGE_DEPTH_MULTIPLIERS``. Stages not in the table (sowing,
-    germination, maturity, senescence) fall back to the reduced default, matching
-    ``RootModule._stage_multiplier``.
+    Mirrors ``RootModule._stage_multiplier`` **including the crop-override
+    branch**: when ``overrides`` (the crop's ``RootParams.stage_multipliers``,
+    wired into the engine via ``plant/roots/factory.py``) contains ``stage``, its
+    value wins (clamped ≥ 0). Otherwise the default table
+    (``_STAGE_DEPTH_MULTIPLIERS``) applies, with stages not in it (sowing,
+    germination, maturity, senescence) falling back to the reduced default.
+
+    Threading ``overrides`` through keeps the forecast's depth projection in step
+    with any crop that customises its stage table; no shipped preset sets one
+    today, but a future preset would otherwise silently diverge from the engine.
     """
+    if overrides and stage in overrides:
+        return max(0.0, overrides[stage])
     return _STAGE_DEPTH_MULTIPLIERS.get(stage, _DEFAULT_STAGE_DEPTH_MULTIPLIER)
 
 
@@ -269,11 +284,20 @@ def _advance_root_depth(
     Mirrors ``RootModule._update_depth``'s core update
     ``depth = min(max_depth, prev + max(0, growth_rate × stage_mult × cf))`` but
     **omits the engine's constraint factor** ``cf`` (hardpan ×0.2, water-table
-    ×0.5, aggregate-penetration ×agg_pen). Over a ~5-day horizon these rarely
-    bind, and threading soil-mechanical state into a decision-support heuristic
-    is disproportionate; omitting ``cf`` makes the forecast a (mild) *upper*
-    bound on deepening, which is the conservative direction for an N-availability
-    cue. Documented omission per #366.
+    ×0.5, aggregate-penetration ×agg_pen). Over a ~5-day horizon the hardpan and
+    water-table factors rarely bind, and threading soil-mechanical state into a
+    decision-support heuristic is disproportionate.
+
+    Consequence — **not** a conservative bound. Omitting ``cf`` makes the
+    projected zone deepen *faster* than the engine (on the pinned scenario the
+    aggregate-penetration factor is ``cf ≈ 0.5``, so the forecast deepens ~10 cm
+    over 5 days vs the engine's ~5 cm), which **over-states** the mineral N pulled
+    into the root zone (≈2.1× the engine's rise on that scenario). Over-stating
+    soil N is not the "safe" direction: it can cue a player to under-fertilise.
+    The value of the deepening term is therefore *directional* — the forecast
+    N-trend now rises at roughly the engine's slope instead of reading flat — not
+    an absolute-magnitude match. Closing the residual ~2× gap by mirroring the
+    aggregate-penetration factor is tracked by #383. Documented omission per #366.
     """
     return min(max_depth_cm, root_depth_cm + max(0.0, daily_increment_cm))
 
@@ -343,12 +367,20 @@ def project_soil_forecast(
     projection is sink-only, preserving the pre-#353 behaviour for callers
     that do not supply an SOM pool.
 
-    Scope: this is a deliberately *conservative* net-mineralisation estimate.
-    It reproduces the labile-pool RothC kinetics plus root-zone deepening (#366),
-    but still omits source-boosting terms the engine applies: rhizosphere priming
-    (up to +50 % on ``k_labile`` in rooted layers — arguably the largest omitted
-    contributor) and aggregate protection. The forecast therefore targets *sign*
-    agreement with the engine and a bounded magnitude gap, not an exact match.
+    Scope and accuracy. The **net-mineralisation source alone** is a conservative
+    estimate: it reproduces the labile-pool RothC kinetics but omits source-boosting
+    terms the engine applies (rhizosphere priming, up to +50 % on ``k_labile`` in
+    rooted layers, arguably the largest omitted contributor; and aggregate
+    protection). The **deepening term (#366) pushes the other way**: it omits the
+    engine's aggregate-penetration constraint (``cf``; see ``_advance_root_depth``),
+    so the projected zone deepens faster than the engine and *over-states* the
+    newly-rooted N. On the pinned early-season scenario the deepening term
+    dominates and the net mineral-N Δ **over-shoots the engine's rise by ~2×**
+    (it does *not* undershoot, and is farther from the engine in absolute terms
+    than the old constant-depth path — that path merely read flat). The forecast
+    therefore targets *sign* agreement and a *directional* trend that rises at
+    roughly the engine's slope, **not** an absolute-magnitude match; tightening
+    the residual ~2× gap via the aggregate-penetration factor is tracked by #383.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))

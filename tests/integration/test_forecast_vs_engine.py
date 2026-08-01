@@ -202,21 +202,31 @@ def _deepening_kwargs(orch: FullSimulationOrchestrator) -> dict[str, object]:
 
 
 def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
-    """Root-zone deepening (#366) lifts the forecast Δ to the engine's order.
+    """Root-zone deepening (#366) makes the forecast Δ *rise* with the engine.
+
+    This is a **directional** improvement, not an absolute-magnitude one — the
+    deepening Δ over-shoots the engine and is, in fact, farther from it in
+    absolute terms than the old constant-depth path (which merely read flat). See
+    the table and tolerance note below.
 
     Pinned scenario: established maize on ``loam_temperate`` (NL, seed 42),
     20-day establishment, 5-day no-action horizon — the exact anchor the #353
-    reference numbers were measured on (anchor ≈ 239.6, engine Δ ≈ +96 kg/ha).
+    reference numbers were measured on (anchor ≈ 239.6, engine Δ ≈ +98.5 kg/ha).
 
     Measured on this scenario:
 
-        =========================  ======  ======  ======
-        series                     anchor    +5 d       Δ
-        =========================  ======  ======  ======
-        engine                      239.6   338.1   +98.5
-        forecast, constant depth      "     242.1    +2.5
-        forecast, deepening (#366)    "     447.7  +208.1
-        =========================  ======  ======  ======
+        =========================  ======  ======  ======  ===========
+        series                     anchor    +5 d       Δ   |Δ−engine|
+        =========================  ======  ======  ======  ===========
+        engine                      239.6   338.1   +98.5          0.0
+        forecast, constant depth      "     242.1    +2.5         96.0
+        forecast, deepening (#366)    "     447.7  +208.1        109.6
+        =========================  ======  ======  ======  ===========
+
+    Note the L1 error to the engine **grew** 96.0 → 109.6: deepening trades a
+    ~40× undershoot for a ~2× overshoot. The win is qualitative — the forecast
+    N-trend now visibly rises at roughly the engine's slope instead of reading
+    flat, which is what a player needs to see — not a tighter absolute match.
 
     Tolerance (AC5) — **not** the provisional ±20%. Pre-measurement showed the
     omit-constraint design (recommended in refinement) overshoots the engine Δ
@@ -227,10 +237,10 @@ def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
     (cf ≈ 0.5), deliberately omitted here (see ``_advance_root_depth``). Per the
     refinement's provisional clause we do not *force* ±20% by threading
     soil-mechanical state into the heuristic; instead we assert a documented,
-    defensible band: sign agreement, deepening strictly tighter than the
-    constant-depth undershoot, and Δ within one order of magnitude (1.0×–3.0×)
-    of the engine's. A follow-up may mirror the aggregate-penetration factor to
-    reach ±20%.
+    defensible band: sign agreement, the deepening Δ clearing the near-flat
+    constant-depth path, and Δ within one order of magnitude (1.0×–3.0×) of the
+    engine's (i.e. a bounded overshoot). Mirroring the aggregate-penetration
+    factor to reach ±20% is tracked by #383.
     """
     orch, records = _build(_ESTABLISH_DAYS + _HORIZON_DAYS)
     for rec in records[:_ESTABLISH_DAYS]:
@@ -258,13 +268,16 @@ def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
     assert engine_delta > 0.0, f"engine did not rise: {engine_delta:.2f}"
     assert deep_delta > 0.0, f"deepening forecast did not rise: {deep_delta:.2f}"
 
-    # Deepening is load-bearing: it captures far more of the engine's rise than
-    # the constant-depth projection (which sees only mineralisation, +~2.5).
+    # Deepening is load-bearing: it lifts the projection from a near-flat +~2.5
+    # (constant depth, mineralisation only) to a clear rise. This is directional
+    # — the deepening Δ overshoots the engine, so it is farther from it in
+    # absolute terms than constant-depth; the point is that the trend now rises.
     assert deep_delta > const_delta
 
-    # Documented order-of-magnitude band (see docstring): the deepening Δ reaches
-    # the engine's rise (unlike constant-depth's ~2.5 % of it) without exceeding
-    # ~3× it. Measured ratio here ≈ 2.1.
+    # Documented order-of-magnitude band (see docstring): the deepening Δ
+    # *over-shoots* the engine's rise (ratio > 1) but stays within ~3× — a
+    # bounded overshoot, i.e. a directional match, not a magnitude match.
+    # Measured ratio here ≈ 2.1. Tightening to ±20% is tracked by #383.
     ratio = deep_delta / engine_delta
     assert 1.0 < ratio < 3.0, f"deepening Δ ratio {ratio:.2f} outside [1.0, 3.0]"
 
