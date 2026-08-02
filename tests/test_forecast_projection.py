@@ -457,3 +457,80 @@ def test_deepening_respects_depth_cap_no_overshoot() -> None:
     assert capped_5d[-1].mineral_n_kg_ha - anchor_58 == pytest.approx(
         (6.0 + 3.0) * 2.0 / 60.0 * 10.0
     )
+
+
+def test_deepening_increment_scales_with_penetration_factor() -> None:
+    # The aggregate-penetration factor (#383) folds into the daily depth
+    # increment: cf=1.0 (default) reproduces the pre-#383 deepening, cf=0.5
+    # halves the per-day deepening. Isolate the deepening source — lai=0 (no
+    # uptake), som=0 (no mineralisation), a single uniform layer (no leaching) —
+    # so the only mineral-N flux is the newly-rooted N, which on a uniform layer
+    # is linear in the depth increment and therefore halves with cf.
+    common = {
+        "available_water_mm": 100.0,
+        "total_available_water_mm": 120.0,
+        "lai": 0.0,
+        "som_labile_n_kg_ha": 0.0,
+        "n_no3_by_layer": [10.0],
+        "n_nh4_by_layer": [0.0],
+        "layer_depths_cm": [100.0],
+        "root_depth_cm": 20.0,
+        "root_growth_rate_cm_per_day": 4.0,
+        "root_max_depth_cm": 120.0,
+        "root_stage_multiplier": 1.0,
+    }
+    anchor = root_zone_mineral_n_kg_ha([10.0], [0.0], [100.0], 20.0)
+    weather = [(18.0, 12.0, 0.0)] * 3  # 3 days, exercise the loop > once
+
+    default = project_soil_forecast(weather=weather, mineral_n_kg_ha=anchor, **common)
+    full = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor, root_penetration_factor=1.0, **common
+    )
+    half = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor, root_penetration_factor=0.5, **common
+    )
+
+    # cf defaults to 1.0 -> byte-identical to the explicit cf=1.0 path.
+    assert [p.mineral_n_kg_ha for p in default] == [p.mineral_n_kg_ha for p in full]
+
+    d_full = full[-1].mineral_n_kg_ha - anchor
+    d_half = half[-1].mineral_n_kg_ha - anchor
+    # cf=1.0: 4 cm/day x 3 d = 12 cm into a 100 cm, 10 g/m² layer -> +12 kg/ha.
+    assert d_full == pytest.approx(12.0)
+    # cf=0.5 halves the daily increment (2 cm/day x 3 d = 6 cm) -> +6 kg/ha.
+    assert d_half == pytest.approx(6.0)
+    assert d_half == pytest.approx(d_full * 0.5)
+
+
+def test_deepening_penetration_factor_clamped() -> None:
+    # cf is clamped to [0, 1]: cf<=0 freezes the depth (no deepening), cf>1 caps
+    # at 1.0 (same as the default). Same uniform-layer isolation as above.
+    common = {
+        "available_water_mm": 100.0,
+        "total_available_water_mm": 120.0,
+        "lai": 0.0,
+        "som_labile_n_kg_ha": 0.0,
+        "n_no3_by_layer": [10.0],
+        "n_nh4_by_layer": [0.0],
+        "layer_depths_cm": [100.0],
+        "root_depth_cm": 20.0,
+        "root_growth_rate_cm_per_day": 4.0,
+        "root_max_depth_cm": 120.0,
+        "root_stage_multiplier": 1.0,
+    }
+    anchor = root_zone_mineral_n_kg_ha([10.0], [0.0], [100.0], 20.0)
+    weather = [(18.0, 12.0, 0.0)] * 3
+
+    frozen = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor, root_penetration_factor=0.0, **common
+    )
+    over = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor, root_penetration_factor=5.0, **common
+    )
+    unit = project_soil_forecast(
+        weather=weather, mineral_n_kg_ha=anchor, root_penetration_factor=1.0, **common
+    )
+    # cf<=0 -> no deepening at all.
+    assert frozen[-1].mineral_n_kg_ha == pytest.approx(anchor)
+    # cf>1 clamps to 1.0 -> identical to the default deepening.
+    assert [p.mineral_n_kg_ha for p in over] == [p.mineral_n_kg_ha for p in unit]

@@ -33,6 +33,7 @@ from agrogame.api.forecast import (
 )
 from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
+from agrogame.soil.aggregation.dynamic_state import root_penetration_factor
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.generator import SyntheticWeatherGenerator
@@ -198,16 +199,19 @@ def _deepening_kwargs(orch: FullSimulationOrchestrator) -> dict[str, object]:
         "root_growth_rate_cm_per_day": orch.roots.params.growth_rate_cm_per_day,
         "root_max_depth_cm": orch.roots.params.max_depth_cm,
         "root_stage_multiplier": stage_depth_multiplier(orch.phenology.state.stage),
+        "root_penetration_factor": root_penetration_factor(orch.agg_state.mwd(0)),
     }
 
 
 def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
-    """Root-zone deepening (#366) makes the forecast Δ *rise* with the engine.
+    """Root-zone deepening (#366) + aggregate-penetration (#383) match engine Δ.
 
-    This is a **directional** improvement, not an absolute-magnitude one — the
-    deepening Δ over-shoots the engine and is, in fact, farther from it in
-    absolute terms than the old constant-depth path (which merely read flat). See
-    the table and tolerance note below.
+    #366 made the forecast N-trend *rise* with the engine but, by omitting the
+    engine's constraint factor, the projected zone deepened ~2× too fast and the
+    Δ over-shot the engine by ~2.1×. #383 threads the **aggregate-penetration**
+    channel of that constraint (``root_penetration_factor(agg_state.mwd(0))``,
+    cf ≈ 0.50 here) into the daily depth increment, throttling the deepening to
+    the engine's constrained rate and bringing the Δ *inside ±20%* of the engine.
 
     Pinned scenario: established maize on ``loam_temperate`` (NL, seed 42),
     20-day establishment, 5-day no-action horizon — the exact anchor the #353
@@ -215,32 +219,22 @@ def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
 
     Measured on this scenario:
 
-        =========================  ======  ======  ======  ===========
-        series                     anchor    +5 d       Δ   |Δ−engine|
-        =========================  ======  ======  ======  ===========
-        engine                      239.6   338.1   +98.5          0.0
-        forecast, constant depth      "     242.1    +2.5         96.0
-        forecast, deepening (#366)    "     447.7  +208.1        109.6
-        =========================  ======  ======  ======  ===========
+        ===============================  ======  ======  ======  =====
+        series                           anchor    +5 d       Δ  ratio
+        ===============================  ======  ======  ======  =====
+        engine                            239.6   338.1   +98.5   1.00
+        forecast, constant depth            "     242.1    +2.5   0.03
+        forecast, deepening cf-omitted      "     447.7  +208.1   2.11
+        forecast, deepening + cf (#383)     "     345.0  +105.4   1.07
+        ===============================  ======  ======  ======  =====
 
-    Note the L1 error to the engine **grew** 96.0 → 109.6: deepening trades a
-    ~40× undershoot for a ~2× overshoot. The win is qualitative — the forecast
-    N-trend now visibly rises at roughly the engine's slope instead of reading
-    flat, which is what a player needs to see — not a tighter absolute match.
-
-    Tolerance (AC5) — **not** the provisional ±20%. Pre-measurement showed the
-    omit-constraint design (recommended in refinement) overshoots the engine Δ
-    by ~2.1×. The residual gap is understood and bounded: the newly-rooted-N
-    accounting is accurate (feeding the engine's *realized* +5.03 cm increment
-    yields forecast Δ ≈ +106, i.e. ratio ≈ 1.08, inside ±20%); the whole ~2×
-    overshoot is the engine's aggregate-penetration constraint factor
-    (cf ≈ 0.5), deliberately omitted here (see ``_advance_root_depth``). Per the
-    refinement's provisional clause we do not *force* ±20% by threading
-    soil-mechanical state into the heuristic; instead we assert a documented,
-    defensible band: sign agreement, the deepening Δ clearing the near-flat
-    constant-depth path, and Δ within one order of magnitude (1.0×–3.0×) of the
-    engine's (i.e. a bounded overshoot). Mirroring the aggregate-penetration
-    factor to reach ±20% is tracked by #383.
+    Threading cf collapses the ~2.1× overshoot to **ratio ≈ 1.07**, comfortably
+    inside the ±20% band [0.80, 1.20]. The residual +7% is source-side and out of
+    scope for #383 (rhizosphere priming, aggregate protection — see
+    ``project_soil_forecast``); no band escape hatch was needed. Only the
+    aggregate-penetration channel is threaded; the engine's depth-triggered
+    hardpan/water-table multipliers do not bind on this horizon and are
+    intentionally omitted (see ``_advance_root_depth``).
     """
     orch, records = _build(_ESTABLISH_DAYS + _HORIZON_DAYS)
     for rec in records[:_ESTABLISH_DAYS]:
@@ -269,17 +263,13 @@ def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
     assert deep_delta > 0.0, f"deepening forecast did not rise: {deep_delta:.2f}"
 
     # Deepening is load-bearing: it lifts the projection from a near-flat +~2.5
-    # (constant depth, mineralisation only) to a clear rise. This is directional
-    # — the deepening Δ overshoots the engine, so it is farther from it in
-    # absolute terms than constant-depth; the point is that the trend now rises.
+    # (constant depth, mineralisation only) to a clear rise tracking the engine.
     assert deep_delta > const_delta
 
-    # Documented order-of-magnitude band (see docstring): the deepening Δ
-    # *over-shoots* the engine's rise (ratio > 1) but stays within ~3× — a
-    # bounded overshoot, i.e. a directional match, not a magnitude match.
-    # Measured ratio here ≈ 2.1. Tightening to ±20% is tracked by #383.
+    # AC2 (#383): with the aggregate-penetration factor threaded, the deepening Δ
+    # lands within ±20% of the engine Δ. Measured ratio ≈ 1.07 here (cf ≈ 0.50).
     ratio = deep_delta / engine_delta
-    assert 1.0 < ratio < 3.0, f"deepening Δ ratio {ratio:.2f} outside [1.0, 3.0]"
+    assert 0.8 <= ratio <= 1.2, f"deepening Δ ratio {ratio:.2f} outside ±20% [0.8, 1.2]"
 
 
 def test_forecast_deepening_leaves_water_channel_unchanged() -> None:

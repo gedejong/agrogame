@@ -282,22 +282,21 @@ def _advance_root_depth(
     """Advance root depth one projected day, capped at ``max_depth_cm``.
 
     Mirrors ``RootModule._update_depth``'s core update
-    ``depth = min(max_depth, prev + max(0, growth_rate × stage_mult × cf))`` but
-    **omits the engine's constraint factor** ``cf`` (hardpan ×0.2, water-table
-    ×0.5, aggregate-penetration ×agg_pen). Over a ~5-day horizon the hardpan and
-    water-table factors rarely bind, and threading soil-mechanical state into a
-    decision-support heuristic is disproportionate.
+    ``depth = min(max_depth, prev + max(0, growth_rate × stage_mult × cf))``.
+    The caller folds the **aggregate-penetration** channel of the engine's
+    constraint factor ``cf`` into ``daily_increment_cm`` (#383; see
+    ``project_soil_forecast``), so the increment reaching this function already
+    carries agg-penetration. That channel is a single top-layer, depth-independent
+    scalar held constant over the horizon, which *mirrors* the engine exactly.
 
-    Consequence — **not** a conservative bound. Omitting ``cf`` makes the
-    projected zone deepen *faster* than the engine (on the pinned scenario the
-    aggregate-penetration factor is ``cf ≈ 0.5``, so the forecast deepens ~10 cm
-    over 5 days vs the engine's ~5 cm), which **over-states** the mineral N pulled
-    into the root zone (≈2.1× the engine's rise on that scenario). Over-stating
-    soil N is not the "safe" direction: it can cue a player to under-fertilise.
-    The value of the deepening term is therefore *directional* — the forecast
-    N-trend now rises at roughly the engine's slope instead of reading flat — not
-    an absolute-magnitude match. Closing the residual ~2× gap by mirroring the
-    aggregate-penetration factor is tracked by #383. Documented omission per #366.
+    Still intentionally omitted are the engine's two **depth-triggered**
+    constraint multipliers (hardpan ×0.2 once ``depth ≥ hardpan_cm``; water-table
+    ×0.5 once ``depth ≥ water_table_cm``). On the pinned no-action horizon neither
+    binds, so they contribute nothing to magnitude, and threading depth-triggered
+    soil-mechanical state into a decision-support heuristic is disproportionate
+    (#383). The residual — a projected zone that deepens past a hardpan/water-table
+    the engine would have hit — is a documented, rarely-binding divergence,
+    symmetric with how WFPS and per-layer MWD are already held constant.
     """
     return min(max_depth_cm, root_depth_cm + max(0.0, daily_increment_cm))
 
@@ -337,6 +336,7 @@ def project_soil_forecast(
     root_growth_rate_cm_per_day: float = 0.0,
     root_max_depth_cm: float = float("inf"),
     root_stage_multiplier: float = 1.0,
+    root_penetration_factor: float = 1.0,
 ) -> list[SoilForecastPoint]:
     """Project water-stress and mineral-N ``len(weather)`` days ahead.
 
@@ -348,15 +348,24 @@ def project_soil_forecast(
     (``n_no3_by_layer`` / ``n_nh4_by_layer``), ``layer_depths_cm``,
     ``root_depth_cm`` and a positive ``root_growth_rate_cm_per_day`` are all
     supplied, the root depth is grown each projected day by
-    ``root_growth_rate_cm_per_day × root_stage_multiplier`` (capped at
-    ``root_max_depth_cm``), mirroring ``RootModule._update_depth`` sans the
-    engine's constraint factor (see ``_advance_root_depth``). Each day the newly
-    rooted soil contributes its (anchor-day) mineral N to the pool, capturing the
-    early-season rise the engine gets from the zone deepening into deeper,
-    mineral-N-bearing layers. Omit these params (the default) to keep the prior
-    **constant-depth** behaviour, mirroring #363's zero-default source term.
-    The water channel does not read any of the deepening inputs and is
+    ``root_growth_rate_cm_per_day × root_stage_multiplier × root_penetration_factor``
+    (capped at ``root_max_depth_cm``), mirroring ``RootModule._update_depth``.
+    Each day the newly rooted soil contributes its (anchor-day) mineral N to the
+    pool, capturing the early-season rise the engine gets from the zone deepening
+    into deeper, mineral-N-bearing layers. Omit these params (the default) to keep
+    the prior **constant-depth** behaviour, mirroring #363's zero-default source
+    term. The water channel does not read any of the deepening inputs and is
     unaffected.
+
+    ``root_penetration_factor`` (#383) is the engine's **aggregate-penetration**
+    constraint — ``root_penetration_factor(agg_state.mwd(0))`` — a single
+    top-layer, depth-independent scalar in ``[0, 1]``. It evolves only via slow
+    aggregation dynamics, so held constant over the horizon it *mirrors* the
+    engine's agg-penetration channel exactly (it is folded once into the daily
+    increment before the loop, like ``root_zone_wfps_frac``). The default ``1.0``
+    reproduces the pre-#383 cf-omitted deepening path. The engine's two
+    depth-triggered constraint multipliers (hardpan, water-table) are
+    deliberately **not** threaded — see ``_advance_root_depth``.
 
     Mineral N gains a **net-mineralisation source** from the labile SOM pool
     (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
@@ -367,20 +376,16 @@ def project_soil_forecast(
     projection is sink-only, preserving the pre-#353 behaviour for callers
     that do not supply an SOM pool.
 
-    Scope and accuracy. The **net-mineralisation source alone** is a conservative
-    estimate: it reproduces the labile-pool RothC kinetics but omits source-boosting
-    terms the engine applies (rhizosphere priming, up to +50 % on ``k_labile`` in
-    rooted layers, arguably the largest omitted contributor; and aggregate
-    protection). The **deepening term (#366) pushes the other way**: it omits the
-    engine's aggregate-penetration constraint (``cf``; see ``_advance_root_depth``),
-    so the projected zone deepens faster than the engine and *over-states* the
-    newly-rooted N. On the pinned early-season scenario the deepening term
-    dominates and the net mineral-N Δ **over-shoots the engine's rise by ~2×**
-    (it does *not* undershoot, and is farther from the engine in absolute terms
-    than the old constant-depth path — that path merely read flat). The forecast
-    therefore targets *sign* agreement and a *directional* trend that rises at
-    roughly the engine's slope, **not** an absolute-magnitude match; tightening
-    the residual ~2× gap via the aggregate-penetration factor is tracked by #383.
+    Scope and accuracy. With the aggregate-penetration factor now threaded (#383),
+    the deepening term deepens the projected zone at the engine's constrained rate
+    rather than the old cf-omitted overshoot (~2.1× the engine Δ). The net
+    mineral-N Δ therefore tracks the engine's rise closely on the pinned
+    early-season scenario. The remaining residual is **source-side** and out of
+    scope here: the net-mineralisation source reproduces only the labile-pool
+    RothC kinetics, omitting rhizosphere priming (up to +50 % on ``k_labile`` in
+    rooted layers, arguably the largest omitted contributor) and aggregate
+    protection. The forecast thus targets *sign* agreement plus a magnitude that
+    now sits close to the engine's, not an exact match.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
@@ -403,7 +408,14 @@ def project_soil_forecast(
     ):
         deepen_layers = (n_no3_by_layer, n_nh4_by_layer, layer_depths_cm)
     root_depth = root_depth_cm if root_depth_cm is not None else 0.0
-    daily_depth_inc = root_growth_rate_cm_per_day * max(0.0, root_stage_multiplier)
+    # Fold the aggregate-penetration constraint (#383) into the daily increment
+    # once, before the loop. It is a single top-layer, depth-independent scalar
+    # (``root_penetration_factor(agg_state.mwd(0))``) that evolves only via slow
+    # aggregation dynamics, so holding it constant over the ~5-day horizon
+    # *mirrors* the engine's agg-penetration channel exactly (like WFPS above).
+    # Clamped to [0, 1]; the 1.0 default reproduces the pre-#383 cf-omitted path.
+    cf = max(0.0, min(1.0, root_penetration_factor))
+    daily_depth_inc = root_growth_rate_cm_per_day * max(0.0, root_stage_multiplier) * cf
 
     points: list[SoilForecastPoint] = []
     for temp_mean_c, shortwave_mj_m2, rain_mm in weather:
