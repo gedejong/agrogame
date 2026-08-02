@@ -44,26 +44,35 @@ def effective_porosity(
 
     **Detailed (preferred, when ``pore_state`` and ``layer`` are given).**
     Delegates to the pore-network module's retention-curve partition and
-    returns the *drainable* porosity — total porosity minus the cryptopore
-    (<0.2 um) fraction, which holds water so tightly it is never drained
-    nor plant-available. This equals macro + meso + micro, i.e.
-    ``total_porosity(layer) - crypto[layer]``.
+    returns the *effective* porosity excluding residual water — total
+    porosity minus the cryptopore (<0.2 um) fraction, which holds water so
+    tightly it is never drained nor plant-available. This equals macro +
+    meso + micro, i.e. ``total_porosity(layer) - crypto[layer]``, or
+    equivalently φ − θ_r. (Note this is the air-capacity/effective
+    porosity, not the *strict* drainable porosity / specific yield
+    θ_sat − θ_fc, which would exclude retained plant-available water too.)
 
     Ref: Luxmoore 1981, SSSAJ — pore-size classes (cryptopores <0.2 um are
          residual/bound water); Rawls et al. 1982, Trans. ASAE — theta_r.
 
     Note: the detailed value is **invariant to aggregation state**.
-    Because cryptoporosity is texture-only (residual water) and total
-    porosity is pinned to saturation, ``total - crypto`` reduces to
-    ``saturation - residual_water`` — the mean-weight-diameter shift only
-    reshuffles macro vs coarse-meso *within* the drainable pool. Delegating
-    therefore drops the aggregation->porosity feedback that the scalar
-    fallback below applies to the water balance. This is intentional:
-    aggregation already drives the water balance through ``ksat`` (see
-    ``effective_ksat_factor``) and the macro/connectivity split feeds gas
-    diffusion, so folding it into total porosity as well double-counts
-    structure. The detailed breakdown is the more physically grounded
-    estimate; see the #289 PR for the measured magnitude of the shift.
+    This is a direct consequence of how the model is structured, not a
+    deliberate cancellation: ``total_porosity`` is pinned to the *static*
+    ``layer.saturation`` and cryptoporosity is texture-only, so
+    ``total - crypto`` reduces to ``saturation - residual(clay)`` and
+    carries no structural term at all. The mean-weight-diameter shift only
+    reshuffles macro vs coarse-meso *within* this pool. Delegating
+    therefore drops the aggregation->porosity feedback that the ad-hoc
+    scalar fallback below applied to the water balance. That is a net
+    improvement, not a double-counting fix: aggregation and porosity are
+    *distinct* real effects, but total porosity being static here means the
+    pore breakdown genuinely carries no aggregation signal — and the
+    structural signal still reaches the water balance the physically
+    grounded way, through ``ksat`` (see ``effective_ksat_factor``), with
+    the macro/connectivity split additionally feeding gas diffusion. The
+    old scalar shift was a crude heuristic with ~zero dynamical effect, so
+    removing it loses no load-bearing physics; see the #289 PR for the
+    measured magnitude of the shift.
 
     **Scalar fallback (backward-compatible, when no ``pore_state``).**
     Approximates porosity by shifting static saturation with the
