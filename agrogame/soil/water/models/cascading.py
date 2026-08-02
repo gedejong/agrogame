@@ -7,6 +7,7 @@ layer, and gravitational drainage cascading through layers.
 
 from __future__ import annotations
 
+import warnings
 
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.constants import TEXTURE_TO_CN
@@ -26,7 +27,7 @@ from agrogame.soil.water.types import DailyDrivers, WaterFluxes
 class SoilWaterModel:
     """Interface for soil water models."""
 
-    def update_daily(
+    def daily_step(
         self, profile: SoilProfileView, state: SoilWaterState, drivers: DailyDrivers
     ) -> WaterFluxes:  # pragma: no cover - interface
         """Advance the water model by one day.
@@ -251,7 +252,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
             )
         return deep_drainage
 
-    def update_daily(
+    def daily_step(
         self,
         profile: SoilProfileView,
         state: SoilWaterState,
@@ -290,6 +291,28 @@ class CascadingBucketWaterModel(SoilWaterModel):
             deep_drainage_mm=deep_drainage,
             evap_mm=evap_taken,
             storage_change_mm=storage_change,
+        )
+
+    def update_daily(
+        self,
+        profile: SoilProfileView,
+        state: SoilWaterState,
+        drivers: DailyDrivers,
+        ksat_factors: list[float] | None = None,
+        porosity_overrides: list[float] | None = None,
+    ) -> WaterFluxes:
+        """Deprecated alias for :meth:`daily_step`.
+
+        Retained as a compatibility shim; delegates to ``daily_step`` and
+        emits a ``DeprecationWarning`` pointing at the caller.
+        """
+        warnings.warn(
+            "update_daily is deprecated; use daily_step instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.daily_step(
+            profile, state, drivers, ksat_factors, porosity_overrides
         )
 
     # --- Plant transpiration extraction ---------------------------------

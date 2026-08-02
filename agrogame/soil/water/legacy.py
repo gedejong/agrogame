@@ -70,7 +70,7 @@ class SoilWaterBalance:
                 self._bus.emit(CanopyEvaporated(amount_mm=canopy_evap))
             pot_evap = max(0.0, pot_evap - canopy_evap)
 
-        flux = self._model.update_daily(
+        flux = self._model.daily_step(
             self.profile,
             self._state,
             DailyDrivers(

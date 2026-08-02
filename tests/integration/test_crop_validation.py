@@ -124,7 +124,7 @@ def _run_one(name: str, weather_file: Path) -> dict[str, float | int | None]:
     biomass_series: dict[int, float] = {}
 
     for i, rec in enumerate(weather.records):
-        st = phen.update_daily(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
+        st = phen.daily_step(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
         if flowering_gdd is None and st.stage.name.lower() == "flowering":
             flowering_gdd = st.accumulated_gdd
         if maturity_gdd is None and st.stage.name.lower() == "maturity":
@@ -141,7 +141,7 @@ def _run_one(name: str, weather_file: Path) -> dict[str, float | int | None]:
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
         rain = rec.precip_mm or 0.0
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile, wstate, DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0)
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)

@@ -111,7 +111,7 @@ class SimulationOrchestrator:
         water_stress: float = 1.0,
         n_stress: float = 1.0,
     ) -> None:
-        self.phenology.update_daily(
+        self.phenology.daily_step(
             tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=photoperiod_h
         )
         fx = self.canopy.daily_step(

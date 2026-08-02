@@ -1460,7 +1460,7 @@ def test_dual_porosity_heavy_rain_bypass() -> None:
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
 
     # Heavy rain: 80 mm total at 50 mm/hr peak intensity.
-    flux = model.update_daily(
+    flux = model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -1543,7 +1543,7 @@ def test_dual_porosity_light_rain_no_bypass() -> None:
     bus.subscribe(PreferentialFlowOccurred, events.append)
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(rainfall_mm=5.0, evaporation_mm=1.0, rainfall_intensity_mm_hr=0.5),

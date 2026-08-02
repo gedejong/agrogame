@@ -30,11 +30,11 @@ def test_photoperiod_sensitivity() -> None:
     )
     pheno = PhenologyModule(params)
     # Long day (14h) should increase GDD
-    state = pheno.update_daily(tmin_c=15.0, tmax_c=25.0, photoperiod_h=14.0)
+    state = pheno.daily_step(tmin_c=15.0, tmax_c=25.0, photoperiod_h=14.0)
     gdd_long = state.accumulated_gdd
 
     pheno2 = PhenologyModule(params)
-    state2 = pheno2.update_daily(tmin_c=15.0, tmax_c=25.0, photoperiod_h=10.0)
+    state2 = pheno2.daily_step(tmin_c=15.0, tmax_c=25.0, photoperiod_h=10.0)
     gdd_short = state2.accumulated_gdd
 
     assert gdd_long > gdd_short
@@ -58,7 +58,7 @@ def test_vernalization_accumulation() -> None:
     pheno = PhenologyModule(params)
     # Cool temps accumulate vernal units
     for _ in range(40):
-        state = pheno.update_daily(tmin_c=2.0, tmax_c=8.0)
+        state = pheno.daily_step(tmin_c=2.0, tmax_c=8.0)
     assert state.vernalization_units >= 30.0
 
 
@@ -75,7 +75,7 @@ def test_vernalization_blocks_flowering() -> None:
     pheno = PhenologyModule(params)
     # Warm temps: lots of GDD but no vernalization
     for _ in range(50):
-        state = pheno.update_daily(tmin_c=20.0, tmax_c=30.0)
+        state = pheno.daily_step(tmin_c=20.0, tmax_c=30.0)
     # Should be vegetative but not flowering due to vernalization requirement
     assert state.accumulated_gdd > 100.0
     assert state.stage in (
@@ -101,7 +101,7 @@ def test_full_cycle_to_maturity() -> None:
     bus = EventBus()
     pheno = PhenologyModule(params, event_bus=bus)
     for _ in range(200):
-        state = pheno.update_daily(tmin_c=15.0, tmax_c=30.0)
+        state = pheno.daily_step(tmin_c=15.0, tmax_c=30.0)
         if state.stage == PhenologyStage.MATURITY:
             break
     assert state.stage == PhenologyStage.MATURITY
