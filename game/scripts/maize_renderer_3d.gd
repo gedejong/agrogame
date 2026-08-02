@@ -6,10 +6,10 @@ const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const MAX_LEAVES := 10
 const STEM_HEIGHT := 2.5
-const STEM_RADIUS_BOTTOM := 0.015
-const STEM_RADIUS_TOP := 0.008
-const LEAF_WIDTH := 0.10
-const LEAF_LENGTH := 0.8
+const STEM_RADIUS_BOTTOM := 0.035
+const STEM_RADIUS_TOP := 0.018
+const LEAF_WIDTH := 0.18
+const LEAF_LENGTH := 0.85
 const EAR_RADIUS := 0.025
 const EAR_HEIGHT := 0.15
 
@@ -114,7 +114,7 @@ static func _add_leaves(
 		# Short/young leaves point up, long mature leaves droop.
 		# len_curve drives potential droop (long leaves can droop more).
 		# leaf_maturity drives actual droop (young leaves still upright).
-		var droop_potential: float = len_curve * 0.8
+		var droop_potential: float = len_curve * 0.5
 		var droop_var: float = (CR.hash_val(seed_val, hi + 2) - 0.5) * 0.2
 		var droop: float = droop_potential * leaf_maturity * (0.8 + droop_var)
 		# Build curved leaf with per-leaf height for bottom-up senescence
