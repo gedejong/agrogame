@@ -1076,11 +1076,13 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
 
 @dataclass(frozen=True)
 class _ProjectionInputs:
-    """Anchor-day inputs threaded into ``project_soil_forecast`` (#318/#353/#366).
+    """Anchor-day inputs threaded into ``project_soil_forecast``.
 
-    Beyond the collapsed root-zone scalars, this carries the **per-layer** mineral
-    N arrays, layer depths, current root depth and the engine root-growth params
-    so the forecast can project root-zone deepening (#366).
+    (#318/#353/#366/#383.) Beyond the collapsed root-zone scalars, this carries
+    the **per-layer** mineral N arrays, layer depths, current root depth and the
+    engine root-growth params so the forecast can project root-zone deepening
+    (#366), plus the aggregate-penetration constraint scalar that throttles that
+    deepening to the engine's constrained rate (#383).
     """
 
     available_water_mm: float
@@ -1096,6 +1098,7 @@ class _ProjectionInputs:
     root_growth_rate_cm_per_day: float
     root_max_depth_cm: float
     root_stage_multiplier: float
+    root_penetration_factor: float
 
 
 def _projection_inputs(patch: Patch) -> _ProjectionInputs:
@@ -1104,7 +1107,9 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
     The labile SOM N and WFPS feed the net-mineralisation source term (#353);
     the per-layer mineral N, layer depths, root depth and root-growth params
     (from ``orch.roots.params`` / ``orch.phenology.state.stage``) feed the
-    root-zone deepening source (#366).
+    root-zone deepening source (#366); the aggregate-penetration factor from
+    ``orch.agg_state.mwd(0)`` throttles that deepening to the engine's
+    constrained rate (#383).
     """
     orch = patch.orch
     snap = orch.snapshot_soil()
@@ -1133,6 +1138,13 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_depth,
     )
     root_params = orch.roots.params
+    # Aggregate-penetration constraint on root elongation (#383): the engine's
+    # single top-layer, depth-independent channel of RootModule._constraint_factor
+    # (agrogame/plant/roots/runtime.py feeds it agg_state.mwd(0)). agg_state is
+    # always constructed, so no None-guard is needed.
+    from agrogame.soil.aggregation.dynamic_state import root_penetration_factor
+
+    penetration_factor = root_penetration_factor(orch.agg_state.mwd(0))
     return _ProjectionInputs(
         available_water_mm=available,
         total_available_water_mm=taw,
@@ -1149,6 +1161,7 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_stage_multiplier=stage_depth_multiplier(
             orch.phenology.state.stage, root_params.stage_multipliers
         ),
+        root_penetration_factor=penetration_factor,
     )
 
 
@@ -1190,6 +1203,7 @@ def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastRespons
         root_growth_rate_cm_per_day=pi.root_growth_rate_cm_per_day,
         root_max_depth_cm=pi.root_max_depth_cm,
         root_stage_multiplier=pi.root_stage_multiplier,
+        root_penetration_factor=pi.root_penetration_factor,
     )
 
     forecast: list[ForecastDayResponse] = []
