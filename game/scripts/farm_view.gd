@@ -41,8 +41,12 @@ const WIND_MIN_STRENGTH := 0.05
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
+## Plants per tile as (rows across, plants per row). A tile is
+## METERS_PER_TILE^2 = 4 m^2, so plants/tile / 4 = plants/m^2.
+## Maize 5x8 = 40/tile = 10 plants/m^2 — realistic grain-maize population
+## (~75-100k plants/ha); broad-leaf geometry closes the canopy at this density.
 const CROP_GRID := {
-	"maize": Vector2i(5, 12),
+	"maize": Vector2i(5, 8),
 	"spring_wheat": Vector2i(10, 40),
 	"winter_wheat": Vector2i(10, 40),
 	"sorghum": Vector2i(3, 10),
