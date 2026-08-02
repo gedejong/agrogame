@@ -23,6 +23,17 @@ func test_mature_has_more_children() -> void:
 	large.free()
 
 
+func test_tassel_appears_at_flowering() -> void:
+	# Tassel emerges above growth 0.6 — flowering adds apex geometry.
+	var pre := Renderer.create_plant(0.55, 0.0, {}, 0.0, 0)
+	var flowering := Renderer.create_plant(0.7, 0.0, {}, 0.0, 0)
+	assert_gt(
+		flowering.get_child_count(), pre.get_child_count(), "Tassel adds apex geometry at flowering"
+	)
+	pre.free()
+	flowering.free()
+
+
 func test_grain_adds_geometry() -> void:
 	var no_grain := Renderer.create_plant(1.0, 0.0, {}, 0.0, 0)
 	var with_grain := Renderer.create_plant(1.0, 0.0, {}, 0.5, 0)
