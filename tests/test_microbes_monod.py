@@ -6,8 +6,8 @@ from agrogame.soil.microbes.biomass import (
     MicrobialParams,
 )
 from agrogame.soil.microbes.events import (
-    SubstrateAvailable,
-    RhizospherePrimingPulse,
+    SubstrateReleased,
+    RhizospherePrimingOccurred,
     MicrobialActivityComputed,
 )
 
@@ -22,7 +22,7 @@ def test_monod_growth_increases_with_substrate() -> None:
     mid = mod.state.layers[0].c_kg_ha
 
     # Higher substrate should lead to more growth
-    bus.emit(SubstrateAvailable(layer=0, available_c_kg_ha=10.0, quality_index=1.0))
+    bus.emit(SubstrateReleased(layer=0, available_c_kg_ha=10.0, quality_index=1.0))
     mod.daily_step_layers(temperature_c=20.0, wfps_by_layer=[0.6], ph_by_layer=[6.8])
     after = mod.state.layers[0].c_kg_ha
 
@@ -42,7 +42,7 @@ def test_priming_multiplier_scales_activity() -> None:
 
     bus_a.subscribe(MicrobialActivityComputed, _on_act_a)
     mod_a = MicrobialBiomassModule(params, event_bus=bus_a)
-    bus_a.emit(SubstrateAvailable(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
+    bus_a.emit(SubstrateReleased(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
     mod_a.daily_step_layers(temperature_c=20.0, wfps_by_layer=[0.6], ph_by_layer=[6.8])
 
     last_activity_b = 0.0
@@ -54,8 +54,8 @@ def test_priming_multiplier_scales_activity() -> None:
 
     bus_b.subscribe(MicrobialActivityComputed, _on_act_b)
     mod_b = MicrobialBiomassModule(params, event_bus=bus_b)
-    bus_b.emit(RhizospherePrimingPulse(layer=0, multiplier=2.0))
-    bus_b.emit(SubstrateAvailable(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
+    bus_b.emit(RhizospherePrimingOccurred(layer=0, multiplier=2.0))
+    bus_b.emit(SubstrateReleased(layer=0, available_c_kg_ha=2.0, quality_index=0.8))
     mod_b.daily_step_layers(temperature_c=20.0, wfps_by_layer=[0.6], ph_by_layer=[6.8])
 
     assert last_activity_b > last_activity_a

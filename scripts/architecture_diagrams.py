@@ -71,8 +71,8 @@ EVENTS_BY_CATEGORY = {
         "SoilPHUpdated",
     ],
     "Microbes": [
-        "MicrobialGrowth",
-        "MicrobialMortality",
+        "MicrobialGrowthOccurred",
+        "MicrobialMortalityOccurred",
         "EnzymeProduced",
         "MicrobialSnapshot",
         "ActivityComputed",

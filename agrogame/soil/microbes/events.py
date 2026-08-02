@@ -6,14 +6,14 @@ from agrogame.events import BaseEvent
 
 
 @dataclass(frozen=True)
-class MicrobialGrowth(BaseEvent):
+class MicrobialGrowthOccurred(BaseEvent):
     layer: int
     delta_c_kg_ha: float
     delta_n_kg_ha: float
 
 
 @dataclass(frozen=True)
-class MicrobialMortality(BaseEvent):
+class MicrobialMortalityOccurred(BaseEvent):
     layer: int
     c_to_som_kg_ha: float
     n_to_som_kg_ha: float
@@ -55,14 +55,14 @@ class MicrobialActivityComputed(BaseEvent):
 
 
 @dataclass(frozen=True)
-class EnzymeGroupTotals(BaseEvent):
+class EnzymeGroupTotalsComputed(BaseEvent):
     """Profile-wide enzyme production cost totals by group for a day."""
 
     totals_c_kg_ha_by_group: dict[str, float]
 
 
 @dataclass(frozen=True)
-class SubstrateAvailable(BaseEvent):
+class SubstrateReleased(BaseEvent):
     """SOM-derived substrate availability for a soil layer (per day).
 
     available_c_kg_ha: labile carbon available to microbes today.
@@ -75,7 +75,7 @@ class SubstrateAvailable(BaseEvent):
 
 
 @dataclass(frozen=True)
-class RhizospherePrimingPulse(BaseEvent):
+class RhizospherePrimingOccurred(BaseEvent):
     """Priming multiplier for a soil layer due to root exudates.
 
     multiplier: 1.0 baseline, >1 boosts activity/substrate use transiently.

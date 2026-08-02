@@ -7,10 +7,10 @@ from .events import (
     EnzymeProduced,
     MicrobialActivityComputed,
     MicrobialFBUpdated,
-    MicrobialGrowth,
-    MicrobialMortality,
-    SubstrateAvailable,
-    RhizospherePrimingPulse,
+    MicrobialGrowthOccurred,
+    MicrobialMortalityOccurred,
+    SubstrateReleased,
+    RhizospherePrimingOccurred,
 )
 from .responses import EnvironmentalResponses
 
@@ -60,16 +60,16 @@ class MicrobialBiomassModule:
         self._substrate_today: dict[int, tuple[float, float]] = {}
         self._priming_multiplier: dict[int, float] = {}
         # Subscribe to substrate and priming events (optional providers)
-        event_bus.subscribe(SubstrateAvailable, self._on_substrate)
-        event_bus.subscribe(RhizospherePrimingPulse, self._on_priming)
+        event_bus.subscribe(SubstrateReleased, self._on_substrate)
+        event_bus.subscribe(RhizospherePrimingOccurred, self._on_priming)
 
-    def _on_substrate(self, ev: SubstrateAvailable) -> None:
+    def _on_substrate(self, ev: SubstrateReleased) -> None:
         self._substrate_today[ev.layer] = (
             float(ev.available_c_kg_ha),
             float(ev.quality_index),
         )
 
-    def _on_priming(self, ev: RhizospherePrimingPulse) -> None:
+    def _on_priming(self, ev: RhizospherePrimingOccurred) -> None:
         self._priming_multiplier[ev.layer] = max(0.0, float(ev.multiplier))
 
     def daily_step(self, temperature_c: float, wfps: float, ph: float) -> None:
@@ -138,7 +138,7 @@ class MicrobialBiomassModule:
         layer.c_kg_ha -= daily_mortality_c
         layer.n_kg_ha -= n_mort
         self.event_bus.emit(
-            MicrobialMortality(
+            MicrobialMortalityOccurred(
                 layer=idx, c_to_som_kg_ha=daily_mortality_c, n_to_som_kg_ha=n_mort
             )
         )
@@ -168,7 +168,7 @@ class MicrobialBiomassModule:
             layer.c_kg_ha += net_growth_c
             layer.n_kg_ha += n_req
             self.event_bus.emit(
-                MicrobialGrowth(
+                MicrobialGrowthOccurred(
                     layer=idx, delta_c_kg_ha=net_growth_c, delta_n_kg_ha=n_req
                 )
             )

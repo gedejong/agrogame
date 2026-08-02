@@ -70,9 +70,9 @@ Cross-module communication is event-driven via `agrogame.events.EventBus`. All e
 | `WaterStressComputed` | ET runtime | Canopy, dashboard | atmosphere |
 | `NutrientStressComputed` | N/P runtimes | Canopy, dashboard | nutrients |
 | `RootDistributionUpdated` | Root module | SOM, microbes | plant |
-| `SubstrateAvailable` | SOM runtime | Microbes | nutrients |
+| `SubstrateReleased` | SOM runtime | Microbes | nutrients |
 | `MicrobialActivityComputed` | Microbes runtime | Dashboard | nutrients |
-| `EnzymeGroupTotals` | Microbes runtime | Dashboard | nutrients |
+| `EnzymeGroupTotalsComputed` | Microbes runtime | Dashboard | nutrients |
 
 ### Event Handler Rules
 
@@ -116,7 +116,7 @@ Cross-module communication is event-driven via `agrogame.events.EventBus`. All e
    → Water model: rainfall infiltration, drainage, storage update
 
 4. DayTick(phase="nutrients")
-   → SOM emits SubstrateAvailable per layer
+   → SOM emits SubstrateReleased per layer
    → Microbes: Monod growth, enzyme production
    → Nitrogen: mineralization, nitrification, uptake, leaching
    → Phosphorus: mineralization, sorption, uptake

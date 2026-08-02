@@ -13,7 +13,7 @@ from agrogame.soil.water.types import DailyDrivers
 from agrogame.soil.microbes.events import (
     MicrobialSnapshot,
     EnzymeProduced,
-    EnzymeGroupTotals,
+    EnzymeGroupTotalsComputed,
     MicrobialActivityComputed,
 )
 
@@ -41,12 +41,12 @@ def plot_microbes_timeseries(
         latest_c = float(ev.total_c_kg_ha)
         latest_n = float(ev.total_n_kg_ha)
 
-    def _on_enzyme_totals(ev: EnzymeGroupTotals) -> None:
+    def _on_enzyme_totals(ev: EnzymeGroupTotalsComputed) -> None:
         nonlocal latest_enzyme_total
         latest_enzyme_total = float(sum(ev.totals_c_kg_ha_by_group.values()))
 
     bus.subscribe(MicrobialSnapshot, _on_snapshot)
-    bus.subscribe(EnzymeGroupTotals, _on_enzyme_totals)
+    bus.subscribe(EnzymeGroupTotalsComputed, _on_enzyme_totals)
 
     org: list[float] = []
     active: list[float] = []
@@ -134,11 +134,11 @@ def plot_microbes_split(
     bus = orch.event_bus
     totals: dict[str, float] = {}
 
-    def _on_totals(ev: EnzymeGroupTotals) -> None:
+    def _on_totals(ev: EnzymeGroupTotalsComputed) -> None:
         totals.clear()
         totals.update(ev.totals_c_kg_ha_by_group)
 
-    bus.subscribe(EnzymeGroupTotals, _on_totals)
+    bus.subscribe(EnzymeGroupTotalsComputed, _on_totals)
     org: list[float] = []
     active: list[float] = []
     rains, evaps = generate_rain_evap(days, 2.0, 2.0, pattern)
@@ -318,11 +318,11 @@ def plot_microbes_diagnostics(
         latest_c = float(ev.total_c_kg_ha)
         latest_n = float(ev.total_n_kg_ha)
 
-    def _on_totals(ev: EnzymeGroupTotals) -> None:
+    def _on_totals(ev: EnzymeGroupTotalsComputed) -> None:
         totals_by_group.update(ev.totals_c_kg_ha_by_group)
 
     bus.subscribe(MicrobialSnapshot, _on_snapshot)
-    bus.subscribe(EnzymeGroupTotals, _on_totals)
+    bus.subscribe(EnzymeGroupTotalsComputed, _on_totals)
     rains, evaps = generate_rain_evap(days, 2.0, 2.0, pattern)
     tmins, tmaxs, pars = generate_temp_par(days, 12.0, 24.0, 10.0, pattern)
     for i in range(days):

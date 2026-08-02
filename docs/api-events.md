@@ -71,8 +71,8 @@ Each event is a JSON object with three fields:
 |-------|-----------|-------------|
 | `SOMDecomposed` | `layer: int`, `pool: str`, `decomposed_c_kg_ha: float` | Organic matter breakdown |
 | `CO2Respired` | `layer: int`, `co2_c_kg_ha: float` | Microbial respiration |
-| `MicrobialGrowth` | `layer: int`, `delta_c_kg_ha: float` | Microbial biomass increase |
-| `MicrobialMortality` | `layer: int`, `c_to_som_kg_ha: float` | Microbial turnover |
+| `MicrobialGrowthOccurred` | `layer: int`, `delta_c_kg_ha: float` | Microbial biomass increase |
+| `MicrobialMortalityOccurred` | `layer: int`, `c_to_som_kg_ha: float` | Microbial turnover |
 
 ### Soil Chemistry
 
