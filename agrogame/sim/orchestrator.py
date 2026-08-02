@@ -389,9 +389,10 @@ class FullSimulationOrchestrator:
     def _build_plant_modules(self, crop: CropPreset | None) -> None:
         """Construct the plant modules (phenology, canopy, roots).
 
-        Falls back to defaults when no crop preset is supplied (a bare
-        ``__init__`` with ``crop=None``); ``reset_crop`` always passes a
-        preset. Shared so both paths build an identical plant graph.
+        Falls back to defaults when no crop preset is supplied — a bare
+        ``__init__`` with ``crop=None`` or a season reset of a harvested
+        (bare) patch via ``reset_crop(None)`` (#392). Shared so all paths
+        build an identical plant graph.
         """
         phen_params = crop.phenology if crop else _default_phen_params()
         canopy_params = crop.canopy if crop else _default_canopy_params()
@@ -881,7 +882,7 @@ class FullSimulationOrchestrator:
             self._current_crop = None
         return self.snapshot_soil()
 
-    def reset_crop(self, new_crop: CropPreset) -> None:
+    def reset_crop(self, new_crop: CropPreset | None) -> None:
         """Reset plant state for a new crop, preserving soil state.
 
         Clears all event subscriptions and rebuilds the plant, soil and
@@ -891,6 +892,12 @@ class FullSimulationOrchestrator:
         preserved (not re-created) and repopulated from a snapshot, so all
         pools (water, N, P, chemistry, microbes, SOM, redox, aggregation and
         the pore chain) carry across the transition exactly as before.
+
+        ``new_crop=None`` resets the patch crop-free, reusing the same
+        crop-free plant graph ``__init__`` builds for a bare patch
+        (``_build_plant_modules(None)``). The season-reset path passes ``None``
+        for patches left bare by a per-patch harvest (``crop_key=""``),
+        mirroring the load-path fix in #371.
         """
         self._current_crop = new_crop
         self._day_counter = 0
