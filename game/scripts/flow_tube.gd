@@ -7,6 +7,11 @@ extends Node3D
 const MIN_RADIUS := 0.003
 const MAX_RADIUS := 0.03
 const RADIAL_SEGMENTS := 12
+# Curve points closer than this (metres) are merged so no zero-length segment
+# reaches Curve3D/PathFollow3D (which invert a zero-determinant basis → det==0).
+const MIN_SEGMENT := 1e-4
+# Curves shorter than this total length carry no meaningful flow and are skipped.
+const MIN_CURVE_LENGTH := 1e-3
 
 var _tube_mesh: MeshInstance3D = null
 var _particles: GPUParticles3D = null
@@ -187,28 +192,13 @@ func _build_path_tube(path: Array, color: Color, magnitude: float) -> void:
 func _build_path_particles(path: Array, color: Color, magnitude: float, speed: float) -> void:
 	if path.size() < 2:
 		return
-	# Deduplicate adjacent points to avoid zero-length curve segments
-	# (which cause Godot Basis invert det==0 errors in PathFollow3D).
-	var clean_path: Array[Vector3] = [Vector3(path[0])]
-	for pi in range(1, path.size()):
-		var pt := Vector3(path[pi])
-		if not pt.is_equal_approx(clean_path[clean_path.size() - 1]):
-			clean_path.append(pt)
-	if clean_path.size() < 2:
+	# Build a non-degenerate curve; skip particles entirely when the path
+	# collapses to <2 distinct points or near-zero length so no PathFollow3D
+	# is ever attached to a curve that would trigger det==0 errors.
+	var curve := _build_flow_curve(path)
+	if curve == null:
 		return
 	var path_node := Path3D.new()
-	var curve := Curve3D.new()
-	# Add points with smooth tangent handles to prevent jitter at joints
-	for pi in range(clean_path.size()):
-		var pt: Vector3 = clean_path[pi]
-		var tangent := Vector3.ZERO
-		if pi < clean_path.size() - 1 and pi > 0:
-			tangent = (clean_path[pi + 1] - clean_path[pi - 1]) * 0.25
-		elif pi < clean_path.size() - 1:
-			tangent = (clean_path[pi + 1] - pt) * 0.25
-		elif pi > 0:
-			tangent = (pt - clean_path[pi - 1]) * 0.25
-		curve.add_point(pt, -tangent, tangent)
 	path_node.curve = curve
 	add_child(path_node)
 	var count: int = clampi(int(magnitude * 60.0), 0, 60)
@@ -551,6 +541,57 @@ func _process(delta: float) -> void:
 				var fade: float = 1.0 - smoothstep(0.6, 1.0, prog)
 				mi.transparency = 1.0 - fade
 				mi.position.y = (1.0 - fade) * 0.03
+
+
+static func _build_flow_curve(path: Array) -> Curve3D:
+	## Build a Curve3D for particle flow from an ordered point list.
+	## Merges consecutive points closer than MIN_SEGMENT, guarantees a
+	## non-zero tangent handle at every retained point, and returns null when
+	## the path has fewer than two distinct points or a near-zero total length.
+	## Returning null lets callers skip attaching PathFollow3D to a degenerate
+	## curve, which is what produces the flood of Godot Basis det==0 errors.
+	if path.size() < 2:
+		return null
+	# Merge near-coincident consecutive points (explicit epsilon; is_equal_approx
+	# scales its tolerance with magnitude and misses small absolute gaps).
+	var clean: Array[Vector3] = [Vector3(path[0])]
+	for pi in range(1, path.size()):
+		var pt := Vector3(path[pi])
+		if pt.distance_to(clean[clean.size() - 1]) >= MIN_SEGMENT:
+			clean.append(pt)
+	if clean.size() < 2:
+		return null
+	# Reject curves whose total length is effectively zero.
+	var total_len := 0.0
+	for pi in range(1, clean.size()):
+		total_len += clean[pi].distance_to(clean[pi - 1])
+	if total_len < MIN_CURVE_LENGTH:
+		return null
+	var curve := Curve3D.new()
+	for pi in range(clean.size()):
+		var pt: Vector3 = clean[pi]
+		# Smooth tangent handles reduce jitter at joints.
+		var tangent := Vector3.ZERO
+		if pi < clean.size() - 1 and pi > 0:
+			tangent = (clean[pi + 1] - clean[pi - 1]) * 0.25
+		elif pi < clean.size() - 1:
+			tangent = (clean[pi + 1] - pt) * 0.25
+		elif pi > 0:
+			tangent = (pt - clean[pi - 1]) * 0.25
+		# A collinear reversal (e.g. A->B->A) yields a zero interior tangent,
+		# which makes PathFollow3D invert a zero-determinant basis every frame.
+		# Fall back to a segment direction (non-zero after the epsilon merge).
+		if tangent.is_zero_approx():
+			var fwd := Vector3.ZERO
+			if pi < clean.size() - 1:
+				fwd = clean[pi + 1] - pt
+			elif pi > 0:
+				fwd = pt - clean[pi - 1]
+			if fwd.is_zero_approx():
+				fwd = Vector3.FORWARD
+			tangent = fwd.normalized() * MIN_SEGMENT
+		curve.add_point(pt, -tangent, tangent)
+	return curve
 
 
 static func _basis_along(dir: Vector3) -> Basis:
