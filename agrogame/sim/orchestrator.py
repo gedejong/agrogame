@@ -29,7 +29,12 @@ from agrogame.soil.phosphorus import SoilPhosphorusState
 from agrogame.soil.phosphorus.cycle import PhosphorusCycle
 from agrogame.soil.sulfur import SoilSulfurState
 from agrogame.soil.sulfur.cycle import SulfurCycle
-from agrogame.soil.chemistry import SoilChemistryModule
+from agrogame.soil.chemistry import (
+    ChemistryParams,
+    ChemistryRuntime,
+    ChemistryState,
+    SoilChemistryModule,
+)
 from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
 from typing import Any
 from collections.abc import Callable
@@ -421,6 +426,9 @@ class FullSimulationOrchestrator:
         self.n_state = SoilNitrogenState(profile)
         self.p_state = SoilPhosphorusState(profile)
         self.s_state = SoilSulfurState(profile)
+        # Chemistry — per-layer pH; emits SoilPHUpdated used by N/P (#288)
+        self.chem_params = ChemistryParams()
+        self.chem_state = ChemistryState.from_layers(n_layers, self.chem_params.base_ph)
         # Redox dynamics — Eh computation, CH4 production (AGRO-73)
         self.redox_state = RedoxState.from_layers(n_layers)
         # Micronutrients — Fe, Zn, Mn pH-dependent availability (AGRO-214)
@@ -470,8 +478,11 @@ class FullSimulationOrchestrator:
         self.microbes = MicrobialBiomassModule(
             MicrobialParams(n_layers=n_layers), event_bus=self.event_bus
         )
-        # Chemistry emits pH events used by N/P
-        self.chem = SoilChemistryModule(self.event_bus, n_layers=n_layers)
+        # Chemistry emits pH events used by N/P. Pure logic; the runtime
+        # (wired in _subscription_plan, #288) owns all event subscriptions.
+        self.chem = SoilChemistryModule(
+            self.chem_params, self.chem_state, self.event_bus
+        )
         self.redox = RedoxModule(
             RedoxParams(), self.redox_state, event_bus=self.event_bus
         )
@@ -582,6 +593,10 @@ class FullSimulationOrchestrator:
             ),
         ]
         core: list[_RuntimeFactory] = [
+            # Chemistry first: buffers pH on DayTick(phase="chemistry"),
+            # which precedes the water/nutrients phases, so SoilPHUpdated is
+            # cached before N/P nitrification reads it (#288, ADR-010).
+            lambda: ChemistryRuntime(self.event_bus, self.chem),
             lambda: WaterRuntime(
                 self.event_bus,
                 self.water_model,
@@ -810,7 +825,8 @@ class FullSimulationOrchestrator:
                 ly.n_kg_ha = snapshot.microbe_n[i]
                 ly.fungal_fraction = snapshot.microbe_fungal_fraction[i]
         if snapshot.ph:
-            self.chem._ph = list(snapshot.ph)
+            # In-place restore preserves the runtime-held state alias (#288).
+            self.chem.set_state(ChemistryState(ph=list(snapshot.ph)))
         self.crop_history = list(snapshot.crop_history)
         som = self._som_runtime.som
         if snapshot.som_labile_c and som is not None:

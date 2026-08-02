@@ -3,7 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, cast
 
 from agrogame.events import EventBus
-from agrogame.soil.chemistry import SoilChemistryModule
+from agrogame.soil.chemistry import (
+    ChemistryParams,
+    ChemistryState,
+    SoilChemistryModule,
+)
 from agrogame.soil.chemistry.events import SoilPHUpdated
 from agrogame.soil.models import SoilLayer, SoilProfile
 from agrogame.soil.water.state import SoilWaterState
@@ -93,14 +97,19 @@ def test_ph_events_flow_into_n_and_p_cycles() -> None:
         profile=cast(_PWaterProfile, profile),
     )
 
-    chem = SoilChemistryModule(bus, n_layers=len(profile.layers), base_ph=7.0)
+    n_layers = len(profile.layers)
+    chem = SoilChemistryModule(
+        ChemistryParams(),
+        ChemistryState.from_layers(n_layers, base_ph=7.0),
+        bus,
+    )
 
     # Collect pH events to ensure they are emitted
     seen: list[SoilPHUpdated] = []
     bus.subscribe(SoilPHUpdated, lambda e: seen.append(e))
 
     # Emit a daily buffering update and ensure handlers receive pH
-    chem.daily_buffering(target_ph=5.5)
+    chem.daily_step(target_ph=5.5)
     assert seen, "Expected SoilPHUpdated events to be emitted"
 
     # Now run steps without explicitly passing pH; should use cached values
@@ -122,7 +131,7 @@ def test_ph_events_flow_into_n_and_p_cycles() -> None:
     flux_acid = nc_acid.daily_step(temperature_c=25.0)
 
     # Reset and set neutral pH via buffering then step
-    chem.daily_buffering(target_ph=7.0)
+    chem.daily_step(target_ph=7.0)
     nstate3 = deepcopy(nstate)
     nc_neutral = NC(
         bus,
