@@ -171,12 +171,13 @@ def test_maize_kenya_productive() -> None:
     # Kenya highland maize total *above-ground* biomass: ~12-20 t/ha
     # (1200-2000 g/m²) at 6-8 t/ha grain potential and HI~0.45 (GYGA Kenya
     # highlands; DSSAT CERES-Maize). Since #337 the daily assimilate pool is
-    # partitioned root vs shoot (Σ=1), so this shoot-only figure fell from the
-    # pre-#337 additive ~1711 to ~1168 g/m² (the ~169 g/m² root share now lives
-    # in root_state, not double-counted); total plant biomass ~1337 g/m² still
-    # sits in the AGB range. Bound 1000-2000 brackets the shoot output and
-    # bites on a ~15% regression.
-    assert 1000 < biomass < 2000
+    # partitioned root vs shoot (Σ=1), so this shoot-only figure fell below the
+    # 1200 GYGA floor; the #372 RUE recalibration (2.53→2.73 g/MJ) restores it
+    # to ~1444 g/m² (grain ~6.3 t/ha into the 6-8 band), still below the
+    # pre-#337 inflated ~1524. Floor of 1200 restored (#370 had relaxed it to
+    # 1000); upper bound tightened to 1700 to bracket the new figure and bite
+    # on both a regression below the GYGA floor and re-inflation.
+    assert 1200 < biomass < 1700
 
 
 def test_maize_sahel_water_limited() -> None:
