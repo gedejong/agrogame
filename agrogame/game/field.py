@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from agrogame.events.recorder import EventRecorder
-from agrogame.plant.presets import load_crop_presets
+from agrogame.plant.presets import CropPreset, load_crop_presets
 from agrogame.plant.roots.types import RootState
 from agrogame.soil.canopy.types import CanopyState
 from agrogame.soil.phenology.types import PhenologyState
@@ -77,6 +77,19 @@ class Patch:
 
     def step_day(self, drivers: DailyDrivers, **kwargs: Any) -> None:
         self.orch.step_day(drivers=drivers, **kwargs)
+
+    def reset_crop(self, preset: CropPreset | None) -> None:
+        """Reset this patch to a new crop and re-wire its event recorder.
+
+        ``orch.reset_crop`` calls ``event_bus.clear()``, which drops every
+        subscription — including the recorder created in ``__init__``. Without
+        rebuilding it, events emitted in the next season go unrecorded, so
+        ``/step`` returns empty ``daily_snapshots``/events from season 2 onward
+        (#402). Replacing the recorder (rather than re-subscribing the old one)
+        guarantees exactly one live subscription and no double-recording.
+        """
+        self.orch.reset_crop(preset)
+        self.recorder = EventRecorder(self.orch.event_bus)
 
     def harvest(self) -> PatchResult:
         snap = self.orch.harvest()

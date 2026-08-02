@@ -76,7 +76,9 @@ def _reset_all_crops(s: GameSession) -> None:
                 if crop_key
                 else None
             )
-            patch.orch.reset_crop(preset)
+            # Patch.reset_crop re-subscribes the recorder to the rebuilt event
+            # bus so new-season events are captured (#402).
+            patch.reset_crop(preset)
 
 
 def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
@@ -993,15 +995,13 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                 continue
             climate_key = patch.config.climate_key
             preset = crops.get_preset(crop_key, climate_key)
-            patch.orch.reset_crop(preset)
+            # reset_crop clears the event bus; Patch.reset_crop re-subscribes
+            # the recorder so new-crop events are captured (#402).
+            patch.reset_crop(preset)
             # Clear any prior-season harvested yield so /report reflects the
             # freshly planted crop, not the last harvest (#341).
             patch.harvested_grain_g_m2 = None
             patch.harvested_crop_key = None
-            # Re-subscribe recorder (reset_crop clears all event bus subscriptions)
-            from agrogame.events.recorder import EventRecorder
-
-            patch.recorder = EventRecorder(patch.orch.event_bus)
             patch.config = PatchConfig(
                 soil_profile_key=patch.config.soil_profile_key,
                 crop_key=crop_key,

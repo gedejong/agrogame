@@ -515,6 +515,73 @@ def test_step_events_in_patch_response(client) -> None:
     assert len(patch["events"]) > 0
 
 
+def _step_events(data) -> list:
+    """Flatten all events across a /step response's daily_snapshots."""
+    events: list = []
+    for snap in data["daily_snapshots"]:
+        events.extend(snap.get("events", []))
+    return events
+
+
+def _basevent_subscriber_count(client_game_id) -> int:
+    """Count BaseEvent (recorder) subscriptions on f1/patch0's event bus."""
+    from agrogame.api.state import games
+    from agrogame.events.base import BaseEvent
+
+    patch = games[client_game_id].field_manager.fields["f1"].patches[0]
+    return len(patch.orch.event_bus._handlers[BaseEvent])
+
+
+def test_step_records_events_after_start_season_reset(client) -> None:
+    """Recorder stays live after a start-season crop reset (#402).
+
+    ``start-season`` re-runs ``_reset_all_crops`` from season 2 onward, which
+    calls ``orch.reset_crop`` → ``event_bus.clear()``. Before the fix this
+    dropped the recorder subscription, so the next ``/step`` returned empty
+    events. Assert the season-2 step still records events.
+    """
+    game_id = _create_game(client)
+    # Season 1: run_count 0 -> 1 (no reset yet).
+    client.post(f"/api/v1/games/{game_id}/start-season?days=40&seed=42")
+    # Season 2: run_count > 0 -> _reset_all_crops clears the bus.
+    client.post(f"/api/v1/games/{game_id}/start-season?days=40&seed=7")
+    # Step the freshly reset season and confirm events flow.
+    resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["daily_snapshots"]) == 5
+    assert len(_step_events(data)) > 0, "season-2 step must record events"
+    # No double-recording: exactly one recorder subscribed to the fresh bus.
+    assert _basevent_subscriber_count(game_id) == 1
+
+
+def test_step_records_events_across_step_driven_season_boundary(client) -> None:
+    """Recorder stays live across a /step-driven season rollover (#402).
+
+    When ``/step`` runs past the last weather day it calls
+    ``_reset_session_for_new_season`` -> ``_reset_all_crops``. Verify events are
+    recorded in both the first season and the rolled-over second season, with no
+    duplicate subscription.
+    """
+    from agrogame.api.state import games
+
+    game_id = _create_game(client)
+    games[game_id].season_days = 15  # short season to reach the boundary fast
+    # Season 1: step the whole season.
+    s1 = client.post(f"/api/v1/games/{game_id}/step?days=15&seed=42")
+    assert s1.status_code == 200
+    s1_events = _step_events(s1.json())
+    assert len(s1_events) > 0, "season-1 step must record events"
+    # Season 2: stepping past the boundary triggers the reset, then records.
+    s2 = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+    assert s2.status_code == 200
+    s2_data = s2.json()
+    assert len(s2_data["daily_snapshots"]) > 0
+    assert len(_step_events(s2_data)) > 0, "season-2 step must record events"
+    # Single live recorder subscription -> no double-recording after reset.
+    assert _basevent_subscriber_count(game_id) == 1
+
+
 def test_water_stress_is_transpiration_based(client) -> None:
     """water_stress reflects transpiration supply/demand, not θ/FC proxy."""
     game_id = _create_game(client)
