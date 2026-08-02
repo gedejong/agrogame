@@ -1,7 +1,7 @@
 """SOM runtime — three-pool decomposition wired to the event bus.
 
 Replaces SimpleSOMRuntime with a RothC-inspired three-pool SOM module
-that emits SubstrateAvailable and RhizospherePrimingPulse events for
+that emits SubstrateReleased and RhizospherePrimingOccurred events for
 the microbial module, and drives N mineralization from SOM quality.
 """
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.chemistry.module import SoilChemistryModule
 from agrogame.plant.roots.events import RootDistributionUpdated
-from agrogame.soil.microbes.events import SubstrateAvailable, RhizospherePrimingPulse
+from agrogame.soil.microbes.events import SubstrateReleased, RhizospherePrimingOccurred
 from agrogame.soil.som.pools import ThreePoolSOM, SOMPoolParams
 from agrogame.soil.som.events import SOMDecomposed, CO2Respired
 
@@ -124,14 +124,14 @@ class SOMRuntime:
 
         if fluxes.microbial_c_kg_ha > 0:
             self.event_bus.emit(
-                SubstrateAvailable(
+                SubstrateReleased(
                     layer=i,
                     available_c_kg_ha=fluxes.microbial_c_kg_ha,
                     quality_index=min(1.0, 0.3 + 0.7 * rf),
                 )
             )
         if priming > 1.0:
-            self.event_bus.emit(RhizospherePrimingPulse(layer=i, multiplier=priming))
+            self.event_bus.emit(RhizospherePrimingOccurred(layer=i, multiplier=priming))
         if fluxes.decomposed_c_kg_ha > 0:
             self.event_bus.emit(
                 SOMDecomposed(

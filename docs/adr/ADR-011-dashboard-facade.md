@@ -22,7 +22,7 @@ agrogame/dashboard/simulation.py → soil.{models,loader,microbes.events,
 ```
 
 Beyond type imports, `simulation.py` subscribed to **six engine event
-types** (`MicrobialActivityComputed`, `EnzymeGroupTotals`,
+types** (`MicrobialActivityComputed`, `EnzymeGroupTotalsComputed`,
 `EvaporationTaken`, `TranspirationByLayer`, `NutrientStressComputed`,
 `WaterStressComputed`) — making the dashboard a silent stakeholder in
 every payload-shape decision. Surfaced by the SoilProfile graph trace
@@ -60,7 +60,7 @@ notebook helper, a CLI exporter) get the same affordance for free.
 
 For the eight engine types the dashboard names today (`SoilProfile`,
 `DailyDrivers`, `WeatherRecord`, `PhenologyStage`, `EtParams`,
-`Evapotranspiration`, `EnzymeGroupTotals`, `NitrogenCycle`), wrapping
+`Evapotranspiration`, `EnzymeGroupTotalsComputed`, `NitrogenCycle`), wrapping
 each in a façade-owned dataclass would double the work without
 benefit — these are stable Pydantic models and frozen dataclasses. The
 re-export pattern means rename them in the engine and the façade

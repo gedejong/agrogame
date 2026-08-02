@@ -6,10 +6,10 @@ from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from .biomass import MicrobialBiomassModule
 from .events import (
-    EnzymeGroupTotals,
+    EnzymeGroupTotalsComputed,
     MicrobialSnapshot,
-    SubstrateAvailable,
-    RhizospherePrimingPulse,
+    SubstrateReleased,
+    RhizospherePrimingOccurred,
     EnzymeProduced,
 )
 from agrogame.soil.water.state import SoilWaterState
@@ -113,14 +113,14 @@ class MicrobesRuntime:
             available = base * (0.2 + 0.8 * rf)
             quality = 0.6 + 0.3 * rf
             self.event_bus.emit(
-                SubstrateAvailable(
+                SubstrateReleased(
                     layer=i, available_c_kg_ha=available, quality_index=quality
                 )
             )
             priming = 1.0 + 1.0 * rf
             if priming > 1.0:
                 self.event_bus.emit(
-                    RhizospherePrimingPulse(layer=i, multiplier=priming)
+                    RhizospherePrimingOccurred(layer=i, multiplier=priming)
                 )
 
     def _run_microbes_step(
@@ -146,7 +146,7 @@ class MicrobesRuntime:
         )
         if getattr(self, "_daily_enzyme_totals", None):
             self.event_bus.emit(
-                EnzymeGroupTotals(
+                EnzymeGroupTotalsComputed(
                     totals_c_kg_ha_by_group=dict(self._daily_enzyme_totals)
                 )
             )

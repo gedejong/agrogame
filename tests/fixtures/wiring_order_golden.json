@@ -68,7 +68,7 @@
     "MicronutrientRuntime._on_redox_changed",
     "PhosphorusRuntime._on_redox_changed"
   ],
-  "RhizospherePrimingPulse": [
+  "RhizospherePrimingOccurred": [
     "MicrobialBiomassModule._on_priming"
   ],
   "RootDistributionUpdated": [
@@ -96,7 +96,7 @@
   "StageChanged": [
     "CanopyModule._on_stage_changed"
   ],
-  "SubstrateAvailable": [
+  "SubstrateReleased": [
     "MicrobialBiomassModule._on_substrate"
   ],
   "TillageApplied": [

@@ -32,7 +32,10 @@ from agrogame.atmosphere.et import EtParams, Evapotranspiration
 from agrogame.plant.events import NutrientStressComputed, WaterStressComputed
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.microbes.events import EnzymeGroupTotals, MicrobialActivityComputed
+from agrogame.soil.microbes.events import (
+    EnzymeGroupTotalsComputed,
+    MicrobialActivityComputed,
+)
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.phenology.types import PhenologyStage
@@ -50,7 +53,7 @@ __all__ = [
     "PhenologyStage",
     "EtParams",
     "Evapotranspiration",
-    "EnzymeGroupTotals",
+    "EnzymeGroupTotalsComputed",
     "NitrogenCycle",
     # Helpers.
     "load_soil_profile",
@@ -158,7 +161,7 @@ class DashboardSimulationRun:
         bus.subscribe(EvaporationTaken, _on_evap)
         bus.subscribe(TranspirationByLayer, _on_transp)
         bus.subscribe(
-            EnzymeGroupTotals,
+            EnzymeGroupTotalsComputed,
             lambda ev: agg.enzyme_totals.update(ev.totals_c_kg_ha_by_group),
         )
         bus.subscribe(

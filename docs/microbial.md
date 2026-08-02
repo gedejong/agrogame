@@ -2,7 +2,7 @@
 
 This module simulates microbial biomass dynamics with environmental controls and enzyme production, and exposes depth-resolved diagnostics for visualization and coupling with nutrient cycles.
 
-- Events: `MicrobialGrowth`, `MicrobialMortality`, `EnzymeProduced`, `EnzymeGroupTotals`, `MicrobialActivityComputed`, `MicrobialFBUpdated`, `SubstrateAvailable`, `RhizospherePrimingPulse`.
+- Events: `MicrobialGrowthOccurred`, `MicrobialMortalityOccurred`, `EnzymeProduced`, `EnzymeGroupTotalsComputed`, `MicrobialActivityComputed`, `MicrobialFBUpdated`, `SubstrateReleased`, `RhizospherePrimingOccurred`.
 - Core: `MicrobialBiomassModule` integrates temperature, WFPS, and pH response modifiers via `EnvironmentalResponses` and computes growth/turnover per soil layer each day.
 - Kinetics: Monod substrate limitation is applied to growth, with an enzyme production cost fraction. A rhizosphere priming multiplier scales activity transiently.
 - Coupling: Nitrogen/Phosphorus cycles subscribe to `MicrobialActivityComputed` and `MicrobialFBUpdated` to modulate mineralization and nitrification/uptake.
@@ -29,13 +29,13 @@ poetry run python scripts/plot_full_integration.py --profile loam_temperate --da
 #### Interpretation
 
 - Activity rises with favorable temperature, intermediate WFPS, and near-neutral pH; depth gradients arise from water and chemistry profiles.
-- Higher substrate availability and quality (via `SubstrateAvailable`) increases growth through Monod response; enzyme costs reduce net growth.
-- Rhizosphere priming pulses (`RhizospherePrimingPulse`) transiently amplify activity and growth near active root layers.
+- Higher substrate availability and quality (via `SubstrateReleased`) increases growth through Monod response; enzyme costs reduce net growth.
+- Rhizosphere priming pulses (`RhizospherePrimingOccurred`) transiently amplify activity and growth near active root layers.
 
 ### SOM coupling (AGRO-79)
 
 The microbial module receives substrate from the three-pool SOM decomposition
-module (AGRO-103) via `SubstrateAvailable` events. The SOM module decomposes
+module (AGRO-103) via `SubstrateReleased` events. The SOM module decomposes
 labile, intermediate, and stable organic C pools and emits the microbial
 growth efficiency (MGE) fraction as available substrate. This replaces the
 synthetic substrate values from the old SimpleSOMRuntime placeholder.
@@ -45,7 +45,7 @@ N mineralization directly into the NH4 pool, replacing the fixed-rate
 `organic_n` mineralization for SOM-coupled N. This creates a coherent
 SOM → microbes → N cycle pipeline:
 
-1. SOM pools decompose → emit `SubstrateAvailable` (C) + `SOMDecomposed` (N)
+1. SOM pools decompose → emit `SubstrateReleased` (C) + `SOMDecomposed` (N)
 2. Microbial module consumes substrate → Monod growth → emit `MicrobialActivityComputed`
 3. N cycle consumes `SOMDecomposed` → adds mineralized N to NH4
 4. N cycle uses `MicrobialActivityComputed` to modulate its own residual
