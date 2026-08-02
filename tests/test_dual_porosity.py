@@ -247,7 +247,7 @@ def test_mass_balance_parametrized(rainfall_mm: float, intensity: float) -> None
     state = _dual_state(profile)
     model = DualPorosityWaterModel(DualPorosityParams(), pore)
 
-    flux = model.update_daily(
+    flux = model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -273,7 +273,7 @@ def test_non_negative_water_content() -> None:
     model = DualPorosityWaterModel(DualPorosityParams(), pore)
 
     for rainfall in [0.0, 50.0, 0.0, 0.0, 0.0]:
-        model.update_daily(
+        model.daily_step(
             profile,
             state,
             DailyDrivers(
@@ -297,7 +297,7 @@ def test_preferential_flow_event_on_heavy_rain() -> None:
     bus.subscribe(PreferentialFlowOccurred, events.append)
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -320,7 +320,7 @@ def test_no_event_on_light_rain() -> None:
     bus.subscribe(PreferentialFlowOccurred, events.append)
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(rainfall_mm=5.0, evaporation_mm=1.0, rainfall_intensity_mm_hr=1.0),
@@ -342,8 +342,8 @@ def test_cascading_model_unchanged_by_new_state_field() -> None:
 
     m1 = CascadingBucketWaterModel()
     m2 = CascadingBucketWaterModel()
-    flux_plain = m1.update_daily(profile, state_plain, drivers)
-    flux_dual = m2.update_daily(profile, state_dual, drivers)
+    flux_plain = m1.daily_step(profile, state_plain, drivers)
+    flux_dual = m2.daily_step(profile, state_dual, drivers)
 
     # Cascading model must not touch theta_macro; its output must be identical.
     assert flux_plain.runoff_mm == pytest.approx(flux_dual.runoff_mm)
@@ -353,6 +353,24 @@ def test_cascading_model_unchanged_by_new_state_field() -> None:
     assert state_dual.theta_macro == [0.0] * len(
         profile.layers
     ), "Cascading model must not write to theta_macro"
+
+
+def test_update_daily_shim_dispatches_to_dual_porosity_daily_step() -> None:
+    """Inherited ``update_daily`` shim warns and reaches the DualPorosity
+    override, producing identical fluxes to ``daily_step`` (#282)."""
+    profile = _loam_profile()
+    drivers = DailyDrivers(
+        rainfall_mm=40.0, evaporation_mm=2.0, rainfall_intensity_mm_hr=40.0
+    )
+
+    canonical = DualPorosityWaterModel(DualPorosityParams(), _pore_state(profile))
+    new_flux = canonical.daily_step(profile, _dual_state(profile), drivers)
+
+    shimmed = DualPorosityWaterModel(DualPorosityParams(), _pore_state(profile))
+    with pytest.warns(DeprecationWarning, match="daily_step"):
+        old_flux = shimmed.update_daily(profile, _dual_state(profile), drivers)
+
+    assert old_flux == new_flux
 
 
 def test_daily_drivers_backward_compatible() -> None:
@@ -373,9 +391,7 @@ def test_sandy_soil_less_bypass_than_clay() -> None:
     profile_s = _sandy_profile()
     pore_s = _pore_state(profile_s)
     state_s = _dual_state(profile_s)
-    DualPorosityWaterModel(
-        DualPorosityParams(), pore_s, event_bus=bus_sand
-    ).update_daily(
+    DualPorosityWaterModel(DualPorosityParams(), pore_s, event_bus=bus_sand).daily_step(
         profile_s,
         state_s,
         DailyDrivers(
@@ -389,9 +405,7 @@ def test_sandy_soil_less_bypass_than_clay() -> None:
     profile_c = _clay_profile()
     pore_c = _pore_state(profile_c)
     state_c = _dual_state(profile_c)
-    DualPorosityWaterModel(
-        DualPorosityParams(), pore_c, event_bus=bus_clay
-    ).update_daily(
+    DualPorosityWaterModel(DualPorosityParams(), pore_c, event_bus=bus_clay).daily_step(
         profile_c,
         state_c,
         DailyDrivers(
@@ -417,7 +431,7 @@ def test_clay_soil_high_bypass() -> None:
     bus.subscribe(PreferentialFlowOccurred, events.append)
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -442,7 +456,7 @@ def test_exchange_drains_macropore_over_3_days() -> None:
     model = DualPorosityWaterModel(DualPorosityParams(alpha_w_per_day=0.5), pore)
 
     # Day 1: heavy rain generates bypass
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -455,7 +469,7 @@ def test_exchange_drains_macropore_over_3_days() -> None:
 
     # Days 2 and 3: no rain → exchange drains macropore
     for _ in range(2):
-        model.update_daily(
+        model.daily_step(
             profile,
             state,
             DailyDrivers(rainfall_mm=0.0, evaporation_mm=1.0),
@@ -478,7 +492,7 @@ def test_heavy_rain_bypass_mm_positive() -> None:
     bus.subscribe(PreferentialFlowOccurred, events.append)
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
-    model.update_daily(
+    model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -502,7 +516,7 @@ def test_missing_theta_macro_raises() -> None:
     model = DualPorosityWaterModel(DualPorosityParams(), pore)
 
     with pytest.raises(ValueError, match="theta_macro initialized"):
-        model.update_daily(
+        model.daily_step(
             profile, state, DailyDrivers(rainfall_mm=10.0, evaporation_mm=0.0)
         )
 
@@ -516,7 +530,7 @@ def test_too_short_theta_macro_raises() -> None:
     model = DualPorosityWaterModel(DualPorosityParams(), pore)
 
     with pytest.raises(ValueError, match="theta_macro has"):
-        model.update_daily(
+        model.daily_step(
             profile, state, DailyDrivers(rainfall_mm=10.0, evaporation_mm=0.0)
         )
 
@@ -595,7 +609,7 @@ def test_irrigation_not_partitioned() -> None:
 
     model = DualPorosityWaterModel(DualPorosityParams(), pore, event_bus=bus)
     # 50 mm rain at 50 mm/hr + 20 mm irrigation.
-    flux = model.update_daily(
+    flux = model.daily_step(
         profile,
         state,
         DailyDrivers(
@@ -642,7 +656,7 @@ def test_independent_mass_balance_includes_both_domains() -> None:
         return matrix + macro
 
     before = _total_mm(state)
-    flux = model.update_daily(
+    flux = model.daily_step(
         profile,
         state,
         DailyDrivers(

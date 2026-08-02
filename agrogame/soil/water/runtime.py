@@ -1,7 +1,7 @@
 """Runtime wiring for water model to respond to Calendar DayTick events.
 
 Listens for the "water" phase and delegates to the configured water model's
-`update_daily` using the provided `DailyDrivers`.
+`daily_step` using the provided `DailyDrivers`.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ class WaterRuntime:
                     effective_porosity(self.profile.layers[i].saturation, macro[i])
                     for i in range(n)
                 ]
-        _ = self.model.update_daily(
+        _ = self.model.daily_step(
             self.profile,
             self.state,
             drivers,

@@ -26,4 +26,4 @@ class PhenologyRuntime:
         tmax = 20.0 if ev.tmax_c is None else float(ev.tmax_c)
         doy = ev.sim_date.timetuple().tm_yday
         pp = photoperiod_h(self.latitude_deg, doy)
-        self.phenology.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=pp)
+        self.phenology.daily_step(tmin_c=tmin, tmax_c=tmax, photoperiod_h=pp)

@@ -49,7 +49,7 @@ def _run_simple_season(days: int = 60) -> tuple[list[float], list[float]]:
     lai: list[float] = []
     for i in range(min(days, len(weather.records))):
         rec = weather.records[i]
-        phen.update_daily(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
+        phen.daily_step(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
         _ = et.et0(
@@ -59,7 +59,7 @@ def _run_simple_season(days: int = 60) -> tuple[list[float], list[float]]:
             wind_m_s=rec.wind_m_s or 2.0,
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile,
             wstate,
             DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0),

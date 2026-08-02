@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from agrogame.soil.loader import load_soil_presets
@@ -28,7 +30,7 @@ def _make_state(lib_id: str = "loam_temperate") -> tuple[SoilProfile, SoilWaterS
 def test_mass_balance_day() -> None:
     profile, state = _make_state()
     model = CascadingBucketWaterModel()
-    flux = model.update_daily(
+    flux = model.daily_step(
         profile,
         state,
         DailyDrivers(rainfall_mm=10.0, irrigation_mm=0.0, evaporation_mm=2.0),
@@ -38,15 +40,42 @@ def test_mass_balance_day() -> None:
     assert abs((inputs - outputs) - flux.storage_change_mm) < 1e-6
 
 
+def test_update_daily_shim_warns_and_matches_daily_step() -> None:
+    """Deprecated ``update_daily`` shim warns and yields identical fluxes (#282)."""
+    profile, state_new = _make_state()
+    _, state_old = _make_state()
+    model = CascadingBucketWaterModel()
+    drivers = DailyDrivers(rainfall_mm=15.0, irrigation_mm=0.0, evaporation_mm=2.0)
+
+    new_flux = model.daily_step(profile, state_new, drivers)
+    with pytest.warns(DeprecationWarning, match="daily_step"):
+        old_flux = model.update_daily(profile, state_old, drivers)
+
+    assert old_flux == new_flux
+
+
+def test_update_daily_shim_stacklevel_points_at_caller() -> None:
+    """stacklevel=2 makes the warning reference the caller's file (#282)."""
+    profile, state = _make_state()
+    model = CascadingBucketWaterModel()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        model.update_daily(profile, state, DailyDrivers(rainfall_mm=5.0))
+
+    assert len(caught) == 1
+    assert issubclass(caught[0].category, DeprecationWarning)
+    assert caught[0].filename == __file__
+
+
 def test_permeability_ordering() -> None:
     sand_prof, sand_state = _make_state("sandy_arid")
     clay_prof, clay_state = _make_state("clay_temperate")
     model = CascadingBucketWaterModel()
 
-    sand_flux = model.update_daily(
+    sand_flux = model.daily_step(
         sand_prof, sand_state, DailyDrivers(rainfall_mm=40.0, evaporation_mm=2.0)
     )
-    clay_flux = model.update_daily(
+    clay_flux = model.daily_step(
         clay_prof, clay_state, DailyDrivers(rainfall_mm=40.0, evaporation_mm=2.0)
     )
 
@@ -77,7 +106,7 @@ def test_event_emission() -> None:
     )
 
     model = CascadingBucketWaterModel(event_bus=bus)
-    _ = model.update_daily(
+    _ = model.daily_step(
         profile, state, DailyDrivers(rainfall_mm=50.0, evaporation_mm=1.0)
     )
 
@@ -142,7 +171,7 @@ def test_deep_drainage_emits_event() -> None:
     bus.subscribe(WaterDrained, lambda e: drained.append(e))
     model = CascadingBucketWaterModel(event_bus=bus)
     state = SoilWaterState(profile)
-    model.update_daily(profile, state, DailyDrivers(rainfall_mm=80.0))
+    model.daily_step(profile, state, DailyDrivers(rainfall_mm=80.0))
     # Should have layer-to-layer drains AND deep drainage (to_layer=-1)
     assert len(drained) > 0, "Heavy rain should produce WaterDrained events"
     deep = [d for d in drained if d.to_layer == -1]
@@ -252,7 +281,7 @@ def test_interception_fills_and_evaporates_before_soil() -> None:
     assert intercepted == rain and throughfall == 0.0
     taken = istate.evaporate(0.6)
     assert 0.5 <= taken <= 0.6
-    fx = model.update_daily(
+    fx = model.daily_step(
         profile, state, DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0)
     )
     assert fx.evap_mm >= 0.0

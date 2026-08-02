@@ -104,7 +104,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
 
     The caller must ensure ``SoilWaterState.theta_macro`` is initialized
     (e.g., via ``state.enable_dual_porosity(n_layers)``) before calling
-    ``update_daily``.
+    ``daily_step``.
     """
 
     def __init__(
@@ -126,7 +126,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
         self._params = params
         self._pore_state = pore_state
 
-    def update_daily(
+    def daily_step(
         self,
         profile: SoilProfileView,
         state: SoilWaterState,
@@ -195,7 +195,7 @@ class DualPorosityWaterModel(CascadingBucketWaterModel):
             evaporation_mm=drivers.evaporation_mm,
             rainfall_intensity_mm_hr=intensity,
         )
-        matrix_fluxes = super().update_daily(
+        matrix_fluxes = super().daily_step(
             profile, state, matrix_drivers, ksat_factors, effective_overrides
         )
 

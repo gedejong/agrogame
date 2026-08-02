@@ -81,7 +81,7 @@ def _run_growth(
 
     for i in range(min(days, len(weather.records))):
         rec = weather.records[i]
-        _ = phen.update_daily(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
+        _ = phen.daily_step(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
         par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
@@ -93,7 +93,7 @@ def _run_growth(
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
         rain = rec.precip_mm or 0.0
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile,
             wstate,
             DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0),
@@ -156,7 +156,7 @@ def _run_growth_with_wue_and_stages(
 
     for i in range(min(days, len(weather.records))):
         rec = weather.records[i]
-        state = phen.update_daily(
+        state = phen.daily_step(
             tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0
         )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
@@ -170,7 +170,7 @@ def _run_growth_with_wue_and_stages(
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
         rain = rec.precip_mm or 0.0
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile,
             wstate,
             DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0),

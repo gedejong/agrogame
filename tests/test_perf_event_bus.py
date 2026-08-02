@@ -34,7 +34,7 @@ def test_event_bus_overhead_benchmark() -> None:
     model_no_bus = CascadingBucketWaterModel()
     t0 = time.perf_counter()
     for _ in range(iterations):
-        _ = model_no_bus.update_daily(profile, state_no_bus, drivers)
+        _ = model_no_bus.daily_step(profile, state_no_bus, drivers)
     no_bus_ms = (time.perf_counter() - t0) * 1000.0
 
     # With event bus (no subscribers)
@@ -42,7 +42,7 @@ def test_event_bus_overhead_benchmark() -> None:
     model_with_bus = CascadingBucketWaterModel(event_bus=EventBus())
     t0 = time.perf_counter()
     for _ in range(iterations):
-        _ = model_with_bus.update_daily(profile, state_with_bus, drivers)
+        _ = model_with_bus.daily_step(profile, state_with_bus, drivers)
     with_bus_ms = (time.perf_counter() - t0) * 1000.0
 
     overhead_pct = (with_bus_ms - no_bus_ms) / max(no_bus_ms, 1e-9) * 100.0
