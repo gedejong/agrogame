@@ -92,17 +92,20 @@ def test_winter_wheat_netherlands_autumn_start() -> None:
     assert stage == "MATURITY"
     # Autumn-sown winter wheat total AGB: ~12-22 t/ha (1200-2200 g/m²) when S
     # is non-limiting (AHDB Wheat Growth Guide 2015; WOFOST NL calibration).
-    # Since #385 wired sulfur into the growth-limiting Liebig minimum, this
-    # unfertilized 280-day autumn scenario is now S-limited: mobile sulfate
-    # from the topsoil leaches over the wet NW-European winter, and the slow
-    # (correctly recalibrated, #386) organic-S mineralization (~12 kg S/ha/yr)
-    # cannot meet peak spring demand — the well-documented cause of spring S
-    # deficiency in NW Europe and the reason S fertilization became standard
-    # after atmospheric S deposition declined (Scherer 2001, Eur. J. Agron.
-    # 14:81-111; Eriksen 2009, Adv. Agron. 102). Emergent output ~760 g/m²
-    # (~7.6 t/ha) is a realistic S-deficient, unfertilized wheat yield. The
-    # lower bound brackets this S-limited output and still bites on a further
-    # ~20% regression; the maturity assertion and upper bound are unchanged.
+    # This 280-day model scenario sits below that band for a mundane reason: on
+    # the synthetic weather + loam_temperate profile the S-non-limiting output
+    # is only ~839 g/m² (the pre-#385 `main` value, reproduced by seeding a
+    # large initial_s). Since #385 wired sulfur into the growth-limiting Liebig
+    # minimum, this unfertilized run is mildly S-limited on top of that: mobile
+    # sulfate from the topsoil leaches over the wet NW-European winter, and the
+    # slow (correctly recalibrated, #386) organic-S mineralization (~12 kg
+    # S/ha/yr) does not fully meet peak spring demand — the mechanism behind
+    # spring S deficiency in NW Europe once atmospheric S deposition declined
+    # (Scherer 2001, Eur. J. Agron. 14:81-111; Eriksen 2009, Adv. Agron. 102).
+    # The S limitation trims ~839 -> ~761 g/m², a mild ~9% deficit (not a
+    # collapse). The lower bound brackets this output with headroom and still
+    # bites on a further ~20% regression; maturity and upper bound are
+    # unchanged.
     assert 600 < biomass < 2200
 
 
