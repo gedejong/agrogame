@@ -101,6 +101,31 @@ func test_calc_collapse_factor_partial() -> void:
 	assert_almost_eq(SU.calc_collapse_factor(0.925), 0.7, 0.01, "Half collapse at sen 0.925")
 
 
+func test_calc_lodging_factor_thresholds() -> void:
+	# Below threshold → no lodging (upright).
+	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.0), 0.0, "Healthy = no lodging")
+	assert_eq(SU.calc_lodging_factor({"water": 1.0}, 0.6), 0.0, "Drought pre-senescence = 0")
+	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.8), 0.0, "Senescing but watered = 0")
+	# Path A — severe drought + late senescence: w=(1.0-0.8)/0.2=1.0,
+	# d=(0.9-0.7)/0.3≈0.667 → ≈0.667.
+	assert_almost_eq(SU.calc_lodging_factor({"water": 1.0}, 0.9), 0.667, 0.02, "Drought lodges")
+	# Path B — near-total senescence lodges on its own, regardless of water.
+	assert_almost_eq(SU.calc_lodging_factor({"water": 0.0}, 1.0), 1.0, 0.01, "Dead plant lodges")
+	assert_almost_eq(SU.calc_lodging_factor({"water": 0.0}, 0.975), 0.5, 0.02, "Graded terminal")
+
+
+func test_calc_lodging_factor_graded_and_bounded() -> void:
+	# Graded, not a binary flip: more senescence under drought → more lodging.
+	var mild: float = SU.calc_lodging_factor({"water": 1.0}, 0.75)
+	var strong: float = SU.calc_lodging_factor({"water": 1.0}, 0.9)
+	assert_gt(strong, mild, "Lodging increases with senescence under drought")
+	assert_gt(mild, 0.0, "Above threshold yields positive lean")
+	# Bounded to [0, 1] at the extremes.
+	var extreme: float = SU.calc_lodging_factor({"water": 1.0}, 1.0)
+	assert_lte(extreme, 1.0, "Lodging never exceeds 1.0")
+	assert_almost_eq(extreme, 1.0, 0.01, "Full stress = full lodging")
+
+
 func test_dominant_stress_includes_frost() -> void:
 	var stresses := {
 		"water": 0.2,

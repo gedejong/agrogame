@@ -10,6 +10,13 @@ const STRESS_KEYS: Array[String] = ["water", "n", "p", "fe", "zn", "frost", "hea
 ## Ref: Marschner 2012 — Zn-deficient cereals show "little leaf" + shortened internodes.
 const ZN_STUNT_MAX: float = 0.3
 
+## Lodging onset thresholds (#273). Severe drought only lodges a plant once
+## senescence is advanced; near-total senescence lodges on its own.
+## A `water` stress > 0.8 corresponds to water availability < 0.2.
+const LODGE_WATER_STRESS_MIN: float = 0.8
+const LODGE_SENESCENCE_MIN: float = 0.7
+const LODGE_SENESCENCE_ONLY: float = 0.95
+
 
 static func parse_stress_data(tile_data: Dictionary) -> Dictionary:
 	"""Extract per-type stress values from tile_data.
@@ -53,6 +60,28 @@ static func calc_collapse_factor(senescence: float) -> float:
 	# Collapse onsets at 0.85, full collapse at 1.0 → 40% of original height.
 	var t: float = clampf((senescence - 0.85) / 0.15, 0.0, 1.0)
 	return lerpf(1.0, 0.4, t)
+
+
+static func calc_lodging_factor(stresses: Dictionary, senescence: float) -> float:
+	"""Stem-lodging severity in [0, 1] for lean/tilt under severe stress.
+	0 = upright, 1 = fully lodged. Real cereals lodge (stems bend, the plant
+	leans) under severe combined stress; near-dead plants lean regardless of
+	water. `stresses['water']` is stress severity (1 = severe drought, i.e.
+	water availability < 0.2 ⟺ water stress > 0.8).
+	Ref: Berry et al. 2004, Field Crops Research — cereal lodging mechanics."""
+	var water_stress: float = clampf(stresses.get("water", 0.0), 0.0, 1.0)
+	var sen: float = clampf(senescence, 0.0, 1.0)
+	# Path A — drought lodging: severe water stress during late senescence.
+	# Graded product of both over-threshold amounts → smooth onset (no popping).
+	var drought_lodge: float = 0.0
+	if water_stress > LODGE_WATER_STRESS_MIN and sen > LODGE_SENESCENCE_MIN:
+		var w: float = (water_stress - LODGE_WATER_STRESS_MIN) / (1.0 - LODGE_WATER_STRESS_MIN)
+		var d: float = (sen - LODGE_SENESCENCE_MIN) / (1.0 - LODGE_SENESCENCE_MIN)
+		drought_lodge = clampf(w, 0.0, 1.0) * clampf(d, 0.0, 1.0)
+	# Path B — terminal lodging: near-total senescence lodges on its own.
+	var sen_span: float = 1.0 - LODGE_SENESCENCE_ONLY
+	var sen_lodge: float = clampf((sen - LODGE_SENESCENCE_ONLY) / sen_span, 0.0, 1.0)
+	return clampf(maxf(drought_lodge, sen_lodge), 0.0, 1.0)
 
 
 static func dominant_stress(stresses: Dictionary) -> String:

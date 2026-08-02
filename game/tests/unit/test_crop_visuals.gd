@@ -182,6 +182,74 @@ func test_dead_plant_collapses_vertically() -> void:
 		assert_almost_eq(ratio, 0.4, 0.1, "Y/X ≈ 0.4 (collapse to 40% height)")
 
 
+func _first_plant(container: Node3D) -> Node3D:
+	for child: Node in container.get_children():
+		if child is Node3D and not (child is MultiMeshInstance3D):
+			return child as Node3D
+	return null
+
+
+func test_lean_basis_lodging() -> void:
+	# No lodging → identity, so upright plants are untouched.
+	var ident: Basis = VisualsRef._lean_basis(42, 0.0)
+	assert_true(ident.is_equal_approx(Basis.IDENTITY), "No lodging = identity basis")
+	# CRITICAL: a lean is a pure rotation (det 1), never a degenerate (det 0)
+	# transform. Guards against the det==0 class of bug.
+	var full: Basis = VisualsRef._lean_basis(42, 1.0)
+	assert_almost_eq(full.determinant(), 1.0, 0.001, "Lean is a rotation (det 1, not 0)")
+	# Graded, not binary: more lodging tilts the up axis further from vertical.
+	var mild_up: Vector3 = VisualsRef._lean_basis(42, 0.3) * Vector3.UP
+	var severe_up: Vector3 = full * Vector3.UP
+	assert_lt(severe_up.y, mild_up.y, "More lodging = further from vertical")
+	assert_lt(mild_up.y, 1.0, "Any lodging tilts off vertical")
+
+
+func test_severe_stress_leans_stem() -> void:
+	# Healthy vigorous canopy, no water stress → upright (zero tilt).
+	var healthy := {
+		"crop_key": "maize", "crop_stage": 2, "lai": 4.0, "grain_g_m2": 0.0, "col": 0, "row": 0
+	}
+	var c1 := Node3D.new()
+	add_child_autofree(c1)
+	VisualsRef.update_crop(healthy, [c1], {"maize": Vector2i(2, 2)}, 1.0, 1.0)
+	var upright: Node3D = _first_plant(c1)
+	assert_not_null(upright, "Healthy tile has plants")
+	if upright != null:
+		assert_almost_eq(upright.transform.basis.y.normalized().y, 1.0, 0.001, "Healthy upright")
+
+	# Severe terminal senescence (stage 4, LAI 0, full grain) → sen≈1 → lodges.
+	# Individual path (2x2 grid): plants lean, stay non-degenerate, vary direction.
+	var stressed := {
+		"crop_key": "maize", "crop_stage": 4, "lai": 0.0, "grain_g_m2": 1000.0, "col": 3, "row": 5
+	}
+	var c2 := Node3D.new()
+	add_child_autofree(c2)
+	VisualsRef.update_crop(stressed, [c2], {"maize": Vector2i(2, 2)}, 1.0, 1.0)
+	var dirs: Array[Vector2] = []
+	for child: Node in c2.get_children():
+		if child is Node3D and not (child is MultiMeshInstance3D):
+			var node: Node3D = child as Node3D
+			var up: Vector3 = node.transform.basis.y.normalized()
+			assert_lt(up.y, 0.999, "Lodged plant leans off vertical")
+			assert_gt(absf(node.transform.basis.determinant()), 0.0, "Transform not degenerate")
+			dirs.append(Vector2(up.x, up.z))
+	var varied := false
+	for k: int in range(1, dirs.size()):
+		if dirs[0].distance_to(dirs[k]) > 0.01:
+			varied = true
+	assert_true(varied, "Plants lean in varied directions (per-plant seed)")
+
+	# MultiMesh path uses the same lean via _baked_instance_basis (tested here
+	# directly, since MultiMesh transforms don't read back headless). Same seed,
+	# lodging off vs on → the instance up-axis tilts, proving both paths lodge.
+	var upright_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 1.0, 0.0)
+	var lodged_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 1.0, 1.0)
+	assert_almost_eq(upright_b.y.normalized().y, 1.0, 0.001, "Baked upright instance vertical")
+	assert_lt(lodged_b.y.normalized().y, 0.999, "Baked lodged instance leans")
+	# Non-degenerate: determinant = scale product (0.5³), never 0.
+	assert_gt(absf(lodged_b.determinant()), 0.0, "Baked instance basis not degenerate")
+
+
 func test_multimesh_uses_uniform_senescence() -> void:
 	# MultiMesh mode: all instances share materials from sample plant.
 	# Verify the sample plant has leaf_height values set (not all 0.5).

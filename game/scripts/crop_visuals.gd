@@ -6,6 +6,11 @@ extends RefCounted
 ## Maximum LAI for normalizing growth. TODO: source from crop presets.
 const MAX_LAI := 6.0
 
+## Maximum stem-lean tilt at full lodging (~34°). A lean is a pure rotation
+## (determinant 1): it never scales an axis to 0, so the instance transform
+## stays non-degenerate. Ref: Berry et al. 2004 — severe lodging tips stems >30°.
+const LODGE_MAX_TILT_RAD := 0.6
+
 const MaizeRenderer3D = preload("res://scripts/maize_renderer_3d.gd")
 const WheatRenderer3D = preload("res://scripts/wheat_renderer_3d.gd")
 const SorghumRenderer3D = preload("res://scripts/sorghum_renderer_3d.gd")
@@ -47,6 +52,9 @@ static func update_crop(
 	#   Senescence ≥ 0.85 → vertical collapse (dead plants fall)
 	var stunt: float = StressUtils.calc_stunt_factor(stresses)
 	var collapse_y: float = StressUtils.calc_collapse_factor(senescence)
+	# Lodging (#273): severe drought + late senescence, or near-total
+	# senescence → stems lean. Applied per plant as a tilt (pure rotation).
+	var lodging: float = StressUtils.calc_lodging_factor(stresses, senescence)
 	# Bake to a MultiMesh above this count so agronomic maize (40/tile) still
 	# renders as a few GPU-instanced draws rather than ~40 discrete node trees.
 	if total_plants > 35:
@@ -64,6 +72,7 @@ static func update_crop(
 			tile_size,
 			stunt,
 			collapse_y,
+			lodging,
 		)
 	else:
 		_build_individual_plants(
@@ -80,6 +89,7 @@ static func update_crop(
 			tile_size,
 			stunt,
 			collapse_y,
+			lodging,
 		)
 
 
@@ -122,6 +132,7 @@ static func _build_individual_plants(
 	tile_size: float,
 	stunt: float = 1.0,
 	collapse_y: float = 1.0,
+	lodging: float = 0.0,
 ) -> void:
 	for hi in range(grid.x):
 		var u: float = (float(hi) + 0.5) / float(grid.x)
@@ -135,8 +146,12 @@ static func _build_individual_plants(
 			var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
 			var new_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv)
 			# Stunt scales XYZ uniformly; collapse only flattens Y.
-			new_plant.scale = Vector3(s * stunt, s * stunt * collapse_y, s * stunt)
-			new_plant.position = Vector3(lx + jx, 0, lz + jz)
+			var plant_basis := Basis.from_scale(
+				Vector3(s * stunt, s * stunt * collapse_y, s * stunt)
+			)
+			# Lodging tilt about the plant base: pure rotation, never degenerate.
+			plant_basis = _lean_basis(sv, lodging) * plant_basis
+			new_plant.transform = Transform3D(plant_basis, Vector3(lx + jx, 0, lz + jz))
 			container.add_child(new_plant)
 
 
@@ -157,6 +172,7 @@ static func _build_baked_plants(
 	tile_size: float,
 	stunt: float = 1.0,
 	collapse_y: float = 1.0,
+	lodging: float = 0.0,
 ) -> void:
 	var sv_base: int = col * 7 + row * 13
 	var sample_plant := create_3d_plant(crop_key, growth, senescence, stresses, grain_frac, sv_base)
@@ -183,11 +199,8 @@ static func _build_baked_plants(
 				var jm: float = tile_size / float(grid.x) * 0.1
 				var jx: float = (fmod(float(sv % 7), 3.0) - 1.5) * jm
 				var jz: float = (fmod(float((sv * 3) % 5), 2.0) - 1.0) * jm
-				var rot_y: float = CropRenderer3D.hash_val(sv, 0) * TAU
-				var plant_t := Transform3D()
-				plant_t = plant_t.scaled(Vector3(s * stunt, s * stunt * collapse_y, s * stunt))
-				plant_t = plant_t.rotated(Vector3.UP, rot_y)
-				plant_t.origin = Vector3(lx + jx, 0, lz + jz)
+				var plant_basis := _baked_instance_basis(sv, s, stunt, collapse_y, lodging)
+				var plant_t := Transform3D(plant_basis, Vector3(lx + jx, 0, lz + jz))
 				layer_mm.set_instance_transform(i, plant_t * local_t)
 				i += 1
 		var layer_mmi := MultiMeshInstance3D.new()
@@ -196,6 +209,35 @@ static func _build_baked_plants(
 			layer_mmi.material_override = entry["material"]
 		layer_mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		container.add_child(layer_mmi)
+
+
+static func _baked_instance_basis(
+	seed_val: int, s: float, stunt: float, collapse_y: float, lodging: float
+) -> Basis:
+	"""Per-instance orientation for MultiMesh baking: stunt/collapse scale, yaw
+	jitter, and the lodging lean composed into one basis. Extracted so the
+	baked path stays unit-testable — MultiMesh instance transforms don't read
+	back without a live RenderingServer (headless). The lean is a rotation, so
+	the determinant equals the scale product and is never 0 (non-degenerate)."""
+	var scale := Basis.from_scale(Vector3(s * stunt, s * stunt * collapse_y, s * stunt))
+	var rot_y: float = CropRenderer3D.hash_val(seed_val, 0) * TAU
+	var yawed := Basis(Vector3.UP, rot_y) * scale
+	return _lean_basis(seed_val, lodging) * yawed
+
+
+static func _lean_basis(seed_val: int, lodging: float) -> Basis:
+	"""Stem-lean rotation for lodging (#273). Identity when not lodging, so
+	upright plants are untouched. The lean is a rotation about a horizontal
+	axis (determinant 1) — it never scales an axis to 0, so the combined
+	transform is never degenerate. Lean azimuth is hashed per plant from the
+	col/row/plant seed, so neighbours fall in varied directions."""
+	if lodging <= 0.0:
+		return Basis.IDENTITY
+	var yaw: float = CropRenderer3D.hash_val(seed_val, 1) * TAU
+	var tilt: float = clampf(lodging, 0.0, 1.0) * LODGE_MAX_TILT_RAD
+	# Tilt axis: horizontal, perpendicular to the lean azimuth (unit length).
+	var axis := Vector3(cos(yaw), 0.0, -sin(yaw))
+	return Basis(axis, tilt)
 
 
 static func collect_meshes(
