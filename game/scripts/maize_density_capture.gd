@@ -82,9 +82,8 @@ func _setup_camera() -> void:
 	)
 	var center_z: float = (BLOCK_TILES - 1) * TILE_SIZE * 0.5
 	var cam := Camera3D.new()
-	cam.fov = 42.0
-	cam.current = true
 	cam.fov = 50.0
+	cam.current = true
 	add_child(cam)
 	cam.position = Vector3(center_x, 8.0, center_z + 12.0)
 	cam.look_at(Vector3(center_x, 0.5, center_z))

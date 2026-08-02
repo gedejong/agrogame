@@ -10,8 +10,8 @@ const STEM_RADIUS_BOTTOM := 0.035
 const STEM_RADIUS_TOP := 0.018
 const LEAF_WIDTH := 0.18
 const LEAF_LENGTH := 0.85
-const EAR_RADIUS := 0.025
-const EAR_HEIGHT := 0.15
+const EAR_RADIUS := 0.045
+const EAR_HEIGHT := 0.28
 
 
 static func create_plant(
@@ -30,7 +30,8 @@ static func create_plant(
 	var h: float = STEM_HEIGHT * pow(growth_progress, 1.5)
 	# Stem tapers: bottom thicker than top, both scale with growth
 	var r_bot: float = STEM_RADIUS_BOTTOM * growth_progress + 0.002
-	var r_top: float = r_bot * 0.15  # taper toward top, not zero (avoid z-fighting)
+	# Maize stalks taper only slightly — keep a substantial top, not a thread.
+	var r_top: float = maxf(STEM_RADIUS_TOP * growth_progress, r_bot * 0.4)
 	var stem_mesh := CR.create_stem_mesh(h, r_bot, r_top)
 	var stem_mat := CR.create_stem_material(senescence, 0.2)
 	var stem := MeshInstance3D.new()
@@ -75,7 +76,7 @@ static func _add_tassel(
 ) -> void:
 	## A pale central spike with a few splayed branches at the stem top.
 	var maturity: float = clampf((growth_progress - 0.6) / 0.25, 0.0, 1.0)
-	var tlen: float = 0.32 * maturity
+	var tlen: float = 0.42 * maturity
 	if tlen < 0.02:
 		return
 	var mat := StandardMaterial3D.new()
