@@ -18,6 +18,7 @@ from agrogame.soil.water.types import DailyDrivers
 
 if TYPE_CHECKING:
     from agrogame.soil.aggregation.state import SoilAggregationState
+    from agrogame.soil.pore_network.state import PoreNetworkState
 
 
 @dataclass
@@ -29,6 +30,7 @@ class WaterRuntime:
     profile: SoilProfileView
     state: SoilWaterState
     agg_state: SoilAggregationState | None = None
+    pore_state: PoreNetworkState | None = None
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick events on construction."""
@@ -55,8 +57,15 @@ class WaterRuntime:
             macro = self.agg_state.macro
             if len(macro) >= n:
                 ksat_factors = [effective_ksat_factor(macro[i]) for i in range(n)]
+                # Prefer the detailed pore-network breakdown when available;
+                # falls back to the scalar approximation per layer (#289).
                 porosity_overrides = [
-                    effective_porosity(self.profile.layers[i].saturation, macro[i])
+                    effective_porosity(
+                        self.profile.layers[i].saturation,
+                        macro[i],
+                        pore_state=self.pore_state,
+                        layer=i,
+                    )
                     for i in range(n)
                 ]
         _ = self.model.daily_step(

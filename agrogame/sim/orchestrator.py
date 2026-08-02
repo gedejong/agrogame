@@ -603,6 +603,9 @@ class FullSimulationOrchestrator:
                 pv,
                 self.water_state,
                 agg_state=self.agg_state,
+                # Delegate effective porosity to the detailed pore breakdown
+                # when the pore chain is active (#289).
+                pore_state=self.pore_state,
             ),
             lambda: PhenologyRuntime(
                 self.event_bus, self.phenology, latitude_deg=self.latitude_deg
