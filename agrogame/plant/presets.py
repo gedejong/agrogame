@@ -88,6 +88,15 @@ def _build_canopy(raw: dict) -> CanopyParams:
         wilt_stress_threshold=float(c.get("wilt_stress_threshold", 0.3)),
         wilt_days_for_damage=int(c.get("wilt_days_for_damage", 5)),
         wilt_lai_loss_fraction=float(c.get("wilt_lai_loss_fraction", 0.1)),
+        drought_senescence_ref_depth_cm=float(
+            c.get("drought_senescence_ref_depth_cm", 40.0)
+        ),
+        drought_senescence_depth_factor_min=float(
+            c.get("drought_senescence_depth_factor_min", 0.25)
+        ),
+        drought_senescence_depth_factor_max=float(
+            c.get("drought_senescence_depth_factor_max", 2.0)
+        ),
         leaf_fraction_vegetative=float(c.get("leaf_fraction_vegetative", 0.7)),
         leaf_fraction_flowering=float(c.get("leaf_fraction_flowering", 0.4)),
         leaf_fraction_grain_fill=float(c.get("leaf_fraction_grain_fill", 0.15)),

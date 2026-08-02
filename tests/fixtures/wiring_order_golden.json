@@ -84,6 +84,9 @@
   "RootTurnoverOccurred": [
     "BioporesRuntime._on_root_turnover"
   ],
+  "RootDepthChanged": [
+    "CanopyRuntime._on_root_depth"
+  ],
   "SOMDecomposed": [
     "NitrogenCycle._on_som_decomposed"
   ],
