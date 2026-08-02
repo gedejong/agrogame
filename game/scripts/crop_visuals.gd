@@ -47,7 +47,9 @@ static func update_crop(
 	#   Senescence ≥ 0.85 → vertical collapse (dead plants fall)
 	var stunt: float = StressUtils.calc_stunt_factor(stresses)
 	var collapse_y: float = StressUtils.calc_collapse_factor(senescence)
-	if total_plants > 50:
+	# Bake to a MultiMesh above this count so agronomic maize (40/tile) still
+	# renders as a few GPU-instanced draws rather than ~40 discrete node trees.
+	if total_plants > 35:
 		_build_baked_plants(
 			container,
 			crop_key,
