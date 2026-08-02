@@ -63,7 +63,44 @@ static func create_plant(
 		ear.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		plant.add_child(ear)
 
+	# Tassel at the apex from flowering onward — maize's signature flower spike.
+	if growth_progress > 0.6:
+		_add_tassel(plant, h, growth_progress, senescence, seed_val)
+
 	return plant
+
+
+static func _add_tassel(
+	plant: Node3D, stem_h: float, growth_progress: float, senescence: float, seed_val: int
+) -> void:
+	## A pale central spike with a few splayed branches at the stem top.
+	var maturity: float = clampf((growth_progress - 0.6) / 0.25, 0.0, 1.0)
+	var tlen: float = 0.32 * maturity
+	if tlen < 0.02:
+		return
+	var mat := StandardMaterial3D.new()
+	var straw := Color(0.86, 0.80, 0.52)
+	var dry := Color(0.78, 0.66, 0.34)
+	mat.albedo_color = straw.lerp(dry, senescence)
+	var branches := 5
+	for i in range(branches):
+		var is_central: bool = i == 0
+		var spike := CylinderMesh.new()
+		spike.height = tlen * (1.0 if is_central else 0.65)
+		spike.top_radius = 0.0015
+		spike.bottom_radius = 0.006
+		spike.radial_segments = 4
+		var inst := MeshInstance3D.new()
+		inst.mesh = spike
+		inst.material_override = mat
+		inst.position = Vector3(0, spike.height * 0.5, 0)
+		var pivot := Node3D.new()
+		pivot.position = Vector3(0, stem_h, 0)
+		if not is_central:
+			pivot.rotation.y = float(i) * TAU / float(branches - 1) + CR.hash_val(seed_val, 60 + i)
+			pivot.rotation.x = 0.45  # splay outward
+		pivot.add_child(inst)
+		plant.add_child(pivot)
 
 
 static func _add_leaves(
