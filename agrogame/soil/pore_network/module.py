@@ -4,12 +4,10 @@ Derives pore size distribution per soil layer using retention-curve
 partition (Rawls et al. 1982/1983) and aggregation MWD adjustment
 (Dexter 2004; Bronick & Lal 2005).
 
-Note: ``effective_porosity()`` in ``dynamic_state.py`` currently
-approximates macro-derived porosity with a single scalar. Once the
-pore network module is integrated into the orchestrator (planned
-follow-up), that function should delegate to the pore network's
-detailed breakdown. Orchestrator wiring and ``SoilSnapshot``
-persistence are also deferred to that follow-up.
+Note: ``effective_porosity()`` in ``dynamic_state.py`` delegates to this
+module's detailed breakdown when a ``PoreNetworkState`` is supplied
+(returning drainable porosity = total - crypto), and falls back to a
+scalar macro-derived approximation otherwise (#289).
 """
 
 from __future__ import annotations

@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agrogame.soil.pore_network.state import PoreNetworkState
+
+# Physical bounds on total porosity for mineral agricultural soils.
+_POROSITY_MIN = 0.30
+_POROSITY_MAX = 0.60
+
 
 def effective_ksat_factor(macro_frac: float) -> float:
     """Scale ksat based on macroaggregate fraction.
@@ -22,26 +31,77 @@ def effective_ksat_factor(macro_frac: float) -> float:
     return 0.5 + 2.0 * max(0.0, min(1.0, macro_frac))
 
 
-def effective_porosity(base_saturation: float, macro_frac: float) -> float:
-    """Adjust porosity based on aggregation state.
+def effective_porosity(
+    base_saturation: float,
+    macro_frac: float,
+    pore_state: PoreNetworkState | None = None,
+    layer: int | None = None,
+) -> float:
+    """Effective (drainable) porosity for the daily water balance.
 
-    Well-aggregated: 45–55% porosity (inter-aggregate macropores).
-    Degraded: 35–40% (compacted, few macropores).
+    Two derivations, selected by whether a detailed pore breakdown is
+    supplied (#289):
+
+    **Detailed (preferred, when ``pore_state`` and ``layer`` are given).**
+    Delegates to the pore-network module's retention-curve partition and
+    returns the *effective* porosity excluding residual water — total
+    porosity minus the cryptopore (<0.2 um) fraction, which holds water so
+    tightly it is never drained nor plant-available. This equals macro +
+    meso + micro, i.e. ``total_porosity(layer) - crypto[layer]``, or
+    equivalently φ − θ_r. (Note this is the air-capacity/effective
+    porosity, not the *strict* drainable porosity / specific yield
+    θ_sat − θ_fc, which would exclude retained plant-available water too.)
+
+    Ref: Luxmoore 1981, SSSAJ — pore-size classes (cryptopores <0.2 um are
+         residual/bound water); Rawls et al. 1982, Trans. ASAE — theta_r.
+
+    Note: the detailed value is **invariant to aggregation state**.
+    This is a direct consequence of how the model is structured, not a
+    deliberate cancellation: ``total_porosity`` is pinned to the *static*
+    ``layer.saturation`` and cryptoporosity is texture-only, so
+    ``total - crypto`` reduces to ``saturation - residual(clay)`` and
+    carries no structural term at all. The mean-weight-diameter shift only
+    reshuffles macro vs coarse-meso *within* this pool. Delegating
+    therefore drops the aggregation->porosity feedback that the ad-hoc
+    scalar fallback below applied to the water balance. That is a net
+    improvement, not a double-counting fix: aggregation and porosity are
+    *distinct* real effects, but total porosity being static here means the
+    pore breakdown genuinely carries no aggregation signal — and the
+    structural signal still reaches the water balance the physically
+    grounded way, through ``ksat`` (see ``effective_ksat_factor``), with
+    the macro/connectivity split additionally feeding gas diffusion. The
+    old scalar shift was a crude heuristic with ~zero dynamical effect, so
+    removing it loses no load-bearing physics; see the #289 PR for the
+    measured magnitude of the shift.
+
+    **Scalar fallback (backward-compatible, when no ``pore_state``).**
+    Approximates porosity by shifting static saturation with the
+    macroaggregate fraction: well-aggregated 45-55% (inter-aggregate
+    macropores), degraded 35-40% (compacted).
 
     Ref: Bronick & Lal 2005, Geoderma — soil structure and management.
 
     Args:
         base_saturation: Static porosity from soil profile (≈ saturation).
-        macro_frac: Macroaggregate fraction (0–1).
+        macro_frac: Macroaggregate fraction (0–1); scalar path only.
+        pore_state: Optional detailed pore-size distribution. When given
+            together with ``layer``, the detailed derivation is used.
+        layer: Layer index into ``pore_state``; required for the detailed
+            path.
 
     Returns:
-        Adjusted porosity (clamped to physical bounds).
+        Effective porosity (clamped to physical bounds).
     """
+    if pore_state is not None and layer is not None and layer < len(pore_state.macro):
+        # Drainable porosity: exclude the tightly bound cryptopore water.
+        detailed = pore_state.total_porosity(layer) - pore_state.crypto[layer]
+        return max(_POROSITY_MIN, min(_POROSITY_MAX, detailed))
+
     # Shift range: -0.027 (macro=0) to +0.08 (macro=1) around base.
     # At macro=0.25 (default tilled) → no shift; below → decrease; above → increase
     shift = 0.08 * (macro_frac - 0.25) / 0.75
     adjusted = base_saturation + shift
-    return max(0.30, min(0.60, adjusted))
+    return max(_POROSITY_MIN, min(_POROSITY_MAX, adjusted))
 
 
 def root_penetration_factor(mwd_mm: float) -> float:

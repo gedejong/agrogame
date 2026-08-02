@@ -133,9 +133,13 @@ class SoilStateResponse(BaseModel):
     porosity: list[float] = Field(
         default_factory=list,
         description=(
-            "Dynamic total porosity per layer (0..1). This is a macro-shift "
-            "approximation (clamped ~0.30–0.60 from effective_porosity), distinct "
-            "from the pore_*_frac breakdown, which sums to the layer saturation."
+            "Dynamic effective (drainable) porosity per layer (0..1, clamped "
+            "~0.30–0.60). This is total porosity minus the tightly bound "
+            "cryptopore (<0.2 µm) residual water, i.e. macro + meso + micro "
+            "(≈ θ_sat − θ_r), and is therefore ~10% below total porosity/"
+            "saturation — it is NOT θ_sat. Computed from the detailed "
+            "PoreNetworkState (total_porosity − crypto) when available, "
+            "falling back to the scalar aggregation estimate otherwise."
         ),
     )
 

@@ -85,7 +85,9 @@ def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
     """Compute per-layer dynamic ksat (mm/day) and porosity from aggregation (#253).
 
     Mirrors the derivation used by ``WaterRuntime``: the aggregation
-    macroaggregate fraction scales base ksat and shifts porosity. Base
+    macroaggregate fraction scales base ksat, and effective porosity is
+    delegated to the detailed pore-network breakdown when available,
+    falling back to the aggregation-shifted scalar otherwise (#289). Base
     ksat is stored per layer as ``ksat_mm_per_hour``; we return mm/day.
     """
     from agrogame.soil.aggregation.dynamic_state import (
@@ -95,13 +97,23 @@ def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
 
     layers = patch.orch.profile.layers
     macro = list(patch.orch.agg_state.macro)
+    pore_state = getattr(patch.orch, "pore_state", None)
     ksat_mm_day: list[float] = []
     porosity: list[float] = []
     for i, layer in enumerate(layers):
         macro_frac = macro[i] if i < len(macro) else 0.0
         base_ksat_day = layer.ksat_mm_per_hour * 24.0
         ksat_mm_day.append(round(base_ksat_day * effective_ksat_factor(macro_frac), 2))
-        porosity.append(round(effective_porosity(layer.saturation, macro_frac), 4))
+        # Delegate to the detailed pore breakdown when available (#289);
+        # falls back to the scalar approximation otherwise.
+        porosity.append(
+            round(
+                effective_porosity(
+                    layer.saturation, macro_frac, pore_state=pore_state, layer=i
+                ),
+                4,
+            )
+        )
     return ksat_mm_day, porosity
 
 
