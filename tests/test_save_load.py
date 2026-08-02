@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from agrogame.sim.orchestrator import FullSimulationOrchestrator
 
 from agrogame.game.economy import EconomicLedger
 from agrogame.game.field import FieldManager, PatchConfig
@@ -298,3 +302,206 @@ class TestSimulationRoundTrip:
         canopy_loaded = fm_loaded.fields["f1"].patches[0].orch.canopy.state
         assert canopy_loaded.lai >= 0.0
         assert canopy_loaded.biomass_g_m2 >= 0.0
+
+
+# --- Per-module SoilSnapshot round-trip (#285) ---
+
+
+def _make_full_orch() -> FullSimulationOrchestrator:
+    """Build a maize/loam FullSimulationOrchestrator for round-trip tests."""
+    from agrogame.events import EventBus
+    from agrogame.plant.presets import load_crop_presets
+    from agrogame.sim.orchestrator import FullSimulationOrchestrator
+    from agrogame.soil.loader import load_soil_presets
+
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    return FullSimulationOrchestrator(
+        soils.soils["loam_temperate"],
+        event_bus=EventBus(),
+        crop=crops.crops["maize"],
+    )
+
+
+def _step_waterlogged(orch: FullSimulationOrchestrator, days: int) -> None:
+    """Advance the orchestrator under a waterlogged scenario.
+
+    Heavy daily rainfall drives the deeper layers reducing, so redox,
+    gas-diffusion, aggregation, biopore, pore-network and micronutrient
+    pools all leave their freshly-initialised defaults — a precondition
+    for a meaningful round-trip assertion.
+    """
+    from datetime import date, timedelta
+
+    from agrogame.soil.water.types import DailyDrivers
+
+    start = date(2024, 5, 1)
+    for d in range(days):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=40.0),
+            tmin_c=16.0,
+            tmax_c=26.0,
+            par_mj_m2=16.0,
+            sim_date=start + timedelta(days=d),
+        )
+
+
+class TestNewModuleSnapshotRoundTrip:
+    """Deep-equality round-trip for the six newer soil modules (#285).
+
+    Covers pore_network, biopore, gas_diffusion, redox, micronutrients
+    and aggregation via ``snapshot_soil → to_dict → from_dict →
+    restore_soil → snapshot_soil``. The serialization itself landed with
+    #284; these tests lock it against regression.
+    """
+
+    def test_to_dict_from_dict_preserves_all_new_modules(self) -> None:
+        """to_dict → from_dict is lossless for every new-module field."""
+        orch = _make_full_orch()
+        _step_waterlogged(orch, 15)
+        snap = orch.snapshot_soil()
+        # Precondition: stepping actually left the defaults (otherwise the
+        # equality assertions below would be vacuous).
+        fresh = _make_full_orch().snapshot_soil()
+        assert snap.redox_eh != fresh.redox_eh
+        assert snap.gas_diffusion["o2_frac"] != fresh.gas_diffusion["o2_frac"]
+        assert snap.agg_macro != fresh.agg_macro
+        assert snap.biopore["density_per_m2"] != fresh.biopore["density_per_m2"]
+        assert snap.pore_network["macro"] != fresh.pore_network["macro"]
+
+        from agrogame.sim.orchestrator import SoilSnapshot
+
+        restored = SoilSnapshot.from_dict(snap.to_dict())
+
+        # redox
+        assert restored.redox_eh == snap.redox_eh
+        # micronutrients (6 pools)
+        assert restored.micro_fe_avail == snap.micro_fe_avail
+        assert restored.micro_zn_avail == snap.micro_zn_avail
+        assert restored.micro_mn_avail == snap.micro_mn_avail
+        assert restored.micro_fe_total == snap.micro_fe_total
+        assert restored.micro_zn_total == snap.micro_zn_total
+        assert restored.micro_mn_total == snap.micro_mn_total
+        # aggregation
+        assert restored.agg_micro == snap.agg_micro
+        assert restored.agg_meso == snap.agg_meso
+        assert restored.agg_macro == snap.agg_macro
+        # pore_network (full dataclass)
+        assert restored.pore_network == snap.pore_network
+        # biopore (4 lists)
+        assert restored.biopore == snap.biopore
+        # gas_diffusion (full dataclass, incl. bool anaerobic flags)
+        assert restored.gas_diffusion == snap.gas_diffusion
+
+    def test_restore_soil_is_lossless_for_new_modules(self) -> None:
+        """restore_soil into a fresh orchestrator reproduces the snapshot.
+
+        This exercises the live-state restore path (not just the snapshot
+        dataclass), including the ``dominant_acceptor`` re-derivation.
+        """
+        orch = _make_full_orch()
+        _step_waterlogged(orch, 15)
+        snap = orch.snapshot_soil()
+        from agrogame.sim.orchestrator import SoilSnapshot
+
+        wire = SoilSnapshot.from_dict(snap.to_dict())
+        fresh = _make_full_orch()
+        fresh.restore_soil(wire)
+        snap2 = fresh.snapshot_soil()
+        assert snap2.redox_eh == snap.redox_eh
+        assert snap2.micro_fe_avail == snap.micro_fe_avail
+        assert snap2.micro_zn_avail == snap.micro_zn_avail
+        assert snap2.micro_mn_avail == snap.micro_mn_avail
+        assert snap2.micro_fe_total == snap.micro_fe_total
+        assert snap2.micro_zn_total == snap.micro_zn_total
+        assert snap2.micro_mn_total == snap.micro_mn_total
+        assert snap2.agg_micro == snap.agg_micro
+        assert snap2.agg_meso == snap.agg_meso
+        assert snap2.agg_macro == snap.agg_macro
+        assert snap2.pore_network == snap.pore_network
+        assert snap2.biopore == snap.biopore
+        assert snap2.gas_diffusion == snap.gas_diffusion
+
+    def test_dominant_acceptor_rederived_from_redox_eh(self) -> None:
+        """``dominant_acceptor`` is not serialized; it is re-derived from Eh.
+
+        The snapshot only carries ``redox_eh``. On restore, each layer's
+        acceptor must be re-classified from the restored Eh (lossless — a
+        pure function of Eh). The waterlogged run yields a boundary-spanning
+        Eh profile (aerobic surface, methanogenic subsoil), so this covers
+        more than one acceptor class.
+        """
+        from agrogame.sim.orchestrator import SoilSnapshot
+        from agrogame.soil.redox.module import RedoxModule
+
+        orch = _make_full_orch()
+        _step_waterlogged(orch, 15)
+        snap = orch.snapshot_soil()
+        # The profile must span at least two acceptor classes for this test
+        # to be meaningful (surface stays aerobic, subsoil turns reducing).
+        expected = [RedoxModule._classify_acceptor(e) for e in snap.redox_eh]
+        assert len(set(expected)) >= 2
+
+        fresh = _make_full_orch()
+        fresh.restore_soil(SoilSnapshot.from_dict(snap.to_dict()))
+        restored_acceptors = fresh.redox_state.dominant_acceptor
+        assert list(restored_acceptors) == expected
+
+    def test_legacy_snapshot_missing_new_keys_restores_defaults(self) -> None:
+        """Backward-compat: a pre-#284 dict lacking the new keys loads clean.
+
+        ``from_dict`` must fill the new fields with empty lists/dicts (via
+        ``.get`` defaults), and ``restore_soil`` must then leave the
+        freshly-initialised module state untouched — no crash, no
+        IndexError.
+        """
+        from agrogame.sim.orchestrator import SoilSnapshot
+
+        # Start from a real snapshot dict, then strip every key added after
+        # the original save format to simulate a legacy on-disk save.
+        legacy = _make_full_orch().snapshot_soil().to_dict()
+        new_keys = [
+            "redox_eh",
+            "micro_fe_avail",
+            "micro_zn_avail",
+            "micro_mn_avail",
+            "micro_fe_total",
+            "micro_zn_total",
+            "micro_mn_total",
+            "agg_micro",
+            "agg_meso",
+            "agg_macro",
+            "pore_network",
+            "biopore",
+            "gas_diffusion",
+            "water_theta_macro",
+        ]
+        for key in new_keys:
+            legacy.pop(key, None)
+
+        restored = SoilSnapshot.from_dict(legacy)
+        assert restored.redox_eh == []
+        assert restored.micro_fe_avail == []
+        assert restored.micro_mn_total == []
+        assert restored.agg_micro == []
+        assert restored.agg_meso == []
+        assert restored.agg_macro == []
+        assert restored.pore_network == {}
+        assert restored.biopore == {}
+        assert restored.gas_diffusion == {}
+        assert restored.water_theta_macro == []
+
+        # restore_soil must leave the fresh module state alone (guards on
+        # empty snapshot fields), not crash on the empty lists/dicts.
+        target = _make_full_orch()
+        before_eh = list(target.redox_state.eh_mv)
+        before_agg = list(target.agg_state.macro)
+        before_o2 = list(target.gas_state.o2_frac)
+        before_pore = list(target.pore_state.macro)
+        before_fe = list(target.micro_state.fe_available)
+        target.restore_soil(restored)
+        assert list(target.redox_state.eh_mv) == before_eh
+        assert list(target.agg_state.macro) == before_agg
+        assert list(target.gas_state.o2_frac) == before_o2
+        assert list(target.pore_state.macro) == before_pore
+        assert list(target.micro_state.fe_available) == before_fe
