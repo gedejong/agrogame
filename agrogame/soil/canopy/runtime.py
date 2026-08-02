@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
@@ -9,6 +10,9 @@ from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
 from agrogame.weather.utils import saturation_vapor_pressure_kpa
+
+if TYPE_CHECKING:
+    from agrogame.plant.roots.events import RootDepthChanged
 
 
 @dataclass
@@ -33,15 +37,23 @@ class CanopyRuntime:
     _consecutive_wilt_days: int = 0
     _consecutive_waterlog_days: int = 0
     _waterlogged_today: bool = False
+    # Live rooting depth (cm) tracked from RootDepthChanged; drives the
+    # FAO-56 TAW ∝ Zr onset modifier for drought senescence (#373).
+    _root_depth_cm: float = field(init=False)
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self.event_bus.subscribe(WaterStressComputed, self._on_water_stress)
         self.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
         from agrogame.soil.water.events import WaterloggingDetected
+        from agrogame.plant.roots.events import RootDepthChanged
 
         self.event_bus.subscribe(WaterloggingDetected, self._on_waterlogging)
+        self.event_bus.subscribe(RootDepthChanged, self._on_root_depth)
         self._stress_history = deque(maxlen=self.canopy.params.stress_memory_days)
+        # Default to the reference depth so the modifier is neutral (factor 1.0)
+        # until the root module reports a live depth.
+        self._root_depth_cm = self.canopy.params.drought_senescence_ref_depth_cm
 
     def _on_water_stress(self, ev: WaterStressComputed) -> None:
         self._last_water = max(0.0, min(1.0, float(ev.stress)))
@@ -97,6 +109,10 @@ class CanopyRuntime:
     def _on_waterlogging(self, _ev: object) -> None:
         """Mark today as waterlogged (consumed by _check_waterlogging)."""
         self._waterlogged_today = True
+
+    def _on_root_depth(self, ev: RootDepthChanged) -> None:
+        """Track live rooting depth for the drought-senescence onset modifier."""
+        self._root_depth_cm = max(0.0, float(ev.new_cm))
 
     def _check_frost_damage(self, tmin_c: float) -> None:
         """Apply LAI loss on frost days during vulnerable stages.
@@ -182,22 +198,53 @@ class CanopyRuntime:
             self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
             self._consecutive_waterlog_days = 0
 
-    def _check_wilt_damage(self, water_stress: float) -> None:
-        """Apply irreversible LAI loss after prolonged severe stress.
+    def _drought_depth_factor(self) -> float:
+        """FAO-56 TAW ∝ Zr onset modifier for drought senescence (#373).
 
-        Fires repeatedly every wilt_days_for_damage consecutive days
-        of severe stress — intentional compounding to model progressive
-        leaf death during extended drought.
+        Deeper roots reach a larger total-available-water pool, so a given
+        Ta/Tp deficit senesces leaf area more slowly; a shallow-rooted
+        seedling senesces faster (rapid seedling drought). Returns
+        ``clamp(ref_depth / current_depth, min, max)``.
+        Ref: FAO-56 TAW = (θ_FC − θ_WP) · Zr (Allen et al. 1998, Eq. 82).
         """
         p = self.canopy.params
-        if water_stress < p.wilt_stress_threshold:
-            self._consecutive_wilt_days += 1
-        else:
+        depth = max(1.0, self._root_depth_cm)
+        factor = p.drought_senescence_ref_depth_cm / depth
+        lo = p.drought_senescence_depth_factor_min
+        hi = p.drought_senescence_depth_factor_max
+        return max(lo, min(hi, factor))
+
+    def _check_drought_senescence(self, water_stress: float) -> None:
+        """Graded, per-unit-leaf drought leaf-senescence (#373).
+
+        Replaces the old discrete N-day, size-independent 10%-of-LAI wilt
+        step. Once stress has stayed below the onset threshold for the crop's
+        tolerance lag (``wilt_days_for_damage``), a fraction of *current* LAI
+        is senesced every day, scaled by stress severity
+        ``(onset − Ta/Tp) / onset`` and the rooting-depth modifier. Because
+        the loss is a fraction of current LAI it bites a small, vigorously
+        growing canopy in the same relative terms as a large one, so net leaf
+        area no longer climbs through a severe drought.
+
+        Refs: FAO-56 Ks / TAW ∝ Zr (Allen et al. 1998); DSSAT CERES TURFAC /
+        water-stress leaf senescence; APSIM ``swdef_senescence`` (Keating et
+        al. 2003) — a graded daily per-unit-leaf rate, never a fixed step.
+        """
+        p = self.canopy.params
+        onset = p.wilt_stress_threshold
+        if onset <= 0.0 or water_stress >= onset:
             self._consecutive_wilt_days = 0
-        if self._consecutive_wilt_days >= p.wilt_days_for_damage:
-            loss = self.canopy.state.lai * p.wilt_lai_loss_fraction
-            self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
-            self._consecutive_wilt_days = 0
+            return
+        self._consecutive_wilt_days += 1
+        # Tolerance lag: leaves recover from brief wilting via turgor; only
+        # sustained stress drives irreversible senescence (deeper-rooted crops
+        # set a longer lag, e.g. winter wheat).
+        if self._consecutive_wilt_days < p.wilt_days_for_damage:
+            return
+        severity = (onset - water_stress) / onset  # 0 at onset, →1 as Ta/Tp→0
+        rate = p.wilt_lai_loss_fraction * severity * self._drought_depth_factor()
+        loss = self.canopy.state.lai * max(0.0, min(1.0, rate))
+        self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "canopy":
@@ -228,8 +275,8 @@ class CanopyRuntime:
             heat_grain_factor=heat_grain_factor,
             root_allocation_fraction=self.root_allocation_fraction,
         )
-        # Damage checks (wilt, frost, waterlogging) — AGRO-34
-        self._check_wilt_damage(water)
+        # Damage checks (drought senescence, frost, waterlogging) — AGRO-34, #373
+        self._check_drought_senescence(water)
         tmin = float(ev.tmin_c) if ev.tmin_c is not None else 10.0
         self._check_frost_damage(tmin)
         self._check_waterlogging_damage()

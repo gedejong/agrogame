@@ -170,9 +170,12 @@ phenology, canopy dynamics, roots, and optional per-climate overrides. A file is
 | `senescence_grain_fill_max` | number | multiplier | ≥ 0 | 2.0 | Peak senescence multiplier at end of grain fill. |
 | `grain_fill_duration_gdd` | number | °C·day (GDD) | ≥ 0 | 900.0 | GDD span over which senescence ramps. |
 | `stress_memory_days` | integer | days | ≥ 1 | 7 | Window for running-average water stress. |
-| `wilt_stress_threshold` | number | fraction | 0–1 | 0.3 | Water-stress level below which wilting damage begins. |
-| `wilt_days_for_damage` | integer | days | ≥ 1 | 5 | Consecutive stressed days before LAI loss. |
-| `wilt_lai_loss_fraction` | number | fraction | 0–1 | 0.1 | LAI lost per wilting-damage event. |
+| `wilt_stress_threshold` | number | fraction (Ta/Tp) | 0–1 | 0.3 | Water-stress onset: Ta/Tp below this triggers drought senescence. |
+| `wilt_days_for_damage` | integer | days | ≥ 1 | 5 | Tolerance lag: consecutive sub-threshold days before daily senescence begins (one-time lag, not a repeating cycle). |
+| `wilt_lai_loss_fraction` | number | fraction/day | 0–1 | 0.1 | Max daily LAI fraction lost at full severity. Each day past the lag, LAI loss = LAI × `wilt_lai_loss_fraction` × severity × depth-factor, where severity = (threshold − Ta/Tp) / threshold. A daily per-unit-leaf rate, not a discrete per-event step. |
+| `drought_senescence_ref_depth_cm` | number | cm | ≥ 1 | 40.0 | Reference rooting depth for the depth modifier (FAO-56 TAW ∝ Zr). |
+| `drought_senescence_depth_factor_min` | number | multiplier | ≥ 0 | 0.25 | Lower clamp on `ref_depth / current_depth`; deep-rooted floor (deeper roots senesce more slowly). |
+| `drought_senescence_depth_factor_max` | number | multiplier | ≥ 0 | 2.0 | Upper clamp on `ref_depth / current_depth`; shallow-rooted/seedling cap (faster senescence). |
 | `harvest_index` | number | fraction | 0–1 | 0.45 | Fixed HI (legacy path; used when `grains_per_g_source` = 0). |
 | `grains_per_g_source` | number | grains·m⁻² per g·m⁻² | ≥ 0 | 0.0 | Grain number per unit peri-anthesis assimilate (0 = fixed-HI). |
 | `grain_set_window_gdd` | number | °C·day (GDD) | ≥ 0 | 200.0 | Peri-anthesis critical window for grain set. |
