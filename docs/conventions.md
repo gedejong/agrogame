@@ -35,8 +35,6 @@ modules: `agrogame/soil/micronutrients/`, `agrogame/soil/redox/`.
 | `agrogame/soil/som/` | `pools.py` instead of `state.py` | Three-pool RothC names the pool, not generic state |
 | `agrogame/soil/microbes/` | `biomass.py` + `responses.py` | Pre-canonical; rename tracked in #288 |
 | `agrogame/soil/water/` | Adds `models/` sub-package, `legacy.py`, `scs.py`, `constants.py`, `types.py` | Multiple water-balance implementations + SCS curve number table |
-| `agrogame/soil/chemistry/` | Only `module.py` + `events.py` | No mutable state yet; tracked in #288 |
-| `agrogame/soil/pore_network/`, `gas_diffusion/`, `biopores/` | `runtime.py` exists but not yet orchestrator-wired | Wiring deferred to #284 |
 | `agrogame/soil/canopy/`, `phenology/`, `agrogame/plant/roots/` | `types.py` replaces `state.py`; extra `factory.py` builds the module from presets | Older convention from before the canonical shape was agreed; rename optional |
 | `agrogame/atmosphere/` | Only contains `et/` | Single-child wrapper — collapse if no second child appears |
 

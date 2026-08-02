@@ -1,6 +1,6 @@
 {
   "AcidifyingFertilizerApplied": [
-    "SoilChemistryModule._on_acid_fert"
+    "ChemistryRuntime._on_acid_fert"
   ],
   "BiomassAccumulated": [
     "MicronutrientRuntime._on_biomass",
@@ -10,10 +10,10 @@
     "FullSimulationOrchestrator._on_co2_respired"
   ],
   "DayTick": [
-    "SoilChemistryModule._on_day_tick",
     "PoreNetworkRuntime._on_day_tick",
     "BioporesRuntime._on_day_tick",
     "GasDiffusionRuntime._on_day_tick",
+    "ChemistryRuntime._on_day_tick",
     "WaterRuntime._on_day_tick",
     "PhenologyRuntime._on_day_tick",
     "RootsRuntime._on_day_tick",
@@ -38,7 +38,7 @@
     "CanopyModule._on_harvest"
   ],
   "LimeApplied": [
-    "SoilChemistryModule._on_lime"
+    "ChemistryRuntime._on_lime"
   ],
   "MicrobialActivityComputed": [
     "EnvironmentalCache._on_microbe_activity",
@@ -52,13 +52,13 @@
     "AggregationRuntime._on_microbes_updated"
   ],
   "NutrientLeached": [
-    "SoilChemistryModule._on_nutrient_leached"
+    "ChemistryRuntime._on_nutrient_leached"
   ],
   "NutrientStressComputed": [
     "CanopyRuntime._on_nutrient_stress"
   ],
   "PhosphorusFixationOccurred": [
-    "SoilChemistryModule._on_p_fix"
+    "ChemistryRuntime._on_p_fix"
   ],
   "PlantNUptakeComputed": [
     "PlantNitrogenRuntime._on_uptake"
