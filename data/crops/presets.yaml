@@ -48,7 +48,16 @@ crops:
     climate_overrides:
       kenya_highlands:
         canopy:
-          rue_g_per_mj: 2.53      # Kenya posterior (AGRO-102)
+          # Kenya posterior (AGRO-102), +8% recalibration (#372): grain
+          # 5.66 -> ~6.3 t/ha into the GYGA 6-8 t/ha potential band, shoot AGB
+          # ~1444 g/m2 (stays in 1200-2000, below the pre-#337 inflated 1524).
+          # NB convention: the orchestrator feeds shortwave straight in as
+          # par_mj_m2 (no PAR fraction), so this RUE is defined vs intercepted
+          # TOTAL SOLAR. The C4-maize RUE-vs-total-solar literature band is
+          # ~1.6-1.7 g/MJ (Kiniry et al. 1989; Sinclair & Muchow 1999); this
+          # value sits above it as a realism-fit calibration posterior, not a
+          # literature-transcribed constant.
+          rue_g_per_mj: 2.73      # Kenya posterior (AGRO-102, recal #372)
           temp_opt_c: 24.2        # Kenya posterior (AGRO-102)
           sla_m2_per_g: 0.013     # Kenya posterior (AGRO-102)
         phenology:
