@@ -1,3 +1,22 @@
+# Soil profile presets: water-retention, texture, and initial nutrient pools
+# per layer.
+#
+# initial_s_kg_ha — initial plant-available (solution + exchangeable) sulfate-S
+# per layer. Values follow a topsoil->subsoil concentration profile of
+# ~10 / 5 / 2.5 mg SO4-S per kg soil, converted to kg/ha per layer via
+#   kg/ha = conc(mg/kg) x bulk_density(g/cm3) x depth_cm x 0.1
+# so a thin dense topsoil and a thick light subsoil can carry similar kg/ha at
+# different concentrations. Topsoil ~10 mg/kg sits at the adequate end of the
+# extractable-SO4-S range for unfertilized agricultural soils (deficiency /
+# critical threshold ~5-10 mg/kg), keeping normal-season scenarios
+# S-non-limiting while leaving the mobile pool small enough that a wet
+# NW-European overwinter leaches it (the well-documented cause of spring S
+# deficiency). The >90% of soil S held in organic matter is modelled separately
+# and scales with organic_matter_pct (see soil/sulfur/constants.py). This
+# mirrors loam_temperate (35/25/15 kg/ha ~= 9.7/4.8/2.4 mg/kg) across all
+# presets, so any S-limitation is an intentional, texture-consistent property
+# of the soil rather than an unset-field artifact.
+# Refs: Eriksen (2009) Adv. Agron. 102; Scherer (2001) Eur. J. Agron. 14:81-111.
 soils:
   sandy_arid:
     name: "Sandy Soil - Arid Region"
@@ -13,6 +32,7 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 10.0
+        initial_s_kg_ha: 33.0
         initial_fe_ppm: 3.0
         initial_zn_ppm: 0.4
         initial_mn_ppm: 1.5
@@ -27,6 +47,7 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_s_kg_ha: 33.0
         initial_fe_ppm: 2.5
         initial_zn_ppm: 0.3
         initial_mn_ppm: 1.0
@@ -41,6 +62,7 @@ soils:
         initial_no3_kg_ha: 2.0
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 5.0
+        initial_s_kg_ha: 21.0
         initial_fe_ppm: 2.0
         initial_zn_ppm: 0.2
         initial_mn_ppm: 0.8
@@ -59,6 +81,7 @@ soils:
         initial_no3_kg_ha: 7.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 14.0
+        initial_s_kg_ha: 40.0
         initial_fe_ppm: 6.0
         initial_zn_ppm: 0.8
         initial_mn_ppm: 4.0
@@ -73,6 +96,7 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 1.5
         initial_p_kg_ha: 8.0
+        initial_s_kg_ha: 29.0
         initial_fe_ppm: 4.0
         initial_zn_ppm: 0.6
         initial_mn_ppm: 3.0
@@ -87,6 +111,7 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_s_kg_ha: 16.0
         initial_fe_ppm: 3.0
         initial_zn_ppm: 0.4
         initial_mn_ppm: 2.0
@@ -154,6 +179,7 @@ soils:
         initial_no3_kg_ha: 12.0
         initial_nh4_kg_ha: 5.0
         initial_p_kg_ha: 22.0
+        initial_s_kg_ha: 40.0
         initial_fe_ppm: 25.0
         initial_zn_ppm: 3.0
         initial_mn_ppm: 20.0
@@ -168,6 +194,7 @@ soils:
         initial_no3_kg_ha: 8.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 15.0
+        initial_s_kg_ha: 24.0
         initial_fe_ppm: 18.0
         initial_zn_ppm: 2.0
         initial_mn_ppm: 15.0
@@ -182,6 +209,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_s_kg_ha: 14.0
         initial_fe_ppm: 12.0
         initial_zn_ppm: 1.5
         initial_mn_ppm: 10.0
@@ -200,6 +228,7 @@ soils:
         initial_no3_kg_ha: 14.0
         initial_nh4_kg_ha: 5.0
         initial_p_kg_ha: 24.0
+        initial_s_kg_ha: 40.0
         initial_fe_ppm: 30.0
         initial_zn_ppm: 3.5
         initial_mn_ppm: 25.0
@@ -214,6 +243,7 @@ soils:
         initial_no3_kg_ha: 9.0
         initial_nh4_kg_ha: 3.5
         initial_p_kg_ha: 16.0
+        initial_s_kg_ha: 24.0
         initial_fe_ppm: 20.0
         initial_zn_ppm: 2.5
         initial_mn_ppm: 18.0
@@ -228,6 +258,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 12.0
+        initial_s_kg_ha: 14.0
         initial_fe_ppm: 14.0
         initial_zn_ppm: 1.8
         initial_mn_ppm: 12.0
@@ -246,6 +277,7 @@ soils:
         initial_no3_kg_ha: 9.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 18.0
+        initial_s_kg_ha: 39.0
         initial_fe_ppm: 10.0
         initial_zn_ppm: 1.0
         initial_mn_ppm: 8.0
@@ -260,6 +292,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 12.0
+        initial_s_kg_ha: 28.0
         initial_fe_ppm: 7.0
         initial_zn_ppm: 0.7
         initial_mn_ppm: 5.0
@@ -274,6 +307,7 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 1.5
         initial_p_kg_ha: 9.0
+        initial_s_kg_ha: 16.0
         initial_fe_ppm: 5.0
         initial_zn_ppm: 0.5
         initial_mn_ppm: 3.0
@@ -292,6 +326,7 @@ soils:
         initial_no3_kg_ha: 11.0
         initial_nh4_kg_ha: 4.0
         initial_p_kg_ha: 20.0
+        initial_s_kg_ha: 35.0
         initial_fe_ppm: 20.0
         initial_zn_ppm: 2.0
         initial_mn_ppm: 15.0
@@ -306,6 +341,7 @@ soils:
         initial_no3_kg_ha: 8.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 14.0
+        initial_s_kg_ha: 25.0
         initial_fe_ppm: 14.0
         initial_zn_ppm: 1.5
         initial_mn_ppm: 10.0
@@ -320,6 +356,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 11.0
+        initial_s_kg_ha: 15.0
         initial_fe_ppm: 10.0
         initial_zn_ppm: 1.0
         initial_mn_ppm: 7.0
@@ -338,6 +375,7 @@ soils:
         initial_no3_kg_ha: 6.0
         initial_nh4_kg_ha: 3.0
         initial_p_kg_ha: 8.0
+        initial_s_kg_ha: 10.0
         initial_fe_ppm: 40.0
         initial_zn_ppm: 2.5
         initial_mn_ppm: 30.0
@@ -352,6 +390,7 @@ soils:
         initial_no3_kg_ha: 5.0
         initial_nh4_kg_ha: 2.5
         initial_p_kg_ha: 7.0
+        initial_s_kg_ha: 7.0
         initial_fe_ppm: 35.0
         initial_zn_ppm: 2.0
         initial_mn_ppm: 25.0
@@ -366,6 +405,7 @@ soils:
         initial_no3_kg_ha: 4.0
         initial_nh4_kg_ha: 2.0
         initial_p_kg_ha: 6.0
+        initial_s_kg_ha: 4.0
         initial_fe_ppm: 30.0
         initial_zn_ppm: 1.8
         initial_mn_ppm: 20.0
@@ -384,6 +424,7 @@ soils:
         initial_no3_kg_ha: 3.0
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
+        initial_s_kg_ha: 34.0
         initial_fe_ppm: 2.0
         initial_zn_ppm: 0.3
         initial_mn_ppm: 1.0
@@ -398,6 +439,7 @@ soils:
         initial_no3_kg_ha: 2.0
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 4.0
+        initial_s_kg_ha: 34.0
         initial_fe_ppm: 1.5
         initial_zn_ppm: 0.2
         initial_mn_ppm: 0.8
@@ -412,6 +454,7 @@ soils:
         initial_no3_kg_ha: 1.0
         initial_nh4_kg_ha: 0.5
         initial_p_kg_ha: 3.0
+        initial_s_kg_ha: 22.0
         initial_fe_ppm: 1.0
         initial_zn_ppm: 0.1
         initial_mn_ppm: 0.5
