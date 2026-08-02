@@ -60,11 +60,22 @@ router = APIRouter(prefix="/api/v1")
 
 
 def _reset_all_crops(s: GameSession) -> None:
-    """Reset crops on all patches, preserving soil state for next run."""
+    """Reset crops on all patches, preserving soil state for next run.
+
+    A per-patch harvest leaves the harvested patch bare (``crop_key=""``); such
+    a patch holds no standing crop, so it is reset crop-free (``reset_crop(None)``)
+    rather than looked up via ``get_preset("")`` — which would ``KeyError`` (#392).
+    Mirrors the load-path handling in ``Patch.__init__`` (#371).
+    """
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
     for field in s.field_manager.fields.values():
         for patch in field.patches:
-            preset = crops.get_preset(patch.config.crop_key, patch.config.climate_key)
+            crop_key = patch.config.crop_key
+            preset = (
+                crops.get_preset(crop_key, patch.config.climate_key)
+                if crop_key
+                else None
+            )
             patch.orch.reset_crop(preset)
 
 

@@ -904,6 +904,78 @@ def test_replant_resets_harvested_yield_in_report(client) -> None:
 
 
 # ---------------------------------------------------------------------------
+# AC (#392): start-season after a per-patch harvest must not KeyError on the
+# bare (crop_key="") patch in _reset_all_crops.
+# ---------------------------------------------------------------------------
+def test_start_season_after_per_patch_harvest_does_not_keyerror(client) -> None:
+    """A per-patch harvest leaves a bare patch; start-season must still reset (#392).
+
+    Regression: `_reset_all_crops` called `get_preset("")` for the harvested
+    patch (`crop_key=""`), raising `KeyError: ''` → 500. The bare patch must be
+    reset crop-free instead, mirroring the load-path fix in #371.
+    """
+    game_id = _create_multi_patch_game(client)
+    # Grow to maturity so patch 0 has grain to harvest.
+    client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+
+    # Harvest patch 0 only → it becomes bare (crop_key="").
+    harvest = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    assert harvest.status_code == 200
+    assert _session(game_id).field_manager.fields["f1"].patches[0].config.crop_key == ""
+
+    # Start a new season: previously this 500'd on get_preset("").
+    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=60&seed=7")
+    assert resp.status_code == 200, resp.text
+    patches = resp.json()["field_results"]["f1"]
+    assert len(patches) == 3
+    # Every patch is in a valid state (soil carried across the reset).
+    for p in patches:
+        assert p["soil_state"] is not None
+    # The harvested patch stays bare (crop-free reset); the others keep maize.
+    assert patches[0]["crop_key"] == ""
+    assert patches[1]["crop_key"] == "maize"
+    assert patches[2]["crop_key"] == "maize"
+
+    # Second season boundary: harvest a still-standing patch, then start-season
+    # again — the bare-patch reset path holds across multiple seasons.
+    harvest2 = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
+    )
+    assert harvest2.status_code == 200
+    resp2 = client.post(f"/api/v1/games/{game_id}/start-season?days=60&seed=9")
+    assert resp2.status_code == 200, resp2.text
+    patches2 = resp2.json()["field_results"]["f1"]
+    assert patches2[0]["crop_key"] == ""
+    assert patches2[1]["crop_key"] == ""
+    assert patches2[2]["crop_key"] == "maize"
+
+
+def test_start_season_normal_reset_path_unchanged(client) -> None:
+    """Consecutive seasons without a manual harvest keep the normal reset (#392).
+
+    Guards the common path where every patch still carries a real crop_key at
+    the season boundary, so `_reset_all_crops` calls `get_preset("maize")` — the
+    bare-patch branch must not perturb it.
+    """
+    game_id = _create_multi_patch_game(client)
+    # Season 1: no manual harvest — every patch keeps crop_key="maize".
+    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
+    assert r1.status_code == 200
+    # Season 2 triggers _reset_all_crops on all-cropped patches (the normal path).
+    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=7")
+    assert r2.status_code == 200, r2.text
+    patches = r2.json()["field_results"]["f1"]
+    assert len(patches) == 3
+    for p in patches:
+        assert p["crop_key"] == "maize", "Cropped patches keep their crop on reset"
+        assert p["soil_state"] is not None
+
+
+# ---------------------------------------------------------------------------
 # AC (#359): harvest honors patch_idx, resets _current_crop, mid-season P&L
 # ---------------------------------------------------------------------------
 def _session(game_id: str):
