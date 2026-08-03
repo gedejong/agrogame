@@ -343,7 +343,7 @@ def _run_dependency_sim(
             rain = w.precip_mm or 0.0
         else:
             tmin, tmax, rad, rain = 10.0, 22.0, 12.0, 0.0
-        phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
+        phen.daily_step(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         _ = canopy.daily_step(
             incident_par_mj_m2=rad, temp_factor=1.0, water_stress=1.0, n_stress=1.0
         )
@@ -354,7 +354,7 @@ def _run_dependency_sim(
             else tuple([1.0 / len(profile.layers)] * len(profile.layers))
         )
         intercepted, throughfall = istate.intercept(canopy.state.lai, rain)
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile, wstate, DailyDrivers(rainfall_mm=throughfall, evaporation_mm=0.0)
         )
         et0 = etmod.priestley_taylor(

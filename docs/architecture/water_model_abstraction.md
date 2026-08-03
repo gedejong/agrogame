@@ -1,6 +1,6 @@
 # Water Model Abstraction and Events
 
-- Interface: `SoilWaterModel.update_daily(profile, state, drivers) -> WaterFluxes`
+- Interface: `SoilWaterModel.daily_step(profile, state, drivers) -> WaterFluxes`
 - Default impl: `CascadingBucketWaterModel`
 - Water-only events via `EventBus`: `WaterInfiltrated`, `WaterDrained`, `RunoffGenerated`, `EvaporationTaken`, `TranspirationByLayer`
 - Orchestrator owns state; other modules subscribe to water events
