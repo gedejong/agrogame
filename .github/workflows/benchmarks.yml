@@ -42,4 +42,4 @@ jobs:
         env:
           AGRO_BENCH: '1'
         run: |
-          poetry run pytest -q -k benchmarks
+          poetry run pytest -q -k benchmarks --no-cov
