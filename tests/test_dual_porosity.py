@@ -355,24 +355,6 @@ def test_cascading_model_unchanged_by_new_state_field() -> None:
     ), "Cascading model must not write to theta_macro"
 
 
-def test_update_daily_shim_dispatches_to_dual_porosity_daily_step() -> None:
-    """Inherited ``update_daily`` shim warns and reaches the DualPorosity
-    override, producing identical fluxes to ``daily_step`` (#282)."""
-    profile = _loam_profile()
-    drivers = DailyDrivers(
-        rainfall_mm=40.0, evaporation_mm=2.0, rainfall_intensity_mm_hr=40.0
-    )
-
-    canonical = DualPorosityWaterModel(DualPorosityParams(), _pore_state(profile))
-    new_flux = canonical.daily_step(profile, _dual_state(profile), drivers)
-
-    shimmed = DualPorosityWaterModel(DualPorosityParams(), _pore_state(profile))
-    with pytest.warns(DeprecationWarning, match="daily_step"):
-        old_flux = shimmed.update_daily(profile, _dual_state(profile), drivers)
-
-    assert old_flux == new_flux
-
-
 def test_daily_drivers_backward_compatible() -> None:
     """DailyDrivers constructor without new field still works."""
     drivers = DailyDrivers(rainfall_mm=10.0, irrigation_mm=0.0, evaporation_mm=1.0)

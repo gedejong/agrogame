@@ -40,7 +40,7 @@ def _simulate(
     state = RootState()
     depths: list[float] = []
     for _ in range(days):
-        phen.update_daily(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
+        phen.daily_step(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
         _ = roots.daily_step(state, soil, phen.state.stage)
         depths.append(state.current_depth_cm)
     return depths

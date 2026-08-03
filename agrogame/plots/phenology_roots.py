@@ -94,7 +94,7 @@ def simulate_phenology_canopy(
     tmins, tmaxs, pars = _generate_weather_series(days, tmin, tmax, par, pattern)
 
     for i in range(days):
-        state = pheno.update_daily(tmin_c=tmins[i], tmax_c=tmaxs[i], photoperiod_h=12.0)
+        state = pheno.daily_step(tmin_c=tmins[i], tmax_c=tmaxs[i], photoperiod_h=12.0)
         stages.append(state.stage)
         fx = canopy.daily_step(
             incident_par_mj_m2=pars[i],
@@ -243,7 +243,7 @@ def simulate_roots(
     top_frac: list[float] = []
     fractions_over_time: list[list[float]] = []
     for _ in range(days):
-        phen.update_daily(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
+        phen.daily_step(tmin_c=10.0, tmax_c=20.0, photoperiod_h=12.0)
         _ = roots.daily_step(state, profile, phen.state.stage)
         depths.append(state.current_depth_cm)
         if state.layer_fractions:

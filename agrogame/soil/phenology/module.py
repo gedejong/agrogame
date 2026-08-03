@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import warnings
-
 from agrogame.events import EventBus
 from .params import CropPhenologyParams
 from .types import PhenologyStage, PhenologyState
@@ -121,24 +119,3 @@ class PhenologyModule:
                 )
 
         return self.state
-
-    def update_daily(
-        self,
-        tmin_c: float,
-        tmax_c: float,
-        photoperiod_h: float | None = None,
-        vernalization_temp_range_c: tuple[float, float] = (0.0, 10.0),
-    ) -> PhenologyState:
-        """Deprecated alias for :meth:`daily_step`.
-
-        Retained as a compatibility shim; delegates to ``daily_step`` and
-        emits a ``DeprecationWarning`` pointing at the caller.
-        """
-        warnings.warn(
-            "update_daily is deprecated; use daily_step instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.daily_step(
-            tmin_c, tmax_c, photoperiod_h, vernalization_temp_range_c
-        )

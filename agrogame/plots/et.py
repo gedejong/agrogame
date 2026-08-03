@@ -140,8 +140,8 @@ def _run_simulation(
         vpd = vpd_kpa(temp_mean, rh)
         data["vpds"].append(vpd)
 
-        phen.update_daily(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
-        _ = water.update_daily(
+        phen.daily_step(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
+        _ = water.daily_step(
             soil_profile, wstate, DailyDrivers(rainfall_mm=rain, evaporation_mm=evap0)
         )
 

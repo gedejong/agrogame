@@ -72,16 +72,16 @@ plain dataclasses.
 
 `daily_step(...)` is the canonical name for the once-per-day computation on
 a `*Module`. Existing aliases that predate the convention:
-- `update_daily` — `agrogame/soil/water/legacy.py`,
-  `agrogame/soil/water/models/cascading.py`,
-  `agrogame/soil/water/models/dual_porosity.py`, `agrogame/soil/phenology/module.py`
+- `update_daily` — `agrogame/soil/water/legacy.py` (legacy `SoilWaterBalance`
+  3-tuple API, deliberately retained)
 - `compute` — `agrogame/soil/pore_network/module.py`
 
 `step_day` exists at the orchestrator/field layer
 (`agrogame/sim/orchestrator.py`, `agrogame/game/field.py`) and is
 intentional — different abstraction, not a `*Module` daily step.
 
-Rename tracked in **#282**.
+The `*Module` `update_daily` rename tracked in **#282** is now complete
+(shims removed in **#411**).
 
 Real example from `agrogame/soil/redox/module.py:41`:
 

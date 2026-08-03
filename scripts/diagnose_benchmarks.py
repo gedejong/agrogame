@@ -68,7 +68,7 @@ def diagnose(
     maturity_gdd = None
 
     for i, rec in enumerate(weather.records):
-        state = phen.update_daily(
+        state = phen.daily_step(
             tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0
         )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
@@ -82,7 +82,7 @@ def diagnose(
             relative_humidity_pct=rec.relative_humidity_pct or 60.0,
         )
         rain = rec.precip_mm or 0.0
-        _ = water.update_daily(
+        _ = water.daily_step(
             profile, wstate, DailyDrivers(rainfall_mm=rain, evaporation_mm=0.0)
         )
         comps: EtComponents = et.potential_components(et0_mm=et0, lai=canopy.state.lai)
