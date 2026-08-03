@@ -2,7 +2,7 @@ name: Python CI
 
 on:
   push:
-    branches: [ main, develop, 'feat/**' ]
+    branches: [ main, 'feat/**' ]
     paths:
       - 'agrogame/**'
       - 'tests/**'
@@ -11,7 +11,7 @@ on:
       - 'poetry.lock'
       - '.github/workflows/python.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'agrogame/**'
       - 'tests/**'

@@ -72,7 +72,7 @@ scripts/           # Utility scripts (plots, analysis)
 - Feature branch per Jira issue: `feat/AGRO-<id>-<kebab-summary>`
 - Conventional commits: feat, fix, chore, docs, refactor, test
 - Link Jira issue key in commits and PR titles (e.g., AGRO-123)
-- Open PRs against `develop`; keep PRs small and focused
+- Open PRs against `main`; keep PRs small and focused
 - Update Jira status and add comments at kickoff and PR open/merge
 - Only ask questions when information is missing or ambiguous
 
@@ -149,7 +149,7 @@ scripts/           # Utility scripts (plots, analysis)
 
 - Use Poetry for dependency and environment management (`poetry run ...`)
 - Optional extras: `poetry install -E api` (fastapi/uvicorn), `-E dashboard` (streamlit/plotly)
-- Use `gh` CLI for PRs: `gh pr create --base develop`
+- Use `gh` CLI for PRs: `gh pr create --base main`
 - Prefer metric units; sensible decimal precision in outputs
 
 ## Documentation

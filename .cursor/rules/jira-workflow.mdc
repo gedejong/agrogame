@@ -5,15 +5,15 @@ description: Jira operating rules for AgroGame
 # Jira Operating Rules
 
 - For each story: fetch acceptance criteria, post brief implementation plan, transition to In Progress with branch name, keep compliance comment before PR and after merge.
-- Prefer highest-priority To Do; branch from `develop` with `feat/<JIRA-KEY>-<kebab-summary>`.
+- Prefer highest-priority To Do; branch from `main` with `feat/<JIRA-KEY>-<kebab-summary>`.
 - Link PR in Jira; include issue key in branch and PR title.
 
 MCP integration available; prefer MCP over raw API.
 
 # Default Engineering Workflow
 
-1) Update develop and branch
-- `git checkout develop && git pull --ff-only`
+1) Update main and branch
+- `git checkout main && git pull --ff-only`
 - Create feature branch: `feat/<JIRA-KEY>-<kebab-summary>`
 
 2) Plan → Todos → Implement
@@ -26,11 +26,11 @@ MCP integration available; prefer MCP over raw API.
 - Ensure pytest coverage ≥ configured threshold (see CI rule)
 
 4) PR + CI
-- Open a PR to `develop` with a clear title and checklist of acceptance criteria
+- Open a PR to `main` with a clear title and checklist of acceptance criteria
 - After triggering CI, wait the configured grace period before checking status
 
 5) Merge & Next
-- After merge: update local `develop`, then pick the next highest-priority Jira story in To Do
+- After merge: update local `main`, then pick the next highest-priority Jira story in To Do
 
 6) Minimize user interaction
 - Only ask questions when information is missing or ambiguous

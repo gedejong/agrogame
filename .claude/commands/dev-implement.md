@@ -47,7 +47,7 @@ Present this plan to the user and wait for confirmation before proceeding.
 
 ### Phase 3: Implement
 
-1. **Create a feature branch**: `git checkout -b feat/<ISSUE-NUMBER>-<kebab-summary> develop`
+1. **Create a feature branch**: `git checkout -b feat/<ISSUE-NUMBER>-<kebab-summary> main`
 2. **Transition issue to In Progress**:
    ```bash
    unset GITHUB_TOKEN && gh issue edit <number> --repo gedejong/agrogame --remove-label "status:to-do" --add-label "status:in-progress"
@@ -92,7 +92,7 @@ Fix any failures in your code. Do not weaken thresholds or add ignores.
 ### Phase 5: Open PR
 
 1. **Push the branch**: `git push -u origin <branch-name>`
-2. **Create the PR** against `develop` using `unset GITHUB_TOKEN && gh pr create --repo gedejong/agrogame` with:
+2. **Create the PR** against `main` using `unset GITHUB_TOKEN && gh pr create --repo gedejong/agrogame` with:
    - Title: `feat(#<NUMBER>): <short description>` (under 70 chars)
    - Body format:
      ```
