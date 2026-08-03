@@ -2,12 +2,12 @@ name: Godot CI
 
 on:
   push:
-    branches: [ main, develop, 'feat/**' ]
+    branches: [ main, 'feat/**' ]
     paths:
       - 'game/**'
       - '.github/workflows/godot.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'game/**'
       - '.github/workflows/godot.yml'

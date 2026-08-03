@@ -2,9 +2,9 @@ name: Playwright E2E
 
 on:
   push:
-    branches: [ develop, feat/** ]
+    branches: [ main, feat/** ]
   pull_request:
-    branches: [ develop ]
+    branches: [ main ]
 
 jobs:
   e2e:
