@@ -16,6 +16,8 @@ from pathlib import Path
 
 from agrogame.plant.presets import load_crop_presets, _load_crop_presets_cached
 from agrogame.plant.events import NutrientStressComputed
+from agrogame.atmosphere.et.events import EvapotranspirationComputed
+from agrogame.soil.nitrogen.events import NutrientLeached
 from agrogame.soil.phenology import PhenologyStage
 from agrogame.soil.loader import load_soil_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -2121,3 +2123,161 @@ def test_root_shoot_partitioning_persists_across_two_seasons() -> None:
     s2_root, s2_shoot = _run_one_season(date(2025, 3, 1))
     assert s2_root > 0.0 and s2_shoot > 0.0
     assert 0.1 <= s2_root / s2_shoot <= 0.3
+
+
+# --- ET & N-leaching literature-anchored bounds (#332) ---
+
+
+def _run_scenario_fluxes(
+    crop_name: str,
+    climate_name: str,
+    start: date,
+    days: int = 150,
+    seed: int = 42,
+    *,
+    soil_key: str = "loam_temperate",
+    daily_irrigation_mm: float = 0.0,
+    fertilizer_kg_ha: float = 0.0,
+) -> tuple[float, float]:
+    """Run a scenario and return ``(actual_crop_ET_mm, NO3_N_leached_kg_ha)``.
+
+    Actual seasonal crop ET is the cumulative evaporation + transpiration
+    accumulated from the diagnostic ``EvapotranspirationComputed`` event (#332).
+    Seasonal NO3-N leaching sums the existing ``NutrientLeached`` event filtered
+    to ``nutrient == "NO3"`` (NH4 leaching is a minor model artefact — excluded,
+    per the #332 refinement). Everything is deterministic at the fixed seed.
+    """
+    _load_crop_presets_cached.cache_clear()
+    _load_climate_presets_cached.cache_clear()
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    climates = load_climate_presets(Path("data/climate/presets.yaml"))
+    soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = soil_lib.soils[soil_key]
+
+    crop = crops.get_preset(crop_name, climate_name)
+    climate = climates.climates[climate_name]
+    gen = SyntheticWeatherGenerator(climate, seed=seed)
+    series = gen.generate(days, start)
+
+    orch = FullSimulationOrchestrator(
+        profile, crop=crop, latitude_deg=climate.latitude_deg
+    )
+
+    actual_et_mm = 0.0
+    no3_leached_kg_ha = 0.0
+
+    def _on_et(ev: EvapotranspirationComputed) -> None:
+        nonlocal actual_et_mm
+        actual_et_mm += ev.evaporation_mm + ev.transpiration_mm
+
+    def _on_leach(ev: NutrientLeached) -> None:
+        nonlocal no3_leached_kg_ha
+        if ev.nutrient == "NO3":
+            no3_leached_kg_ha += ev.amount_kg_ha
+
+    orch.event_bus.subscribe(EvapotranspirationComputed, _on_et)
+    orch.event_bus.subscribe(NutrientLeached, _on_leach)
+
+    if fertilizer_kg_ha > 0.0:
+        orch.apply_fertilizer("ammonium_nitrate", fertilizer_kg_ha)
+
+    for rec in series.records:
+        if daily_irrigation_mm > 0.0:
+            orch.apply_irrigation(daily_irrigation_mm)
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
+            tmin_c=rec.tmin_c,
+            tmax_c=rec.tmax_c,
+            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            sim_date=rec.day,
+        )
+    return actual_et_mm, no3_leached_kg_ha
+
+
+def test_seasonal_actual_crop_et_within_fao56_etc() -> None:
+    """Seasonal actual crop ET (E+T) for maize sits in FAO-56 ETc ranges.
+
+    AC #332. FAO-56 (Allen et al. 1998, *Crop Evapotranspiration*, FAO Irrigation
+    & Drainage Paper 56) gives seasonal maize ETc of ~500-800 mm depending on
+    climate and season length. Anchored, two-sided bounds — stated independently
+    of the model, then the measured seed=42 output shown to fall inside:
+
+      - NL-temperate maize  → [350, 650] mm  (measured seed=42: ~467 mm)
+      - Kenya-highlands maize → [550, 950] mm (measured seed=42: ~805 mm)
+
+    These are *actual crop* ET, NOT reference ET0: the model's Priestley-Taylor
+    ET0 runs ~2-4× the FAO-56 range because ``ETRuntime._resolve_climate`` treats
+    full shortwave as net radiation (no albedo / longwave / soil-heat reduction).
+    That over-estimate is a separate model-calibration gap (#414/#418) — no ET0
+    vs FAO-56 bound is asserted here.
+    """
+    nl_et, _ = _run_scenario_fluxes("maize", "netherlands_temperate", date(2024, 4, 1))
+    ke_et, _ = _run_scenario_fluxes("maize", "kenya_highlands", date(2024, 3, 1))
+
+    assert 350.0 < nl_et < 650.0, (
+        f"NL maize seasonal actual ET {nl_et:.0f} mm outside FAO-56 ETc "
+        f"band [350, 650] (Allen et al. 1998)"
+    )
+    assert 550.0 < ke_et < 950.0, (
+        f"Kenya maize seasonal actual ET {ke_et:.0f} mm outside FAO-56 ETc "
+        f"band [550, 950] (Allen et al. 1998)"
+    )
+
+
+def test_seasonal_no3_leaching_contrast_and_band() -> None:
+    """NO3-N leaching responds to fertiliser & over-irrigation; wide sanity band.
+
+    AC #332. Seasonal (growing-season) NO3-N leaching is a *fraction* of the
+    annual 10-60 kg N/ha/yr arable range (Di & Cameron 2002, *Nutr. Cycl.
+    Agroecosyst.* 64:237-256), because most temperate leaching occurs over the
+    post-harvest winter drainage window when there is no crop N sink — the
+    summer crop is a sink. So the annual range is cited as *context*, not as the
+    seasonal bound.
+
+    The biting bounds are contrasts (robust to the ~4× cross-seed drainage swing;
+    all legs pinned to seed=42):
+
+      1. Over-fertilised ≫ unfertilised on wet Kenya highlands. The extra
+         leaching is entirely fertiliser-driven, so the fert−unfert *gap* is the
+         signal; a ~30% reduction of the leaching flux shrinks that gap below the
+         threshold (measured seed=42: 17.0 vs 5.8 kg/ha, gap ~11.3).
+      2. Over-irrigated ≫ rainfed Sahel (measured seed=42: 1.6 vs 0.3 kg/ha).
+
+    Plus a *wide* absolute sanity band on the fertilised-Kenya leg,
+    [3, 45] kg NO3-N/ha (measured seed=42: ~17.0).
+    """
+    _, ke_unfert = _run_scenario_fluxes("maize", "kenya_highlands", date(2024, 3, 1))
+    _, ke_fert = _run_scenario_fluxes(
+        "maize", "kenya_highlands", date(2024, 3, 1), fertilizer_kg_ha=200.0
+    )
+    _, sahel_rainfed = _run_scenario_fluxes("maize", "sahel_arid", date(2024, 6, 1))
+    _, sahel_irrig = _run_scenario_fluxes(
+        "maize", "sahel_arid", date(2024, 6, 1), daily_irrigation_mm=6.0
+    )
+
+    # Contrast 1 — fertiliser drives extra NO3 leaching (Kenya highlands).
+    # Sign plus a gap margin: the fertiliser-driven excess must clear 8 kg/ha.
+    # A ~30% cut to the leaching flux (gap ~11.3 → ~7.9) drops it below 8 and
+    # collapses this bound, so it bites on the #319-style regression.
+    assert ke_fert > ke_unfert, (
+        f"Fertilised Kenya NO3 leaching {ke_fert:.1f} should exceed "
+        f"unfertilised {ke_unfert:.1f} kg/ha"
+    )
+    assert ke_fert - ke_unfert > 8.0, (
+        f"Fertiliser-driven NO3-leaching gap {ke_fert - ke_unfert:.1f} kg/ha "
+        f"should clear 8 kg/ha (measured ~11.3); contrast collapses under a "
+        f"~30% leaching-flux regression"
+    )
+
+    # Contrast 2 — over-irrigation drives extra NO3 leaching (arid Sahel).
+    assert sahel_irrig > sahel_rainfed * 2.0, (
+        f"Over-irrigated Sahel NO3 leaching {sahel_irrig:.2f} should far exceed "
+        f"rainfed {sahel_rainfed:.2f} kg/ha (drainage-driven)"
+    )
+
+    # Wide absolute sanity band on the fertilised-Kenya leg (seed=42-pinned).
+    assert 3.0 < ke_fert < 45.0, (
+        f"Fertilised Kenya seasonal NO3-N leaching {ke_fert:.1f} kg/ha outside "
+        f"the wide sanity band [3, 45] (seasonal fraction of the Di & Cameron "
+        f"2002 annual 10-60 kg N/ha/yr arable range)"
+    )

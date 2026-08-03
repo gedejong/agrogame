@@ -3,6 +3,7 @@ from __future__ import annotations
 from .params import EtParams
 from .types import EtComponents, EtActual, EtState, ResidueState
 from .module import Evapotranspiration
+from .events import EvapotranspirationComputed
 
 __all__ = [
     "EtParams",
@@ -11,4 +12,5 @@ __all__ = [
     "EtState",
     "ResidueState",
     "Evapotranspiration",
+    "EvapotranspirationComputed",
 ]

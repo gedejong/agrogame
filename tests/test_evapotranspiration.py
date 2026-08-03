@@ -369,3 +369,74 @@ def test_vpd_reduces_potential_transpiration_in_partitioning() -> None:
     vpd_high = vpd_kpa(20.0, 20.0)
     c_high = et.potential_components_with_vpd(et0_mm=et0, lai=lai, vpd_kpa=vpd_high)
     assert c_high.potential_transp_mm <= c_low.potential_transp_mm
+
+
+def test_et_runtime_emits_evapotranspiration_computed_each_cycle() -> None:
+    """`EvapotranspirationComputed` diagnostic fires per ``et`` tick, 2 cycles.
+
+    Multi-cycle convention (#332): the diagnostic must fire on every ``et``
+    phase across ≥2 growing-season cycles and expose a physically sane
+    partition (et0 > 0; E, T ≥ 0). Only the ``et`` phase emits — other phases
+    are ignored.
+    """
+    from agrogame.events import EventBus
+    from agrogame.events.calendar import DayTick
+    from agrogame.atmosphere.et.events import EvapotranspirationComputed
+    from agrogame.atmosphere.et.runtime import ETRuntime
+    from agrogame.soil.canopy.module import CanopyModule, CanopyParams
+    from agrogame.plant.roots.types import RootState
+    from agrogame.soil.water.types import DailyDrivers
+    from datetime import date
+
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    bus = EventBus()
+    water_model = CascadingBucketWaterModel(event_bus=bus)
+    water_state = SoilWaterState(profile)
+    canopy = CanopyModule(
+        CanopyParams(
+            extinction_coefficient_k=0.6,
+            radiation_use_efficiency_g_per_mj=3.0,
+            specific_leaf_area_m2_per_g=0.02,
+            lai_max=6.0,
+            senescence_rate_per_day=0.01,
+        ),
+        event_bus=bus,
+    )
+    runtime = ETRuntime(
+        event_bus=bus,
+        et=Evapotranspiration(EtParams(stage1_limit_mm=3.0)),
+        profile=profile,
+        water_state=water_state,
+        water_model=water_model,
+        roots_state=RootState(),
+        canopy=canopy,
+    )
+    seen: list[EvapotranspirationComputed] = []
+    bus.subscribe(EvapotranspirationComputed, seen.append)
+
+    def _tick(phase: str) -> None:
+        bus.emit(
+            DayTick(
+                sim_date=date(2025, 1, 1),
+                phase=phase,
+                drivers=DailyDrivers(rainfall_mm=0.0),
+                tmin_c=10.0,
+                tmax_c=22.0,
+                par_mj_m2=12.0,
+            )
+        )
+
+    # Non-``et`` phases must not emit the diagnostic.
+    _tick("day_start")
+    assert seen == []
+    # Two 5-day cycles on the ``et`` phase.
+    for _ in range(2):
+        for _ in range(5):
+            _tick("et")
+    assert len(seen) == 10
+    for ev in seen:
+        assert ev.et0_mm > 0.0
+        assert ev.evaporation_mm >= 0.0
+        assert ev.transpiration_mm >= 0.0
+    _ = runtime  # keep reference

@@ -14,6 +14,7 @@ from agrogame.params.ports import (
     WaterActuator as ETWaterActuator,
 )
 from agrogame.atmosphere.et.types import EtState, ResidueState
+from agrogame.atmosphere.et.events import EvapotranspirationComputed
 from agrogame.plant.stress import StressCalculator
 from agrogame.plant.events import WaterStressComputed
 
@@ -100,6 +101,16 @@ class ETRuntime:
             root_fracs,
             evap_state=self._evap_state,
             residue_cover_fraction=self._residue.cover_fraction,
+        )
+        # Diagnostic-only (*Computed): surface the day's ET partition so
+        # observers can accumulate seasonal actual crop ET (E+T). et0 is the
+        # model's raw Priestley-Taylor value (not FAO-56-calibrated; #414/#418).
+        self.event_bus.emit(
+            EvapotranspirationComputed(
+                et0_mm=et0,
+                evaporation_mm=actual.evaporation_mm,
+                transpiration_mm=actual.transpiration_mm,
+            )
         )
         if self._stress is not None:
             ws = self._stress.water_from_supply_demand(
