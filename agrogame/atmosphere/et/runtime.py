@@ -17,6 +17,7 @@ from agrogame.atmosphere.et.types import EtState, ResidueState
 from agrogame.atmosphere.et.events import EvapotranspirationComputed
 from agrogame.plant.stress import StressCalculator
 from agrogame.plant.events import WaterStressComputed
+from agrogame.weather.constants import NET_RAD_FRACTION
 
 _LN2 = math.log(2.0)
 
@@ -63,16 +64,22 @@ class ETRuntime:
             )
 
     def _resolve_climate(self, ev: DayTick) -> tuple[float, float]:
+        # NOTE (ADR-014): ``ev.par_mj_m2`` canonically carries incoming shortwave
+        # irradiance Rs (MJ m⁻² d⁻¹), fed raw by every entry point; net radiation
+        # is derived *here*, inside the consumer. The ``par_mj_m2`` name is a
+        # legacy label pending the deferred ``par_mj_m2 → shortwave_mj_m2`` rename.
         temp_mean = 18.0
         if ev.tmin_c is not None and ev.tmax_c is not None:
             try:
                 temp_mean = 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))
             except (TypeError, ValueError):
                 temp_mean = 18.0
+        # Rn ≈ 0.6·Rs (FAO-56 green-crop range, ADR-014); 12.0 is a net-radiation
+        # fallback (MJ m⁻² d⁻¹) when no shortwave driver is present.
         net_radiation = 12.0
         if ev.par_mj_m2 is not None:
             try:
-                net_radiation = float(ev.par_mj_m2) / 0.48
+                net_radiation = NET_RAD_FRACTION * float(ev.par_mj_m2)
             except (TypeError, ValueError):
                 net_radiation = 12.0
         return temp_mean, net_radiation

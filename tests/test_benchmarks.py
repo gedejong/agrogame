@@ -84,7 +84,10 @@ def _run_growth(
         _ = phen.daily_step(tmin_c=rec.tmin_c, tmax_c=rec.tmax_c, photoperiod_h=12.0)
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+        # ADR-014: feed raw incoming shortwave Rs; the canopy applies f_PAR=0.48
+        # internally (effective intercepted PAR is unchanged vs the old 0.48*Rs
+        # feed, so benchmark yields are preserved).
+        par = rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,
@@ -161,7 +164,10 @@ def _run_growth_with_wue_and_stages(
         )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+        # ADR-014: feed raw incoming shortwave Rs; the canopy applies f_PAR=0.48
+        # internally (effective intercepted PAR is unchanged vs the old 0.48*Rs
+        # feed, so benchmark yields are preserved).
+        par = rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,

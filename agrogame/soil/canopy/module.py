@@ -6,6 +6,7 @@ from agrogame.events import EventBus
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 from agrogame.soil.phenology.events import GddAccumulated
 from agrogame.plant.stress import compute_water_stress
+from agrogame.weather.constants import PAR_FRACTION
 
 from .params import CanopyParams
 from .types import CanopyState, CanopyFluxes
@@ -120,18 +121,26 @@ class CanopyModule:
     def calculate_light_interception(self, incident_par_mj_m2: float) -> CanopyFluxes:
         """Compute intercepted PAR and emit a LightIntercepted event.
 
+        The argument carries the day-tick radiation field, which is raw incoming
+        shortwave Rs (ADR-014 boundary invariant). Incident PAR is derived here,
+        inside the biomass consumer, as ``PAR_FRACTION · Rs`` (≈0.48·Rs; Monteith
+        1977, FAO-56) before Beer-Lambert interception, so RUE downstream
+        multiplies intercepted *PAR* — never shortwave.
+
         Args:
-            incident_par_mj_m2: Daily incident PAR (MJ m^-2).
+            incident_par_mj_m2: Daily incident shortwave Rs (MJ m^-2). Named for
+                the pending ``par_mj_m2 → shortwave_mj_m2`` rename (deferred).
 
         Returns:
             CanopyFluxes: Intercepted PAR and a zero biomass increment placeholder.
         """
-        if self.state.lai <= 0.0 or incident_par_mj_m2 <= 0.0:
+        incident_par = PAR_FRACTION * incident_par_mj_m2
+        if self.state.lai <= 0.0 or incident_par <= 0.0:
             if self.event_bus is not None:
                 self.event_bus.emit(
                     LightIntercepted(
                         fraction=0.0,
-                        incident_par_mj_m2=incident_par_mj_m2,
+                        incident_par_mj_m2=incident_par,
                         intercepted_par_mj_m2=0.0,
                     )
                 )
@@ -139,12 +148,12 @@ class CanopyModule:
 
         k = self.params.extinction_coefficient_k
         fraction = 1.0 - math.exp(-k * self.state.lai)
-        intercepted = incident_par_mj_m2 * fraction
+        intercepted = incident_par * fraction
         if self.event_bus is not None:
             self.event_bus.emit(
                 LightIntercepted(
                     fraction=fraction,
-                    incident_par_mj_m2=incident_par_mj_m2,
+                    incident_par_mj_m2=incident_par,
                     intercepted_par_mj_m2=intercepted,
                 )
             )

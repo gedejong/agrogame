@@ -20,7 +20,12 @@ crops:
       maturity_gdd: 1830.0       # NL posterior (AGRO-92)
     canopy:
       extinction_coefficient_k: 0.54  # Stable across climates (AGRO-102)
-      rue_g_per_mj: 3.56        # NL posterior (AGRO-92)
+      # ADR-014 Phase 2: RUE is now truly per intercepted PAR (canopy applies
+      # f_PAR=0.48 to shortwave). 3.56 already sits in the C4-maize vs-PAR
+      # literature band 3.3-4.0 g/MJ (Kiniry et al. 1989; Sinclair & Muchow
+      # 1999), so it is KEPT and re-cited (was an NL total-solar posterior,
+      # AGRO-92; unchanged in value, now honestly per-PAR).
+      rue_g_per_mj: 3.56        # C4 maize vs-PAR (Kiniry 1989; S&M 1999)
       sla_m2_per_g: 0.02        # Default — NL posterior hit prior bound
       lai_max: 6.0
       senescence_rate_per_day: 0.01
@@ -48,16 +53,13 @@ crops:
     climate_overrides:
       kenya_highlands:
         canopy:
-          # Kenya posterior (AGRO-102), +8% recalibration (#372): grain
-          # 5.66 -> ~6.3 t/ha into the GYGA 6-8 t/ha potential band, shoot AGB
-          # ~1444 g/m2 (stays in 1200-2000, below the pre-#337 inflated 1524).
-          # NB convention: the orchestrator feeds shortwave straight in as
-          # par_mj_m2 (no PAR fraction), so this RUE is defined vs intercepted
-          # TOTAL SOLAR. The C4-maize RUE-vs-total-solar literature band is
-          # ~1.6-1.7 g/MJ (Kiniry et al. 1989; Sinclair & Muchow 1999); this
-          # value sits above it as a realism-fit calibration posterior, not a
-          # literature-transcribed constant.
-          rue_g_per_mj: 2.73      # Kenya posterior (AGRO-102, recal #372)
+          # ADR-014 Phase 2: the canopy now applies f_PAR=0.48, so this RUE is
+          # genuinely per intercepted PAR (the old "vs TOTAL SOLAR" note is
+          # obsolete). 2.73 sits just below the well-watered C4-maize vs-PAR band
+          # 3.3-4.0 (Kiniry 1989; Sinclair & Muchow 1999) and is RETAINED as a
+          # cool-highland climate-stressed low-end posterior (AGRO-102, #372),
+          # pending Phase-3 per-crop yield recalibration. Value unchanged.
+          rue_g_per_mj: 2.73      # C4 maize vs-PAR, Kenya-stress low end
           temp_opt_c: 24.2        # Kenya posterior (AGRO-102)
           sla_m2_per_g: 0.013     # Kenya posterior (AGRO-102)
         phenology:
@@ -65,7 +67,11 @@ crops:
           maturity_gdd: 1801.0    # Kenya posterior (AGRO-102)
       sahel_arid:
         canopy:
-          rue_g_per_mj: 2.94      # Sahel posterior (AGRO-102)
+          # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). 2.94 sits
+          # just below the C4-maize vs-PAR band 3.3-4.0 (Kiniry 1989; S&M 1999),
+          # retained as a hot-arid climate-stressed low-end posterior (AGRO-102)
+          # pending Phase-3 recalibration. Value unchanged.
+          rue_g_per_mj: 2.94      # C4 maize vs-PAR, Sahel-stress low end
           temp_opt_c: 33.9        # Sahel posterior (AGRO-102)
           sla_m2_per_g: 0.018     # Sahel posterior (AGRO-102)
         phenology:
@@ -96,7 +102,10 @@ crops:
       vernalization_required_units: 40.0
     canopy:
       extinction_coefficient_k: 0.55
-      rue_g_per_mj: 2.5        # APSIM wheat typical
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). Moved from the
+      # old 2.5 up into the C3-wheat vs-PAR literature band 2.7-3.0 g/MJ
+      # (Sinclair & Muchow 1999; Kemanian et al. 2004). old->new: 2.5->2.8.
+      rue_g_per_mj: 2.8        # C3 wheat vs-PAR (S&M 1999)
       sla_m2_per_g: 0.022
       lai_max: 7.0
       senescence_rate_per_day: 0.008
@@ -153,7 +162,10 @@ crops:
       maturity_gdd: 1300.0      # matures faster
     canopy:
       extinction_coefficient_k: 0.55
-      rue_g_per_mj: 2.3        # slightly lower than winter wheat
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). Moved up to the
+      # low end of the C3-wheat vs-PAR band 2.7-3.0 (Sinclair & Muchow 1999),
+      # kept just below winter wheat (faster cycle). old->new: 2.3->2.7.
+      rue_g_per_mj: 2.7        # C3 wheat vs-PAR, spring low end (S&M 1999)
       sla_m2_per_g: 0.022
       lai_max: 6.0             # lower peak LAI
       senescence_rate_per_day: 0.008
@@ -200,7 +212,10 @@ crops:
       photoperiod_sensitivity: 0.3
     canopy:
       extinction_coefficient_k: 0.6
-      rue_g_per_mj: 2.8        # DSSAT CERES-Rice
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). 2.8 sits inside
+      # the rice vs-PAR band ~2.2-2.9 g/MJ (Sinclair & Muchow 1999; Mitchell et
+      # al. 1998), so KEPT and re-cited (was DSSAT CERES-Rice). Value unchanged.
+      rue_g_per_mj: 2.8        # rice vs-PAR (S&M 1999; Mitchell 1998)
       sla_m2_per_g: 0.024
       lai_max: 8.0
       senescence_rate_per_day: 0.008
@@ -244,7 +259,10 @@ crops:
       maturity_gdd: 1770.0       # Bayesian posterior — Sahel (AGRO-102)
     canopy:
       extinction_coefficient_k: 0.61  # Bayesian posterior (AGRO-102)
-      rue_g_per_mj: 3.38        # Bayesian posterior — Sahel (AGRO-102)
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). 3.38 sits in
+      # the C4-sorghum vs-PAR band 3.3-4.0 g/MJ (Sinclair & Muchow 1999; Rosenthal
+      # et al. 1993), so KEPT and re-cited (Sahel posterior, AGRO-102). Unchanged.
+      rue_g_per_mj: 3.38        # C4 sorghum vs-PAR (S&M 1999)
       sla_m2_per_g: 0.017       # Bayesian posterior (AGRO-102)
       lai_max: 5.0
       senescence_rate_per_day: 0.01
@@ -289,7 +307,10 @@ crops:
       maturity_gdd: 1400.0
     canopy:
       extinction_coefficient_k: 0.55
-      rue_g_per_mj: 2.0        # C3 legume, moderate RUE
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). 2.0 sits at the
+      # low end of the soybean vs-PAR band ~2.0-2.5 g/MJ (Sinclair & Muchow 1999
+      # give ~1.9-2.5 for this C3 legume), so KEPT and re-cited. Value unchanged.
+      rue_g_per_mj: 2.0        # soybean (C3 legume) vs-PAR low end (S&M 1999)
       sla_m2_per_g: 0.022
       lai_max: 5.0
       senescence_rate_per_day: 0.012
@@ -327,7 +348,10 @@ crops:
       maturity_gdd: 1800.0     # long season to harvest
     canopy:
       extinction_coefficient_k: 0.45   # open canopy, trained vines
-      rue_g_per_mj: 1.5        # perennial, lower RUE than cereals
+      # ADR-014 Phase 2: per intercepted PAR (canopy f_PAR=0.48). 1.5 is at the
+      # top of the grapevine vs-PAR range ~1.0-1.5 g/MJ (perennial vine, well
+      # below cereals; cf. Poni et al. 2006), KEPT and re-cited. Value unchanged.
+      rue_g_per_mj: 1.5        # grapevine vs-PAR (perennial, low)
       sla_m2_per_g: 0.015
       lai_max: 4.0
       senescence_rate_per_day: 0.005

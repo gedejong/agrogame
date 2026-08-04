@@ -60,10 +60,13 @@ def test_lai_scurve_and_high_interception_at_lai4() -> None:
         canopy.update_lai(new_leaf_biomass_g_m2=5.0)
         assert canopy.state.lai >= prev
         prev = canopy.state.lai
-    # Interception ~90-95% at LAI ~4 for k~0.6
+    # Interception ~90-95% at LAI ~4 for k~0.6. The argument is incident
+    # shortwave (ADR-014); the canopy converts to PAR via f_PAR=0.48 before
+    # Beer-Lambert, so the interception fraction is measured against incident
+    # PAR (0.48 * 10.0), not raw shortwave.
     canopy.state.lai = 4.0
     fx = canopy.calculate_light_interception(incident_par_mj_m2=10.0)
-    frac = fx.intercepted_par_mj_m2 / 10.0
+    frac = fx.intercepted_par_mj_m2 / (0.48 * 10.0)
     assert 0.9 <= frac <= 0.98
 
 

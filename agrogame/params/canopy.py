@@ -16,7 +16,10 @@ class CanopyParams:
     """Frozen canopy parameters: light interception, RUE, LAI dynamics, senescence."""
 
     extinction_coefficient_k: float  # unitless Beer-Lambert k
-    radiation_use_efficiency_g_per_mj: float  # g biomass per MJ intercepted PAR
+    # g biomass per MJ intercepted PAR. Now truthful (ADR-014 Phase 2): the
+    # canopy applies PAR_FRACTION=0.48 to incident shortwave before Beer-Lambert
+    # interception, so RUE multiplies intercepted PAR, not shortwave.
+    radiation_use_efficiency_g_per_mj: float
     specific_leaf_area_m2_per_g: float  # SLA
     lai_max: float
     senescence_rate_per_day: float = 0.0

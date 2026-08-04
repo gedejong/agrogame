@@ -212,8 +212,10 @@ class SimulationEngine:
             drivers = DailyDrivers(
                 rainfall_mm=rain, irrigation_mm=irrigation, evaporation_mm=0.0
             )
-            # Prefer net radiation when available; convert to PAR using ~0.48
-            par = (rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0) * 0.48
+            # ADR-014: the day-tick radiation field carries raw incoming
+            # shortwave Rs; every physical reduction is applied inside the
+            # consumer (ET derives Rn≈0.6·Rs; biomass derives intercepted PAR).
+            par = rec.shortwave_mj_m2 or 12.0
             self.orchestrator.step_day(
                 drivers=drivers,
                 tmin_c=rec.tmin_c,
