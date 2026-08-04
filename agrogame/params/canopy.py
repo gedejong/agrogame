@@ -34,8 +34,8 @@ class CanopyParams:
     # Graded drought senescence (#373). Replaces the old discrete N-day,
     # size-independent 10%-of-LAI wilt step with a graded, per-unit-leaf daily
     # leaf-senescence rate driven by water-stress severity and modulated by
-    # live rooting depth (FAO-56 TAW ∝ Zr onset; DSSAT CERES TURFAC / water-
-    # stress leaf senescence; APSIM swdef_senescence — Allen et al. 1998;
+    # live rooting depth (FAO-56 TAW ∝ Zr rate modifier; DSSAT CERES TURFAC /
+    # water-stress leaf senescence; APSIM swdef_senescence — Allen et al. 1998;
     # Keating et al. 2003). Because the daily loss is a fraction of *current*
     # LAI it bites a small, vigorously growing canopy in the same relative
     # terms as a large one, closing the "drought never bites a small canopy"
@@ -43,11 +43,12 @@ class CanopyParams:
     wilt_stress_threshold: float = 0.3  # Ta/Tp onset: below this, senescence begins
     wilt_days_for_damage: int = 5  # consecutive sub-threshold days before onset (lag)
     wilt_lai_loss_fraction: float = 0.1  # max daily LAI fraction lost at full severity
-    # Rooting-depth onset modifier (FAO-56 TAW ∝ Zr): deeper roots tap a larger
+    # Rooting-depth rate modifier (FAO-56 TAW ∝ Zr): deeper roots tap a larger
     # total-available-water pool, so a given Ta/Tp deficit senesces leaf area
     # more slowly, while a shallow-rooted seedling senesces faster (rapid
     # seedling drought). Factor = clamp(ref_depth / current_depth, min, max),
-    # applied multiplicatively to the daily senescence rate.
+    # applied multiplicatively to the daily senescence rate (scales the rate,
+    # not the onset threshold).
     drought_senescence_ref_depth_cm: float = 40.0
     drought_senescence_depth_factor_min: float = 0.25  # deep-rooted floor
     drought_senescence_depth_factor_max: float = 2.0  # shallow-rooted / seedling cap

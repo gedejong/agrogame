@@ -69,6 +69,23 @@ class HeatDamageApplied(BaseEvent):
 
 
 @dataclass(frozen=True)
+class DroughtSenescenceApplied(BaseEvent):
+    """Graded drought senescence removed leaf area on a given day (#373, #420).
+
+    Diagnostic-only, fire-and-forget (no orchestrator subscriber), mirroring
+    the sibling ``FrostDamageApplied`` / ``HeatDamageApplied`` pattern. Emitted
+    once per senescence day when ``loss > 0``. Carries the day's LAI loss, the
+    stress ``severity`` in ``(0, 1]`` and the rooting-depth ``depth_factor``.
+    Senescence debits LAI only, not biomass (see ``_check_drought_senescence``),
+    so this event deliberately carries no ``biomass_loss_g_m2`` field.
+    """
+
+    lai_loss: float
+    severity: float
+    depth_factor: float
+
+
+@dataclass(frozen=True)
 class GrainNumberSet(BaseEvent):
     """Potential grain number frozen at the close of the critical window (#321).
 
