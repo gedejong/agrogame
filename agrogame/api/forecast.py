@@ -378,14 +378,21 @@ def project_soil_forecast(
 
     Scope and accuracy. With the aggregate-penetration factor now threaded (#383),
     the deepening term deepens the projected zone at the engine's constrained rate
-    rather than the old cf-omitted overshoot (~2.1× the engine Δ). The net
-    mineral-N Δ therefore tracks the engine's rise closely on the pinned
-    early-season scenario. The remaining residual is **source-side** and out of
-    scope here: the net-mineralisation source reproduces only the labile-pool
-    RothC kinetics, omitting rhizosphere priming (up to +50 % on ``k_labile`` in
-    rooted layers, arguably the largest omitted contributor) and aggregate
-    protection. The forecast thus targets *sign* agreement plus a magnitude that
-    now sits close to the engine's, not an exact match.
+    rather than the old cf-omitted overshoot (~2.1× the engine Δ). Because
+    ``root_penetration_factor`` is folded once and held constant over the
+    horizon, the **depth-side** gap closes exactly: the projected zone deepens
+    at the engine's constrained rate on every realisation. The remaining
+    residual is **source-side** and out of scope here: the net-mineralisation
+    source reproduces only the labile-pool RothC kinetics, omitting rhizosphere
+    priming (up to +50 % on ``k_labile`` in rooted layers, arguably the largest
+    omitted contributor) and aggregate protection. That source-side divergence
+    — the mineral-N distribution × rhizosphere-priming / aggregate-protection
+    interaction — is weather-dependent: on the pinned scenario (maize /
+    loam_temperate / NL, seed 42) the net mineral-N Δ lands within ±20 % of the
+    engine's, but on other weather realisations (other seeds) it can push the
+    forecast/engine ratio outside that band. The forecast thus targets *sign*
+    agreement, with the close ±20 % magnitude match scoped to the pinned
+    seed-42 scenario rather than holding in general.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
