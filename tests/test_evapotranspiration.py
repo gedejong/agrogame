@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+import pytest
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
+
+if TYPE_CHECKING:
+    from agrogame.atmosphere.et.runtime import ETRuntime
 from agrogame.params.ports import WaterProfile, WaterState, WaterActuator
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -440,3 +445,63 @@ def test_et_runtime_emits_evapotranspiration_computed_each_cycle() -> None:
         assert ev.evaporation_mm >= 0.0
         assert ev.transpiration_mm >= 0.0
     _ = runtime  # keep reference
+
+
+def _build_min_et_runtime() -> ETRuntime:
+    """Construct a minimal ``ETRuntime`` for unit-testing ``_resolve_climate``."""
+    from agrogame.events import EventBus
+    from agrogame.atmosphere.et.runtime import ETRuntime
+    from agrogame.soil.canopy.module import CanopyModule, CanopyParams
+    from agrogame.plant.roots.types import RootState
+
+    lib = load_soil_presets(Path("soils/presets.yaml"))
+    profile = lib.soils["loam_temperate"]
+    bus = EventBus()
+    water_model = CascadingBucketWaterModel(event_bus=bus)
+    water_state = SoilWaterState(profile)
+    canopy = CanopyModule(
+        CanopyParams(
+            extinction_coefficient_k=0.6,
+            radiation_use_efficiency_g_per_mj=3.0,
+            specific_leaf_area_m2_per_g=0.02,
+            lai_max=6.0,
+            senescence_rate_per_day=0.01,
+        ),
+        event_bus=bus,
+    )
+    return ETRuntime(
+        event_bus=bus,
+        et=Evapotranspiration(EtParams()),
+        profile=profile,
+        water_state=water_state,
+        water_model=water_model,
+        roots_state=RootState(),
+        canopy=canopy,
+    )
+
+
+def test_resolve_climate_derives_net_radiation_as_fraction_of_shortwave() -> None:
+    """ADR-014 invariant: ``ETRuntime._resolve_climate`` reads the day-tick field
+    as raw incoming shortwave Rs and derives net radiation as ``Rn = 0.6·Rs``
+    (``NET_RAD_FRACTION``), never treating the field as PAR (the old ``Rs/0.48``
+    inflation) — and the result must satisfy ``Rn ≤ Rs`` (FAO-56; Allen et al.
+    1998, Eqs. 38-40).
+    """
+    from datetime import date
+    from agrogame.events.calendar import DayTick
+    from agrogame.weather.constants import NET_RAD_FRACTION
+
+    runtime = _build_min_et_runtime()
+    for rs in (10.0, 18.0, 25.0, 32.0):
+        ev = DayTick(
+            sim_date=date(2025, 6, 1),
+            phase="et",
+            tmin_c=12.0,
+            tmax_c=28.0,
+            par_mj_m2=rs,  # raw shortwave Rs (ADR-014 boundary field)
+        )
+        temp_mean, net_radiation = runtime._resolve_climate(ev)
+        assert temp_mean == pytest.approx(20.0)
+        assert net_radiation == pytest.approx(NET_RAD_FRACTION * rs)
+        # Physical guard: net radiation can never exceed incoming shortwave.
+        assert net_radiation <= rs

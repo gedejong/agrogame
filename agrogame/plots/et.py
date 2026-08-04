@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 from agrogame.atmosphere.et import EtParams, Evapotranspiration
 from agrogame.weather.utils import vpd_kpa, sanitize_weather_series
-from agrogame.weather.constants import DEFAULT_ALBEDO
+from agrogame.weather.constants import DEFAULT_ALBEDO, NET_RAD_FRACTION
 from agrogame.weather.cli import get_weather_series
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
@@ -47,25 +47,35 @@ def _resolve_weather_pattern(
 
 def _resolve_weather_for_day(
     day: int, pattern: str, auto_series: Any, total_days: int
-) -> tuple[float, float, float, float, float, float, float]:
-    """Return (tmin, tmax, rad, rain, evap0, wind, rh) for a day."""
+) -> tuple[float, float, float, float, float, float, float, float]:
+    """Return (tmin, tmax, rad, sw, rain, evap0, wind, rh) for a day.
+
+    ``rad`` is net radiation (fed to the ET model); ``sw`` is the raw incoming
+    shortwave Rs (fed to the canopy, which applies ``PAR_FRACTION`` itself, per
+    the ADR-014 boundary invariant). When the record carries only net radiation
+    Rs is recovered as ``rad / NET_RAD_FRACTION``.
+    """
     tmin, tmax, rad, rain, evap0 = _resolve_weather_pattern(day, pattern)
     if auto_series and day < len(auto_series.records):
         rec = auto_series.records[day]
         tmin, tmax = rec.tmin_c, rec.tmax_c
+        sw = rec.shortwave_mj_m2 or 0.0
         if rec.net_radiation_mj_m2 is not None:
             rad = rec.net_radiation_mj_m2
         else:
-            sw = rec.shortwave_mj_m2 or 0.0
             albedo = rec.albedo if rec.albedo is not None else DEFAULT_ALBEDO
             rad = sw * max(0.0, 1.0 - albedo)
         rad = max(0.0, rad)
+        if sw <= 0.0:
+            sw = rad / NET_RAD_FRACTION if rad > 0.0 else 0.0
         wind = rec.wind_m_s or 2.0
         rh = rec.relative_humidity_pct or 60.0
     else:
+        # Synthetic pattern carries a net-radiation-like ``rad``; recover raw Rs.
+        sw = rad / NET_RAD_FRACTION if rad > 0.0 else 0.0
         wind = 2.0 + 1.0 * math.sin(2 * math.pi * day / 10.0)
         rh = 60.0 - 20.0 * math.sin(2 * math.pi * day / 15.0)
-    return tmin, tmax, rad, rain, evap0, wind, rh
+    return tmin, tmax, rad, sw, rain, evap0, wind, rh
 
 
 def _run_simulation(
@@ -133,7 +143,7 @@ def _run_simulation(
     total_days = min(days, len(auto_series.records)) if auto_series else days
 
     for day in range(total_days):
-        tmin, tmax, rad, rain, evap0, wind, rh = _resolve_weather_for_day(
+        tmin, tmax, rad, sw, rain, evap0, wind, rh = _resolve_weather_for_day(
             day, pattern, auto_series, total_days
         )
         temp_mean = 0.5 * (tmin + tmax)
@@ -181,7 +191,7 @@ def _run_simulation(
             )
         )
         _ = canopy.daily_step(
-            incident_par_mj_m2=rad,
+            incident_par_mj_m2=sw,  # raw Rs; canopy applies PAR_FRACTION (ADR-014)
             temp_factor=1.0,
             water_stress=ws,
             n_stress=1.0,

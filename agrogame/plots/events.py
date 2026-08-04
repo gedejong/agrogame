@@ -12,6 +12,7 @@ from agrogame.events.recorder import EventRecorder
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
+from agrogame.weather.constants import NET_RAD_FRACTION
 from agrogame.weather.module import WeatherModule
 from agrogame.weather.utils import sanitize_weather_series
 from agrogame.weather.cli import get_weather_series
@@ -117,9 +118,15 @@ class EventRunConfig:
 def _day_weather_from_series(
     series: Any, day: int
 ) -> tuple[float, float, float, float]:
-    """Extract (tmin, tmax, rad, rain) from weather series for a given day."""
+    """Extract (tmin, tmax, rad, rain) from weather series for a given day.
+
+    ``rad`` is the raw incoming shortwave Rs fed on the day-tick (ADR-014): the
+    orchestrator derives ET net radiation (``NET_RAD_FRACTION·Rs``) and canopy
+    PAR (``PAR_FRACTION·Rs``) from it internally, so no fraction is pre-applied.
+    """
     w = series.records[day]
-    return w.tmin_c, w.tmax_c, (w.net_radiation_mj_m2 or 12.0), (w.precip_mm or 0.0)
+    rs = w.shortwave_mj_m2 or w.net_radiation_mj_m2 or 12.0
+    return w.tmin_c, w.tmax_c, rs, (w.precip_mm or 0.0)
 
 
 def simulate_and_record(
@@ -340,12 +347,17 @@ def _run_dependency_sim(
             if weather_module is not None:
                 _ = weather_module.emit_for_day(day)
             tmin, tmax, rad = w.tmin_c, w.tmax_c, (w.net_radiation_mj_m2 or 12.0)
+            # ``rad`` is net radiation (for ET); ``sw`` is raw Rs (for the canopy,
+            # which applies PAR_FRACTION itself, ADR-014). Recover Rs from net when
+            # the record has no shortwave.
+            sw = w.shortwave_mj_m2 or (rad / NET_RAD_FRACTION if rad > 0.0 else 0.0)
             rain = w.precip_mm or 0.0
         else:
             tmin, tmax, rad, rain = 10.0, 22.0, 12.0, 0.0
+            sw = rad / NET_RAD_FRACTION
         phen.daily_step(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         _ = canopy.daily_step(
-            incident_par_mj_m2=rad, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+            incident_par_mj_m2=sw, temp_factor=1.0, water_stress=1.0, n_stress=1.0
         )
         _ = roots.daily_step(rstate, profile, phen.state.stage)
         root_fracs = (

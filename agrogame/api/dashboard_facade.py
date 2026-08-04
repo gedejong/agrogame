@@ -42,6 +42,7 @@ from agrogame.soil.phenology.types import PhenologyStage
 from agrogame.soil.water.events import EvaporationTaken, TranspirationByLayer
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather import load_weather
+from agrogame.weather.constants import NET_RAD_FRACTION, PAR_FRACTION
 from agrogame.weather.types import WeatherRecord
 from agrogame.weather.utils import vpd_kpa
 
@@ -213,9 +214,20 @@ class DashboardSimulationRun:
         """Compute ET₀ (PM, PT), VPD, and thermal/energy inputs for one day.
 
         Returns ``(et0_pm, et0_pt, par, rn, tmean, vpd)``.
+
+        Per ADR-014, ``par`` here is raw incoming shortwave Rs (MJ m⁻² d⁻¹): the
+        day-tick radiation field is Rs, and each consumer applies its own physical
+        reduction (the canopy multiplies by ``PAR_FRACTION`` for interception; ET
+        derives ``Rn = NET_RAD_FRACTION·Rs`` below). Pre-multiplying by 0.48 here
+        would double-apply f_PAR once the canopy reapplies it.
         """
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
-        rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
+        par = rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0
+        # Rn must be net-reduced (Rn ≤ Rs). Prefer a measured net radiation; else
+        # derive it from shortwave as NET_RAD_FRACTION·Rs (≈0.6·Rs, FAO-56 green-
+        # crop range) rather than feeding raw Rs — the old fallback ran ET ~2× high.
+        rn = rec.net_radiation_mj_m2 or (
+            NET_RAD_FRACTION * rec.shortwave_mj_m2 if rec.shortwave_mj_m2 else 12.0
+        )
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         et0_pm = self.et_mod.et0(
             temp_mean_c=tmean,
@@ -287,7 +299,14 @@ class DashboardSimulationRun:
         h["stomatal"].append(stomatal)
 
     def append_biomass_and_interception(self, *, par: float) -> None:
-        """Append today's biomass increment + canopy light interception."""
+        """Append today's biomass increment + canopy light interception.
+
+        ``par`` is the raw incoming shortwave Rs fed on the day-tick (ADR-014).
+        Incident PAR is derived here as ``PAR_FRACTION·Rs`` before Beer-Lambert
+        interception, mirroring ``CanopyModule.calculate_light_interception`` so
+        the ``par_*`` history series carry true PAR (not shortwave) and match the
+        orchestrator's intercepted PAR for the same Rs.
+        """
         h = self.history
         current_biomass = self.biomass_g_m2
         prev_biomass = h["biomass_g_m2"][-1] if h["biomass_g_m2"] else 0.0
@@ -298,12 +317,15 @@ class DashboardSimulationRun:
             raise TypeError("Canopy extinction coefficient must be numeric")
         k_ext = float(k_raw)
         lai_now = self.lai
+        incident_par = PAR_FRACTION * par
         frac_int = (
-            0.0 if lai_now <= 0.0 or par <= 0.0 else (1.0 - math.exp(-k_ext * lai_now))
+            0.0
+            if lai_now <= 0.0 or incident_par <= 0.0
+            else (1.0 - math.exp(-k_ext * lai_now))
         )
-        h["par_mj_m2"].append(par)
+        h["par_mj_m2"].append(incident_par)
         h["fraction_intercepted"].append(frac_int)
-        h["par_intercepted_mj_m2"].append(par * frac_int)
+        h["par_intercepted_mj_m2"].append(incident_par * frac_int)
 
     def append_root_and_stage(self) -> None:
         """Append today's root-depth + phenology-stage row."""

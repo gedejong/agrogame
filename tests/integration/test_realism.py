@@ -2312,6 +2312,53 @@ def test_seasonal_actual_crop_et_within_fao56_etc() -> None:
     )
 
 
+def test_reference_et0_in_fao56_daily_band() -> None:
+    """Reference ET0 sits in the FAO-56 daily band (~2-7 mm/d), not ~2-4x high.
+
+    AC #414 guard. Reference ET0 for temperate-to-warm summer conditions is
+    ~2-7 mm/d (Allen et al. 1998, FAO Irrigation & Drainage Paper 56). The pre-fix
+    ``ETRuntime`` treated the day-tick shortwave field as PAR and back-converted
+    ``Rn = Rs/0.48 ≈ 2.08·Rs``, inflating ET0 ~3.5-4x. With ADR-014's
+    ``Rn = NET_RAD_FRACTION·Rs`` (0.6·Rs), ET0 returns to band.
+
+    Bounds are stated from FAO-56 independently of the model; the corrected
+    Penman-Monteith and Priestley-Taylor outputs are then shown to fall inside,
+    and the old inflated basis is shown to blow past the upper bound — so this
+    assertion bites if the ``Rs/0.48`` inflation ever returns.
+    """
+    from agrogame.atmosphere.et import Evapotranspiration, EtParams
+    from agrogame.weather.constants import NET_RAD_FRACTION
+
+    et = Evapotranspiration(EtParams(method="penman-monteith"))
+    # Representative clear summer days across the model's climate span
+    # (Rs incoming shortwave MJ m-2 d-1, mean air temperature degC).
+    conditions = [(15.0, 15.0), (20.0, 18.0), (25.0, 22.0), (30.0, 26.0)]
+    for rs, tmean in conditions:
+        rn = NET_RAD_FRACTION * rs
+        et0_pm = et.et0(
+            temp_mean_c=tmean,
+            net_radiation_mj_m2=rn,
+            method="penman-monteith",
+            wind_m_s=2.0,
+            relative_humidity_pct=60.0,
+        )
+        et0_pt = et.priestley_taylor(temp_mean_c=tmean, net_radiation_mj_m2=rn)
+        assert 2.0 < et0_pm < 7.0, (
+            f"PM ET0 {et0_pm:.2f} mm/d (Rs={rs}, T={tmean}) outside FAO-56 "
+            f"daily band [2, 7] (Allen et al. 1998)"
+        )
+        assert 2.0 < et0_pt < 7.0, (
+            f"PT ET0 {et0_pt:.2f} mm/d (Rs={rs}, T={tmean}) outside FAO-56 "
+            f"daily band [2, 7] (Allen et al. 1998)"
+        )
+        # The old inflated Rn = Rs/0.48 basis would have blown the upper bound;
+        # asserting this keeps the guard honest (it catches a regression).
+        et0_inflated = et.priestley_taylor(
+            temp_mean_c=tmean, net_radiation_mj_m2=rs / 0.48
+        )
+        assert et0_inflated > 7.0
+
+
 def test_seasonal_no3_leaching_contrast_and_band() -> None:
     """NO3-N leaching responds to fertiliser & over-irrigation; wide sanity band.
 
