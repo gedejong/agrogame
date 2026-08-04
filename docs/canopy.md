@@ -20,13 +20,23 @@ key_events:
 primary_tests:
   - tests/test_canopy.py
   - tests/integration/test_realism.py
-related_adrs: [ADR-002]
+related_adrs: [ADR-002, ADR-014]
 ---
 
 Canopy summary
 
 - Interception: Beer–Lambert `fraction = 1 - exp(-k * LAI)`
 - Biomass: `biomass = intercepted_PAR * RUE * temp_factor * min(water, N)`
+
+### Radiation convention (ADR-014)
+
+The day-tick radiation field is **incoming shortwave Rs** (raw), not PAR. The
+canopy derives incident PAR *inside* this module as `PAR = PAR_FRACTION * Rs`
+(`PAR_FRACTION = 0.48`; `agrogame/weather/constants.py`) before Beer–Lambert
+interception, so `RUE` (`rue_g_per_mj`) multiplies intercepted **PAR** and its
+presets carry true vs-intercepted-PAR literature values (C4 maize ~3.3–4.0; C3
+cereals ~2.7–3.0). Never feed shortwave directly to RUE. See
+[ADR-014](adr/ADR-014-radiation-convention.md).
 - LAI: `ΔLAI = SLA * new_leaf_biomass * (1 - LAI/LAImax) - LAI * sen_rate`
 - Phenology: higher senescence in grain fill
 - Events: `LightIntercepted`, `BiomassAccumulated`, `LAIUpdated`

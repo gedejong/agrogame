@@ -15,6 +15,13 @@ Key Equations
 
 Implementation Notes
 
+- **Net radiation convention (ADR-014):** the day-tick radiation field is raw
+  incoming shortwave `Rs`. `ETRuntime` derives net radiation as
+  `Rn = NET_RAD_FRACTION * Rs` (`NET_RAD_FRACTION = 0.6`;
+  `agrogame/weather/constants.py`), a lumped FAO-56 fraction (`Rn ≈ 0.5–0.6·Rs`)
+  that bakes in albedo and typical net longwave — shared with the forecast path
+  so the two agree. Net radiation is always `≤ Rs`; the previous `Rs/0.48`
+  (`≈ 2.08·Rs`) inflated ET0 ~3–4×. See [ADR-014](adr/ADR-014-radiation-convention.md).
 - Constants (FAO-56): collected in `agrogame/weather/constants.py` with citations.
 - VPD-aware partitioning: `Evapotranspiration.potential_components_with_vpd(et0_mm, lai, vpd_kpa)` scales potential transpiration by a stomatal factor:
   - `stomatal = max(0.2, 1 - vpd_sensitivity * max(0, VPD - vpd_ref))`
