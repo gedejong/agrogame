@@ -3,7 +3,9 @@
 ## Status
 
 <!-- One of: Proposed | Accepted | Deprecated | Superseded by ADR-YYY -->
-Proposed
+Accepted — PO decision is **A2**: adopt the physical per-PAR RUE basis and
+recalibrate the crop set (biomass output is allowed to shift). See Decision
+Part 3; the zero-regression relabel is recorded as the rejected alternative A1.
 
 ## Context
 
@@ -105,28 +107,38 @@ The seasonal actual-ET bands added in #332 (`[350,650]` NL, `[550,950]` Kenya)
 were tuned with inflated ET0 masked by supply/demand clamps and **must be
 re-baselined** as part of this work.
 
-### 3. RUE is defined as *per MJ intercepted shortwave*, values unchanged (recommended)
+### 3. RUE adopts the physical per-PAR basis; the crop set is recalibrated (A2)
 
-Correct the RUE docstrings from "per MJ intercepted **PAR**" to "per MJ
-intercepted **shortwave** (calibrated)" and keep the current preset values.
-Biomass output is **unchanged** (zero-regression). This is the honest
-description of what the numbers already are: posteriors fit against the
-shortwave-fed growth path. The deviation from the textbook per-PAR convention
-(the effective per-PAR RUE is ~2× literature) is documented explicitly in
-`docs/configuration.md` and `docs/conventions.md` as a known, deliberate
-modelling choice, not a silent error.
+Apply the shortwave→PAR fraction on the biomass side — intercepted PAR
+`= f_PAR · (1 − e^{−k·LAI}) · Rs` with `f_PAR = 0.48` — and re-anchor every crop's
+`rue_g_per_mj` to the **vs-intercepted-PAR literature basis** (C4 maize ~3.3–4.0;
+C3 cereals, legumes, and the other presets to their respective literature
+ranges), with the docstrings now truthfully reading "per MJ intercepted PAR".
+This is physically honest and makes RUE directly comparable to DSSAT/APSIM.
 
-This is the **recommended** path because it makes both follow-ups mechanical:
-#414 becomes the ET fix + ET-band re-baseline, and #418 becomes a
-docstring/convention-consolidation task (correct the labels, delete the stray
-`×0.48`, document the convention) with **no** crop recalibration and **no**
-yield-bound churn. The alternative — adopting a physically pure per-PAR basis —
-is captured below and remains open if literature-comparable RUE later becomes a
-hard requirement.
+The consequence is deliberate and **accepted**: because `biomass ∝ RUE × PAR`,
+moving maize from `3.56 × Rs` to `~3.5 × 0.48·Rs` **roughly halves raw biomass**.
+The model is therefore **recalibrated as a campaign**, not patched. With
+radiation and RUE now physically correct, the biomass/grain/LAI the model
+produces is re-validated against **independent literature yield ranges**, and the
+levers that were masked by the 2× radiation over-count — light-extinction `k`,
+maintenance respiration, partitioning / harvest index, N limitation — are
+re-tuned per crop until outputs land in literature. Every biomass, grain, LAI,
+ET, and leaching bound in `tests/integration/test_realism.py` is re-derived, and
+the crop preset comments (`# NL posterior`, `# APSIM typical`, …) are updated to
+cite the new basis.
 
-**This ADR does not by itself change any crop yield.** Parts 1–2 change ET0 (and
-the water-limited yields that follow from it, via re-baselined bounds); Part 3 as
-recommended is output-neutral for biomass.
+The calibration target is **literature agreement, not restoration of the
+pre-fix numbers.** Re-hitting the old yields by fudging other levers would
+re-introduce the very compensation this ADR removes; if the physically-correct
+model under- or over-predicts, that is a real finding about the other levers, to
+be resolved on its merits.
+
+Because applying `f_PAR` breaks realism the instant it lands, this is **not
+incrementally shippable on `main`**: the boundary change (Part 1), the ET fix
+(Part 2), the RUE re-anchor, and the per-crop recalibration land together on a
+campaign branch (or behind a flag), gated on the full realism suite passing
+against the re-derived literature bounds.
 
 ## Consequences
 
@@ -140,39 +152,61 @@ recommended is output-neutral for biomass.
 - RUE presets stop claiming a per-PAR basis the code does not honour.
 
 **Harder / follow-up work:**
-- The #332 seasonal-ET realism bounds must be re-derived against corrected ET0,
-  and the drought/senescence scenarios in `tests/integration/test_realism.py`
-  re-checked — ET dropping 2–4× will move water-limited behaviour. This is why
-  #414 is behaviourally L-sized despite a small code diff.
+- **A2 is a recalibration campaign, not a patch, and cannot ship incrementally
+  on `main`.** Applying `f_PAR` halves raw biomass on day one; the boundary
+  change, ET fix, RUE re-anchor, and per-crop re-tune must land together on a
+  campaign branch behind the realism-suite gate. Sequenced phases:
+  1. **Convention + ET (Parts 1–2).** Standardise the boundary on raw Rs, fix
+     `ETRuntime` to `Rn = 0.6·Rs`, promote `_NET_RAD_FRACTION` to shared. ET0
+     drops to band; re-baseline the #332 ET/leaching bounds. (This slice is
+     independently correct and could even land first, since ET and biomass are
+     separate consumers — but under A2 it is the campaign's first commit.)
+  2. **PAR fraction + RUE re-anchor.** Introduce `f_PAR` at the interception
+     boundary; set all 9 RUE presets to vs-PAR literature with citations;
+     correct the docstrings. Biomass roughly halves here — realism red until
+     Phase 3.
+  3. **Per-crop yield recalibration.** Re-tune `k` / respiration / HI / N per
+     crop against literature yield ranges; re-derive every biomass/grain/LAI
+     bound in `tests/integration/test_realism.py`. The repo's
+     `scripts/bayesian_calibration.py` + `data/.../scenarios.yaml` are the
+     calibration harness; this is the large, iterative phase.
+  4. **Validation + docs.** Full realism suite green against re-derived bounds;
+     document the convention in `docs/configuration.md` / `docs/conventions.md`.
 - The rename `par_mj_m2 → shortwave_mj_m2` touches the `DayTick` contract and
   every entry point; do it with a compatibility shim and a golden/wiring check,
   consistent with the `daily_step` rename work (#282/#411).
+- Expect crop **yields to move** relative to today. Under A2 that is intended:
+  the pre-fix numbers were partly an artefact of the 2× radiation over-count.
 
 **Invariants after this ADR:**
 - The day-tick radiation field is **incoming shortwave Rs**, fed raw by every
-  entry point. Any PAR fraction or net-radiation reduction is applied *inside*
-  the consumer that needs it (ET derives Rn; biomass keeps a shortwave-basis
-  RUE), never at the boundary.
+  entry point. Every physical reduction is applied *inside* the consumer: ET
+  derives `Rn ≈ 0.6·Rs`; biomass derives intercepted PAR via `f_PAR`. No
+  fraction is pre-applied at the boundary.
 - ET net radiation is `≤ Rs` (physically, `Rn ≈ 0.5–0.6·Rs`) — never `> Rs`.
+- RUE presets carry a **true per-PAR** value with a literature citation; the
+  biomass path multiplies RUE by intercepted **PAR**, never by shortwave.
 
 **Scope split for implementation:**
-- **#414** — Parts 1 (Rs standardisation) + 2 (ET Rn fix) + ET-band re-baseline.
-- **#418** — Part 3 (RUE label correction, delete stray `×0.48`, document the
-  convention). Low-risk under the recommended path.
+- **#414** — Parts 1 (Rs standardisation) + 2 (ET Rn fix) + ET-band re-baseline;
+  Phase 1 of the campaign.
+- **#418** — Part 3 under A2: PAR fraction + RUE re-anchor + the per-crop yield
+  recalibration (Phases 2–3). This is now an L/XL calibration campaign, not a
+  doc fix; it should be split into a tracked epic with per-crop sub-tasks.
 - **#424** (unrelated method-naming) is not affected.
 
 ## Alternatives Considered
 
-- **A2 — Physically pure per-PAR RUE (biomass may halve).** Feed `PAR = 0.48·Rs`
-  to the canopy and re-anchor every RUE preset to the vs-PAR literature basis.
-  Physically the most defensible, and makes RUE directly comparable to DSSAT/APSIM
-  numbers. Rejected as the default because it **halves maize biomass** and forces
-  a coordinated re-tune of the other yield levers (interception, partitioning, N
-  limitation) plus a full re-baseline of every biomass/grain bound in the realism
-  suite — a large, high-risk recalibration. Kept on the table: if literature-
-  comparable RUE becomes a requirement, this ADR's Part 3 is the seam to revisit,
-  and the work is well-scoped (it is exactly #418 under its "reconcile to vs-PAR"
-  reading).
+- **A1 — Relabel RUE as vs-shortwave, keep the values (zero regression).**
+  Correct the docstrings to "per MJ intercepted shortwave (calibrated)", keep the
+  current preset numbers, and change no biomass output; #414 (ET) still lands but
+  #418 collapses to a docstring/convention fix. **Rejected**: it preserves the
+  physics inconsistency it merely renames — RUE stays ~2× the true per-PAR
+  literature value and is not comparable to DSSAT/APSIM, and the model keeps
+  producing realistic biomass only via the radiation over-count. Chosen against
+  by the PO in favour of A2 (physical correctness) despite A1's much lower cost.
+  A1 remains the fallback if the A2 recalibration campaign proves intractable
+  within the available effort.
 - **Per-climate PAR fraction** (vary 0.48 by climate/aerosol). Rejected as
   over-engineering for the current model resolution; a single documented fraction
   is adequate and the boundary now carries Rs anyway.

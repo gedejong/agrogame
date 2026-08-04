@@ -46,7 +46,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-011](docs/adr/ADR-011-dashboard-facade.md) — Dashboard façade
 - [ADR-012](docs/adr/ADR-012-biomass-partitioning.md) — Biomass partitioning
 - [ADR-013](docs/adr/ADR-013-plant-nitrogen-stock.md) — Whole-shoot plant-N accounting
-- [ADR-014](docs/adr/ADR-014-radiation-convention.md) — Canonical shortwave-radiation convention at the day-tick boundary (Proposed)
+- [ADR-014](docs/adr/ADR-014-radiation-convention.md) — Canonical shortwave-radiation convention at the day-tick boundary (Accepted — decision A2: physical per-PAR RUE + crop recalibration)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 
