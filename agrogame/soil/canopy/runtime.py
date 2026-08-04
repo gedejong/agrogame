@@ -38,7 +38,7 @@ class CanopyRuntime:
     _consecutive_waterlog_days: int = 0
     _waterlogged_today: bool = False
     # Live rooting depth (cm) tracked from RootDepthChanged; drives the
-    # FAO-56 TAW ∝ Zr onset modifier for drought senescence (#373).
+    # FAO-56 TAW ∝ Zr rate modifier for drought senescence (#373).
     _root_depth_cm: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -111,7 +111,7 @@ class CanopyRuntime:
         self._waterlogged_today = True
 
     def _on_root_depth(self, ev: RootDepthChanged) -> None:
-        """Track live rooting depth for the drought-senescence onset modifier."""
+        """Track live rooting depth for the drought-senescence rate modifier."""
         self._root_depth_cm = max(0.0, float(ev.new_cm))
 
     def _check_frost_damage(self, tmin_c: float) -> None:
@@ -199,12 +199,13 @@ class CanopyRuntime:
             self._consecutive_waterlog_days = 0
 
     def _drought_depth_factor(self) -> float:
-        """FAO-56 TAW ∝ Zr onset modifier for drought senescence (#373).
+        """FAO-56 TAW ∝ Zr rate modifier for drought senescence (#373).
 
         Deeper roots reach a larger total-available-water pool, so a given
         Ta/Tp deficit senesces leaf area more slowly; a shallow-rooted
-        seedling senesces faster (rapid seedling drought). Returns
-        ``clamp(ref_depth / current_depth, min, max)``.
+        seedling senesces faster (rapid seedling drought). The factor scales
+        the daily senescence *rate* multiplicatively (not the onset
+        threshold). Returns ``clamp(ref_depth / current_depth, min, max)``.
         Ref: FAO-56 TAW = (θ_FC − θ_WP) · Zr (Allen et al. 1998, Eq. 82).
         """
         p = self.canopy.params
@@ -229,6 +230,17 @@ class CanopyRuntime:
         Refs: FAO-56 Ks / TAW ∝ Zr (Allen et al. 1998); DSSAT CERES TURFAC /
         water-stress leaf senescence; APSIM ``swdef_senescence`` (Keating et
         al. 2003) — a graded daily per-unit-leaf rate, never a fixed step.
+
+        Convention (#420, item 6a): senescence debits **LAI only**, not the
+        biomass pool. The lost leaf area is treated as standing dead material
+        retained on the plant until harvest, consistent with the existing
+        canopy convention (LAI and biomass diverge under stress). This mirrors
+        the LAI-only waterlogging path and deliberately differs from
+        ``_check_frost_damage``, which does convert lost LAI to a biomass debit
+        via SLA. Debiting a biomass pool here (option 6b) is deferred to a
+        future issue as it would shift ``tests/integration/test_realism.py``
+        yield ranges. Accordingly the emitted ``DroughtSenescenceApplied``
+        diagnostic carries no ``biomass_loss_g_m2`` field.
         """
         p = self.canopy.params
         onset = p.wilt_stress_threshold
@@ -242,9 +254,20 @@ class CanopyRuntime:
         if self._consecutive_wilt_days < p.wilt_days_for_damage:
             return
         severity = (onset - water_stress) / onset  # 0 at onset, →1 as Ta/Tp→0
-        rate = p.wilt_lai_loss_fraction * severity * self._drought_depth_factor()
+        depth_factor = self._drought_depth_factor()
+        rate = p.wilt_lai_loss_fraction * severity * depth_factor
         loss = self.canopy.state.lai * max(0.0, min(1.0, rate))
         self.canopy.state.lai = max(0.0, self.canopy.state.lai - loss)
+        if loss > 0.0:
+            from agrogame.soil.canopy.events import DroughtSenescenceApplied
+
+            self.event_bus.emit(
+                DroughtSenescenceApplied(
+                    lai_loss=loss,
+                    severity=severity,
+                    depth_factor=depth_factor,
+                )
+            )
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "canopy":

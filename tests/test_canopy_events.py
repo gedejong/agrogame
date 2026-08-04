@@ -12,7 +12,12 @@ from agrogame.soil.canopy import (
     LAIUpdated,
 )
 from agrogame.soil.canopy.interception import InterceptionState
-from agrogame.soil.canopy.events import CanopyIntercepted, CanopyEvaporated
+from agrogame.soil.canopy.events import (
+    CanopyIntercepted,
+    CanopyEvaporated,
+    DroughtSenescenceApplied,
+)
+from agrogame.soil.canopy.runtime import CanopyRuntime
 
 
 def test_canopy_daily_step_and_events() -> None:
@@ -418,3 +423,72 @@ def test_interception_events_and_mass_balance() -> None:
     assert abs(seen["evap"] - taken) < 1e-9
     # Canopy store balance
     assert abs(istate.store_mm - (intercepted - taken)) < 1e-9
+
+
+def _drought_runtime() -> tuple[CanopyRuntime, list[DroughtSenescenceApplied]]:
+    """A canopy runtime with a subscriber capturing DroughtSenescenceApplied."""
+    bus = EventBus()
+    params = CanopyParams(0.6, 3.0, 0.02, 6.0)
+    rt = CanopyRuntime(event_bus=bus, canopy=CanopyModule(params, EventBus()))
+    seen: list[DroughtSenescenceApplied] = []
+    bus.subscribe(DroughtSenescenceApplied, seen.append)
+    return rt, seen
+
+
+def test_drought_senescence_applied_payload_and_gating() -> None:
+    """DroughtSenescenceApplied fires only on senescence days with a valid payload.
+
+    Guards the #420 diagnostic contract: it must NOT fire above onset or before
+    the tolerance lag, and when it does fire the payload must satisfy
+    lai_loss > 0, 0 < severity <= 1, and depth_factor in [0.25, 2.0].
+    """
+    rt, seen = _drought_runtime()
+    rt.canopy.state.lai = 3.0
+
+    # Above onset (stress 0.5 > default onset 0.3): no senescence, no event.
+    rt._check_drought_senescence(0.5)
+    assert seen == []
+
+    # Below onset but before the tolerance lag: counter arms, still no event.
+    for _ in range(rt.canopy.params.wilt_days_for_damage - 1):
+        rt._check_drought_senescence(0.0)
+    assert seen == []
+
+    # One more sub-threshold day crosses the lag → senescence + event.
+    rt._check_drought_senescence(0.0)
+    assert len(seen) == 1
+    ev = seen[-1]
+    assert ev.lai_loss > 0.0
+    assert 0.0 < ev.severity <= 1.0
+    assert 0.25 <= ev.depth_factor <= 2.0
+    # LAI-only convention (#420, item 6a): no biomass field on the event.
+    assert not hasattr(ev, "biomass_loss_g_m2")
+
+
+def test_drought_senescence_event_fires_across_two_cycles() -> None:
+    """The diagnostic re-arms and fires again in a second drought (multi-cycle).
+
+    Mirrors the stateful two-cycle wilt test: recovery (stress above onset)
+    resets the lag counter, and a second drought must emit the event again
+    rather than latching after the first cycle.
+    """
+    rt, seen = _drought_runtime()
+    rt.canopy.state.lai = 3.0
+
+    # Cycle 1: sustained drought past the lag emits the event.
+    for _ in range(rt.canopy.params.wilt_days_for_damage + 2):
+        rt._check_drought_senescence(0.0)
+    cycle1 = len(seen)
+    assert cycle1 >= 1
+
+    # Recovery: stress above onset resets the lag counter (no new events).
+    rt._check_drought_senescence(0.9)
+    assert len(seen) == cycle1
+    assert rt._consecutive_wilt_days == 0
+
+    # Cycle 2: regrow leaf area, then drought again — event must re-arm.
+    rt.canopy.state.lai = 3.0
+    for _ in range(rt.canopy.params.wilt_days_for_damage + 2):
+        rt._check_drought_senescence(0.0)
+    assert len(seen) > cycle1
+    assert all(e.lai_loss > 0.0 for e in seen)

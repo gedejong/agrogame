@@ -105,6 +105,17 @@ def test_small_canopy_drought_is_materially_limited() -> None:
 
     # Control establishes a real canopy; drought is materially suppressed.
     assert lai_c > 4.0, f"watered control should build a canopy, got LAI {lai_c:.2f}"
+    # Discriminating pin (#420): an ABSOLUTE drought-LAI bound that only the
+    # graded per-unit-leaf model can meet. New graded model reproduces
+    # lai_d ≈ 0.268 (passes with headroom); the old size-independent discrete
+    # 10%-of-LAI step gives lai_d ≈ 1.505 and so FAILS this bound. The 0.5
+    # threshold sits squarely between the two behaviours (0.268 < 0.5 < 1.505).
+    assert lai_d < 0.5, (
+        f"drought LAI ({lai_d:.3f}) must be materially limited in absolute terms "
+        f"(new graded model ~0.268; old size-independent step ~1.505 fails this)"
+    )
+    # Relative asserts kept as sanity checks (they pass on both old and new, so
+    # they are NOT the discriminating condition — the absolute pin above is).
     assert lai_d < 0.5 * lai_c, (
         f"drought LAI ({lai_d:.2f}) should sit far below control ({lai_c:.2f}) — "
         f"the small-canopy drought signal that was previously missing"
@@ -192,10 +203,20 @@ def test_drought_senescence_bites_across_two_cycles() -> None:
     _run(orch, 18, 0.0, start, 63)  # drought 2
     lai_dr2 = orch.canopy.state.lai
 
-    assert (
-        lai_dr1 < lai_pre1
-    ), f"cycle 1 drought should reduce LAI ({lai_pre1:.2f} -> {lai_dr1:.2f})"
+    # Discriminating pins (#420): ABSOLUTE penalties only the graded model meets.
+    # Cycle-1 drought must remove > 1.0 LAI (new graded model removes ~1.49; the
+    # old size-independent discrete step removes only ~0.42 and FAILS this).
+    assert (lai_pre1 - lai_dr1) > 1.0, (
+        f"cycle 1 drought must remove > 1.0 LAI in absolute terms "
+        f"({lai_pre1:.2f} -> {lai_dr1:.2f}, removed {lai_pre1 - lai_dr1:.2f}; "
+        f"new graded ~1.49, old step ~0.42 fails)"
+    )
     assert lai_pre2 > lai_dr1, "canopy should recover between droughts"
+    # Post-cycle-2 canopy must end materially suppressed (new ~0.999; old ~2.322).
+    assert lai_dr2 < 1.5, (
+        f"post-cycle-2 canopy must stay below 1.5 LAI "
+        f"({lai_dr2:.3f}; new graded ~0.999, old step ~2.322 fails)"
+    )
     assert (
         lai_dr2 < lai_pre2
     ), f"cycle 2 drought should reduce LAI again ({lai_pre2:.2f} -> {lai_dr2:.2f})"
