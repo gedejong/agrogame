@@ -53,13 +53,19 @@ crops:
     climate_overrides:
       kenya_highlands:
         canopy:
-          # ADR-014 Phase 2: the canopy now applies f_PAR=0.48, so this RUE is
-          # genuinely per intercepted PAR (the old "vs TOTAL SOLAR" note is
-          # obsolete). 2.73 sits just below the well-watered C4-maize vs-PAR band
-          # 3.3-4.0 (Kiniry 1989; Sinclair & Muchow 1999) and is RETAINED as a
-          # cool-highland climate-stressed low-end posterior (AGRO-102, #372),
-          # pending Phase-3 per-crop yield recalibration. Value unchanged.
-          rue_g_per_mj: 2.73      # C4 maize vs-PAR, Kenya-stress low end
+          # ADR-014 Phase 3: the canopy applies f_PAR=0.48, so RUE is genuinely
+          # per intercepted PAR. old->new: 2.73->3.5. The 2.73 double-counted
+          # the cool-highland penalty that `temp_factor` already applies at
+          # temp_opt_c=24.2; 3.5 is the mid well-watered C4-maize vs-PAR
+          # literature figure (Kiniry et al. 1989; Sinclair & Muchow 1999, band
+          # 3.3-4.0 g/MJ) and lets the temperature response — not a depressed RUE
+          # — carry the highland climate signal.
+          rue_g_per_mj: 3.5       # C4 maize vs-PAR, mid literature (Kiniry 1989)
+          # ADR-014 Phase 3: old->new: 0.54->0.68. Maize canopy light-extinction
+          # k is 0.6-0.7 in the literature (Lindquist et al. 2005; Maddonni et
+          # al. 2001); 0.68 sits in that band and lifts fractional interception
+          # on the highland canopy. (base uses 0.54 across other climates.)
+          extinction_coefficient_k: 0.68  # maize vs-PAR k 0.6-0.7 (Lindquist 2005)
           temp_opt_c: 24.2        # Kenya posterior (AGRO-102)
           sla_m2_per_g: 0.013     # Kenya posterior (AGRO-102)
         phenology:
@@ -196,6 +202,22 @@ crops:
       growth_rate_cm_per_day: 1.5
       distribution: exponential
       root_allocation_fraction: 0.22   # APSIM-Wheat root:shoot
+    climate_overrides:
+      kenya_highlands:
+        # ADR-014 Phase 3: the base spring-wheat maturity_gdd=1300 raced this
+        # crop to maturity by ~day 73 on the cool Kenya highlands, so it never
+        # built a canopy. Real highland spring wheat is a full-season crop.
+        phenology:
+          # Spring-wheat literature GDD (base 0C): flowering ~1100-1300,
+          # maturity ~2200-2600 (DSSAT CERES-Wheat; AHDB). old->new:
+          # flowering 600->1200, maturity 1300->2400.
+          flowering_gdd: 1200.0
+          maturity_gdd: 2400.0
+        canopy:
+          # C3 wheat vs-PAR RUE and canopy k (Sinclair & Muchow 1999; wheat k
+          # 0.65-0.72, Yunusa et al. 1993). old->new: rue 2.7->3.0, k 0.55->0.70.
+          rue_g_per_mj: 3.0       # C3 wheat vs-PAR (S&M 1999)
+          extinction_coefficient_k: 0.70  # wheat vs-PAR k (Yunusa 1993)
 
   rice:
     name: "Rice (Oryza sativa)"
