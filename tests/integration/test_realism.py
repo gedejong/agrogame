@@ -248,19 +248,21 @@ def test_sorghum_netherlands_limited() -> None:
 
 def test_rice_kenya_best() -> None:
     """Rice should perform best in wet Kenya."""
+    # ADR-014 Phase 3d: run a real cool-highland full season (180 d), matching
+    # the Kenya-maize highland treatment. At the old 150 d the crop truncated in
+    # GRAIN_FILL (~627 g/m²); 180 d reaches MATURITY.
     biomass, _lai, _stage, _grain = _run_scenario(
-        "rice", "kenya_highlands", date(2024, 3, 1)
+        "rice", "kenya_highlands", date(2024, 3, 1), days=180
     )
-    # ADR-014 Phase 3 re-derivation (old->new: 1000-2000 -> 500-1200; measured
-    # seed=42 ~627 g/m²). The old 1000 floor was mis-anchored to warm LOWLAND
-    # tropical rice (10-20 t/ha AGB, IRRI/FAO). This scenario is cool 2000 m
-    # KENYA HIGHLAND rice: photoperiod- and temperature-limited, ~5-8 t/ha AGB
-    # is the realistic band. Under the ADR-014 physical per-PAR basis the honest
-    # highland output is ~627 g/m² (~6.3 t/ha), below the investigation's rough
-    # ~800 estimate — the floor is anchored to the MEASURED value, not the
-    # estimate. Floor 500 brackets it with headroom; upper 1200 bites on
-    # re-inflation toward the (inapplicable) lowland range.
-    assert 500 < biomass < 1200
+    # ADR-014 re-derivation (old->new: 1000-2000 -> 650-1100; measured seed=42
+    # at 180 d ~740 g/m², MATURITY). The old 1000 floor was mis-anchored to warm
+    # LOWLAND tropical rice (10-20 t/ha AGB, IRRI/FAO). This scenario is cool
+    # 2000 m KENYA HIGHLAND rice: photoperiod- and temperature-limited, ~5-8 t/ha
+    # AGB is the realistic band. Under the ADR-014 physical per-PAR basis the
+    # honest full-season highland output is ~740 g/m² (~7.4 t/ha), inside the
+    # investigation's ~740-800 estimate. Floor 650 brackets it with headroom;
+    # upper 1100 bites on re-inflation toward the (inapplicable) lowland range.
+    assert 650 < biomass < 1100
 
 
 def test_rice_sahel_limited() -> None:

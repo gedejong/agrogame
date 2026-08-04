@@ -6,7 +6,18 @@ from agrogame.soil.canopy.params import CanopyParams
 
 
 def test_stress_memory_dampens_recovery() -> None:
-    """After drought, a single good day shouldn't fully restore growth."""
+    """After drought, a single good day shouldn't fully restore growth.
+
+    Re-baselined for ADR-014 (Phase 3d): the ``crop=None`` orchestrator builds
+    only a token default canopy, and under the corrected (halved) PAR basis it
+    transpires so little that 20 dry days leave the soil essentially undepleted
+    (Ta/Tp = 1.0) — no stress history accrues, so the recovery and normal
+    increments were exactly equal and the assertion had nothing to bite on. The
+    dry window is extended 20 -> 30 days, which now genuinely exhausts the soil
+    (Ta/Tp ≈ 0.003) so the stress-memory window (7 d) still holds a low average
+    on the recovery day. The assertion shape is unchanged. Measured:
+    recovery_inc ≈ 0.12 g/m² vs normal_inc ≈ 0.84 g/m².
+    """
     from agrogame.soil.loader import load_soil_presets
     from agrogame.sim.orchestrator import FullSimulationOrchestrator
     from agrogame.soil.water.types import DailyDrivers
@@ -16,9 +27,9 @@ def test_stress_memory_dampens_recovery() -> None:
     profile = lib.soils["loam_temperate"]
     start = date(2024, 6, 1)
 
-    # Scenario A: 20 dry days then 1 wet day (long enough to deplete soil)
+    # Scenario A: 30 dry days then 1 wet day (long enough to deplete soil)
     orch_a = FullSimulationOrchestrator(profile)
-    for i in range(20):
+    for i in range(30):
         orch_a.step_day(
             drivers=DailyDrivers(rainfall_mm=0.0),
             tmin_c=20.0,
@@ -32,13 +43,13 @@ def test_stress_memory_dampens_recovery() -> None:
         tmin_c=20.0,
         tmax_c=30.0,
         par_mj_m2=15.0,
-        sim_date=start + timedelta(days=20),
+        sim_date=start + timedelta(days=30),
     )
     recovery_inc = orch_a.canopy.state.biomass_g_m2 - biomass_after_drought
 
     # Scenario B: always wet (no stress history)
     orch_b = FullSimulationOrchestrator(profile)
-    for i in range(20):
+    for i in range(30):
         orch_b.step_day(
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=20.0,
@@ -52,7 +63,7 @@ def test_stress_memory_dampens_recovery() -> None:
         tmin_c=20.0,
         tmax_c=30.0,
         par_mj_m2=15.0,
-        sim_date=start + timedelta(days=20),
+        sim_date=start + timedelta(days=30),
     )
     normal_inc = orch_b.canopy.state.biomass_g_m2 - biomass_before
 
@@ -97,7 +108,21 @@ def test_vpd_reduces_growth_in_hot_dry() -> None:
 
 
 def test_wilt_damage_reduces_lai() -> None:
-    """Prolonged severe stress should permanently reduce LAI."""
+    """Prolonged severe stress should permanently reduce LAI.
+
+    Re-baselined for ADR-014 (Phase 3d). Under the corrected (halved) PAR basis
+    the canopy transpires less and undisturbed deep roots buffer the drought, so
+    Ta/Tp stays above the wilt onset for far longer: a 30-day-canopy + 20-day
+    drought now sees LAI *climb* (only ~7 sub-onset days, swamped by growth), and
+    even a longer drought on a young canopy reduces LAI mostly by phenological
+    aging, not wilt. Real drought senescence fires only once the soil is
+    genuinely exhausted to Ta/Tp ≈ 0.05, which on this loam takes ~50 days of a
+    large canopy drawing it down. The establishment (30 -> 45 d, LAI ~3.33) and
+    drought (20 -> 60 d) are extended so the collapse is genuine wilt damage:
+    LAI falls 3.33 -> ~1.12 with ~0.79 LAI of DroughtSenescenceApplied, and the
+    drought canopy ends well below a watered control run for the same days
+    (~2.07), confirming the drop is drought-driven, not phenology.
+    """
     from agrogame.plant.presets import load_crop_presets
     from agrogame.soil.loader import load_soil_presets
     from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -119,8 +144,8 @@ def test_wilt_damage_reduces_lai() -> None:
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
     orch = FullSimulationOrchestrator(profile, crop=crops.crops["maize"])
     orch.apply_fertilizer("ammonium_nitrate", 200.0)
-    # Build up some LAI with good conditions
-    for i in range(30):
+    # Build up a solid canopy with good conditions (45 d -> LAI ~3.33).
+    for i in range(45):
         orch.step_day(
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=20.0,
@@ -130,8 +155,9 @@ def test_wilt_damage_reduces_lai() -> None:
         )
     lai_before_drought = orch.canopy.state.lai
 
-    # Extended drought — should trigger wilt damage
-    for i in range(30, 50):
+    # Extended drought — long enough to exhaust the soil and trigger real wilt
+    # senescence (not just phenological decline).
+    for i in range(45, 105):
         orch.step_day(
             drivers=DailyDrivers(rainfall_mm=0.0),
             tmin_c=20.0,
