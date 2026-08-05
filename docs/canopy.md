@@ -64,13 +64,18 @@ CERES-style model so harvest index becomes an *emergent*, bounded outcome:
    term, all three stresses in the window lower grain number (Andrade et al.
    1999; Fischer 1985; DSSAT CERES `G1`).
 2. **Grain filling (kernel weight).** Each day a fill *demand* =
-   `grain_number * kernel_fill_rate_mg_per_grain_day` (heat-scaled, bounded
-   by the remaining total sink `grain_number * potential_kernel_weight_mg`,
-   CERES `G2`) is met from current assimilate first, then from remobilised
-   stem (`remobilization_fraction`) and senescing-leaf
-   (`leaf_remob_fraction`) reserves (Gebbing & Schnyder 1999). Post-anthesis
-   heat/drought reduce the fill rate and source, so realised kernel weight
-   (`grain / grain_number`) drops.
+   `grain_number * kernel_fill_rate_mg_per_grain_day` (bounded by the
+   remaining total sink `grain_number * potential_kernel_weight_mg`, CERES
+   `G2`) is met from current assimilate first, then topped up from remobilised
+   stem (`remobilization_fraction`) and senescing-leaf (`leaf_remob_fraction`)
+   reserves (Gebbing & Schnyder 1999; Blum 1998). **Post-anthesis heat scales
+   only the *current-assimilate* share, not the reserve draw** (#434): stem
+   reserves exist precisely to buffer terminal heat/drought, so a senescing
+   crop mobilises them toward the genotypic potential fill rate rather than
+   having them heat-suppressed to a no-op. When `heat_grain_factor == 1`
+   (well-watered/cool crops) the split is inert and behaviour is unchanged.
+   Realised kernel weight (`grain / grain_number`) still drops under stress —
+   via lower current assimilate and a finite reserve pool — just not to zero.
 3. **Emergent, bounded HI.** Cumulative grain is capped at
    `hi_max * total_biomass` (safety ceiling ~0.50-0.55 for cereals). Grain
    number, not the cap, is the dominant yield lever in unstressed runs.
