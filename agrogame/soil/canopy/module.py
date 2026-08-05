@@ -267,14 +267,17 @@ class CanopyModule:
     ) -> None:
         """Partition the day's non-leaf increment (and reserves) into grain/stem.
 
-        Sink-source model (``grains_per_g_source > 0``): a daily fill *demand*
-        (single-kernel rate x grain number, slowed by post-anthesis heat and
-        bounded by the remaining total sink = number x potential kernel
-        weight) is met from current assimilate first, then from remobilised
-        reserves. Grain number thus sets total yield, the fill rate governs
-        kernel weight, and stress on either lowers grain (CERES-style; Andrade
-        et al. 1999; Fischer 1985). Falls back to the legacy fixed-HI split
-        for non-grain / un-migrated presets. Mutates grain and stem in place.
+        Sink-source model (``grains_per_g_source > 0``): a daily genotypic fill
+        *potential* (single-kernel rate x grain number, bounded by the
+        remaining total sink = number x potential kernel weight) is met from
+        current assimilate first, then topped up from remobilised reserves.
+        Post-anthesis heat slows only the *current-assimilate* share; reserves
+        buffer grain fill toward the full potential rate under stress (#434 —
+        Blum 1998; Yang & Zhang 2006). Grain number thus sets total yield, the
+        fill rate governs kernel weight, and stress lowers grain via a shorter
+        fill window and depleted reserves (CERES-style; Andrade et al. 1999;
+        Fischer 1985). Falls back to the legacy fixed-HI split for non-grain /
+        un-migrated presets. Mutates grain and stem in place.
         """
         p = self.params
         nonleaf = biomass_inc * (1.0 - leaf_fraction)
@@ -288,19 +291,26 @@ class CanopyModule:
         self._update_grain_number()
         total_sink = self.state.grain_number * p.potential_kernel_weight_mg * 1e-3
         remaining_total = max(0.0, total_sink - self.state.grain_biomass_g_m2)
-        # Potential fill demand today = single-kernel rate x number (CERES G2),
-        # slowed by post-anthesis heat stress, never beyond the remaining sink.
-        demand = min(
-            self.state.grain_number
-            * p.kernel_fill_rate_mg_per_grain_day
-            * 1e-3
-            * heat_grain_factor,
+        # Genotypic potential fill today = single-kernel rate x number (CERES
+        # G2), never beyond the remaining sink.
+        potential_demand = min(
+            self.state.grain_number * p.kernel_fill_rate_mg_per_grain_day * 1e-3,
             remaining_total,
         )
-        # Meet demand from current assimilate first; surplus source -> stem.
-        from_source = min(nonleaf, demand)
+        # Post-anthesis heat stress slows *current-assimilate* grain filling,
+        # but pre-anthesis reserves are not equally impaired: pre-formed
+        # stem/leaf carbohydrate keeps translocating to grain even when
+        # heat/drought crush current photosynthesis. This terminal-stress
+        # buffering by reserves is the whole reason cereals store stem reserves
+        # (Blum 1998; Yang & Zhang 2006; Gebbing & Schnyder 1999). So heat caps
+        # only the source-met share; remobilised reserves then top grain up
+        # toward the full potential rate. With no heat stress
+        # (heat_grain_factor == 1) source_demand == potential_demand and this
+        # reduces to the prior source-first, reserves-fill-the-gap behaviour.
+        source_demand = potential_demand * heat_grain_factor
+        from_source = min(nonleaf, source_demand)
         self.state.stem_biomass_g_m2 += nonleaf - from_source
-        deficit = demand - from_source
+        deficit = potential_demand - from_source
         remob = self._draw_reserves(deficit) if deficit > 0.0 else 0.0
         self.state.grain_biomass_g_m2 += from_source + remob
 
