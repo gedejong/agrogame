@@ -65,7 +65,7 @@ def test_lai_scurve_and_high_interception_at_lai4() -> None:
     # Beer-Lambert, so the interception fraction is measured against incident
     # PAR (0.48 * 10.0), not raw shortwave.
     canopy.state.lai = 4.0
-    fx = canopy.calculate_light_interception(incident_par_mj_m2=10.0)
+    fx = canopy.calculate_light_interception(incident_shortwave_mj_m2=10.0)
     frac = fx.intercepted_par_mj_m2 / (0.48 * 10.0)
     assert 0.9 <= frac <= 0.98
 
@@ -103,7 +103,7 @@ def test_root_allocation_default_zero_is_shoot_only() -> None:
     """Default fraction 0.0 reproduces pre-#337 shoot-only behaviour."""
     canopy = _fresh_canopy_with_lai()
     fx = canopy.daily_step(
-        incident_par_mj_m2=12.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=12.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     assert fx.root_increment_g_m2 == 0.0
     # Whole pool went to shoot.
@@ -122,7 +122,7 @@ def test_daily_pool_conserved_shoot_plus_root_equals_gross() -> None:
     )
     canopy = _fresh_canopy_with_lai()
     fx = canopy.daily_step(
-        incident_par_mj_m2=12.0,
+        incident_shortwave_mj_m2=12.0,
         temp_factor=1.0,
         water_stress=1.0,
         n_stress=1.0,
@@ -142,14 +142,14 @@ def test_higher_root_fraction_lowers_shoot_same_total_pool() -> None:
     day — allocating more below ground does not create free biomass (#337).
     """
     low = _fresh_canopy_with_lai().daily_step(
-        incident_par_mj_m2=12.0,
+        incident_shortwave_mj_m2=12.0,
         temp_factor=1.0,
         water_stress=1.0,
         n_stress=1.0,
         root_allocation_fraction=0.15,
     )
     high = _fresh_canopy_with_lai().daily_step(
-        incident_par_mj_m2=12.0,
+        incident_shortwave_mj_m2=12.0,
         temp_factor=1.0,
         water_stress=1.0,
         n_stress=1.0,
@@ -165,7 +165,7 @@ def test_higher_root_fraction_lowers_shoot_same_total_pool() -> None:
 def test_root_fraction_clamped_to_unit_interval() -> None:
     """Out-of-range fractions clamp so shoot/root shares stay non-negative."""
     over = _fresh_canopy_with_lai().daily_step(
-        incident_par_mj_m2=12.0,
+        incident_shortwave_mj_m2=12.0,
         temp_factor=1.0,
         water_stress=1.0,
         n_stress=1.0,
@@ -174,7 +174,7 @@ def test_root_fraction_clamped_to_unit_interval() -> None:
     assert over.biomass_increment_g_m2 == 0.0  # clamped to 1.0 → all to root
     assert over.root_increment_g_m2 > 0.0
     under = _fresh_canopy_with_lai().daily_step(
-        incident_par_mj_m2=12.0,
+        incident_shortwave_mj_m2=12.0,
         temp_factor=1.0,
         water_stress=1.0,
         n_stress=1.0,

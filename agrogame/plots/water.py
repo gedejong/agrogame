@@ -32,7 +32,7 @@ def plot_water_timeseries(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
         )
         total = sum(
             orch.water_state.layer_storage_mm(orch.profile, j)

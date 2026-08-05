@@ -51,7 +51,7 @@ def _handle_run(profile_name: str, weather_file: Path, days: int) -> int:
             target_ph=6.8,
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=par,
+            shortwave_mj_m2=par,
         )
     print("Scenario run completed")
     return 0

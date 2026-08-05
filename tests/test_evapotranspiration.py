@@ -280,7 +280,7 @@ def test_et_runtime_persists_state() -> None:
                 drivers=DailyDrivers(rainfall_mm=0.0),
                 tmin_c=10.0,
                 tmax_c=22.0,
-                par_mj_m2=12.0,
+                shortwave_mj_m2=12.0,
             )
         )
         evaps.append(last_evap)
@@ -347,7 +347,7 @@ def test_et_runtime_rainfall_resets() -> None:
                 drivers=DailyDrivers(rainfall_mm=rain),
                 tmin_c=10.0,
                 tmax_c=22.0,
-                par_mj_m2=12.0,
+                shortwave_mj_m2=12.0,
             )
         )
         return last_evap
@@ -428,7 +428,7 @@ def test_et_runtime_emits_evapotranspiration_computed_each_cycle() -> None:
                 drivers=DailyDrivers(rainfall_mm=0.0),
                 tmin_c=10.0,
                 tmax_c=22.0,
-                par_mj_m2=12.0,
+                shortwave_mj_m2=12.0,
             )
         )
 
@@ -498,7 +498,7 @@ def test_resolve_climate_derives_net_radiation_as_fraction_of_shortwave() -> Non
             phase="et",
             tmin_c=12.0,
             tmax_c=28.0,
-            par_mj_m2=rs,  # raw shortwave Rs (ADR-014 boundary field)
+            shortwave_mj_m2=rs,  # raw shortwave Rs (ADR-014 boundary field)
         )
         temp_mean, net_radiation = runtime._resolve_climate(ev)
         assert temp_mean == pytest.approx(20.0)

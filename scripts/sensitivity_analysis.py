@@ -230,7 +230,7 @@ def run_model(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         peak_lai = max(peak_lai, orch.canopy.state.lai)

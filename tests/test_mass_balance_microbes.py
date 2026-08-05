@@ -25,7 +25,7 @@ def test_microbe_cn_mass_balance_stability() -> None:
             ),
             tmin_c=10,
             tmax_c=20,
-            par_mj_m2=12,
+            shortwave_mj_m2=12,
             target_ph=6.8,
         )
     c1, n1 = totals()

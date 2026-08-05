@@ -199,11 +199,19 @@ class DashboardSimulationRun:
         self.agg.transp_mm = 0.0
 
     def step_day(
-        self, drivers: DailyDrivers, *, tmin_c: float, tmax_c: float, par_mj_m2: float
+        self,
+        drivers: DailyDrivers,
+        *,
+        tmin_c: float,
+        tmax_c: float,
+        shortwave_mj_m2: float,
     ) -> None:
         """Advance the orchestrator one day with the supplied drivers + climate."""
         self.orch.step_day(
-            drivers=drivers, tmin_c=tmin_c, tmax_c=tmax_c, par_mj_m2=par_mj_m2
+            drivers=drivers,
+            tmin_c=tmin_c,
+            tmax_c=tmax_c,
+            shortwave_mj_m2=shortwave_mj_m2,
         )
 
     # ----- diagnostics -----

@@ -107,7 +107,7 @@ def test_dashboard_facade_one_day_end_to_end() -> None:
         make_drivers(rec.precip_mm or 0.0),
         tmin_c=rec.tmin_c,
         tmax_c=rec.tmax_c,
-        par_mj_m2=par,
+        shortwave_mj_m2=par,
     )
     ws, stomatal = run.calc_stress(
         vpd=vpd, lai=run.lai, transp_mm=run.agg.transp_mm, et0_mm=et0

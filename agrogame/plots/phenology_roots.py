@@ -97,7 +97,7 @@ def simulate_phenology_canopy(
         state = pheno.daily_step(tmin_c=tmins[i], tmax_c=tmaxs[i], photoperiod_h=12.0)
         stages.append(state.stage)
         fx = canopy.daily_step(
-            incident_par_mj_m2=pars[i],
+            incident_shortwave_mj_m2=pars[i],
             temp_factor=1.0,
             water_stress=1.0,
             n_stress=1.0,

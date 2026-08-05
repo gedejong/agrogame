@@ -112,7 +112,7 @@ def _run_growth(
             ),
         )
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=par,
+            incident_shortwave_mj_m2=par,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,
@@ -193,7 +193,7 @@ def _run_growth_with_wue_and_stages(
         )
         total_evap_trans_mm += actual.evaporation_mm + actual.transpiration_mm
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=par,
+            incident_shortwave_mj_m2=par,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,

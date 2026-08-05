@@ -23,12 +23,12 @@ def test_microbe_activity_dampens_nitrification() -> None:
         drivers = DailyDrivers(rainfall_mm=0.0, irrigation_mm=0.0, evaporation_mm=0.0)
         # Baseline
         orch_a.step_day(
-            drivers=drivers, tmin_c=18, tmax_c=18, par_mj_m2=10, target_ph=7.0
+            drivers=drivers, tmin_c=18, tmax_c=18, shortwave_mj_m2=10, target_ph=7.0
         )
         # Lower activity: reduce fb adjust and temperature to suppress
         orch_b.microbes.params.fb_adjust_rate = 0.0
         orch_b.step_day(
-            drivers=drivers, tmin_c=10, tmax_c=10, par_mj_m2=5, target_ph=6.0
+            drivers=drivers, tmin_c=10, tmax_c=10, shortwave_mj_m2=5, target_ph=6.0
         )
 
     total_no3_a = sum(orch_a.n_state.no3)

@@ -122,7 +122,7 @@ def test_orchestrator_accepts_crop_preset() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 6, 1),
         )
         assert orch.canopy.state.biomass_g_m2 >= 0.0

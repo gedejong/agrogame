@@ -220,7 +220,7 @@ class SimulationEngine:
                 drivers=drivers,
                 tmin_c=rec.tmin_c,
                 tmax_c=rec.tmax_c,
-                par_mj_m2=par,
+                shortwave_mj_m2=par,
             )
             self.current_day += 1
 

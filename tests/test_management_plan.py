@@ -40,7 +40,7 @@ def _step_days(orch: FullSimulationOrchestrator, n: int, seed: int = 42) -> None
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
 
@@ -157,7 +157,7 @@ def test_fertilizer_executes_on_scheduled_day() -> None:
         drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
         tmin_c=rec.tmin_c,
         tmax_c=rec.tmax_c,
-        par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+        shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
         sim_date=rec.day,
     )
     assert orch.n_state.nh4[0] > nh4_before

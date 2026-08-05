@@ -266,7 +266,7 @@ def test_well_drained_stays_aerobic() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),  # light rain, well drained
             tmin_c=15.0,
             tmax_c=28.0,
-            par_mj_m2=18.0,
+            shortwave_mj_m2=18.0,
             sim_date=start + timedelta(days=d),
         )
     min_eh = min(orch.redox_state.eh_mv)

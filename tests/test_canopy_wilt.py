@@ -47,7 +47,7 @@ def _run(
             drivers=DailyDrivers(rainfall_mm=rain),
             tmin_c=18.0,
             tmax_c=30.0,
-            par_mj_m2=18.0,
+            shortwave_mj_m2=18.0,
             sim_date=start + timedelta(days=i),
         )
 

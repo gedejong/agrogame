@@ -49,7 +49,7 @@ def _enter_grain_fill(
 def _step(canopy: CanopyModule, bus: EventBus, total_gdd: float) -> None:
     bus.emit(GddAccumulated(daily_gdd=1.0, total_gdd=total_gdd))
     canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
 
 
@@ -113,7 +113,7 @@ def test_heat_reduces_grain_fill() -> None:
         for i in range(10):
             bus.emit(GddAccumulated(daily_gdd=1.0, total_gdd=1050.0 + i * 20.0))
             canopy.daily_step(
-                incident_par_mj_m2=10.0,
+                incident_shortwave_mj_m2=10.0,
                 temp_factor=1.0,
                 water_stress=1.0,
                 n_stress=1.0,

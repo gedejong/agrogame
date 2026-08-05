@@ -83,7 +83,7 @@ def main() -> None:
             ),
             tmin_c=tmin,
             tmax_c=tmax,
-            par_mj_m2=rad,
+            shortwave_mj_m2=rad,
             target_ph=6.8,
         )
 
