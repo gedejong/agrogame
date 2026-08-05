@@ -34,7 +34,7 @@ def test_stress_memory_dampens_recovery() -> None:
             drivers=DailyDrivers(rainfall_mm=0.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
     biomass_after_drought = orch_a.canopy.state.biomass_g_m2
@@ -42,7 +42,7 @@ def test_stress_memory_dampens_recovery() -> None:
         drivers=DailyDrivers(rainfall_mm=30.0),
         tmin_c=20.0,
         tmax_c=30.0,
-        par_mj_m2=15.0,
+        shortwave_mj_m2=15.0,
         sim_date=start + timedelta(days=30),
     )
     recovery_inc = orch_a.canopy.state.biomass_g_m2 - biomass_after_drought
@@ -54,7 +54,7 @@ def test_stress_memory_dampens_recovery() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
     biomass_before = orch_b.canopy.state.biomass_g_m2
@@ -62,7 +62,7 @@ def test_stress_memory_dampens_recovery() -> None:
         drivers=DailyDrivers(rainfall_mm=5.0),
         tmin_c=20.0,
         tmax_c=30.0,
-        par_mj_m2=15.0,
+        shortwave_mj_m2=15.0,
         sim_date=start + timedelta(days=30),
     )
     normal_inc = orch_b.canopy.state.biomass_g_m2 - biomass_before
@@ -89,7 +89,7 @@ def test_vpd_reduces_growth_in_hot_dry() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
 
@@ -100,7 +100,7 @@ def test_vpd_reduces_growth_in_hot_dry() -> None:
             drivers=DailyDrivers(rainfall_mm=0.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
 
@@ -150,7 +150,7 @@ def test_wilt_damage_reduces_lai() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
     lai_before_drought = orch.canopy.state.lai
@@ -162,7 +162,7 @@ def test_wilt_damage_reduces_lai() -> None:
             drivers=DailyDrivers(rainfall_mm=0.0),
             tmin_c=20.0,
             tmax_c=30.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=i),
         )
 
@@ -197,7 +197,7 @@ def test_arid_produces_less_than_temperate() -> None:
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
 
@@ -211,7 +211,7 @@ def test_arid_produces_less_than_temperate() -> None:
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
 

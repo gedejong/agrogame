@@ -49,7 +49,7 @@ def test_daily_step_with_transpiration() -> None:
     canopy.state.lai = 3.0
     canopy.state.biomass_g_m2 = 100.0
     result = canopy.daily_step_with_transpiration(
-        incident_par_mj_m2=10.0,
+        incident_shortwave_mj_m2=10.0,
         temp_factor=1.0,
         actual_transpiration_mm=2.0,
         potential_transpiration_mm=4.0,

@@ -44,7 +44,11 @@ class DayTick(BaseEvent):
     target_ph: float | None = None
     tmin_c: float | None = None
     tmax_c: float | None = None
-    par_mj_m2: float | None = None
+    # Incoming shortwave irradiance Rs (MJ m⁻² d⁻¹), fed raw by every entry point
+    # (ADR-014). Each consumer applies its own physical reduction: ET derives
+    # Rn ≈ 0.6·Rs; the canopy derives intercepted PAR via PAR_FRACTION. Renamed
+    # from ``par_mj_m2`` in #436 — the field never carried PAR.
+    shortwave_mj_m2: float | None = None
     plant_n_demand_kg_ha: float | None = None
     plant_p_demand_kg_ha: float | None = None
     plant_s_demand_kg_ha: float | None = None

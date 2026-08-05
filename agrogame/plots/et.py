@@ -190,8 +190,9 @@ def _run_simulation(
                 stress=ws,
             )
         )
+        # sw is raw Rs; the canopy applies PAR_FRACTION internally (ADR-014).
         _ = canopy.daily_step(
-            incident_par_mj_m2=sw,  # raw Rs; canopy applies PAR_FRACTION (ADR-014)
+            incident_shortwave_mj_m2=sw,
             temp_factor=1.0,
             water_stress=ws,
             n_stress=1.0,

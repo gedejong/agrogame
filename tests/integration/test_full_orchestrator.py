@@ -19,7 +19,7 @@ def test_full_orchestrator_advances_and_emits() -> None:
             ),
             tmin_c=10.0,
             tmax_c=22.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             target_ph=6.8,
         )
 

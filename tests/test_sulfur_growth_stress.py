@@ -56,7 +56,7 @@ def _biomass_after_canopy_tick(s_stress: float) -> float:
         DayTick(
             sim_date=date(2024, 6, 1),
             phase="canopy",
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             tmin_c=12.0,
             tmax_c=24.0,
         )
@@ -148,7 +148,7 @@ def _run_maize_two_seasons(s_replete: bool) -> tuple[list[float], list[float]]:
                 drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
                 tmin_c=rec.tmin_c,
                 tmax_c=rec.tmax_c,
-                par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+                shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
                 sim_date=rec.day,
             )
         biomass_by_season.append(orch.canopy.state.biomass_g_m2)

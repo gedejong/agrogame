@@ -200,7 +200,7 @@ def test_notill_recovery_one_year() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),
             tmin_c=10.0,
             tmax_c=25.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=start + timedelta(days=d),
         )
     gained = orch.agg_state.macro[0] - initial_macro
@@ -234,7 +234,7 @@ def test_tillage_then_recovery() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),
             tmin_c=12.0,
             tmax_c=26.0,
-            par_mj_m2=16.0,
+            shortwave_mj_m2=16.0,
             sim_date=start + timedelta(days=d),
         )
     # Some recovery should have occurred — at least 2% gain in 180 days
@@ -345,7 +345,7 @@ def test_tillage_management_event() -> None:
         drivers=DailyDrivers(rainfall_mm=0.0),
         tmin_c=15.0,
         tmax_c=25.0,
-        par_mj_m2=15.0,
+        shortwave_mj_m2=15.0,
         sim_date=date(2024, 5, 1),
     )
     assert (

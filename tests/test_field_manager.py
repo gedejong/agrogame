@@ -80,7 +80,7 @@ def test_multi_field_multi_patch_150_days() -> None:
             drivers=drivers,
             tmin_c=tmin,
             tmax_c=tmax,
-            par_mj_m2=par,
+            shortwave_mj_m2=par,
             sim_date=sim_date,
         )
 
@@ -122,7 +122,11 @@ def test_serialization_roundtrip() -> None:
     records = _nl_drivers(10)
     for drivers, tmin, tmax, par, sim_date in records:
         mgr.step_day(
-            drivers=drivers, tmin_c=tmin, tmax_c=tmax, par_mj_m2=par, sim_date=sim_date
+            drivers=drivers,
+            tmin_c=tmin,
+            tmax_c=tmax,
+            shortwave_mj_m2=par,
+            sim_date=sim_date,
         )
 
     d = mgr.to_dict()
@@ -147,7 +151,11 @@ def test_harvest_returns_per_patch_results() -> None:
     records = _nl_drivers(50)
     for drivers, tmin, tmax, par, sim_date in records:
         mgr.step_day(
-            drivers=drivers, tmin_c=tmin, tmax_c=tmax, par_mj_m2=par, sim_date=sim_date
+            drivers=drivers,
+            tmin_c=tmin,
+            tmax_c=tmax,
+            shortwave_mj_m2=par,
+            sim_date=sim_date,
         )
 
     results = mgr.harvest_field("f1")

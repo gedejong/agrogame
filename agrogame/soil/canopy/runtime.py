@@ -272,7 +272,7 @@ class CanopyRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "canopy":
             return
-        par = 12.0 if ev.par_mj_m2 is None else float(ev.par_mj_m2)
+        par = 12.0 if ev.shortwave_mj_m2 is None else float(ev.shortwave_mj_m2)
         water = self._last_water
         n = self._last_n
         p = self._last_p
@@ -291,7 +291,7 @@ class CanopyRuntime:
         heat_grain_factor = self._check_heat_damage(tmax)
 
         _ = self.canopy.daily_step(
-            incident_par_mj_m2=par,
+            incident_shortwave_mj_m2=par,
             temp_factor=tf,
             water_stress=effective_water,
             n_stress=nutrient_stress,

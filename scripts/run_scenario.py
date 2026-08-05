@@ -56,7 +56,7 @@ def main() -> None:
             target_ph=6.8,
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=par,
+            shortwave_mj_m2=par,
         )
 
         # Actual ET diagnostics via module (optional)

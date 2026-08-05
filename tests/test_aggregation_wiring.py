@@ -136,7 +136,7 @@ def test_infiltration_differs_by_aggregation() -> None:
             drivers=DailyDrivers(rainfall_mm=50.0),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
             sim_date=date(2024, 5, 1),
         )
 
@@ -171,7 +171,7 @@ def test_root_aggregation_feedback() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),
             tmin_c=12.0,
             tmax_c=26.0,
-            par_mj_m2=16.0,
+            shortwave_mj_m2=16.0,
             sim_date=start + timedelta(days=d),
         )
     # Aggregation should have improved with active roots
@@ -220,7 +220,7 @@ def test_water_balance_closes_with_aggregation() -> None:
             drivers=DailyDrivers(rainfall_mm=3.0),
             tmin_c=12.0,
             tmax_c=26.0,
-            par_mj_m2=16.0,
+            shortwave_mj_m2=16.0,
             sim_date=start + timedelta(days=d),
         )
     # All theta values should be physically plausible

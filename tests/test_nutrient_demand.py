@@ -43,7 +43,7 @@ def _step_days(
             drivers=DailyDrivers(rainfall_mm=rain),
             tmin_c=15.0,
             tmax_c=28.0,
-            par_mj_m2=18.0,
+            shortwave_mj_m2=18.0,
             sim_date=start + timedelta(days=day),
         )
 
@@ -148,7 +148,7 @@ def test_explicit_demand_overrides_dynamic() -> None:
         drivers=DailyDrivers(rainfall_mm=5.0),
         tmin_c=15.0,
         tmax_c=28.0,
-        par_mj_m2=18.0,
+        shortwave_mj_m2=18.0,
         sim_date=date(2024, 5, 1),
         plant_n_demand_kg_ha=5.0,
         plant_p_demand_kg_ha=0.5,

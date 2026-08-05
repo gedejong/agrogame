@@ -59,7 +59,7 @@ def generate_temp_par(
     days: int,
     base_tmin_c: float,
     base_tmax_c: float,
-    base_par_mj_m2: float,
+    base_shortwave_mj_m2: float,
     pattern: str = "constant",
 ) -> tuple[list[float], list[float], list[float]]:
     """Generate daily tmin/tmax/PAR sequences for simple patterns."""
@@ -73,13 +73,14 @@ def generate_temp_par(
             base_tmax_c + 7.0 * math.sin(2 * math.pi * (i / 30.0)) for i in range(days)
         ]
         pars = [
-            base_par_mj_m2 + 0.5 * base_par_mj_m2 * math.sin(2 * math.pi * (i / 30.0))
+            base_shortwave_mj_m2
+            + 0.5 * base_shortwave_mj_m2 * math.sin(2 * math.pi * (i / 30.0))
             for i in range(days)
         ]
     else:
         tmins = [base_tmin_c for _ in range(days)]
         tmaxs = [base_tmax_c for _ in range(days)]
-        pars = [base_par_mj_m2 for _ in range(days)]
+        pars = [base_shortwave_mj_m2 for _ in range(days)]
 
     return tmins, tmaxs, pars
 
