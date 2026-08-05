@@ -37,6 +37,15 @@ theme_override_font_sizes/font_size = 16
 layout_mode = 2
 custom_minimum_size = Vector2(0, 30)
 
+[node name="ScenarioLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Scenario"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="ScenarioPicker" type="OptionButton" parent="VBoxContainer"]
+layout_mode = 2
+
 [node name="NewGameButton" type="Button" parent="VBoxContainer"]
 layout_mode = 2
 text = "New Game"

@@ -42,39 +42,22 @@ func _ready() -> void:
 	_forecast_request.request_completed.connect(_on_forecast_completed)
 
 
-func create_game(callback: Callable) -> void:
+func create_game(callback: Callable, patches: Array = []) -> void:
+	## Create a game from a scenario's patch configs (issue #440). An empty
+	## `patches` falls back to the curated default scenario, so quick-start /
+	## skip_menu behaviour is unchanged.
 	_callback = callback
-	var body := JSON.stringify(
-		{
-			"fields":
-			[
-				{
-					"field_id": "field_1",
-					"patches":
-					[
-						{
-							"soil_profile_key": "sandy_temperate",
-							"crop_key": "maize",
-							"climate_key": "netherlands_temperate",
-							"area_fraction": 0.333
-						},
-						{
-							"soil_profile_key": "loam_temperate",
-							"crop_key": "maize",
-							"climate_key": "netherlands_temperate",
-							"area_fraction": 0.334
-						},
-						{
-							"soil_profile_key": "clay_temperate",
-							"crop_key": "maize",
-							"climate_key": "netherlands_temperate",
-							"area_fraction": 0.333
-						}
-					]
-				}
-			],
-			"starting_credits": 10000
-		}
+	var game_patches: Array = patches
+	if game_patches.is_empty():
+		game_patches = ScenarioCatalog.default_patches()
+	var body := (
+		JSON
+		. stringify(
+			{
+				"fields": [{"field_id": "field_1", "patches": game_patches}],
+				"starting_credits": 10000,
+			}
+		)
 	)
 	var headers := ["Content-Type: application/json"]
 	_http_request.request(BASE_URL + "/games", headers, HTTPClient.METHOD_POST, body)
