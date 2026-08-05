@@ -640,7 +640,7 @@ def _run_simulation_loop(
             ),
             tmin_c=tmin,
             tmax_c=tmax,
-            par_mj_m2=par,
+            shortwave_mj_m2=par,
             sim_date=sim_date,
             target_ph=target_ph,
             plant_n_demand_kg_ha=n_demand,

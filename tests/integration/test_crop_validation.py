@@ -169,7 +169,7 @@ def _run_one(name: str, weather_file: Path) -> dict[str, float | int | None]:
         total_n_uptake += max(0.0, no3_before - no3_after)
 
         _ = canopy.daily_step_with_transpiration(
-            incident_par_mj_m2=shortwave_mj_m2,
+            incident_shortwave_mj_m2=shortwave_mj_m2,
             temp_factor=1.0,
             actual_transpiration_mm=actual.transpiration_mm,
             potential_transpiration_mm=comps.potential_transp_mm,

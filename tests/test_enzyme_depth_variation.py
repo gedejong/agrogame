@@ -34,7 +34,7 @@ def test_enzyme_cost_varies_with_depth() -> None:
             ),
             tmin_c=12,
             tmax_c=22,
-            par_mj_m2=14,
+            shortwave_mj_m2=14,
             target_ph=6.8,
         )
 

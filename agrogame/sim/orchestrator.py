@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
@@ -88,6 +89,37 @@ from agrogame.soil.gas_diffusion.runtime import GasDiffusionRuntime
 from agrogame.soil.pore_network.runtime import PoreNetworkRuntime
 
 
+def _resolve_shortwave_kwarg(
+    shortwave_mj_m2: float | None, par_mj_m2: float | None
+) -> float:
+    """Resolve the day-tick radiation argument during the #436 migration.
+
+    The day-tick radiation field carries incoming shortwave Rs (ADR-014), so the
+    canonical kwarg is ``shortwave_mj_m2``. The legacy ``par_mj_m2`` name is
+    accepted as a deprecated alias (compatibility shim, per the ``daily_step``
+    rename discipline #282/#411): it delegates to ``shortwave_mj_m2`` with a
+    ``DeprecationWarning`` and is byte-for-byte equivalent (the value was always
+    raw Rs, never PAR).
+    """
+    if par_mj_m2 is not None:
+        if shortwave_mj_m2 is not None:
+            raise TypeError(
+                "step_day() received both 'shortwave_mj_m2' and the deprecated "
+                "'par_mj_m2'; pass only 'shortwave_mj_m2'"
+            )
+        warnings.warn(
+            "step_day(par_mj_m2=...) is deprecated (ADR-014, #436): the day-tick "
+            "radiation field carries incoming shortwave Rs, not PAR. Pass "
+            "'shortwave_mj_m2=' instead; the value is unchanged.",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return par_mj_m2
+    if shortwave_mj_m2 is None:
+        raise TypeError("step_day() missing required argument: 'shortwave_mj_m2'")
+    return shortwave_mj_m2
+
+
 class SimulationOrchestrator:
     """Minimal orchestrator wiring a shared EventBus for modules.
 
@@ -110,17 +142,20 @@ class SimulationOrchestrator:
         self,
         tmin_c: float,
         tmax_c: float,
-        par_mj_m2: float,
+        shortwave_mj_m2: float | None = None,
         photoperiod_h: float = 12.0,
         temp_factor: float = 1.0,
         water_stress: float = 1.0,
         n_stress: float = 1.0,
+        *,
+        par_mj_m2: float | None = None,
     ) -> None:
+        shortwave_mj_m2 = _resolve_shortwave_kwarg(shortwave_mj_m2, par_mj_m2)
         self.phenology.daily_step(
             tmin_c=tmin_c, tmax_c=tmax_c, photoperiod_h=photoperiod_h
         )
         fx = self.canopy.daily_step(
-            incident_par_mj_m2=par_mj_m2,
+            incident_shortwave_mj_m2=shortwave_mj_m2,
             temp_factor=temp_factor,
             water_stress=water_stress,
             n_stress=n_stress,
@@ -1058,13 +1093,15 @@ class FullSimulationOrchestrator:
         *,
         tmin_c: float,
         tmax_c: float,
-        par_mj_m2: float,
+        shortwave_mj_m2: float | None = None,
         sim_date: date | None = None,
         plant_n_demand_kg_ha: float | None = None,
         plant_p_demand_kg_ha: float | None = None,
         plant_s_demand_kg_ha: float | None = None,
         target_ph: float = 6.8,
+        par_mj_m2: float | None = None,
     ) -> None:
+        shortwave_mj_m2 = _resolve_shortwave_kwarg(shortwave_mj_m2, par_mj_m2)
         # Execute scheduled management events for this day
         for ev in self.management_plan.events_for_day(self._day_counter):
             if ev.action == "irrigate":
@@ -1099,7 +1136,7 @@ class FullSimulationOrchestrator:
             target_ph=target_ph,
             tmin_c=tmin_c,
             tmax_c=tmax_c,
-            par_mj_m2=par_mj_m2,
+            shortwave_mj_m2=shortwave_mj_m2,
             plant_n_demand_kg_ha=n_demand,
             plant_p_demand_kg_ha=p_demand,
             plant_s_demand_kg_ha=s_demand,

@@ -41,7 +41,7 @@ def simulate_nitrogen(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             plant_n_demand_kg_ha=1.0,
         )
         current_min = sum(orch.n_state.nh4) + sum(orch.n_state.no3)
@@ -79,7 +79,7 @@ def simulate_phosphorus(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             target_ph=6.8,
         )
         total_org.append(sum(orch.p_state.organic_p))

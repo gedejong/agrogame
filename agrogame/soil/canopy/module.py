@@ -118,7 +118,9 @@ class CanopyModule:
             return self.params.leaf_fraction_grain_fill
         return self.params.leaf_fraction_vegetative
 
-    def calculate_light_interception(self, incident_par_mj_m2: float) -> CanopyFluxes:
+    def calculate_light_interception(
+        self, incident_shortwave_mj_m2: float
+    ) -> CanopyFluxes:
         """Compute intercepted PAR and emit a LightIntercepted event.
 
         The argument carries the day-tick radiation field, which is raw incoming
@@ -128,13 +130,13 @@ class CanopyModule:
         multiplies intercepted *PAR* — never shortwave.
 
         Args:
-            incident_par_mj_m2: Daily incident shortwave Rs (MJ m^-2). Named for
-                the pending ``par_mj_m2 → shortwave_mj_m2`` rename (deferred).
+            incident_shortwave_mj_m2: Daily incident shortwave Rs (MJ m^-2), the
+                ADR-014 day-tick boundary field (#436 rename of ``par_mj_m2``).
 
         Returns:
             CanopyFluxes: Intercepted PAR and a zero biomass increment placeholder.
         """
-        incident_par = PAR_FRACTION * incident_par_mj_m2
+        incident_par = PAR_FRACTION * incident_shortwave_mj_m2
         if self.state.lai <= 0.0 or incident_par <= 0.0:
             if self.event_bus is not None:
                 self.event_bus.emit(
@@ -360,7 +362,7 @@ class CanopyModule:
 
     def daily_step(
         self,
-        incident_par_mj_m2: float,
+        incident_shortwave_mj_m2: float,
         temp_factor: float,
         water_stress: float,
         n_stress: float,
@@ -384,7 +386,7 @@ class CanopyModule:
         et al. 2014); APSIM stage-dependent biomass partitioning.
         """
         self.state.last_water_stress = water_stress
-        fx = self.calculate_light_interception(incident_par_mj_m2)
+        fx = self.calculate_light_interception(incident_shortwave_mj_m2)
         gross_inc = self.calculate_biomass_growth(
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
@@ -418,7 +420,7 @@ class CanopyModule:
 
     def daily_step_with_transpiration(
         self,
-        incident_par_mj_m2: float,
+        incident_shortwave_mj_m2: float,
         temp_factor: float,
         actual_transpiration_mm: float,
         potential_transpiration_mm: float,
@@ -433,7 +435,7 @@ class CanopyModule:
         """
         ws = compute_water_stress(actual_transpiration_mm, potential_transpiration_mm)
         return self.daily_step(
-            incident_par_mj_m2=incident_par_mj_m2,
+            incident_shortwave_mj_m2=incident_shortwave_mj_m2,
             temp_factor=temp_factor,
             water_stress=ws,
             n_stress=n_stress,

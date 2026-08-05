@@ -104,7 +104,7 @@ class MicrobesRuntime:
 
     def _emit_substrate_and_priming(self, ev: DayTick, root_fracs: list[float]) -> None:
         try:
-            par = float(ev.par_mj_m2) if ev.par_mj_m2 is not None else 10.0
+            par = float(ev.shortwave_mj_m2) if ev.shortwave_mj_m2 is not None else 10.0
         except Exception:
             par = 10.0
         base = 2.0 * (0.6 + 0.04 * max(0.0, min(20.0, par)))

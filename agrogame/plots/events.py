@@ -161,7 +161,7 @@ def simulate_and_record(
             ),
             tmin_c=tmin,
             tmax_c=tmax,
-            par_mj_m2=rad,
+            shortwave_mj_m2=rad,
             target_ph=6.8,
         )
     return rec, total
@@ -357,7 +357,7 @@ def _run_dependency_sim(
             sw = rad / NET_RAD_FRACTION
         phen.daily_step(tmin_c=tmin, tmax_c=tmax, photoperiod_h=12.0)
         _ = canopy.daily_step(
-            incident_par_mj_m2=sw, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+            incident_shortwave_mj_m2=sw, temp_factor=1.0, water_stress=1.0, n_stress=1.0
         )
         _ = roots.daily_step(rstate, profile, phen.state.stage)
         root_fracs = (

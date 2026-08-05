@@ -60,7 +60,7 @@ def plot_microbes_timeseries(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
         org.append(latest_c)
         active.append(latest_n)
@@ -106,7 +106,7 @@ def plot_microbes_depth(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
     n_layers = len(orch.profile.layers)
     vals = [enzyme_by_layer.get(i, 0.0) for i in range(n_layers)]
@@ -158,7 +158,7 @@ def plot_microbes_split(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
         org.append(latest_c)
         active.append(latest_n)
@@ -202,7 +202,7 @@ def plot_microbes_enzyme_depth(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
     n_layers = len(orch.profile.layers)
     vals = [enzyme_by_layer.get(i, 0.0) for i in range(n_layers)]
@@ -241,7 +241,7 @@ def plot_microbes_activity_depth(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
     n_layers = len(orch.profile.layers)
     vals = [latest_activity_by_layer.get(i, 0.0) for i in range(n_layers)]
@@ -283,7 +283,7 @@ def plot_microbes_activity_surface(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
         activity_surface_series.append(sum(latest_activity_by_layer.values()))
     plt.figure(figsize=(10, 5))
@@ -330,7 +330,7 @@ def plot_microbes_diagnostics(
             drivers=DailyDrivers(rainfall_mm=rains[i], evaporation_mm=evaps[i]),
             tmin_c=tmins[i],
             tmax_c=tmaxs[i],
-            par_mj_m2=pars[i],
+            shortwave_mj_m2=pars[i],
         )
     parts = {
         "Microbial C": latest_c,

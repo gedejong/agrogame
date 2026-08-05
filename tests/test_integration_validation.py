@@ -65,7 +65,7 @@ def _run_simple_season(days: int = 60) -> tuple[list[float], list[float]]:
             DailyDrivers(rainfall_mm=0.0, evaporation_mm=0.0),
         )
         _ = canopy.daily_step(
-            incident_par_mj_m2=rn,
+            incident_shortwave_mj_m2=rn,
             temp_factor=1.0,
             water_stress=1.0,
             n_stress=1.0,

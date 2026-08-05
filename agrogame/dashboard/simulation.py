@@ -62,7 +62,7 @@ def _run_simulation(
             make_drivers(rain + irrigation),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=par,
+            shortwave_mj_m2=par,
         )
 
         water_stress, stomatal = run.calc_stress(

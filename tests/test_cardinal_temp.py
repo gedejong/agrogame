@@ -93,7 +93,7 @@ def test_integration_heat_reduces_biomass() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=25.0,
             tmax_c=35.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
         )
     biomass_opt = orch_opt.canopy.state.biomass_g_m2
 
@@ -104,7 +104,7 @@ def test_integration_heat_reduces_biomass() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=40.0,
             tmax_c=48.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
         )
     biomass_hot = orch_hot.canopy.state.biomass_g_m2
 
@@ -128,7 +128,7 @@ def test_integration_cold_reduces_biomass() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=25.0,
             tmax_c=35.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
         )
 
     # Cold (tmean=6°C, below base=8)
@@ -138,7 +138,7 @@ def test_integration_cold_reduces_biomass() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=2.0,
             tmax_c=10.0,
-            par_mj_m2=15.0,
+            shortwave_mj_m2=15.0,
         )
 
     assert orch_cold.canopy.state.biomass_g_m2 < orch_opt.canopy.state.biomass_g_m2

@@ -46,7 +46,7 @@ def test_canopy_daily_step_and_events() -> None:
     )
 
     fx = canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
 
     assert fx.intercepted_par_mj_m2 > 0.0
@@ -156,7 +156,7 @@ def test_stem_biomass_positive_after_vegetative_step() -> None:
         )
     )
     canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     assert canopy.state.stem_biomass_g_m2 > 0.0
 
@@ -182,7 +182,7 @@ def test_partitioning_mass_balance() -> None:
         )
     )
     fx = canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     inc = fx.biomass_increment_g_m2
     # In vegetative: no grain, leaf_fraction=0.7, stem_fraction=0.3
@@ -276,7 +276,7 @@ def test_grain_accumulates_during_grain_fill() -> None:
     bus.emit(GddAccumulated(daily_gdd=50.0, total_gdd=950.0))
 
     fx = canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     inc = fx.biomass_increment_g_m2
     assert inc > 0.0
@@ -316,7 +316,7 @@ def test_stem_remobilization_mass_balance() -> None:
 
     stem_before = canopy.state.stem_biomass_g_m2
     canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     # Stem should decrease from remobilization
     assert canopy.state.stem_biomass_g_m2 < stem_before
@@ -353,7 +353,7 @@ def test_no_remobilization_when_fraction_zero() -> None:
     )
 
     canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     assert canopy.state.grain_biomass_g_m2 == 0.0
 
@@ -373,7 +373,7 @@ def test_grain_does_not_accumulate_before_grain_fill() -> None:
         )
     )
     canopy.daily_step(
-        incident_par_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+        incident_shortwave_mj_m2=10.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
     )
     assert canopy.state.grain_biomass_g_m2 == 0.0
 

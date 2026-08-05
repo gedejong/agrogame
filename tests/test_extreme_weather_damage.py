@@ -44,7 +44,7 @@ def _step(
             drivers=DailyDrivers(rainfall_mm=rain),
             tmin_c=tmin,
             tmax_c=tmax,
-            par_mj_m2=18.0,
+            shortwave_mj_m2=18.0,
             sim_date=start + timedelta(days=d),
         )
 

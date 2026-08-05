@@ -57,7 +57,7 @@ def _run_scenario(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
     return (
@@ -429,7 +429,7 @@ def _run_managed_scenario(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
     return orch.canopy.state.biomass_g_m2
@@ -564,7 +564,7 @@ def _run_n_dose_with_nni(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         nni.append(orch.plant_n_nni)
@@ -680,7 +680,7 @@ def test_plant_n_stock_resets_across_seasons() -> None:
                 drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
                 tmin_c=rec.tmin_c,
                 tmax_c=rec.tmax_c,
-                par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+                shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
                 sim_date=rec.day,
             )
         return orch.canopy.state.biomass_g_m2
@@ -751,7 +751,7 @@ def _run_n_trajectory(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         mineral_n.append(sum(orch.n_state.no3) + sum(orch.n_state.nh4))
@@ -842,7 +842,7 @@ def _run_som_mineralisation_flux(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         per_layer_flux.append(list(orch.n_cycle.som_mineralized_n_by_layer))
@@ -993,7 +993,7 @@ def test_no_negative_pools_and_soil_mass_balance_full_season() -> None:
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         # No pool may go negative on any day (allow tiny float slack).
@@ -1152,7 +1152,7 @@ def _run_grain_stress_scenario(
             drivers=DailyDrivers(rainfall_mm=rain),
             tmin_c=rec.tmin_c,
             tmax_c=tmax,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
     st = orch.canopy.state
@@ -1254,7 +1254,7 @@ def test_emergent_hi_bounded_under_n_excess() -> None:
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         st = orch.canopy.state
@@ -1314,7 +1314,7 @@ def test_p_availability_through_280d_winter_wheat() -> None:
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
 
@@ -1659,7 +1659,7 @@ def test_full_orchestrator_runs_one_year_with_pore_chain() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),
             tmin_c=8.0,
             tmax_c=18.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 1, 1).replace(day=1)
             + (date(2024, 1, 2) - date(2024, 1, 1)) * d,
         )
@@ -1716,7 +1716,7 @@ def test_heavy_rain_on_clay_bypass_visible_in_pore_chain() -> None:
             drivers=DailyDrivers(rainfall_mm=40.0),
             tmin_c=12.0,
             tmax_c=22.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 6, 1) + timedelta(days=d),
         )
 
@@ -1757,7 +1757,7 @@ def test_waterlog_drives_o2_drop_and_eh_collapse() -> None:
             drivers=DailyDrivers(rainfall_mm=10.0),
             tmin_c=15.0,
             tmax_c=25.0,
-            par_mj_m2=10.0,
+            shortwave_mj_m2=10.0,
             sim_date=date(2024, 7, 1) + timedelta(days=d),
         )
 
@@ -1797,7 +1797,7 @@ def test_phase_ordering_matters() -> None:
             drivers=DailyDrivers(rainfall_mm=3.0),
             tmin_c=10.0,
             tmax_c=20.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 5, 1) + timedelta(days=d),
         )
     canonical_macro = list(canonical.pore_state.macro)
@@ -1829,7 +1829,7 @@ def test_phase_ordering_matters() -> None:
             phases=bad_order,
             tmin_c=10.0,
             tmax_c=20.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
         )
     swapped_macro = list(swapped.pore_state.macro)
 
@@ -1926,7 +1926,7 @@ def test_pore_chain_perf_under_10ms_per_day() -> None:
             drivers=DailyDrivers(rainfall_mm=2.0),
             tmin_c=8.0,
             tmax_c=18.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 1, 1) + timedelta(days=d),
         )
         durations.append(time.perf_counter() - t0)
@@ -1946,7 +1946,7 @@ def test_soil_snapshot_round_trip_pore_chain_states() -> None:
             drivers=DailyDrivers(rainfall_mm=5.0),
             tmin_c=10.0,
             tmax_c=20.0,
-            par_mj_m2=12.0,
+            shortwave_mj_m2=12.0,
             sim_date=date(2024, 4, 1) + timedelta(days=d),
         )
 
@@ -2027,7 +2027,7 @@ def _run_root_biomass_series(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
         out.append((orch.root_state.biomass_g_m2, orch.canopy.state.biomass_g_m2))
@@ -2071,7 +2071,7 @@ def _final_shoot_grain_root(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
     return (
@@ -2188,7 +2188,7 @@ def test_root_shoot_partitioning_persists_across_two_seasons() -> None:
                 drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
                 tmin_c=rec.tmin_c,
                 tmax_c=rec.tmax_c,
-                par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+                shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
                 sim_date=rec.day,
             )
         return orch.root_state.biomass_g_m2, orch.canopy.state.biomass_g_m2
@@ -2273,7 +2273,7 @@ def _run_scenario_fluxes(
             drivers=DailyDrivers(rainfall_mm=rec.precip_mm or 0.0),
             tmin_c=rec.tmin_c,
             tmax_c=rec.tmax_c,
-            par_mj_m2=rec.shortwave_mj_m2 or 12.0,
+            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
     return actual_et_mm, no3_leached_kg_ha
