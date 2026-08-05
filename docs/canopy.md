@@ -39,6 +39,10 @@ cereals ~2.7–3.0). Never feed shortwave directly to RUE. See
 [ADR-014](adr/ADR-014-radiation-convention.md).
 - LAI: `ΔLAI = SLA * new_leaf_biomass * (1 - LAI/LAImax) - LAI * sen_rate`
 - Phenology: higher senescence in grain fill
+- Maturity growth stop (#433): net canopy assimilation is gated to zero once the
+  crop reaches `MATURITY` (`_growth_multiplier` → 0), matching the DSSAT/APSIM
+  physiological-maturity convention — a senescing canopy no longer accretes
+  biomass. LAI senescence and grain fill are unaffected.
 - Events: `LightIntercepted`, `BiomassAccumulated`, `LAIUpdated`
 
 ### Stress integration

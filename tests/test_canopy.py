@@ -223,7 +223,7 @@ def test_maturity_gates_net_biomass_growth() -> None:
     biomass_before = canopy.state.biomass_g_m2 = 500.0
     lai_before = canopy.state.lai
     fx = canopy.daily_step(
-        incident_par_mj_m2=18.0,  # PAR > 0
+        incident_shortwave_mj_m2=18.0,  # shortwave Rs > 0
         temp_factor=1.0,
         water_stress=0.6,  # moderate stress, still > 0
         n_stress=1.0,
@@ -245,7 +245,10 @@ def test_maturity_gate_holds_over_multiple_days() -> None:
     canopy.state.biomass_g_m2 = 800.0
     for _ in range(30):
         canopy.daily_step(
-            incident_par_mj_m2=20.0, temp_factor=1.0, water_stress=0.5, n_stress=1.0
+            incident_shortwave_mj_m2=20.0,
+            temp_factor=1.0,
+            water_stress=0.5,
+            n_stress=1.0,
         )
     assert abs(canopy.state.biomass_g_m2 - 800.0) < 1e-9
 
@@ -261,7 +264,10 @@ def test_gate_rearms_each_cycle_after_harvest() -> None:
     def _grow_one_day() -> float:
         before = canopy.state.biomass_g_m2
         canopy.daily_step(
-            incident_par_mj_m2=16.0, temp_factor=1.0, water_stress=1.0, n_stress=1.0
+            incident_shortwave_mj_m2=16.0,
+            temp_factor=1.0,
+            water_stress=1.0,
+            n_stress=1.0,
         )
         return canopy.state.biomass_g_m2 - before
 
