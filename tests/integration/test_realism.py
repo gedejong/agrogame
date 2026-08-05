@@ -207,9 +207,7 @@ def test_maize_kenya_productive() -> None:
 
 def test_maize_sahel_water_limited() -> None:
     """Sahel maize should be water-limited but still produce."""
-    biomass, _lai, stage, _grain = _run_scenario(
-        "maize", "sahel_arid", date(2024, 6, 1)
-    )
+    biomass, _lai, stage, grain = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
     # Rainfed Sahel maize total AGB: ~3-12 t/ha (300-1200 g/m²) depending
     # on the season's rainfall; water-limited (GYGA Sahel / West-Africa
     # maize; FAO). #433 re-derivation (old->new upper: 1400->1000; measured
@@ -223,6 +221,25 @@ def test_maize_sahel_water_limited() -> None:
     # headroom while biting a re-inflation regression.
     assert 400 < biomass < 1000
     assert stage == "MATURITY"  # fast GDD accumulation in heat
+    # Emergent harvest index for a stressed-but-producing crop (#434). Real
+    # rainfed Sahel maize runs HI ~0.20-0.35 (grain ~1-3 t/ha on ~4-8 t/ha AGB;
+    # GYGA/FAO West-Africa). Before #434 the sink-source grain model capped the
+    # *whole* daily fill demand — current assimilate AND remobilised reserves —
+    # by the post-anthesis heat factor, so pre-anthesis stem reserves were a
+    # no-op under exactly the terminal heat/drought stress they exist to buffer;
+    # HI collapsed to ~0.11 (post-#433) / ~0.07 (pre-#433). #434 lets heat cap
+    # only the current-assimilate share and lets reserves top grain up toward
+    # the genotypic potential fill rate (Blum 1998 stem-reserve buffering; Yang
+    # & Zhang 2006; Gebbing & Schnyder 1999: ~30-50% of grain C from
+    # pre-anthesis reserves). Measured seed=42: grain 88.5 -> 176.9 g/m², HI
+    # 0.114 -> 0.227 (reserves supply ~50% of grain — top of the G&S band, apt
+    # for a severely stressed crop). AGB is unchanged (remobilisation is an
+    # internal stem->grain transfer), so the AGB bound above still holds. Band
+    # 0.20-0.40 brackets the honest output: a stressed crop's HI is reduced but
+    # not near-zero. A genuinely failed crop (≈0 grain) is exempt (see the
+    # winter-wheat/Sahel case, which stays vegetative with grain 0).
+    hi = grain / biomass if biomass > 0 else 0.0
+    assert 0.20 < hi < 0.40, f"stressed Sahel maize HI {hi:.3f} outside 0.20-0.40"
 
 
 # --- Sorghum ---
