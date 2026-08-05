@@ -31,3 +31,15 @@ func test_has_preview_action_method() -> void:
 		"ApiClient should expose preview_action() for cost preview (#318)",
 	)
 	client.free()
+
+
+func test_create_game_accepts_scenario_patches() -> void:
+	# create_game(callback, patches := []) drives the chosen scenario (#440);
+	# the optional patches arg keeps quick-start backward compatible.
+	var client = ApiClientScript.new()
+	var args: Array = []
+	for method in client.get_method_list():
+		if method["name"] == "create_game":
+			args = method["args"]
+	assert_eq(args.size(), 2, "create_game should accept (callback, patches)")
+	client.free()
