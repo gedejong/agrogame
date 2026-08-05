@@ -103,6 +103,25 @@ class CanopyModule:
         return 1.0
 
     @property
+    def _growth_multiplier(self) -> float:
+        """Phenological gate on *net* canopy assimilation (0..1).
+
+        Physiological maturity is a hard growth stop: once the crop enters
+        MATURITY the canopy fixes no further net carbon, matching the DSSAT
+        and APSIM physiological-maturity convention (Jones et al. 2003, DSSAT
+        CERES; Holzworth et al. 2014, APSIM). Before maturity the RUE pool is
+        passed through unattenuated (the day's water/N/temperature factors in
+        ``calculate_biomass_growth`` already scale it). A senescing canopy can
+        still intercept PAR because LAI decays gradually rather than dropping
+        to zero, so without this gate a stressed crop keeps accreting biomass
+        through maturity (#433). LAI senescence is unaffected — the canopy
+        still visibly dies back.
+        """
+        if self._current_stage == PhenologyStage.MATURITY:
+            return 0.0
+        return 1.0
+
+    @property
     def _leaf_fraction(self) -> float:
         """Fraction of daily biomass allocated to leaves, by growth stage."""
         stage = self._current_stage
@@ -390,6 +409,12 @@ class CanopyModule:
         gross_inc = self.calculate_biomass_growth(
             fx.intercepted_par_mj_m2, temp_factor, water_stress, n_stress
         )
+        # Gate net assimilation at physiological maturity (#433). The RUE
+        # formula stays pure (it is exercised directly in the unit tests); the
+        # phenological stop is applied here so a senescing, still-PAR-
+        # intercepting canopy fixes no further net carbon in MATURITY. LAI
+        # senescence below is left untouched, so the canopy still dies back.
+        gross_inc *= self._growth_multiplier
         # Split the single finite pool root vs shoot before any shoot
         # partitioning, so the root share is genuinely withheld from shoot/grain.
         root_frac = min(max(root_allocation_fraction, 0.0), 1.0)
@@ -397,8 +422,9 @@ class CanopyModule:
         biomass_inc = gross_inc - root_inc  # shoot share = (1 - root_frac) × gross
         self.state.biomass_g_m2 += biomass_inc
         # Partition the shoot share into leaf, stem, and grain so sub-pools sum
-        # to the shoot total. Grain only accumulates during GRAIN_FILL (stops at
-        # maturity, matching DSSAT/APSIM physiological maturity convention).
+        # to the shoot total. Grain only accumulates during GRAIN_FILL; net
+        # assimilation into all sub-pools is already zero in MATURITY via the
+        # growth gate above (DSSAT/APSIM physiological-maturity convention).
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
         self._partition_grain(biomass_inc, leaf_fraction, heat_grain_factor)
