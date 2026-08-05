@@ -19,6 +19,22 @@ Notes:
 # FAO-56 Table 3.2 suggests 0.23.
 DEFAULT_ALBEDO = 0.23
 
+# Net radiation as a lumped fraction of incoming shortwave Rs (dimensionless).
+# Rn ≈ 0.6·Rs sits in the FAO-56 green-crop range (Rn ≈ 0.5–0.6·Rs; Allen et al.
+# 1998, Eqs. 38–40): a single fraction that bakes in albedo and typical net
+# longwave, used where the humidity/clear-sky inputs for the full FAO-56 Rnl
+# term are not resolved. Shared by ET (ETRuntime._resolve_climate) and the
+# forecast projection (api/forecast.py) so the two agree (ADR-014).
+NET_RAD_FRACTION = 0.6
+
+# Photosynthetically-active fraction of incoming shortwave (dimensionless).
+# PAR ≈ 0.48·Rs — the broadly-used shortwave→PAR energy fraction (Monteith 1977;
+# FAO-56; Meek et al. 1984 give ~0.45–0.50). Applied inside the biomass consumer
+# (canopy interception) so RUE multiplies intercepted *PAR*, per the ADR-014
+# invariant that the day-tick radiation field stays raw shortwave Rs and every
+# physical reduction is applied inside its consumer.
+PAR_FRACTION = 0.48
+
 """NASA POWER daily parameters used for minimal ET computations.
 
 Includes: T2M_MAX, T2M_MIN (°C), RH2M (%), WS10M (m/s),

@@ -34,7 +34,9 @@ def main() -> None:
         rain = rec.precip_mm or 0.0
         tmean = 0.5 * (rec.tmin_c + rec.tmax_c)
         rn = rec.net_radiation_mj_m2 or rec.shortwave_mj_m2 or 12.0
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+        # ADR-014: the day-tick radiation field is raw shortwave Rs; the canopy
+        # applies PAR_FRACTION internally. Do not pre-multiply by 0.48 here.
+        par = rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0
         et0 = et.et0(
             temp_mean_c=tmean,
             net_radiation_mj_m2=rn,

@@ -1746,10 +1746,23 @@ def test_step_response_includes_plant_n_nni(client) -> None:
     luxury uptake (only the derived N-stress mapping caps at 1.0). The settled
     end-of-window value sits near/at critical N (~1.0); the per-day trajectory
     additionally shows a transient luxury spike the day shoot DM first appears
-    (observed ~4.6 at emergence, decaying within days), because the critical-N
-    dilution curve reads high %N against near-zero biomass. We therefore band
-    the settled state tightly (0..2.5) and the per-day series loosely (0..6.0)
-    — enough to catch unit/sign errors without flagging the real emergence
+    (observed ~9.7 at emergence under ADR-014, decaying to ~1.0 within ~4 days),
+    because the critical-N dilution curve reads high %N against near-zero
+    biomass. This spike is a *diagnostic-only* artifact with no effect on
+    growth: ``PlantNitrogenModule.stress_from_nni`` caps luxury (NNI > 1) at
+    stress = 1.0, so a reported NNI of 1 or 9.7 drives identical growth. Its
+    root cause is the token pre-emergence baseline N uptake (~0.1 kg/ha/day)
+    that banks into the whole-shoot N stock while shoot biomass is held at the
+    ``_MIN_SHOOT_DM_KG_HA`` floor; the day biomass first crosses that floor the
+    banked stock divides by a near-threshold seedling DM. Under ADR-014 the
+    corrected (halved) early-season PAR basis makes the crossing-day seedling
+    smaller, so the ratio — and thus the transient — is larger than the pre-fix
+    ~4.6 (peak measured 9.67 on the emergence day, seed 42). The critical-N% is
+    correctly capped flat at ``a`` below the reference biomass (no low-W blow-up)
+    and stock/biomass are both whole-shoot (no AGB-vs-shoot mismatch), so this
+    is the physical transient, not a mis-computed basis. We therefore band the
+    settled state tightly (0..2.5) and the per-day series loosely (0..12.0) —
+    enough to catch unit/sign errors without flagging the real emergence
     transient.
     """
     game_id = _create_game(client)
@@ -1775,7 +1788,10 @@ def test_step_response_includes_plant_n_nni(client) -> None:
         assert "plant_n_nni" in s
         assert "plant_n_stock_kg_ha" in s
         assert s["plant_n_stock_kg_ha"] >= 0.0
-        assert 0.0 <= s["plant_n_nni"] <= 6.0
+        # Loose upper band absorbs the emergence luxury transient (measured peak
+        # 9.67 on the emergence day under ADR-014's halved early-season PAR;
+        # decays to ~1.0 within ~4 days). Diagnostic-only — see docstring.
+        assert 0.0 <= s["plant_n_nni"] <= 12.0
 
 
 def test_plant_n_pre_emergence_sentinel(client) -> None:

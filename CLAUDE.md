@@ -39,6 +39,14 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-004](docs/adr/ADR-004-game-loop-turn-system.md) — Game loop and turn system (season phases, pause events)
 - [ADR-005](docs/adr/ADR-005-frontend-architecture.md) — Frontend: Godot 4, GDScript, "Monument Valley meets agricultural textbook"
 - [ADR-006](docs/adr/ADR-006-performance-strategy.md) — Performance: NumPy → Numba → Cython path
+- [ADR-007](docs/adr/ADR-007-3d-rendering-migration.md) — 3D rendering migration
+- [ADR-008](docs/adr/ADR-008-import-layering.md) — Import layering contract
+- [ADR-009](docs/adr/ADR-009-biopore-calibration.md) — Biopore calibration
+- [ADR-010](docs/adr/ADR-010-pore-chain-phase-ordering.md) — Pore-chain phase ordering
+- [ADR-011](docs/adr/ADR-011-dashboard-facade.md) — Dashboard façade
+- [ADR-012](docs/adr/ADR-012-biomass-partitioning.md) — Biomass partitioning
+- [ADR-013](docs/adr/ADR-013-plant-nitrogen-stock.md) — Whole-shoot plant-N accounting
+- [ADR-014](docs/adr/ADR-014-radiation-convention.md) — Canonical shortwave-radiation convention at the day-tick boundary (Accepted — decision A2: physical per-PAR RUE + crop recalibration)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 

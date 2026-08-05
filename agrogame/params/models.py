@@ -42,7 +42,12 @@ class Roots(BaseModel):
 
 class Biomass(BaseModel):
     rue_g_per_mj: PositiveFloat = Field(
-        ..., description="Radiation Use Efficiency (g biomass per MJ intercepted PAR)"
+        ...,
+        description=(
+            "Radiation Use Efficiency (g biomass per MJ intercepted PAR). "
+            "Truthful per-PAR basis under ADR-014 Phase 2: the canopy applies "
+            "PAR_FRACTION=0.48 to incident shortwave before interception."
+        ),
     )
     harvest_index: PositiveFloat = Field(
         ...,

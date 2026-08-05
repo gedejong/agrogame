@@ -104,15 +104,22 @@ def test_small_canopy_drought_is_materially_limited() -> None:
     bio_c = control.canopy.state.biomass_g_m2
 
     # Control establishes a real canopy; drought is materially suppressed.
-    assert lai_c > 4.0, f"watered control should build a canopy, got LAI {lai_c:.2f}"
+    # Re-baselined for ADR-014 (Phase 3d): under the corrected (halved) PAR
+    # basis the watered control reaches LAI ~3.08 by day 38 (was >4 under the
+    # 2×-inflated radiation), so the control pin drops 4.0 -> 2.8.
+    assert lai_c > 2.8, f"watered control should build a canopy, got LAI {lai_c:.2f}"
     # Discriminating pin (#420): an ABSOLUTE drought-LAI bound that only the
-    # graded per-unit-leaf model can meet. New graded model reproduces
-    # lai_d ≈ 0.268 (passes with headroom); the old size-independent discrete
-    # 10%-of-LAI step gives lai_d ≈ 1.505 and so FAILS this bound. The 0.5
-    # threshold sits squarely between the two behaviours (0.268 < 0.5 < 1.505).
-    assert lai_d < 0.5, (
+    # graded per-unit-leaf model can meet. Re-derived for ADR-014: with the
+    # smaller (halved-PAR) canopy transpiring less, this drought bites more
+    # weakly, so the graded model settles at lai_d ≈ 0.957 (was ~0.268) while
+    # the old size-independent discrete 10%-of-LAI step gives lai_d ≈ 1.437
+    # (was ~1.505). The 1.2 threshold sits between the two behaviours
+    # (0.957 < 1.2 < 1.437), preserving the #420 discrimination — re-verified by
+    # temp-reverting to the old ``_check_wilt_damage`` step. (Was 0.5, which now
+    # lies below both models and no longer discriminates.)
+    assert lai_d < 1.2, (
         f"drought LAI ({lai_d:.3f}) must be materially limited in absolute terms "
-        f"(new graded model ~0.268; old size-independent step ~1.505 fails this)"
+        f"(new graded model ~0.957; old size-independent step ~1.437 fails this)"
     )
     # Relative asserts kept as sanity checks (they pass on both old and new, so
     # they are NOT the discriminating condition — the absolute pin above is).
@@ -190,32 +197,61 @@ def test_drought_senescence_bites_across_two_cycles() -> None:
     Exercises the stateful stress-lag counter: it must reset when the crop
     recovers and re-arm for a second drought, so the graded senescence fires in
     both cycles rather than latching or exhausting after the first.
+
+    Re-derived for ADR-014 (Phase 3d). Under the corrected (halved) PAR basis
+    the canopy transpires less and loam holds an ~8-day water buffer, so a
+    *short* vegetative drought no longer drives Ta/Tp below the wilt onset for
+    long enough to overcome concurrent growth — the pre-fix "18-day droughts on
+    a 25-day canopy" scenario now sees LAI *climb* through both droughts, and
+    (because graded senescence is severity-scaled) at the mild stress achievable
+    here the graded model is actually *gentler* than the old fixed 10%-step,
+    inverting the #420 contrast. Severe, sustained stress — the regime where the
+    per-unit-leaf graded model provably out-senesces the old step — is reached
+    only once the soil is genuinely exhausted (~40 d of drought on a vigorous
+    canopy). The scenario is therefore re-shaped to a *short* first drought
+    (young canopy grows through it, arming/firing the counter) and a *long*
+    second drought on the recovered, still-vigorous canopy, which exhausts the
+    soil to Ta/Tp ≈ 0.04 and drives the discriminating collapse. The #420
+    discrimination is preserved — just relocated to the cycle that now reaches
+    severe stress — and re-verified by temp-reverting to the old
+    ``_check_wilt_damage`` step.
     """
     start = date(2024, 6, 1)
     orch = _maize_orch()
 
-    _run(orch, 25, 6.0, start, 0)
+    _run(orch, 20, 6.0, start, 0)
     lai_pre1 = orch.canopy.state.lai
-    _run(orch, 18, 0.0, start, 25)  # drought 1
+    _run(orch, 18, 0.0, start, 20)  # drought 1 (short; arms + fires the counter)
     lai_dr1 = orch.canopy.state.lai
-    _run(orch, 20, 8.0, start, 43)  # recovery
+    _run(orch, 20, 8.0, start, 38)  # recovery (resets the lag counter)
     lai_pre2 = orch.canopy.state.lai
-    _run(orch, 18, 0.0, start, 63)  # drought 2
+    _run(orch, 50, 0.0, start, 58)  # drought 2 (long; exhausts soil -> severe)
     lai_dr2 = orch.canopy.state.lai
 
-    # Discriminating pins (#420): ABSOLUTE penalties only the graded model meets.
-    # Cycle-1 drought must remove > 1.0 LAI (new graded model removes ~1.49; the
-    # old size-independent discrete step removes only ~0.42 and FAILS this).
-    assert (lai_pre1 - lai_dr1) > 1.0, (
-        f"cycle 1 drought must remove > 1.0 LAI in absolute terms "
-        f"({lai_pre1:.2f} -> {lai_dr1:.2f}, removed {lai_pre1 - lai_dr1:.2f}; "
-        f"new graded ~1.49, old step ~0.42 fails)"
+    # Cycle 1 arms and fires the stateful counter but the young canopy grows
+    # net through the short, mild drought (soil buffer + 5-day lag) — under the
+    # corrected PAR basis a short vegetative drought no longer net-removes LAI.
+    assert lai_dr1 > lai_pre1, (
+        f"young canopy should grow through the short first drought "
+        f"({lai_pre1:.2f} -> {lai_dr1:.2f})"
     )
+    # The counter must then RESET on recovery so cycle 2 can re-arm.
     assert lai_pre2 > lai_dr1, "canopy should recover between droughts"
-    # Post-cycle-2 canopy must end materially suppressed (new ~0.999; old ~2.322).
-    assert lai_dr2 < 1.5, (
-        f"post-cycle-2 canopy must stay below 1.5 LAI "
-        f"({lai_dr2:.3f}; new graded ~0.999, old step ~2.322 fails)"
+    # Discriminating pin (#420, relocated to the severe second drought): an
+    # ABSOLUTE removal only the graded per-unit-leaf model meets. The long
+    # cycle-2 drought exhausts the soil and the graded model removes ~2.08 LAI
+    # (3.25 -> 1.16), while the old size-independent 10%-step removes only ~1.74
+    # (3.32 -> 1.59) and FAILS both this pin and the < 1.4 floor below. The 1.9
+    # threshold sits between the two behaviours (1.735 < 1.9 < 2.083).
+    assert (lai_pre2 - lai_dr2) > 1.9, (
+        f"cycle 2 (severe) drought must remove > 1.9 LAI in absolute terms "
+        f"({lai_pre2:.2f} -> {lai_dr2:.2f}, removed {lai_pre2 - lai_dr2:.2f}; "
+        f"new graded ~2.08, old step ~1.74 fails)"
+    )
+    # Post-cycle-2 canopy must end materially suppressed (new ~1.16; old ~1.59).
+    assert lai_dr2 < 1.4, (
+        f"post-cycle-2 canopy must stay below 1.4 LAI "
+        f"({lai_dr2:.3f}; new graded ~1.16, old step ~1.59 fails)"
     )
     assert (
         lai_dr2 < lai_pre2

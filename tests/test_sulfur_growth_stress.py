@@ -178,6 +178,14 @@ def test_s_poor_yields_less_biomass_than_replete_two_seasons() -> None:
             f"g/m² — gap {gap:.1%} below the 5% sensitivity threshold"
         )
         # S actually binds: deficient stress is materially below 1.0 while the
-        # replete arm sits at full supply.
-        assert poor_stress[season] < 0.9
+        # replete arm sits at full supply. Threshold re-baselined for ADR-014
+        # (Phase 3d) 0.9 -> 0.92: the corrected (halved) PAR basis lowers
+        # biomass and hence S *demand*, so the fixed background S supply
+        # (0.08 kg S/ha/day) now covers a larger share of demand and the
+        # season-mean S stress eases from just under 0.9 to ~0.908/0.906. The
+        # binding S response is unchanged in direction and strength — the
+        # S-poor/replete biomass gap is still 17.6%/21.2% (asserted above,
+        # solidly inside Scherer 2001's 10-40% range) — only the mean-stress
+        # sanity metric drifted, so the threshold moves with it.
+        assert poor_stress[season] < 0.92
         assert replete_stress[season] > 0.95

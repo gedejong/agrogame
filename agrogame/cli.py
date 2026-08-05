@@ -40,7 +40,9 @@ def _handle_run(profile_name: str, weather_file: Path, days: int) -> int:
     for i in range(min(days, len(weather.records))):
         rec = weather.records[i]
         rain = rec.precip_mm or 0.0
-        par = (rec.shortwave_mj_m2 or rec.net_radiation_mj_m2 or 12.0) * 0.48
+        # ADR-014: feed raw incoming shortwave Rs; consumers apply their own
+        # physical reduction (ET → Rn≈0.6·Rs; biomass → intercepted PAR).
+        par = rec.shortwave_mj_m2 or 12.0
         app.calendar.tick(
             sim_date=rec.day,
             drivers=DailyDrivers(

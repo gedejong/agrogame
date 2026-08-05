@@ -44,10 +44,10 @@ from dataclasses import dataclass
 from agrogame.atmosphere.et.module import Evapotranspiration
 from agrogame.params.phenology import PhenologyStage
 from agrogame.soil.som.pools import SOMPoolParams
+from agrogame.weather.constants import NET_RAD_FRACTION
 
 # --- Heuristic projection constants (documented above) ---------------------
 _DEPLETION_FRACTION_P = 0.5  # FAO-56 readily-available fraction (generic p)
-_NET_RAD_FRACTION = 0.6  # net radiation as a fraction of incoming shortwave
 _PEAK_N_UPTAKE_KG_HA_DAY = 3.0  # maize-scale peak uptake (Bender et al. 2013)
 _CANOPY_EXTINCTION_K = 0.6  # Beer's-law light-extinction coefficient
 _LEACH_DRAINAGE_HALF_MM = 200.0  # drainage scale for the leaching fraction
@@ -442,7 +442,7 @@ def project_soil_forecast(
 
         # Actual ET: transpiration is throttled by Ks under canopy; the
         # uncovered fraction keeps a reference-rate evaporative demand.
-        et0 = et.priestley_taylor(temp_mean_c, _NET_RAD_FRACTION * shortwave_mj_m2)
+        et0 = et.priestley_taylor(temp_mean_c, NET_RAD_FRACTION * shortwave_mj_m2)
         et_actual = et0 * (1.0 - canopy_cover * (1.0 - ks))
 
         # Root-zone water bucket: rain in, ET out, excess above TAW drains.
