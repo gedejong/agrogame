@@ -5,22 +5,23 @@ render_mode cull_disabled;
 //   Mobile nutrients (N, P) → older/lower leaves first
 //   Immobile nutrients (Fe, Zn) → younger/upper leaves first
 // Ref: Marschner 2012, Mineral Nutrition of Higher Plants.
+#include "res://shaders/crop_wind.gdshaderinc"
 
 uniform sampler2D alpha_mask : source_color;
 uniform vec3 base_color : source_color = vec3(0.2, 0.55, 0.15);
 uniform float senescence : hint_range(0.0, 1.0) = 0.0;
 // Leaf vertical position: 0.0 = bottom/older, 1.0 = top/younger.
 uniform float leaf_height : hint_range(0.0, 1.0) = 0.5;
+// Leaf expansion: 0.0 = just emerged (pale young green), 1.0 = fully expanded.
+uniform float age : hint_range(0.0, 1.0) = 1.0;
+// Strength of the pale midrib along UV.y = 0.5 and of the parallel veins
+// beside it; zero for leaves without a single central rib.
+uniform float midrib : hint_range(0.0, 1.0) = 0.0;
 
-// Wind simulation: bends plant top + flutters leaf tips.
-// wind_strength: 0.0 = calm, 1.0 = strong wind.
-// wind_direction: XZ direction (normalized). Default: +X.
-// leaf_height drives how much bending applies (top bends more).
-// UV.x (along-leaf) drives leaf flutter (tips move more than base).
-uniform float wind_strength : hint_range(0.0, 1.0) = 0.0;
-uniform vec2 wind_direction = vec2(1.0, 0.0);
-// Phase offset per leaf instance — set from GDScript hash to desync flutter.
-uniform float wind_phase : hint_range(0.0, 6.28) = 0.0;
+// Wind: the whole-plant bend and the free-end sway come from the shared
+// include; the blade runs from its attachment (UV.x = 0, the collar) to the
+// tip, or, for a leaf hanging from a petiole, from UV.y = 0 down to the lobes.
+uniform float hanging : hint_range(0.0, 1.0) = 0.0;
 
 // Per-stress-type uniforms (continuous 0.0-1.0).
 uniform float stress_water : hint_range(0.0, 1.0) = 0.0;
@@ -50,32 +51,12 @@ const vec3 FROST_NECROSIS = vec3(0.10, 0.08, 0.06);   // near-black, water-soake
 const vec3 HEAT_BURN = vec3(0.55, 0.30, 0.10);        // brown scorch — leaf tip burn
 
 void vertex() {
-	// Wind: leaf bends from base (fixed) toward tip (moving).
-	// UV.x = 0 at base (attached to stem), 1 at tip.
-	// ALL displacement scaled by UV.x so base stays at origin.
 	if (wind_strength > 0.001) {
-		float along = UV.x;
-		// Sway frequency increases with wind (calm=2Hz, gale=4Hz)
-		float freq = 2.0 + wind_strength * 2.0;
-		// Spatial phase offset: plants at different positions sway out of sync.
-		// Wind wave propagates across the field in wind_direction.
-		vec3 world_pos = MODEL_MATRIX[3].xyz;
-		float spatial_offset = dot(vec2(world_pos.x, world_pos.z), wind_direction) * 2.0;
-		float phase = TIME * freq + wind_phase + spatial_offset;
-		// Sway amplitude: stronger at tip (along²) and top of plant (leaf_height).
-		float sway_amount = along * along * leaf_height * wind_strength * 0.25;
-		float sway = sin(phase) * sway_amount;
-		// Secondary harmonic for organic feel (avoids robotic oscillation)
-		sway += sin(phase * 1.7 + 0.5) * sway_amount * 0.3;
-		VERTEX.x += wind_direction.x * sway;
-		VERTEX.z += wind_direction.y * sway;
-		VERTEX.y -= along * sway_amount * 0.4;
-		// Fast flutter: tip oscillation, frequency rises in gusts.
-		float flut_freq = 6.0 + wind_strength * 4.0;
-		float flut = sin(TIME * flut_freq + wind_phase * 3.0 + along * 4.0 + spatial_offset * 1.3);
-		VERTEX.y += flut * along * along * wind_strength * 0.03;
-		// Lateral flutter (leaf twists slightly) — spatial offset desyncs
-		VERTEX.x += cos(TIME * flut_freq * 0.7 + wind_phase + spatial_offset * 0.9) * along * wind_strength * 0.01;
+		vec3 v = VERTEX;
+		WindFrame f = wind_frame(MODEL_MATRIX, TIME, INSTANCE_CUSTOM.r);
+		// The attachment stays put; the free end flutters, more the further out.
+		float reach = mix(UV.x, UV.y, hanging);
+		VERTEX += wind_plant_bend(f, v) + wind_leaf_sway(f, length(v), reach);
 	}
 }
 
@@ -84,12 +65,21 @@ void fragment() {
 	if (mask < 0.3) {
 		discard;
 	}
+	// A blade is a two-sided sheet: shade whichever face is towards the viewer.
+	if (!FRONT_FACING) {
+		NORMAL = -NORMAL;
+	}
 
 	// Bottom-up senescence: lower leaves senesce faster during grain fill.
 	float effective_sen = clamp(senescence + (1.0 - leaf_height) * senescence * 0.4, 0.0, 1.0);
 
-	// Base color from senescence
-	vec3 color = mix(YOUNG_GREEN, base_color, smoothstep(0.0, 0.3, effective_sen + 0.5));
+	// Young, still-expanding leaves are a paler green than mature blades.
+	vec3 color = mix(YOUNG_GREEN, base_color, age);
+	// Midrib: a pale ridge along the blade centre, with faint parallel veins.
+	float rib = 1.0 - smoothstep(0.0, 0.05, abs(UV.y - 0.5));
+	float veins = 0.5 + 0.5 * sin(UV.y * 75.0);
+	color *= 1.0 - midrib * 0.07 * veins;
+	color = mix(color, color * 1.3 + vec3(0.08, 0.08, 0.02), rib * midrib * 0.8);
 	color = mix(color, SENESCENT, smoothstep(0.0, 0.7, effective_sen));
 	color = mix(color, DEAD, smoothstep(0.5, 1.0, effective_sen));
 
@@ -153,6 +143,8 @@ void fragment() {
 	color += vec3(sheen) * (1.0 - effective_sen);
 
 	ALBEDO = color;
+	// Thin tissue transmits light: a blade between viewer and sun glows.
+	BACKLIGHT = color * 0.4 * (1.0 - effective_sen * 0.5);
 	ROUGHNESS = mix(0.5, 0.8, effective_sen);
 	METALLIC = 0.0;
 	ALPHA_SCISSOR_THRESHOLD = 0.3;

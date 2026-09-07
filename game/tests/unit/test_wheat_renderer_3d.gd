@@ -34,3 +34,9 @@ func test_grain_adds_geometry() -> void:
 	)
 	no_grain.free()
 	with_grain.free()
+
+
+func test_tillers_added_through_vegetative_growth() -> void:
+	assert_eq(Renderer.tiller_count(0.1), 1, "Seedling is a single main stem")
+	assert_gt(Renderer.tiller_count(0.5), 1, "Tillering under way mid-vegetative")
+	assert_eq(Renderer.tiller_count(1.0), Renderer.NUM_TILLERS, "Full complement when grown")

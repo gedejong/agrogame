@@ -87,31 +87,17 @@ func test_calc_stunt_factor_partial_zn() -> void:
 	assert_almost_eq(s, 0.85, 0.01, "Half Zn = 15% reduction")
 
 
-func test_calc_collapse_factor_healthy() -> void:
-	assert_eq(SU.calc_collapse_factor(0.0), 1.0, "No senescence = full height")
-	assert_eq(SU.calc_collapse_factor(0.84), 1.0, "Below collapse threshold = full height")
-
-
-func test_calc_collapse_factor_dead() -> void:
-	assert_almost_eq(SU.calc_collapse_factor(1.0), 0.4, 0.01, "Fully senesced = collapsed")
-
-
-func test_calc_collapse_factor_partial() -> void:
-	# At sen=0.925 (midway between 0.85 and 1.0), Y scale = lerp(1.0, 0.4, 0.5) = 0.7
-	assert_almost_eq(SU.calc_collapse_factor(0.925), 0.7, 0.01, "Half collapse at sen 0.925")
-
-
 func test_calc_lodging_factor_thresholds() -> void:
 	# Below threshold → no lodging (upright).
 	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.0), 0.0, "Healthy = no lodging")
 	assert_eq(SU.calc_lodging_factor({"water": 1.0}, 0.6), 0.0, "Drought pre-senescence = 0")
 	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.8), 0.0, "Senescing but watered = 0")
-	# Path A — severe drought + late senescence: w=(1.0-0.8)/0.2=1.0,
+	# Severe drought + late senescence: w=(1.0-0.8)/0.2=1.0,
 	# d=(0.9-0.7)/0.3≈0.667 → ≈0.667.
 	assert_almost_eq(SU.calc_lodging_factor({"water": 1.0}, 0.9), 0.667, 0.02, "Drought lodges")
-	# Path B — near-total senescence lodges on its own, regardless of water.
-	assert_almost_eq(SU.calc_lodging_factor({"water": 0.0}, 1.0), 1.0, 0.01, "Dead plant lodges")
-	assert_almost_eq(SU.calc_lodging_factor({"water": 0.0}, 0.975), 0.5, 0.02, "Graded terminal")
+	# Ripening alone never lodges: a fully senesced, watered crop stands.
+	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 1.0), 0.0, "Ripe watered crop stands")
+	assert_eq(SU.calc_lodging_factor({"water": 0.5}, 0.975), 0.0, "Mild stress when ripe = 0")
 
 
 func test_calc_lodging_factor_graded_and_bounded() -> void:

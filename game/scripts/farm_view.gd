@@ -630,6 +630,9 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 			var theta: float = patch.get("soil_theta_surface", 0.0)
 			var grain: float = patch.get("grain_g_m2", 0.0)
 			var som: float = patch.get("som_total_c_g_m2", 0.0)
+			# Continuous development stage (WOFOST DVS); -1 when the API omits
+			# it, in which case the visuals fall back to a per-stage nominal value.
+			var dev_stage: float = float(patch.get("dev_stage", -1.0))
 			# Accumulate per-patch history (skip when daily_snapshots covered it)
 			if not skip_history:
 				FarmViewHistory.append_patch(patch, patch_soil, _daily_history)
@@ -670,9 +673,18 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
 					_tile_data[i]["som_total_c_g_m2"] = som
 					_tile_data[i]["theta_surface"] = theta
+					# Season-peak LAI anchors canopy-loss senescence; it resets
+					# when a new crop is sown or the season restarts.
+					var prev_crop: String = _tile_data[i].get("crop_key", "")
+					var prev_peak: float = float(_tile_data[i].get("lai_peak", 0.0))
+					var lai_peak: float = lai
+					if stage > 1 and crop_key == prev_crop:
+						lai_peak = maxf(prev_peak, lai)
 					_tile_data[i]["crop_key"] = crop_key
 					_tile_data[i]["crop_stage"] = stage
 					_tile_data[i]["lai"] = lai
+					_tile_data[i]["dev_stage"] = dev_stage
+					_tile_data[i]["lai_peak"] = lai_peak
 					_tile_data[i]["water_stress"] = patch.get("water_stress", 1.0)
 					_tile_data[i]["grain_g_m2"] = grain
 					_tile_data[i]["n_stress"] = n_stress

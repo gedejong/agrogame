@@ -8,7 +8,9 @@ const CR = preload("res://scripts/crop_renderer_3d.gd")
 
 const CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 
-const STAGE_NAMES: Array[String] = ["None", "Emerged", "Vegetative", "Flowering", "Maturity"]
+const STAGE_NAMES: Array[String] = [
+	"None", "Emerged", "Vegetative", "Flowering", "Grain fill / Maturity"
+]
 
 const SLIDER_DEFS: Array[Dictionary] = [
 	{"key": "stage", "label": "Stage (0-4)", "min": 0.0, "max": 4.0, "step": 1.0, "default": 2.0},
@@ -278,15 +280,24 @@ func _rebuild() -> void:
 	var stage: int = int(_sliders["stage"]["slider"].value)
 	var lai: float = _sliders["lai"]["slider"].value
 	var grain_frac: float = _sliders["grain"]["slider"].value
-	var lai_frac: float = clampf(lai / CropVisuals.MAX_LAI, 0.0, 1.0)
-	# Use the same pipeline as CropVisuals
-	var growth: float = CropVisuals._calc_growth(stage, lai_frac, grain_frac)
-	var sen_override: float = _sliders["sen_override"]["slider"].value
-	var sen: float = (
-		sen_override
-		if sen_override >= 0.0
-		else CropVisuals._calc_senescence(stage, lai, grain_frac)
+	# Same stage -> growth/senescence/repro mapping as the farm view; the
+	# grain slider is a fraction of the crop's reference grain mass.
+	var grain_ref: float = CropVisuals.CROP_GRAIN_REF.get(_current_crop, 800.0)
+	var vis: Dictionary = (
+		CropVisuals
+		. derive_visual_state(
+			{
+				"crop_key": _current_crop,
+				"crop_stage": stage,
+				"lai": lai,
+				"grain_g_m2": grain_frac * grain_ref,
+			}
+		)
 	)
+	var growth: float = vis["growth"]
+	var repro: float = vis["repro"]
+	var sen_override: float = _sliders["sen_override"]["slider"].value
+	var sen: float = sen_override if sen_override >= 0.0 else vis["senescence"]
 	var stresses := {
 		"water": _sliders["water"]["slider"].value,
 		"n": _sliders["n"]["slider"].value,
@@ -300,15 +311,14 @@ func _rebuild() -> void:
 	for key: String in _sliders:
 		var s: Dictionary = _sliders[key]
 		s["label"].text = _format_slider(key, s["slider"].value)
-	# Create 5 plants at same stage but different seeds.
-	# Apply morphological effects (#259): Zn stunting + senescence collapse.
+	# Create 5 plants at same stage but different seeds; Zn deficiency stunts
+	# the whole plant uniformly.
 	var stunt: float = StressUtils.calc_stunt_factor(stresses)
-	var collapse_y: float = StressUtils.calc_collapse_factor(sen)
 	for i in range(5):
 		var plant := CropVisuals.create_3d_plant(
-			_current_crop, growth, sen, stresses, grain_frac, i * 17 + 42
+			_current_crop, growth, sen, stresses, repro, i * 17 + 42, grain_frac
 		)
-		plant.scale = Vector3(stunt, stunt * collapse_y, stunt)
+		plant.scale = Vector3(stunt, stunt, stunt)
 		plant.position = Vector3(float(i - 2) * 0.6, 0, 0)
 		_container.add_child(plant)
 	# Apply wind to all plants
@@ -323,7 +333,10 @@ func _rebuild() -> void:
 	# Info text
 	var stage_name: String = STAGE_NAMES[stage] if stage < STAGE_NAMES.size() else "?"
 	var info := "%s — %s\n" % [_current_crop, stage_name]
-	info += "growth=%.2f  sen=%.2f  grain=%.2f  LAI=%.1f" % [growth, sen, grain_frac, lai]
+	info += (
+		"growth=%.2f  sen=%.2f  repro=%.2f  grain=%.2f  LAI=%.1f"
+		% [growth, sen, repro, grain_frac, lai]
+	)
 	var stress_parts: Array[String] = []
 	for key: String in stresses:
 		if stresses[key] > 0.01:
