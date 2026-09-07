@@ -234,6 +234,11 @@ class PatchDayResponse(BaseModel):
     patch_idx: int
     crop_key: str
     crop_stage: str = Field(description="Phenology stage name")
+    dev_stage: float = Field(
+        default=0.0,
+        description="Continuous development stage (WOFOST DVS):"
+        " 0 sowing, 1 anthesis, 2 physiological maturity",
+    )
     grain_g_m2: float
     root_depth_cm: float = Field(description="Current root penetration depth (cm)")
     lai: float = Field(description="Leaf area index (m²/m²)")
@@ -261,6 +266,7 @@ class DailySnapshot(BaseModel):
     field_id: str
     patch_idx: int
     crop_stage: str = ""
+    dev_stage: float = 0.0
     lai: float = 0.0
     grain_g_m2: float = 0.0
     water_stress: float = 1.0

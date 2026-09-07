@@ -59,6 +59,36 @@ class PhenologyModule:
             >= self.params.vernalization_required_units
         )
 
+    def development_stage(self) -> float:
+        """Continuous development stage (DVS) on the WOFOST scale.
+
+        0.0 at sowing, 1.0 at anthesis, 2.0 at physiological maturity,
+        piecewise-linear in accumulated GDD between the stage thresholds
+        (Van Diepen et al. 1989; Supit et al. 1994). The pre-flowering
+        branch is capped just below 1.0 so a crop held back by an unmet
+        vernalization or photoperiod requirement never reports anthesis,
+        however much thermal time it has banked; the reproductive branch
+        then runs from the flowering to the maturity threshold.
+        """
+        thr = self.params.thresholds
+        gdd = max(self.state.accumulated_gdd, 0.0)
+        pre_flowering = (
+            PhenologyStage.PLANTED,
+            PhenologyStage.EMERGED,
+            PhenologyStage.VEGETATIVE,
+        )
+        if self.state.stage in pre_flowering:
+            if thr.flowering_gdd <= 0.0:
+                return 0.99
+            return min(gdd / thr.flowering_gdd, 0.99)
+        if self.state.stage == PhenologyStage.MATURITY:
+            return 2.0
+        span = thr.maturity_gdd - thr.flowering_gdd
+        if span <= 0.0:
+            return 2.0
+        frac = (gdd - thr.flowering_gdd) / span
+        return 1.0 + min(max(frac, 0.0), 1.0)
+
     def _resolve_next_stage(self) -> PhenologyStage | None:
         thr = self.params.thresholds
         gdd = self.state.accumulated_gdd
