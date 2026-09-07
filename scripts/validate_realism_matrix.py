@@ -37,6 +37,7 @@ import argparse
 import copy
 import csv
 import math
+import statistics
 import subprocess
 import sys
 import time
@@ -584,6 +585,7 @@ def read_state(orch: FullSimulationOrchestrator, soil: SoilInfo) -> dict[str, An
         "ph_0": float(orch.chem_state.ph[0]),
         "eh_0_mv": float(orch.redox_state.eh_mv[0]),
         "o2_0_frac": float(orch.gas_state.o2_frac[0]),
+        "co2_0_frac": float(orch.gas_state.co2_frac[0]),
         "anaerobic_layers": int(sum(bool(a) for a in orch.gas_state.anaerobic)),
         "fe_avail_0_ppm": float(orch.micro_state.fe_available[0]),
         "zn_avail_0_ppm": float(orch.micro_state.zn_available[0]),
@@ -899,6 +901,9 @@ def _limitation_scalars(
     out["topsoil_anoxic_days"] = sum(
         1 for v in _col(daily, "o2_0_frac") if v < ANOXIC_O2_FRAC
     )
+    co2 = _col(daily, "co2_0_frac")
+    out["co2_0_median_frac"] = statistics.median(co2)
+    out["co2_0_max_frac"] = max(co2)
     out["anaerobic_layer_days"] = _sum(daily, "anaerobic_layers")
     out["fe_avail_0_start_ppm"] = float(start["fe_avail_0_ppm"])
     out["fe_avail_0_max_ppm"] = max(fe)
@@ -1582,6 +1587,11 @@ KNOWN_SOY_HI = "soybean harvest index fixed at 0.40"
 KNOWN_KENYA_LEACH = "Kenya loam leaches 80-100 kg N/ha/season"
 KNOWN_PT_ET0 = "Priestley-Taylor ET0, not FAO-56 calibrated"
 KNOWN_MASSFLOW = "mass-flow NO3 removal is not credited to the plant"
+KNOWN_DRAINED_DENIT = (
+    "drained soils denitrify nothing: the gas profile is read after the "
+    "same-day drainage to field capacity, and anaerobic microsites need bulk "
+    "soil-air O2 below 4 %"
+)
 KNOWN_NL_GT_KENYA = "NL maize outyields Kenya highland maize"
 
 CROP_BANDS: list[CropBand] = [
@@ -2262,13 +2272,14 @@ def _nitrogen_checks() -> list[Check]:
             category="nitrogen",
         ),
         Check(
-            "denitrification:clay_humid",
+            "denitrification:clay",
             "denitrification_kg_ha",
             warn=(1, 80),
             fail=(0, 200),
-            applies=_and(NORMAL, _soil_class("CLAY"), _clim(NL, KENYA)),
+            applies=_and(NORMAL, _soil_class("CLAY")),
             category="nitrogen",
-            source="wet clays denitrify a few to tens of kg N/ha/season",
+            source="wet clays denitrify a few to tens of kg N/ha/season; irrigated "
+            "or flooded clays reach the upper end",
         ),
         Check(
             "denitrification:sahel_sand",
@@ -2286,11 +2297,12 @@ def _nitrogen_checks() -> list[Check]:
             applies=_and(
                 NORMAL,
                 MINERAL,
-                _not(_and(_soil_class("CLAY"), _clim(NL, KENYA))),
+                _not(_soil_class("CLAY")),
                 _not(_and(_soil_class("SAND"), _clim(SAHEL))),
             ),
             category="nitrogen",
             source="unfertilised mineral soils denitrify 1-40 kg N/ha/season",
+            known=KNOWN_DRAINED_DENIT,
         ),
         Check(
             "n2o_emission",
@@ -2801,6 +2813,19 @@ def _limitation_checks() -> list[Check]:
             "and stays aerobic (Grable & Siemer 1968)",
         ),
         Check(
+            "topsoil_co2_median",
+            "co2_0_median_frac",
+            warn=(0.001, 0.05),
+            fail=(-INF, 0.10),
+            applies=NORMAL,
+            category=cat,
+            source="season-median soil-air CO2 in cropped topsoil runs 0.1-5 %; "
+            "medians above 10 % occur only in flooded or compacted profiles "
+            "(Glinski & Stepniewski 1985). The season maximum is reported as "
+            "co2_0_max_frac but not graded: single wet days and the "
+            "post-initialisation SOM flush dominate it",
+        ),
+        Check(
             "anaerobic_layer_days",
             "anaerobic_layer_days",
             warn=(-INF, 30),
@@ -2913,12 +2938,12 @@ def _anchor_checks() -> list[Check]:
         _anchor("maize", KENYA, "transp_mm", 371.0),
         _anchor("maize", KENYA, "runoff_mm", 134.8),
         _anchor("maize", KENYA, "deep_perc_mm", 329.8),
-        _anchor("maize", KENYA, "no3_leached_kg_ha", 80.2),
-        _anchor("maize", KENYA, "denitrification_kg_ha", 19.8),
+        _anchor("maize", KENYA, "no3_leached_kg_ha", 165.6),
+        _anchor("maize", KENYA, "denitrification_kg_ha", 0.0, abs_tol=0.5),
         _anchor("maize", KENYA, "volatilization_kg_ha", 36.6),
         _anchor("maize", KENYA, "som_min_n_kg_ha", 455.8),
         _anchor("maize", KENYA, "n_uptake_kg_ha", 161.9),
-        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 97, 3),
+        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 62.4, 3),
         _anchor("maize", KENYA, "som_c_change_pct", -5.1, 3),
         _anchor_exact("maize", KENYA, "drought_senescence_events", 17.0),
         _anchor("maize", SAHEL, "agb_g_m2", 778, 3),

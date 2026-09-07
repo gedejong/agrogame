@@ -17,9 +17,10 @@ from agrogame.soil.redox.events import (
 class RedoxModule:
     """Computes daily Eh per layer and produces CH4.
 
-    Eh is driven by water-filled pore space (WFPS) as a proxy for oxygen
-    availability. The module uses a sigmoid Eh-WFPS curve with first-order
-    exponential decay toward the equilibrium value (tau ~2 days).
+    Eh is driven by the soil-air O2 fraction when a gas-diffusion profile
+    is supplied, otherwise by water-filled pore space (WFPS) as a proxy for
+    oxygen availability. Either maps to an equilibrium Eh that the state
+    relaxes toward with first-order decay (tau ~2 days).
 
     Ref: Reddy & DeLaune 2008, Biogeochemistry of Wetlands;
          Stumm & Morgan 1996, Aquatic Chemistry.
@@ -122,22 +123,28 @@ class RedoxModule:
         return p.eh_max_mv - (p.eh_max_mv - p.eh_min_mv) * sigmoid
 
     def _equilibrium_eh_from_o2(self, o2_frac: float) -> float:
-        """Linear Eh-from-O2 mapping between anaerobic and aerobic bands.
+        """Equilibrium Eh from the soil-air O2 fraction, log-linear in O2.
 
-        Below ``o2_anaerobic_frac`` Eh = eh_min; above ``o2_aerobic_frac``
-        Eh = eh_max. Linear ramp in between. Ref: Stepniewski 1994;
-        Reddy & DeLaune 2008 — O2-Eh correspondence in aerated soils.
+        While O2 is present the O2/H2O couple buffers Eh: the Nernst slope
+        is only ~15 mV per decade of pO2, so aerated soil sits at +400 to
+        +600 mV whether its pore air holds 20 % or 5 % O2. Eh collapses
+        toward the Mn(IV)/Fe(III) and sulfate couples only once O2 is
+        nearly exhausted (Ponnamperuma 1972; Reddy & DeLaune 2008, ch. 4).
+        The mapping is therefore ``eh_max`` at and above
+        ``o2_aerobic_frac``, ``eh_min`` at and below ``o2_anaerobic_frac``
+        and linear in log10(O2) between them, which puts Fe reduction
+        (Eh < 100 mV) near 1 % O2 with the default parameters.
         """
         p = self.params
         lo = p.o2_anaerobic_frac
         hi = p.o2_aerobic_frac
-        if hi <= lo:
+        if lo <= 0.0 or hi <= lo:
             return p.eh_max_mv if o2_frac > lo else p.eh_min_mv
         if o2_frac <= lo:
             return p.eh_min_mv
         if o2_frac >= hi:
             return p.eh_max_mv
-        frac = (o2_frac - lo) / (hi - lo)
+        frac = math.log10(o2_frac / lo) / math.log10(hi / lo)
         return p.eh_min_mv + frac * (p.eh_max_mv - p.eh_min_mv)
 
     @staticmethod

@@ -6,7 +6,10 @@ Literature-cited quantitative assertions for scientific accuracy.
 from __future__ import annotations
 
 from datetime import date, timedelta
+from itertools import pairwise
 from pathlib import Path
+
+import pytest
 
 from agrogame.events import EventBus
 from agrogame.plant.presets import load_crop_presets
@@ -224,6 +227,32 @@ def test_fe_p_release_under_reducing() -> None:
     assert avail_after > avail_before, "Available P should increase under reducing"
 
 
+# --- Unit: Eh from soil-air O2 ---
+
+
+def test_eh_from_o2_is_buffered_until_o2_is_nearly_exhausted() -> None:
+    """O2→Eh: aerobic plateau from 5 % O2 up, eh_min at 0.2 %, log-linear between.
+
+    The O2/H2O couple buffers Eh while O2 is present, so Fe(III) reduction
+    (Eh < 100 mV) needs near-complete O2 depletion, about 1 % in the pore
+    air (Ponnamperuma 1972; Reddy & DeLaune 2008).
+    """
+    p = RedoxParams()
+    m = RedoxModule(p, RedoxState.from_layers(1))
+    for aerobic in (0.2095, 0.10, 0.05):
+        assert m._equilibrium_eh_from_o2(aerobic) == p.eh_max_mv
+    for anaerobic in (0.002, 0.001, 0.0):
+        assert m._equilibrium_eh_from_o2(anaerobic) == p.eh_min_mv
+    # 1 % is the geometric midpoint of the band, so Eh sits at the midpoint.
+    mid = m._equilibrium_eh_from_o2(0.01)
+    assert abs(mid - 0.5 * (p.eh_max_mv + p.eh_min_mv)) < 1.0, f"Eh(1 %)={mid:.0f}"
+    assert m._equilibrium_eh_from_o2(0.02) > 100.0, "2 % O2 must not reduce Fe"
+    assert m._equilibrium_eh_from_o2(0.005) < 100.0, "0.5 % O2 must reduce Fe"
+    o2_grid = [0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064]
+    ehs = [m._equilibrium_eh_from_o2(v) for v in o2_grid]
+    assert all(a <= b for a, b in pairwise(ehs)), ehs
+
+
 # --- Integration: waterlogged vs well-drained ---
 
 
@@ -254,12 +283,17 @@ def test_waterlogged_scenario_reduces_eh() -> None:
     assert min_eh < -200.0, f"Eh after 30d saturated: {min_eh:.0f}, expected < -200"
 
 
-def test_well_drained_stays_aerobic() -> None:
-    """Well-drained soil should maintain Eh > +200 mV.
+@pytest.mark.parametrize(
+    "soil_key", ["loam_temperate", "clay_temperate", "clay_netherlands"]
+)
+def test_well_drained_stays_aerobic(soil_key: str) -> None:
+    """Drained soil keeps every layer above +100 mV, fine textures included.
 
     Ref: Reddy & DeLaune 2008 — upland soils typically +300 to +500 mV.
+    Clay at field capacity still holds ~0.19 air-filled porosity, enough
+    diffusive O2 supply for the profile's respiration.
     """
-    orch = _make_orch()
+    orch = _make_orch(soil_key)
     start = date(2024, 5, 1)
     for d in range(60):
         orch.step_day(
@@ -270,7 +304,7 @@ def test_well_drained_stays_aerobic() -> None:
             sim_date=start + timedelta(days=d),
         )
     min_eh = min(orch.redox_state.eh_mv)
-    assert min_eh > 100.0, f"Well-drained Eh: {min_eh:.0f}, expected > 100"
+    assert min_eh > 100.0, f"{soil_key} drained Eh: {min_eh:.0f}, expected > 100"
 
 
 # --- Snapshot roundtrip ---
