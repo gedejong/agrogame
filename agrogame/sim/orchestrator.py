@@ -761,12 +761,21 @@ class FullSimulationOrchestrator:
         )
 
     def _make_som_runtime(self, profile_view: SoilProfileView) -> SOMRuntime:
-        """Construct the SOM runtime and retain it for pool inspection."""
+        """Construct the SOM runtime and retain it for pool inspection.
+
+        The pool object is a preserved state container like the water and
+        nitrogen states: rebuilding the module graph hands the existing
+        ``ThreePoolSOM`` to the new runtime, so a crop reset carries the
+        decomposed pools into the next season instead of re-initialising
+        them from the profile.
+        """
+        previous: SOMRuntime | None = getattr(self, "_som_runtime", None)
         self._som_runtime = SOMRuntime(
             self.event_bus,
             profile_view,
             self.water_state,
             self.chem,
+            som=previous.som if previous is not None else None,
             agg_state=self.agg_state,
         )
         return self._som_runtime

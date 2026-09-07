@@ -1584,7 +1584,6 @@ KNOWN_LOW_WHEAT = "unfertilised NL wheat far below literature yields"
 KNOWN_SW_MATURITY = "spring wheat in NL matures around day 90"
 KNOWN_HI_PINNED = "harvest index pinned at the preset hi_max"
 KNOWN_SOY_HI = "soybean harvest index fixed at 0.40"
-KNOWN_KENYA_LEACH = "Kenya loam leaches 80-100 kg N/ha/season"
 KNOWN_PT_ET0 = "Priestley-Taylor ET0, not FAO-56 calibrated"
 KNOWN_MASSFLOW = "mass-flow NO3 removal is not credited to the plant"
 KNOWN_DRAINED_DENIT = (
@@ -2215,7 +2214,7 @@ def _nitrogen_checks() -> list[Check]:
         "kenya": (
             _clim(KENYA),
             {
-                "LIGHT": ((40, 250), 400),
+                "LIGHT": ((5, 250), 400),
                 "MEDIUM": ((20, 120), 250),
                 "HEAVY": ((10, 80), 200),
             },
@@ -2237,11 +2236,6 @@ def _nitrogen_checks() -> list[Check]:
                     "nitrogen",
                     "unfertilised nitrate leaching by texture and rainfall (Di & "
                     "Cameron 2002)",
-                    (
-                        KNOWN_KENYA_LEACH
-                        if tag == "kenya" and drainage == "MEDIUM"
-                        else ""
-                    ),
                 )
             )
     checks += [
@@ -2336,11 +2330,14 @@ def _nitrogen_checks() -> list[Check]:
         Check(
             "som_min_n_over_som_n",
             "som_min_n_over_som_n",
-            warn=(0.004, 0.035),
+            warn=(0.004, 0.05),
             fail=(0, 0.10),
             applies=NORMAL,
             category="som",
-            source="1-3.5 % of organic N mineralises per season",
+            source=(
+                "1-3 % of organic N mineralises per year in temperate soils, "
+                "up to ~5 % over a long warm season (Stanford & Smith 1972)"
+            ),
             cap_off_home=True,
         ),
         Check(
@@ -2924,10 +2921,10 @@ def _anchor_exact(crop: str, climate: str, metric: str, value: Any) -> Check:
 
 def _anchor_checks() -> list[Check]:
     return [
-        _anchor("maize", NL, "agb_g_m2", 1380, 3),
+        _anchor("maize", NL, "agb_g_m2", 1300, 3),
         _anchor_exact("maize", NL, "final_stage", "GRAIN_FILL"),
         _anchor("maize", NL, "et_actual_mm", 392, 3),
-        _anchor("maize", KENYA, "agb_g_m2", 1185.5, abs_tol=2.5),
+        _anchor("maize", KENYA, "agb_g_m2", 1176.0, abs_tol=2.5),
         _anchor("maize", KENYA, "grain_g_m2", 412, 3),
         _anchor("maize", KENYA, "harvest_index", 0.35, 3),
         _anchor_exact("maize", KENYA, "final_stage", "MATURITY"),
@@ -2938,13 +2935,13 @@ def _anchor_checks() -> list[Check]:
         _anchor("maize", KENYA, "transp_mm", 371.0),
         _anchor("maize", KENYA, "runoff_mm", 134.8),
         _anchor("maize", KENYA, "deep_perc_mm", 329.8),
-        _anchor("maize", KENYA, "no3_leached_kg_ha", 165.6),
+        _anchor("maize", KENYA, "no3_leached_kg_ha", 36.3),
         _anchor("maize", KENYA, "denitrification_kg_ha", 0.0, abs_tol=0.5),
-        _anchor("maize", KENYA, "volatilization_kg_ha", 36.6),
-        _anchor("maize", KENYA, "som_min_n_kg_ha", 455.8),
-        _anchor("maize", KENYA, "n_uptake_kg_ha", 161.9),
-        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 62.4, 3),
-        _anchor("maize", KENYA, "som_c_change_pct", -5.1, 3),
+        _anchor("maize", KENYA, "volatilization_kg_ha", 14.5),
+        _anchor("maize", KENYA, "som_min_n_kg_ha", 149.2),
+        _anchor("maize", KENYA, "n_uptake_kg_ha", 126.5),
+        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 1.2, abs_tol=0.1),
+        _anchor("maize", KENYA, "som_c_change_pct", -2.0, 3),
         _anchor_exact("maize", KENYA, "drought_senescence_events", 17.0),
         _anchor("maize", SAHEL, "agb_g_m2", 778, 3),
         _anchor("maize", SAHEL, "grain_g_m2", 177, 3),
@@ -2952,22 +2949,22 @@ def _anchor_checks() -> list[Check]:
         _anchor_exact("maize", SAHEL, "final_stage", "MATURITY"),
         _anchor("maize", SAHEL, "no3_leached_kg_ha", 0.3, abs_tol=0.7),
         _anchor("sorghum", SAHEL, "agb_g_m2", 920, 3),
-        _anchor("sorghum", NL, "agb_g_m2", 957, 3),
-        _anchor("spring_wheat", NL, "agb_g_m2", 466, 3),
+        _anchor("sorghum", NL, "agb_g_m2", 876, 3),
+        _anchor("spring_wheat", NL, "agb_g_m2", 430, 3),
         _anchor_exact("spring_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("spring_wheat", KENYA, "agb_g_m2", 955, 3, info=True),
+        _anchor("spring_wheat", KENYA, "agb_g_m2", 889, 3, info=True),
         _anchor("winter_wheat", NL, "agb_g_m2", 275, 3),
         _anchor("winter_wheat", NL, "grain_g_m2", 151, 3),
         _anchor("winter_wheat", NL, "harvest_index", 0.55, abs_tol=0.005),
         _anchor_exact("winter_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 261, 3),
-        _anchor("winter_wheat", NL, "som_c_change_pct", -4.6, 3),
+        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 52.0, 3),
+        _anchor("winter_wheat", NL, "som_c_change_pct", -2.16, 3),
         _anchor("winter_wheat", SAHEL, "agb_g_m2", 202, 3),
         _anchor_exact("winter_wheat", SAHEL, "final_stage", "VEGETATIVE"),
         _anchor_exact("winter_wheat", KENYA, "final_stage", "VEGETATIVE"),
         _anchor("rice", KENYA, "agb_g_m2", 740, 3),
         _anchor_exact("rice", KENYA, "final_stage", "MATURITY"),
-        _anchor("rice", SAHEL, "agb_g_m2", 620, 3),
+        _anchor("rice", SAHEL, "agb_g_m2", 218, 3),
         _anchor("grape", SAHEL, "agb_g_m2", 8, abs_tol=3),
         _anchor("grape", NL, "agb_g_m2", 132, 3),
     ]

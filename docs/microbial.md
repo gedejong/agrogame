@@ -71,6 +71,39 @@ modulation applies as described.
 See also: [events](mdc:docs/events.md), [nitrogen](mdc:docs/nitrogen.md), [water](mdc:docs/water.md), and extracted notes under [Soil Microbiology](mdc:docs/soil-microbiology/index.md).
 
 
+### Initial pool sizing
+
+`ThreePoolSOM.initialize_from_profile` derives each layer's total organic C
+from the profile (OM % x bulk density x depth x 0.58) and splits it between
+the pools at the **kinetic steady state of the module's own rate constants**
+(`steady_state_fractions`). Under a constant fresh-C input *F* the pools
+settle at
+
+    C_lab = F / k_lab_eff
+    C_int = h_li * F / k_int_eff
+    C_stb = h_li * h_is * F / k_stb_eff
+
+where `k_*_eff` are the protection-adjusted rate constants for the layer's
+clay content and `h_*` the humification fractions, so the shares depend on
+neither *F* nor the environmental factor. On a 22 % clay loam that is about
+2 % labile, 32 % intermediate and 66 % stable; clays hold less labile C
+because protection slows the intermediate and stable pools most. This is the
+equilibrium initialisation RothC and Century use (Coleman & Jenkinson 1996;
+Parton et al. 1987).
+
+Fresh-C input declines roughly exponentially with depth (Jackson et al. 1996;
+Jobbagy & Jackson 2000), so the labile and intermediate shares of deeper
+layers are scaled by `exp(-(z_mid - z_mid_topsoil) /
+fresh_input_efolding_depth_cm)` (default 30 cm) and the stable pool takes
+the remainder. Pool N follows the fixed C:N ratios 12 / 15 / 20.
+
+Sizing the pools at their equilibrium removes the first-season flush a
+fixed split produces (a 5 % labile pool at C:N 12 decomposes almost entirely
+within one warm season) while leaving the standing SOM-C unchanged. The pool
+object is a preserved state container: a crop reset hands it to the rebuilt
+runtime, so seasons carry their decomposed pools forward. See
+[ADR-015](adr/ADR-015-som-steady-state-initialisation.md).
+
 ## Calibration notes (AGRO-80)
 
 The environmental response functions (temperature, moisture as WFPS, pH) are currently modeled as bounded triangular modifiers with optima near typical literature values: temperature ≈ 30°C, WFPS ≈ 0.6, pH ≈ 6.8. Unit tests verify bounds, optima, and monotonic segments to guard against regressions. A Q10-based temperature option may be added and compared in a future iteration; for now the triangular form offers transparency and ease of calibration.

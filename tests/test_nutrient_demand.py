@@ -159,8 +159,14 @@ def test_explicit_demand_overrides_dynamic() -> None:
 
 
 def test_demand_trajectory_rise_then_decline() -> None:
-    """Full-season demand rises during vegetative growth, declines at maturity."""
+    """Full-season demand rises during vegetative growth, declines at maturity.
+
+    The soil is fertilised at sowing so that supply does not cap the shoot N
+    stock: an N-limited crop's deficit keeps growing with its biomass, and the
+    trajectory would then describe the soil rather than the demand function.
+    """
     orch, bus = _make_orchestrator()
+    orch.apply_fertilizer("ammonium_nitrate", 200.0)
     n_demands: list[float] = []
     bus.subscribe(
         NutrientStressComputed,
