@@ -5,7 +5,7 @@ Implements daily sulfur transformations in line with issue #212:
 - Organic-S mineralization (temperature/moisture/microbe scaled)
 - Reversible SO4 adsorption/desorption (pH + Fe/Al-oxide/clay dependent)
 - Plant uptake allocated by root distribution and pH availability
-- Sulfate leaching driven by ``WaterDrained`` (mobile — nitrate-like)
+- Sulfate leaching driven by ``WaterDrained``, retarded by reversible sorption
 - Fertilizer additions (gypsum, elemental S)
 - Mass-balance check within a small tolerance
 
@@ -28,7 +28,12 @@ from .events import SulfurAdsorbed, SulfurMineralized
 from .params import SulfurRateParams
 from .state import SoilSulfurState
 from .types import SulfurFluxes
-from .constants import PH_AVAILABILITY_ANCHORS
+from .constants import DEFAULT_SOIL_PH, PH_AVAILABILITY_ANCHORS
+from .sorption import (
+    adsorption_weekly_fraction,
+    distribution_coefficient_l_per_kg,
+    retardation_factor,
+)
 
 
 class SulfurCycle:
@@ -56,23 +61,29 @@ class SulfurCycle:
 
         # Subscribe to water movement events (mobile sulfate leaching)
         event_bus.subscribe(WaterDrained, self._on_water_drained)
-        # Shared per-layer environmental cache (#322): pH, root fractions,
-        # microbe activity and fungal fraction. Sulfur mirrors phosphorus:
-        # defaults pH to 6.8 and stores root fractions without renormalising.
+        # Shared per-layer environmental cache: pH, root fractions, microbe
+        # activity and fungal fraction. Sulfur mirrors phosphorus: pH defaults
+        # to DEFAULT_SOIL_PH and root fractions are stored without
+        # renormalising.
         self._env = EnvironmentalCache(
             event_bus,
             self._n_layers,
-            initial_ph=6.8,
+            initial_ph=DEFAULT_SOIL_PH,
             normalize_root_fractions=False,
         )
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
-        """Move SO4 with drainage proportionally to water fraction (mobile).
+        """Move SO4 with drainage, retarded by reversible sorption.
 
-        Sulfate is only weakly retained, so it leaches like nitrate: the
-        fraction moved equals ``drainage_mm / storage_mm``. When the
-        destination layer is outside the profile, emit a leaching loss.
+        Sulfate is weakly held on Fe/Al-oxide and clay surfaces, so a
+        drainage pulse carries only the solution-phase share of the pool:
+        the fraction moved is ``drainage_mm / (storage_mm * R)`` with the
+        retardation factor ``R = 1 + rho_b * Kd / theta`` of linear
+        equilibrium sorption (Jury & Horton 2004). ``Kd`` rises with clay
+        content and acidity like the adsorption rate; a cycle built without
+        a profile has R = 1 (nitrate-like movement). When the destination
+        layer is outside the profile, the moved amount is a leaching loss.
         """
         from_idx = event.from_layer
         to_idx = event.to_layer
@@ -83,7 +94,8 @@ class SulfurCycle:
         if storage_mm <= 0.0:
             return
 
-        fraction = max(0.0, min(1.0, event.amount_mm / storage_mm))
+        fraction = event.amount_mm / (storage_mm * self._retardation_factor(from_idx))
+        fraction = max(0.0, min(1.0, fraction))
         if fraction <= 0.0:
             return
 
@@ -164,25 +176,23 @@ class SulfurCycle:
             return None
         return getattr(self._profile.layers[idx], "clay_pct", None)
 
-    @staticmethod
-    def _clay_multiplier(
-        clay_pct: float | None,
-        reference_pct: float,
-        sensitivity: float,
-        min_mult: float,
-        max_mult: float,
-    ) -> float:
-        """Reference-normalized linear clay response, clamped to bounds."""
-        if clay_pct is None or reference_pct <= 0.0:
-            return 1.0
-        mult = 1.0 + sensitivity * (clay_pct - reference_pct) / reference_pct
-        return max(min_mult, min(max_mult, mult))
-
     def _get_layer_storage_mm(self, idx: int) -> float:
         if self._water_state is None or self._profile is None:
             # Fallback nominal storage to avoid division by zero in tests
             return 100.0
         return self._water_state.layer_storage_mm(self._profile, idx)
+
+    def _retardation_factor(self, idx: int) -> float:
+        """``R = 1 + rho_b * Kd / theta`` for a layer; 1.0 without a profile."""
+        if self._water_state is None or self._profile is None:
+            return 1.0
+        layer = self._profile.layers[idx]
+        kd = distribution_coefficient_l_per_kg(
+            self._env.ph_by_layer[idx], self._layer_clay_pct(idx), self._params
+        )
+        return retardation_factor(
+            layer.bulk_density_g_cm3, self._water_state.theta[idx], kd
+        )
 
     def _moisture_factor(self, idx: int) -> float:
         if self._water_state is None or self._profile is None:
@@ -232,24 +242,14 @@ class SulfurCycle:
         Adsorption pulls SO4 from solution (stronger at low pH and on
         oxide-rich/clayey soils), while a smaller desorption term releases
         adsorbed SO4 back — the labile equilibrium that distinguishes
-        sulfate from near-permanent phosphate fixation. Returns the *net*
+        sulfate from near-permanent phosphate fixation. The pH and clay
+        dependence is the shared sorption relation that also sizes the
+        initial adsorbed pool and the leaching retardation. Returns the *net*
         S moved into the adsorbed pool (negative under net desorption).
         """
-        acidity = max(0.0, min(1.0, (7.0 - ph) / 3.0))  # 0 at pH>=7, ~1 at pH<=4
-        weekly = (
-            self._params.adsorption_weekly_min
-            + (self._params.adsorption_weekly_max - self._params.adsorption_weekly_min)
-            * acidity
-        )
-        clay_mult = self._clay_multiplier(
-            self._layer_clay_pct(idx),
-            self._params.adsorption_clay_reference_pct,
-            self._params.adsorption_clay_sensitivity,
-            self._params.adsorption_clay_min_mult,
-            self._params.adsorption_clay_max_mult,
-        )
+        weekly = adsorption_weekly_fraction(ph, self._layer_clay_pct(idx), self._params)
         avail = self.state.available_s[idx]
-        adsorb = max(0.0, min(avail, avail * weekly * clay_mult / 7.0))
+        adsorb = max(0.0, min(avail, avail * weekly / 7.0))
         desorb = max(
             0.0,
             min(

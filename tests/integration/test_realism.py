@@ -192,15 +192,11 @@ def test_maize_kenya_productive() -> None:
     )
     # Kenya highland maize total *above-ground* biomass: ~12-20 t/ha
     # (1200-2000 g/m²) potential (GYGA Kenya highlands; DSSAT CERES-Maize).
-    # ADR-014 Phase 3 re-derivation (old->new: 1200-1700 -> 1050-1500; measured
-    # seed=42 at 180 d ~1188 g/m²). Under the physical per-PAR basis with the
-    # honest highland RUE (2.73->3.5 g/MJ, un-double-counting the cool penalty
-    # temp_factor already applies) and maize k 0.54->0.68, the full-season crop
-    # lands ~1188 g/m² — just under the GYGA 1200 floor because the model's
-    # cool-temperature response still under-represents highland productivity
-    # (cool-highland-fidelity follow-up filed). Floor set to 1050 to bracket the
-    # honest output with headroom; upper 1500 bites on re-inflation.
-    assert 1050 < biomass < 1500
+    # The rainfed default-fertility season (seed=42, 180 d to MATURITY) lands
+    # ~1750 g/m², inside that band: the floor brackets it with headroom and the
+    # ceiling is the GYGA potential, which an unfertilised rainfed crop must
+    # not exceed.
+    assert 1400 < biomass < 2000
 
 
 def test_maize_sahel_water_limited() -> None:
@@ -345,37 +341,34 @@ def test_grape_netherlands_low() -> None:
 def test_kenya_most_productive_for_maize() -> None:
     """Maize is productive and competitive across all three climates.
 
-    ADR-014 Phase 3 (PO decision: relax). The original invariant asserted a
-    strict Kenya > NL > Sahel radiation/water gradient (AC #319). Under the
-    ADR-014 physically-correct radiation basis the model's cool-temperature
-    response under-represents highland productivity, so honest physics ranks
-    temperate NL highest rather than Kenya — a real model finding tracked by the
-    cool-highland-maize fidelity follow-up, NOT something to hide by fudging the
-    NL (3.56) or Sahel (2.94) maize RUE (unchanged). We therefore assert the
-    defensible, direction-agnostic property: all three climates grow a viable
-    maize crop and they sit within a competitive band (none collapses, none runs
-    away). Legs kept at equal 150 d for a like-for-like comparison.
+    The invariant is direction-agnostic: it does not assert a strict
+    Kenya > NL > Sahel radiation/water gradient, because the ranking of the
+    two productive climates hinges on the cool-temperature response and on
+    the season's N supply, both calibration targets rather than settled
+    physics, and it must not be forced by fudging the per-climate maize RUE.
+    It asserts the defensible property instead: all three climates grow a
+    viable maize crop and they sit within a competitive band (none collapses,
+    none runs away). Legs kept at equal 150 d for a like-for-like comparison.
     """
     nl, _, _, _ = _run_scenario("maize", "netherlands_temperate", date(2024, 4, 1))
     ke, _, _, _ = _run_scenario("maize", "kenya_highlands", date(2024, 3, 1))
     sa, _, _, _ = _run_scenario("maize", "sahel_arid", date(2024, 6, 1))
-    # All three grow a viable crop (measured seed=42: NL ~1380, Kenya ~1024,
-    # Sahel ~778 g/m²). #433 gates net canopy growth at physiological maturity:
-    # NL and Kenya are still in GRAIN_FILL at 150 d (gate never fires, values
-    # unchanged), but the hot Sahel crop reaches MATURITY on the fast-GDD path
-    # and drops ~1211->778 g/m² as its spurious post-maturity accretion is
-    # removed. Viability floor lowered 900->600 to track the honest Sahel
-    # output while still catching a collapse.
+    # All three grow a viable crop (measured seed=42 at 150 d: NL ~1300,
+    # Kenya ~1580, Sahel ~780 g/m²). NL and Kenya are still in GRAIN_FILL at
+    # 150 d, while the hot Sahel crop reaches MATURITY on the fast-GDD path,
+    # where net canopy growth stops, and finishes lowest under its water
+    # stress. The viability floor tracks the Sahel output while still catching
+    # a collapse.
     for label, val in (("NL", nl), ("Kenya", ke), ("Sahel", sa)):
         assert val > 600.0, f"{label} maize {val:.0f} should be a viable crop"
-    # Competitive band: the best climate is within ~2.0x of the worst — no
-    # single climate dominates or collapses. Widened 1.6->2.0x under #433:
-    # gating the water-stressed, maturity-reaching Sahel crop (but not the
-    # still-filling NL/Kenya crops) legitimately widened the spread to ~1.77x
-    # (NL 1380 / Sahel 778); this is honest physics, not a runaway.
+    # Competitive band: the best climate is within 2.5x of the worst — no
+    # single climate dominates or collapses. GYGA water-limited maize yield
+    # potentials span ~2.3x between the Kenyan highlands (~7 t/ha) and the
+    # Sahel (~3 t/ha) (yieldgap.org; docs/validation.md), so a highland/Sahel
+    # spread of that order is the expected climate gradient, not a runaway.
     hi_val: float = max(nl, ke, sa)
     lo_val: float = min(nl, ke, sa)
-    assert hi_val < 2.0 * lo_val, (
+    assert hi_val < 2.5 * lo_val, (
         f"maize yields should sit in a competitive band across climates; "
         f"got NL {nl:.0f}, Kenya {ke:.0f}, Sahel {sa:.0f}"
     )

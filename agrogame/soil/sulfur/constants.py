@@ -6,6 +6,10 @@ from __future__ import annotations
 SOIL_AREA_M2_PER_HA: float = 10000.0
 BULK_DENSITY_G_CM3_TO_KG_M3: float = 1000.0
 
+# Soil pH assumed until the chemistry module reports per-layer values; the
+# environmental cache and the initial adsorbed-sulfate pool both use it.
+DEFAULT_SOIL_PH: float = 6.8
+
 # Organic matter to sulfur conversion (fraction of OM mass that is S).
 # >90% of topsoil S is held in organic matter. Soil OM is ~58% C by mass,
 # and the organic C:S ratio in temperate agricultural topsoils centres on

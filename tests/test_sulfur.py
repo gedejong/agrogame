@@ -16,6 +16,13 @@ from agrogame.soil.sulfur import (
     SulfurAdsorbed,
     SulfurCycle,
     SulfurMineralized,
+    SulfurRateParams,
+)
+from agrogame.soil.sulfur.constants import DEFAULT_SOIL_PH
+from agrogame.soil.sulfur.sorption import (
+    distribution_coefficient_l_per_kg,
+    equilibrium_adsorbed_kg_ha,
+    retardation_factor,
 )
 
 
@@ -87,10 +94,18 @@ def test_pools_initialized_by_layer() -> None:
     state = SoilSulfurState(profile)
     # Available SO4 seeded from initial_s_kg_ha; only top layer here.
     assert state.available_s == [20.0, 0.0, 0.0]
-    # Adsorbed starts empty; organic S seeded from organic matter.
-    assert state.adsorbed_s == [0.0, 0.0, 0.0]
+    # Adsorbed SO4 starts in kinetic equilibrium with the solution pool at the
+    # default pH; layers without sulfate carry none. Organic S comes from OM.
+    top_clay = profile.layers[0].clay_pct
+    expected_adsorbed = equilibrium_adsorbed_kg_ha(
+        20.0, DEFAULT_SOIL_PH, top_clay, SulfurRateParams()
+    )
+    assert expected_adsorbed > 0.0
+    assert state.adsorbed_s == pytest.approx([expected_adsorbed, 0.0, 0.0])
     assert all(o > 0.0 for o in state.organic_s)
-    assert state.total_sulfur_kg_ha() == pytest.approx(20.0 + sum(state.organic_s))
+    assert state.total_sulfur_kg_ha() == pytest.approx(
+        20.0 + expected_adsorbed + sum(state.organic_s)
+    )
 
 
 # --- Mineralization ---------------------------------------------------------
@@ -186,6 +201,17 @@ def test_acidic_ph_increases_net_adsorption() -> None:
     assert adsorb_events
 
 
+def test_initial_adsorbed_pool_is_in_kinetic_equilibrium() -> None:
+    """At the default pH the initial pools exchange no net S on day one."""
+    profile = make_profile(organic_matter_pct=0.0)
+    bus = EventBus()
+    cycle, state = _cycle(profile, bus)
+    available_before = list(state.available_s)
+    flux = cycle.daily_step(temperature_c=20.0, ph_by_layer=[DEFAULT_SOIL_PH] * 3)
+    assert flux.adsorbed_kg_ha == pytest.approx(0.0, abs=1e-9)
+    assert state.available_s == pytest.approx(available_before)
+
+
 def test_adsorption_is_reversible_desorbs_from_loaded_pool() -> None:
     profile = make_profile(organic_matter_pct=0.0)
     bus = EventBus()
@@ -204,7 +230,7 @@ def test_uptake_follows_root_fractions_and_reduces_available() -> None:
     bus = EventBus()
     cycle, state = _cycle(profile, bus, with_water=False)
     state.available_s = [10.0, 10.0, 10.0]
-    before = sum(state.available_s)
+    before = sum(state.available_s) + sum(state.adsorbed_s)
     flux = cycle.daily_step(
         temperature_c=20.0,
         plant_demand_kg_ha=6.0,
@@ -243,7 +269,7 @@ def test_uptake_limited_by_availability_at_extreme_ph() -> None:
     assert ok.plant_uptake_kg_ha >= low.plant_uptake_kg_ha
 
 
-# --- Leaching (nitrate-like via WaterDrained) -------------------------------
+# --- Leaching (WaterDrained, retarded by sorption) --------------------------
 def test_sulfate_leaches_out_of_profile_on_drainage() -> None:
     profile = make_profile()
     bus = EventBus()
@@ -271,6 +297,42 @@ def test_sulfate_moves_between_layers_on_internal_drainage() -> None:
     bus.emit(WaterDrained(from_layer=0, to_layer=1, amount_mm=storage0 * 0.5))
     assert state.available_s[0] < 20.0
     assert state.available_s[1] > 0.0
+
+
+def test_sulfate_leaching_is_retarded_by_sorption() -> None:
+    """A drainage pulse carries 1/R of the share nitrate-like movement would."""
+    profile = make_profile()
+    bus = EventBus()
+    cycle, state = _cycle(profile, bus)
+    state.available_s = [20.0, 0.0, 0.0]
+    water = SoilWaterState(profile)
+    storage0 = water.layer_storage_mm(profile, 0)
+    top = profile.layers[0]
+    kd = distribution_coefficient_l_per_kg(
+        DEFAULT_SOIL_PH, top.clay_pct, SulfurRateParams()
+    )
+    r_factor = retardation_factor(top.bulk_density_g_cm3, water.theta[0], kd)
+    assert r_factor > 2.0
+    bus.emit(WaterDrained(from_layer=0, to_layer=1, amount_mm=storage0 * 0.5))
+    moved = state.available_s[1]
+    assert moved == pytest.approx(20.0 * 0.5 / r_factor)
+    assert moved < 20.0 * 0.5
+
+
+def test_retardation_rises_with_clay_and_acidity() -> None:
+    params = SulfurRateParams()
+    kd_loam = distribution_coefficient_l_per_kg(7.0, 22.0, params)
+    assert kd_loam == pytest.approx(params.kd_reference_l_per_kg)
+    assert distribution_coefficient_l_per_kg(7.0, 50.0, params) > kd_loam
+    assert distribution_coefficient_l_per_kg(7.0, 5.0, params) < kd_loam
+    assert distribution_coefficient_l_per_kg(4.0, 22.0, params) == pytest.approx(
+        2.0 * kd_loam
+    )
+    assert retardation_factor(1.3, 0.3, kd_loam) == pytest.approx(
+        1.0 + 1.3 * kd_loam / 0.3
+    )
+    assert retardation_factor(1.3, 0.0, kd_loam) == 1.0
+    assert retardation_factor(1.3, 0.3, 0.0) == 1.0
 
 
 # --- Fertilizer -------------------------------------------------------------
@@ -364,7 +426,8 @@ def test_runtime_emits_sulfur_stress_on_nutrients_phase() -> None:
     profile = make_profile(organic_matter_pct=0.0)
     bus = EventBus()
     cycle, state = _cycle(profile, bus, with_water=False)
-    state.available_s = [0.0, 0.0, 0.0]  # no S available -> full stress
+    state.available_s = [0.0, 0.0, 0.0]  # no S anywhere -> full stress
+    state.adsorbed_s = [0.0, 0.0, 0.0]
     SulfurRuntime(bus, cycle)
 
     stresses: list[NutrientStressComputed] = []
@@ -383,6 +446,36 @@ def test_runtime_emits_sulfur_stress_on_nutrients_phase() -> None:
     )
     s = [e for e in stresses if e.nutrient == "S"]
     assert s and s[0].stress == pytest.approx(0.0)
+
+
+def test_runtime_mineralizes_at_daytick_temperature() -> None:
+    """Soil temperature follows the tick's mean air temperature, 18 C without one."""
+    from datetime import date
+
+    from agrogame.events.calendar import DayTick
+    from agrogame.soil.sulfur.runtime import SulfurRuntime
+
+    def mineralized_for(tmin: float | None, tmax: float | None) -> float:
+        profile = make_profile()
+        bus = EventBus()
+        cycle, _ = _cycle(profile, bus, with_water=False)
+        SulfurRuntime(bus, cycle)
+        events: list[SulfurMineralized] = []
+        bus.subscribe(SulfurMineralized, events.append)
+        bus.emit(
+            DayTick(
+                sim_date=date(2026, 6, 1),
+                phase="nutrients",
+                tmin_c=tmin,
+                tmax_c=tmax,
+            )
+        )
+        return sum(e.amount_kg_ha for e in events)
+
+    cold = mineralized_for(5.0, 15.0)
+    warm = mineralized_for(25.0, 35.0)
+    fallback = mineralized_for(None, None)
+    assert 0.0 < cold < fallback < warm
 
 
 def test_daytick_carries_plant_s_demand() -> None:

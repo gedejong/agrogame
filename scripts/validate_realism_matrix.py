@@ -401,6 +401,7 @@ DAILY_FLUX_KEYS: tuple[str, ...] = (
     "deep_perc_mm",
     "no3_leached_kg_ha",
     "nh4_leached_kg_ha",
+    "so4_leached_kg_ha",
     "nitrification_kg_ha",
     "denitrification_kg_ha",
     "volatilization_kg_ha",
@@ -492,6 +493,13 @@ class FluxCollector:
             "nh4_leached_kg_ha",
             "amount_kg_ha",
             predicate=_nutrient_filter("NH4"),
+        )
+        add(
+            bus,
+            NutrientLeached,
+            "so4_leached_kg_ha",
+            "amount_kg_ha",
+            predicate=_nutrient_filter("SO4"),
         )
         add(bus, NitrificationOccurred, "nitrification_kg_ha", "amount_kg_ha")
         add(bus, DenitrificationOccurred, "denitrification_kg_ha", "amount_kg_ha")
@@ -915,6 +923,7 @@ def _limitation_scalars(
     out["s_avail_start_kg_ha"] = float(start["s_avail_kg_ha"])
     out["s_avail_min_kg_ha"] = min(s_avail)
     out["s_avail_end_kg_ha"] = s_avail[-1]
+    out["so4_leached_kg_ha"] = _sum(daily, "so4_leached_kg_ha")
     return out
 
 
@@ -2890,8 +2899,8 @@ def _limitation_checks() -> list[Check]:
             fail=(-INF, 90),
             applies=_and(NORMAL, VIABLE),
             category=cat,
-            source="sulfur deficiency in unfertilised crops is episodic on leached "
-            "sands, not the season-long limiting factor (Scherer 2001)",
+            source="sulfur deficiency in unfertilised crops is episodic, "
+            "not the season-long limiting factor (Scherer 2001)",
         ),
         Check(
             "growth_factor_mean_humid",
@@ -2948,25 +2957,28 @@ def _anchor_checks() -> list[Check]:
         _anchor("maize", NL, "agb_g_m2", 1300, 3),
         _anchor_exact("maize", NL, "final_stage", "GRAIN_FILL"),
         _anchor("maize", NL, "et_actual_mm", 392, 3),
-        _anchor("maize", KENYA, "agb_g_m2", 1176.0, abs_tol=2.5),
-        _anchor("maize", KENYA, "grain_g_m2", 412, 3),
-        _anchor("maize", KENYA, "harvest_index", 0.35, 3),
+        _anchor("maize", KENYA, "agb_g_m2", 1749.2),
+        _anchor("maize", KENYA, "grain_g_m2", 557, 3),
+        _anchor("maize", KENYA, "harvest_index", 0.318, 3),
         _anchor_exact("maize", KENYA, "final_stage", "MATURITY"),
         _anchor_exact("maize", KENYA, "day_flowering", 78),
         _anchor_exact("maize", KENYA, "day_maturity", 173),
         _anchor("maize", KENYA, "rain_mm", 913.5),
-        _anchor("maize", KENYA, "evap_mm", 196.5),
-        _anchor("maize", KENYA, "transp_mm", 371.0),
+        _anchor("maize", KENYA, "evap_mm", 176.2),
+        _anchor("maize", KENYA, "transp_mm", 391.3),
         _anchor("maize", KENYA, "runoff_mm", 134.8),
         _anchor("maize", KENYA, "deep_perc_mm", 329.8),
-        _anchor("maize", KENYA, "no3_leached_kg_ha", 36.3),
+        _anchor("maize", KENYA, "no3_leached_kg_ha", 35.6),
         _anchor("maize", KENYA, "denitrification_kg_ha", 0.0, abs_tol=0.5),
         _anchor("maize", KENYA, "volatilization_kg_ha", 14.5),
         _anchor("maize", KENYA, "som_min_n_kg_ha", 149.2),
         _anchor("maize", KENYA, "n_uptake_kg_ha", 126.5),
-        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 1.2, abs_tol=0.1),
+        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 1.1, abs_tol=0.1),
         _anchor("maize", KENYA, "som_c_change_pct", -2.0, 3),
-        _anchor_exact("maize", KENYA, "drought_senescence_events", 17.0),
+        _anchor_exact("maize", KENYA, "drought_senescence_events", 22.0),
+        _anchor("maize", KENYA, "so4_leached_kg_ha", 16.0),
+        _anchor("maize", KENYA, "s_avail_end_kg_ha", 46.0),
+        _anchor_exact("maize", KENYA, "binding_days_s", 0),
         _anchor("maize", SAHEL, "agb_g_m2", 778, 3),
         _anchor("maize", SAHEL, "grain_g_m2", 177, 3),
         _anchor("maize", SAHEL, "harvest_index", 0.227, 3),
@@ -2976,9 +2988,9 @@ def _anchor_checks() -> list[Check]:
         _anchor("sorghum", NL, "agb_g_m2", 876, 3),
         _anchor("spring_wheat", NL, "agb_g_m2", 430, 3),
         _anchor_exact("spring_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("spring_wheat", KENYA, "agb_g_m2", 889, 3, info=True),
-        _anchor("winter_wheat", NL, "agb_g_m2", 275, 3),
-        _anchor("winter_wheat", NL, "grain_g_m2", 151, 3),
+        _anchor("spring_wheat", KENYA, "agb_g_m2", 1382, 3),
+        _anchor("winter_wheat", NL, "agb_g_m2", 364, 3),
+        _anchor("winter_wheat", NL, "grain_g_m2", 200, 3),
         _anchor("winter_wheat", NL, "harvest_index", 0.55, abs_tol=0.005),
         _anchor_exact("winter_wheat", NL, "final_stage", "MATURITY"),
         _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 52.0, 3),
@@ -2986,7 +2998,7 @@ def _anchor_checks() -> list[Check]:
         _anchor("winter_wheat", SAHEL, "agb_g_m2", 202, 3),
         _anchor_exact("winter_wheat", SAHEL, "final_stage", "VEGETATIVE"),
         _anchor_exact("winter_wheat", KENYA, "final_stage", "VEGETATIVE"),
-        _anchor("rice", KENYA, "agb_g_m2", 740, 3),
+        _anchor("rice", KENYA, "agb_g_m2", 937, 3),
         _anchor_exact("rice", KENYA, "final_stage", "MATURITY"),
         _anchor("rice", SAHEL, "agb_g_m2", 218, 3),
         _anchor("grape", SAHEL, "agb_g_m2", 8, abs_tol=3),
@@ -4176,6 +4188,7 @@ def _section_limitation(results: list[RunResult]) -> list[str]:
                     round(mean("fe_toxic_days")),
                     round(mean("s_avail_start_kg_ha")),
                     round(mean("s_avail_end_kg_ha")),
+                    round(mean("so4_leached_kg_ha")),
                     round(mean("stress_s_mean"), 2),
                 )
             )
@@ -4191,6 +4204,7 @@ def _section_limitation(results: list[RunResult]) -> list[str]:
             "Fe toxic d",
             "S start kg/ha",
             "S end kg/ha",
+            "S leached kg/ha",
             "S stress mean",
         ],
         redox,
@@ -4329,6 +4343,10 @@ GLOSSARY: tuple[tuple[str, str], ...] = (
     (
         "s_avail_*_kg_ha",
         "plant-available sulfate over the whole profile at start, minimum and end",
+    ),
+    (
+        "so4_leached_kg_ha",
+        "sulfate-S drained out of the bottom of the profile over the season",
     ),
     (
         "grade",
