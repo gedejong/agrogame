@@ -1286,6 +1286,9 @@ MINERAL = _not(_soil_class("PEAT"))
 PEAT = _soil_class("PEAT")
 LOW_SOM = _lt("som_c_start_kg_ha", LOW_SOM_C_KG_HA)
 NOT_LOW_SOM = _not(LOW_SOM)
+# The one preset whose low DTPA-Fe stands for lime-induced chlorosis rather than
+# an unset field (data/soils/presets.yaml header).
+CALCAREOUS = _soil("sandy_arid")
 REACHED = _in("reached_maturity", 1)
 FLOWERED = _in("flowered", 1)
 NL_SPRING = _and(_clim(NL), _not(_crop("winter_wheat")))
@@ -2845,19 +2848,40 @@ def _limitation_checks() -> list[Check]:
             "fe_deficient_days",
             "fe_deficient_days",
             warn=(-INF, 30),
-            applies=NORMAL,
+            applies=_and(NORMAL, _not(CALCAREOUS)),
             category=cat,
             source="available Fe below the 4.5 ppm DTPA critical level all season "
-            "means the preset starts deficient (Lindsay & Norvell 1978)",
+            "means a non-calcareous preset starts deficient by accident "
+            "(Lindsay & Norvell 1978)",
+        ),
+        Check(
+            "fe_deficient_days:calcareous",
+            "fe_deficient_days",
+            applies=_and(NORMAL, CALCAREOUS),
+            category=cat,
+            info=True,
+            source="Fe deficiency is allowed on the calcareous sand: Fe(III) oxides "
+            "are insoluble at its pH, so DTPA-Fe sits below the critical level and "
+            "lime-induced chlorosis is the intended limitation (Lindsay 1979)",
         ),
         Check(
             "zn_deficient_days",
             "zn_deficient_days",
             warn=(-INF, 30),
-            applies=NORMAL,
+            applies=_and(NORMAL, NOT_LOW_SOM),
             category=cat,
             source="available Zn below the 0.8 ppm DTPA critical level all season "
-            "means the preset starts deficient (Lindsay & Norvell 1978)",
+            "means the preset starts deficient by accident (Lindsay & Norvell 1978)",
+        ),
+        Check(
+            "zn_deficient_days:low_som",
+            "zn_deficient_days",
+            applies=_and(NORMAL, LOW_SOM),
+            category=cat,
+            info=True,
+            source="Zn deficiency is allowed on low-SOM sands: DTPA-Zn 0.3-0.8 mg/kg "
+            "is typical of Sahelian, Sudanian and arid sands, where Zn is the most "
+            "widespread micronutrient deficiency (Sillanpaa 1982; Alloway 2008)",
         ),
         Check(
             "s_binding_days",
@@ -3891,6 +3915,39 @@ def _section_by_check(title: str, findings: Sequence[Finding], worst: int) -> li
     return lines
 
 
+def _section_allowed(findings: Sequence[Finding]) -> list[str]:
+    """Informational checks whose out-of-band value is the intended behaviour.
+
+    A check marked ``info`` never grades its run. When it also carries a
+    ``source``, that source states why the value is allowed (a preset that is
+    deficient on purpose, for example), and the affected runs are listed here
+    so that the allowance stays visible instead of disappearing from the
+    report. Anchors are informational too but have their own section.
+    """
+    lines = ["## Allowed by design", ""]
+    rows = [
+        f
+        for f in findings
+        if f.severity == "INFO" and f.category != "anchor" and f.source
+    ]
+    if not rows:
+        return [*lines, "None.", ""]
+    groups = _by_check(rows)
+    lines.append(
+        f"{len(rows)} informational findings across {len(groups)} checks; "
+        "none affects a run grade."
+    )
+    lines.append("")
+    lines += _md_table(
+        ["check", "runs", "metric", "values", "why allowed"],
+        [
+            (name, len(group), group[0].metric, _value_range(group), group[0].source)
+            for name, group in groups.items()
+        ],
+    )
+    return lines
+
+
 def _section_groups(group_findings: Sequence[Finding]) -> list[str]:
     lines = ["## Soil-ordering, climate and crop contrasts", ""]
     judged = [f for f in group_findings if f.severity != "INFO"]
@@ -4266,7 +4323,8 @@ GLOSSARY: tuple[tuple[str, str], ...] = (
     (
         "fe_toxic_days / fe_deficient_days / zn_deficient_days",
         "days topsoil available Fe exceeded the toxic level, or Fe / Zn sat below "
-        "their critical levels",
+        "their critical levels; deficiency days are graded only on presets that "
+        "are not meant to be deficient",
     ),
     (
         "s_avail_*_kg_ha",
@@ -4320,6 +4378,7 @@ def render_report(
     lines += _section_by_check(
         "WARN findings", [f for f in run_findings if f.severity == "WARN"], 0
     )
+    lines += _section_allowed(run_findings)
     lines += _section_groups(group_findings)
     lines += _section_stress(results)
     lines += _section_anchors(results, checks)

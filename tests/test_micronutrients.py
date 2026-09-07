@@ -6,7 +6,10 @@ Literature-cited quantitative assertions for scientific accuracy.
 from __future__ import annotations
 
 from datetime import date, timedelta
+from itertools import pairwise
 from pathlib import Path
+
+import pytest
 
 from agrogame.events import EventBus
 from agrogame.soil.water.types import DailyDrivers
@@ -14,8 +17,15 @@ from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.micronutrients.cycle import MicronutrientCycle, _interpolate_ph
+from agrogame.soil.micronutrients.cycle import (
+    MicronutrientCycle,
+    _interpolate_ph,
+    deficiency_response,
+)
 from agrogame.soil.micronutrients.constants import (
+    CRITICAL_FE_PPM,
+    CRITICAL_MN_PPM,
+    CRITICAL_ZN_PPM,
     PH_AVAIL_FE,
     PH_AVAIL_ZN,
     PH_AVAIL_MN,
@@ -104,6 +114,62 @@ def test_no_stress_above_critical() -> None:
     assert (
         flux.fe_stress >= 0.9
     ), f"Fe stress should be ~1.0 when above critical, got {flux.fe_stress:.2f}"
+
+
+def test_deficiency_response_anchors() -> None:
+    """Critical level ~90 % relative growth, half of it ~56 %, none 0, plateau 1.
+
+    Soil-test critical levels are defined at ~90 % relative yield
+    (Cate & Nelson 1971); DTPA-Fe 4.5 ppm after Lindsay & Norvell 1978.
+    """
+    critical, ratio = CRITICAL_FE_PPM, 1.5
+    assert deficiency_response(0.0, critical, ratio) == 0.0
+    assert abs(deficiency_response(critical, critical, ratio) - 0.889) < 1e-3
+    assert abs(deficiency_response(0.5 * critical, critical, ratio) - 0.556) < 1e-3
+    assert deficiency_response(1.5 * critical, critical, ratio) == 1.0
+    assert deficiency_response(15.0, critical, ratio) == 1.0
+
+
+def test_deficiency_response_monotonic_and_continuous_at_plateau() -> None:
+    plateau = 1.5 * CRITICAL_ZN_PPM
+    grid = [plateau * k / 50.0 for k in range(0, 76)]
+    values = [deficiency_response(x, CRITICAL_ZN_PPM, 1.5) for x in grid]
+    assert all(b >= a for a, b in pairwise(values)), "response must not decrease"
+    just_below = deficiency_response(plateau - 1e-6, CRITICAL_ZN_PPM, 1.5)
+    assert 1.0 - just_below < 1e-6, "quadratic plateau joins 1.0 with zero slope"
+
+
+def test_stress_at_critical_level_is_near_ninety_percent() -> None:
+    """A soil exactly at the DTPA critical level supports ~90 % growth, not 100 %."""
+    bus = EventBus()
+    state = MicronutrientState.from_layers(1)
+    state.zn_available[0] = CRITICAL_ZN_PPM
+    cycle = MicronutrientCycle(bus, state, MicronutrientParams(), 1)
+    flux = cycle.daily_step(biomass_inc_g_m2=20.0)
+    assert (
+        0.85 <= flux.zn_stress <= 0.92
+    ), f"Zn stress at critical: {flux.zn_stress:.3f}"
+
+
+def test_sufficiency_ratio_must_be_positive() -> None:
+    with pytest.raises(ValueError):
+        MicronutrientParams(sufficiency_ratio=0.0)
+
+
+def test_poor_sand_presets_start_where_the_literature_puts_them() -> None:
+    """Acid Sahelian sands are Zn-marginal but not Fe- or Mn-deficient; the
+    calcareous arid sand is Fe-deficient (lime-induced chlorosis).
+
+    Ref: Sillanpaa 1982 (FAO Soils Bulletin 48); Alloway 2008; Lindsay 1979.
+    """
+    soils = load_soil_presets(Path("soils/presets.yaml"))
+    subsaharan = soils.soils["sandy_subsaharan"].layers[0]
+    assert subsaharan.initial_fe_ppm >= 1.5 * CRITICAL_FE_PPM
+    assert subsaharan.initial_mn_ppm >= 1.5 * CRITICAL_MN_PPM
+    assert 0.3 <= subsaharan.initial_zn_ppm < CRITICAL_ZN_PPM
+    arid = soils.soils["sandy_arid"].layers[0]
+    assert arid.initial_fe_ppm < CRITICAL_FE_PPM
+    assert 0.3 <= arid.initial_zn_ppm < CRITICAL_ZN_PPM
 
 
 # --- Unit: OM complexation ---

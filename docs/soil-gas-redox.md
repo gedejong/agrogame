@@ -101,9 +101,22 @@ available pools; the `total` pool is conserved.
   severity ramping over `severity_span_mv` (200 mV).
 - **Re-oxidation** above `reoxidation_eh_mv` (300 mV) precipitates
   `reoxidation_rate_per_day` (0.005) × severity of the available pool.
-- Plant response uses DTPA critical levels Fe 4.5, Zn 0.8, Mn 1.0 ppm (Lindsay &
-  Norvell 1978) and a toxicity threshold of 300 ppm Fe (Ponnamperuma 1972:
-  50–300 ppm Fe²⁺ in flooded soils).
+- **Plant response.** Each element's stress factor is the Liebig minimum of the
+  day's supply/demand ratio and a pool term read from the top layer's DTPA
+  concentration. Below the plateau the pool term is a quadratic plateau,
+  `1 − (1 − x)²` with `x = ppm / (sufficiency_ratio × critical)`: 89 % growth
+  at the critical level (Fe 4.5, Zn 0.8, Mn 1.0 ppm; Lindsay & Norvell 1978),
+  56 % at half of it, 0 in a soil without the element, and no limitation from
+  `sufficiency_ratio` (1.5) × critical upward. Soil-test critical levels mark
+  ~90 % relative yield (Cate & Nelson 1971), not the point where growth stops.
+  Above the toxicity threshold (300 ppm Fe; Ponnamperuma 1972: 50–300 ppm Fe²⁺
+  in flooded soils) the term declines linearly to 0 at twice the threshold.
+- **Presets.** Only `sandy_arid` (calcareous, DTPA-Fe 3.0) and the two low-SOM
+  sands `sandy_arid` and `sandy_subsaharan` (DTPA-Zn 0.5) start below a
+  critical level, by design; the header of `data/soils/presets.yaml` gives the
+  reference ranges. Every other preset sits at or above 1.5× critical for all
+  three elements, so on those soils the pool term is 1.0 unless redox or pH
+  moves the available pool.
 
 Taken together, iron toxicity needs sustained saturation: bulk O₂ below ~1 % for
 days (Eh through 100 mV with `tau_days` 2) and then weeks of release at 2 %/day
@@ -122,3 +135,8 @@ rice, peat and irrigated clays that saturate are where the chain engages.
   sweep labels this limitation on its denitrification checks.
 - **Root respiration is not part of the gas source**, so low-SOM sands show
   soil-air CO₂ barely above atmospheric.
+- **Total Fe and Mn are back-derived from the preset DTPA values**
+  (`available / DEFAULT_AVAIL_FRACTION_*`), so a preset's plant-available Fe
+  also sets its reducible ceiling under anoxia: a calcareous soil with low
+  DTPA-Fe is given a small reactive Fe stock, although its total Fe need not
+  be small.
