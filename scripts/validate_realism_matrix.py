@@ -69,6 +69,7 @@ from agrogame.soil.micronutrients.constants import (
 )
 from agrogame.soil.nitrogen.events import (
     DenitrificationOccurred,
+    MassFlowNSupplyComputed,
     NitrificationOccurred,
     NutrientLeached,
     VolatilizationOccurred,
@@ -410,7 +411,7 @@ DAILY_FLUX_KEYS: tuple[str, ...] = (
     "som_dec_c_kg_ha",
     "co2_c_kg_ha",
     "n_uptake_kg_ha",
-    "n_massflow_no3_kg_ha",
+    "n_massflow_supply_kg_ha",
     "frost_events",
     "heat_events",
     "drought_senescence_events",
@@ -433,12 +434,10 @@ def _nutrient_filter(name: str) -> Callable[[Any], bool]:
 class FluxCollector:
     """Accumulates engine events into per-day flux totals.
 
-    The bus dispatches handlers in subscription order. The nitrogen module
-    debits soil nitrate carried by transpiration mass flow inside its own
-    ``TranspirationByLayer`` handler without emitting an event, so that debit
-    is measured by two handlers around it: ``subscribe_pre`` (called before
-    the orchestrator is built) snapshots total nitrate, ``subscribe_post``
-    (called after) reads it again and books the difference.
+    Every flux is booked from the event the engine emits for it; the
+    potential nitrate supply by transpiration mass flow arrives as the
+    nitrogen module's ``MassFlowNSupplyComputed`` diagnostic, which debits
+    nothing (plant uptake is demand-driven and availability-capped).
     """
 
     def __init__(self) -> None:
@@ -446,7 +445,6 @@ class FluxCollector:
         self.stage_days: dict[str, int] = {}
         self.curve_number = math.nan
         self._orch: FullSimulationOrchestrator | None = None
-        self._no3_before = 0.0
         self._day = 0
         self.nutrient_stress: dict[str, float] = dict.fromkeys(NUTRIENTS, 1.0)
 
@@ -455,12 +453,8 @@ class FluxCollector:
         self.today = dict.fromkeys(DAILY_FLUX_KEYS, 0.0)
         self.nutrient_stress = dict.fromkeys(NUTRIENTS, 1.0)
 
-    def subscribe_pre(self, bus: EventBus) -> None:
-        bus.subscribe(TranspirationByLayer, self._snapshot_no3)
-
     def subscribe_post(self, bus: EventBus, orch: FullSimulationOrchestrator) -> None:
         self._orch = orch
-        bus.subscribe(TranspirationByLayer, self._book_massflow)
         bus.subscribe(RunoffGenerated, self._on_runoff)
         bus.subscribe(StageChanged, self._on_stage)
         bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
@@ -470,6 +464,7 @@ class FluxCollector:
         add(bus, EvapotranspirationComputed, "transp_mm", "transpiration_mm")
         add(bus, EvaporationTaken, "evap_taken_mm", "amount_mm")
         add(bus, TranspirationByLayer, "transp_taken_mm", "total_mm")
+        add(bus, MassFlowNSupplyComputed, "n_massflow_supply_kg_ha", "total_kg_ha")
         add(bus, CanopyIntercepted, "intercept_mm", "amount_mm")
         add(bus, CanopyEvaporated, "canopy_evap_mm", "amount_mm")
         add(bus, RunoffGenerated, "runoff_mm", "amount_mm")
@@ -529,16 +524,6 @@ class FluxCollector:
             self.today[key] += 1.0 if attr is None else float(getattr(event, attr))
 
         bus.subscribe(event_type, handler)
-
-    def _snapshot_no3(self, _event: Any) -> None:
-        if self._orch is not None:
-            self._no3_before = float(sum(self._orch.n_state.no3))
-
-    def _book_massflow(self, _event: Any) -> None:
-        if self._orch is None:
-            return
-        after = float(sum(self._orch.n_state.no3))
-        self.today["n_massflow_no3_kg_ha"] += self._no3_before - after
 
     def _on_nutrient_stress(self, event: Any) -> None:
         name = str(getattr(event.nutrient, "value", event.nutrient)).upper()
@@ -648,7 +633,6 @@ def run_one(spec: RunSpec, libs: Libraries, *, debug_bus: bool = True) -> RunRes
     )
     bus = EventBus(debug_mode=debug_bus)
     collector = FluxCollector()
-    collector.subscribe_pre(bus)
     orch = FullSimulationOrchestrator(
         profile, event_bus=bus, crop=crop, latitude_deg=climate.latitude_deg
     )
@@ -1033,16 +1017,15 @@ def _nitrogen_scalars(
     no3_leached = _sum(daily, "no3_leached_kg_ha")
     nh4_leached = _sum(daily, "nh4_leached_kg_ha")
     uptake = _sum(daily, "n_uptake_kg_ha")
-    massflow = _sum(daily, "n_massflow_no3_kg_ha")
+    massflow = _sum(daily, "n_massflow_supply_kg_ha")
     mineral = [float(r["no3_kg_ha"] + r["nh4_kg_ha"]) for r in daily]
     peak, peak_day = _argmax(mineral)
     min_after_peak = min(mineral[peak_day:]) if mineral else math.nan
     delta_mineral = (no3_end + nh4_end) - (no3_start + nh4_start)
     # Nitrification moves N between the two mineral pools and N2O is a
-    # partition of denitrification, so neither is a ledger term.
-    explained = (
-        som_min_n + fert - uptake - massflow - denit - volat - no3_leached - nh4_leached
-    )
+    # partition of denitrification, so neither is a ledger term; mass flow is
+    # a potential supply that debits nothing.
+    explained = som_min_n + fert - uptake - denit - volat - no3_leached - nh4_leached
     residual = delta_mineral - explained
     gross_supply = som_min_n + fert + no3_start + nh4_start
     first30 = sum(r["som_min_n_kg_ha"] for r in daily[:30])
@@ -1062,8 +1045,8 @@ def _nitrogen_scalars(
         "no3_leached_kg_ha": no3_leached,
         "nh4_leached_kg_ha": nh4_leached,
         "n_uptake_kg_ha": uptake,
-        "n_massflow_no3_kg_ha": massflow,
-        "n_massflow_share": _div(massflow, uptake + massflow),
+        "n_massflow_supply_kg_ha": massflow,
+        "n_massflow_supply_over_uptake": _div(massflow, uptake),
         "n_uptake_minus_plant_n_kg_ha": uptake - plant_n_gain,
         "n2o_kg_n_ha": _sum(daily, "n2o_kg_n_ha"),
         "mineral_n_start_kg_ha": no3_start + nh4_start,
@@ -1597,7 +1580,6 @@ KNOWN_SW_MATURITY = "spring wheat in NL matures around day 90"
 KNOWN_HI_PINNED = "harvest index pinned at the preset hi_max"
 KNOWN_SOY_HI = "soybean harvest index fixed at 0.40"
 KNOWN_PT_ET0 = "Priestley-Taylor ET0, not FAO-56 calibrated"
-KNOWN_MASSFLOW = "mass-flow NO3 removal is not credited to the plant"
 KNOWN_DRAINED_DENIT = (
     "drained soils denitrify nothing: the gas profile is read after the "
     "same-day drainage to field capacity, and anaerobic microsites need bulk "
@@ -2329,15 +2311,14 @@ def _nitrogen_checks() -> list[Check]:
             source="without urea or manure NH3 volatilisation is a few kg N/ha at most",
         ),
         Check(
-            "massflow_share_of_removal",
-            "n_massflow_share",
-            warn=(0, 0.25),
-            fail=(0, 0.6),
+            "massflow_supply_over_uptake",
+            "n_massflow_supply_over_uptake",
             applies=_and(NORMAL, VIABLE, _ge("agb_g_m2", 300)),
             category="nitrogen",
-            source="NO3 removed with transpiration water but never credited to the "
-            "plant",
-            known=KNOWN_MASSFLOW,
+            source="potential NO3 carried to the roots by transpiration relative to "
+            "demand-driven uptake: above 1 the transpiration stream alone could "
+            "supply the crop, below 1 diffusion must contribute",
+            info=True,
         ),
         Check(
             "som_min_n_over_som_n",
@@ -2954,30 +2935,30 @@ def _anchor_exact(crop: str, climate: str, metric: str, value: Any) -> Check:
 
 def _anchor_checks() -> list[Check]:
     return [
-        _anchor("maize", NL, "agb_g_m2", 1300, 3),
+        _anchor("maize", NL, "agb_g_m2", 1363, 3),
         _anchor_exact("maize", NL, "final_stage", "GRAIN_FILL"),
         _anchor("maize", NL, "et_actual_mm", 392, 3),
-        _anchor("maize", KENYA, "agb_g_m2", 1749.2),
-        _anchor("maize", KENYA, "grain_g_m2", 557, 3),
+        _anchor("maize", KENYA, "agb_g_m2", 1860.0),
+        _anchor("maize", KENYA, "grain_g_m2", 597.5, 3),
         _anchor("maize", KENYA, "harvest_index", 0.318, 3),
         _anchor_exact("maize", KENYA, "final_stage", "MATURITY"),
         _anchor_exact("maize", KENYA, "day_flowering", 78),
         _anchor_exact("maize", KENYA, "day_maturity", 173),
         _anchor("maize", KENYA, "rain_mm", 913.5),
-        _anchor("maize", KENYA, "evap_mm", 176.2),
-        _anchor("maize", KENYA, "transp_mm", 391.3),
+        _anchor("maize", KENYA, "evap_mm", 171.7),
+        _anchor("maize", KENYA, "transp_mm", 395.7),
         _anchor("maize", KENYA, "runoff_mm", 134.8),
         _anchor("maize", KENYA, "deep_perc_mm", 329.8),
-        _anchor("maize", KENYA, "no3_leached_kg_ha", 35.6),
+        _anchor("maize", KENYA, "no3_leached_kg_ha", 39.1),
         _anchor("maize", KENYA, "denitrification_kg_ha", 0.0, abs_tol=0.5),
-        _anchor("maize", KENYA, "volatilization_kg_ha", 14.5),
+        _anchor("maize", KENYA, "volatilization_kg_ha", 0.18, abs_tol=0.05),
         _anchor("maize", KENYA, "som_min_n_kg_ha", 149.2),
-        _anchor("maize", KENYA, "n_uptake_kg_ha", 126.5),
-        _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 1.1, abs_tol=0.1),
+        _anchor("maize", KENYA, "n_uptake_kg_ha", 139.2),
+        _anchor("maize", KENYA, "n_massflow_supply_kg_ha", 1.95, abs_tol=0.1),
         _anchor("maize", KENYA, "som_c_change_pct", -2.0, 3),
         _anchor_exact("maize", KENYA, "drought_senescence_events", 22.0),
         _anchor("maize", KENYA, "so4_leached_kg_ha", 16.0),
-        _anchor("maize", KENYA, "s_avail_end_kg_ha", 46.0),
+        _anchor("maize", KENYA, "s_avail_end_kg_ha", 45.0),
         _anchor_exact("maize", KENYA, "binding_days_s", 0),
         _anchor("maize", SAHEL, "agb_g_m2", 778, 3),
         _anchor("maize", SAHEL, "grain_g_m2", 177, 3),
@@ -2985,22 +2966,22 @@ def _anchor_checks() -> list[Check]:
         _anchor_exact("maize", SAHEL, "final_stage", "MATURITY"),
         _anchor("maize", SAHEL, "no3_leached_kg_ha", 0.3, abs_tol=0.7),
         _anchor("sorghum", SAHEL, "agb_g_m2", 920, 3),
-        _anchor("sorghum", NL, "agb_g_m2", 876, 3),
-        _anchor("spring_wheat", NL, "agb_g_m2", 430, 3),
+        _anchor("sorghum", NL, "agb_g_m2", 941, 3),
+        _anchor("spring_wheat", NL, "agb_g_m2", 450, 3),
         _anchor_exact("spring_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("spring_wheat", KENYA, "agb_g_m2", 1382, 3),
-        _anchor("winter_wheat", NL, "agb_g_m2", 364, 3),
-        _anchor("winter_wheat", NL, "grain_g_m2", 200, 3),
+        _anchor("spring_wheat", KENYA, "agb_g_m2", 1459, 3),
+        _anchor("winter_wheat", NL, "agb_g_m2", 375, 3),
+        _anchor("winter_wheat", NL, "grain_g_m2", 206, 3),
         _anchor("winter_wheat", NL, "harvest_index", 0.55, abs_tol=0.005),
         _anchor_exact("winter_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 52.0, 3),
+        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 98.1, 3),
         _anchor("winter_wheat", NL, "som_c_change_pct", -2.16, 3),
         _anchor("winter_wheat", SAHEL, "agb_g_m2", 202, 3),
         _anchor_exact("winter_wheat", SAHEL, "final_stage", "VEGETATIVE"),
         _anchor_exact("winter_wheat", KENYA, "final_stage", "VEGETATIVE"),
-        _anchor("rice", KENYA, "agb_g_m2", 937, 3),
+        _anchor("rice", KENYA, "agb_g_m2", 1020, 3),
         _anchor_exact("rice", KENYA, "final_stage", "MATURITY"),
-        _anchor("rice", SAHEL, "agb_g_m2", 218, 3),
+        _anchor("rice", SAHEL, "agb_g_m2", 231, 3),
         _anchor("grape", SAHEL, "agb_g_m2", 8, abs_tol=3),
         _anchor("grape", NL, "agb_g_m2", 132, 3),
     ]
@@ -4239,7 +4220,10 @@ def _section_balance(results: list[RunResult]) -> list[str]:
             "max |tracked uptake minus plant-N gain| (kg N/ha)",
             "n_uptake_minus_plant_n_kg_ha",
         ),
-        ("max uncredited NO3 mass-flow share of plant removal", "n_massflow_share"),
+        (
+            "max potential NO3 mass-flow supply over uptake",
+            "n_massflow_supply_over_uptake",
+        ),
         ("max NH3 volatilisation, unfertilised (kg N/ha)", "volatilization_kg_ha"),
         ("max days theta outside [WP, saturation]", "theta_bound_violation_days"),
         ("max NaN count", "nan_count"),
@@ -4301,9 +4285,9 @@ GLOSSARY: tuple[tuple[str, str], ...] = (
     ),
     ("som_min_n_kg_ha", "net N mineralised from soil organic matter"),
     (
-        "n_massflow_no3_kg_ha",
-        "NO3 removed from the profile with transpiration water, not credited to the "
-        "plant",
+        "n_massflow_supply_kg_ha",
+        "potential NO3 supply carried to the roots by transpiration mass flow "
+        "(diagnostic; debits nothing)",
     ),
     (
         "n_mineral_residual_pct",
@@ -4578,7 +4562,7 @@ def write_plots(out_dir: Path, results: list[RunResult]) -> list[Path]:
             climates,
             [
                 ("n_uptake_kg_ha", "plant uptake"),
-                ("n_massflow_no3_kg_ha", "NO3 mass flow (uncredited)"),
+                ("n_massflow_supply_kg_ha", "NO3 mass-flow supply (potential)"),
                 ("no3_leached_kg_ha", "NO3 leached"),
                 ("denitrification_kg_ha", "denitrified"),
                 ("volatilization_kg_ha", "volatilised"),

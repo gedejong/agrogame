@@ -56,3 +56,19 @@ class VolatilizationOccurred(BaseEvent):
 
     layer: int
     amount_kg_ha: float
+
+
+@dataclass(frozen=True)
+class MassFlowNSupplyComputed(BaseEvent):
+    """Potential nitrate supply to roots by transpiration mass flow.
+
+    A diagnostic only: plant uptake is demand-driven and availability-capped,
+    so this supply is neither debited from the soil nor credited to the plant.
+
+    Attributes:
+        total_kg_ha: Whole-profile potential NO3 supply for the day (kg/ha).
+        by_layer: Per-layer potential supply (kg/ha), one entry per soil layer.
+    """
+
+    total_kg_ha: float
+    by_layer: tuple[float, ...]

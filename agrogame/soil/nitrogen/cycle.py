@@ -28,8 +28,10 @@ from agrogame.soil.nutrients import EnvironmentalCache
 from agrogame.params.ports import SoilProfileView, WaterState
 
 
+from .constants import NH3_PKA, UREA_BAND_REFERENCE_PH
 from .events import (
     DenitrificationOccurred,
+    MassFlowNSupplyComputed,
     MineralizationOccurred,
     NitrificationOccurred,
     NutrientLeached,
@@ -38,6 +40,15 @@ from .events import (
 from .params import NitrogenRateParams
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
+
+
+def _nh3_fraction(ph: float) -> float:
+    """Share of ammoniacal N present as NH3 at ``ph`` (Henderson-Hasselbalch).
+
+    Uses the 25 °C pKa; the temperature dependence of the equilibrium is
+    carried by the Q10 factor on the volatilization rate.
+    """
+    return float(1.0 / (1.0 + 10.0 ** (NH3_PKA - ph)))
 
 
 class NitrogenCycle:
@@ -83,6 +94,10 @@ class NitrogenCycle:
         # behavior is unchanged.
         self._aerobic_fraction_override: list[float] | None = None
 
+        # Potential NO3 supply by transpiration mass flow, per layer, from the
+        # most recent TranspirationByLayer event (diagnostic only).
+        self._massflow_supply_by_layer: list[float] = [0.0] * self._n_layers
+
     # --- SOM net-mineralisation flux diagnostic (#365) ---------------------
     @property
     def som_mineralized_n_by_layer(self) -> list[float]:
@@ -106,6 +121,15 @@ class NitrogenCycle:
     def som_mineralized_n_total(self) -> float:
         """Whole-profile net SOM→mineral-N flux from the most recent day (kg/ha)."""
         return sum(self._som_mineralized_n)
+
+    @property
+    def massflow_supply_kg_ha(self) -> float:
+        """Potential NO3 supply by mass flow on the most recent transpiration day.
+
+        Whole-profile total (kg/ha) of the per-layer figures published by
+        :class:`MassFlowNSupplyComputed`; a diagnostic that debits nothing.
+        """
+        return sum(self._massflow_supply_by_layer)
 
     def set_aerobic_fraction_override(
         self, aerobic_fraction: list[float] | None
@@ -161,31 +185,36 @@ class NitrogenCycle:
         return
 
     def _on_transpiration_by_layer(self, event: TranspirationByLayer) -> None:
-        """Mass-flow nitrate uptake proportional to water extracted per layer.
+        """Record the potential nitrate supply by mass flow, per layer.
 
-        Uses a concentration proxy based on current NO3 pool over layer water
-        storage (kg/ha per mm). Uptake per layer = conc * water_taken (bounded by
-        available NO3). NH4 is not taken via mass-flow here.
+        Mass flow carries dissolved NO3 to the root with the transpiration
+        stream: ``concentration × water extracted`` per layer, with the layer
+        NO3 pool over its water storage as the concentration proxy (kg/ha per
+        mm) and bounded by the pool. The figure is a diagnostic published as
+        :class:`MassFlowNSupplyComputed`. Plant uptake is demand-driven and
+        availability-capped in ``_take_up_plant`` (ADR-013), so mass flow
+        debits nothing: removing it from the pool would take nitrate that no
+        plant stock receives, crediting it would count uptake twice.
         """
         if self._profile is None or self._water_state is None:
             return
         if not event.layer_indices:
             return
+        by_layer = [0.0] * self._n_layers
         for idx, take_mm in zip(event.layer_indices, event.amounts_mm, strict=False):
-            if not (0 <= idx < self._n_layers):
-                continue
-            if take_mm <= 0.0:
+            if not (0 <= idx < self._n_layers) or take_mm <= 0.0:
                 continue
             storage_mm = self._get_layer_storage_mm(idx)
-            if storage_mm <= 0.0:
-                continue
             pool_no3 = self.state.no3[idx]
-            if pool_no3 <= 0.0:
+            if storage_mm <= 0.0 or pool_no3 <= 0.0:
                 continue
-            conc = pool_no3 / storage_mm  # kg/ha per mm
-            uptake = min(pool_no3, conc * take_mm)
-            if uptake > 0.0:
-                self.state.no3[idx] -= uptake
+            by_layer[idx] = min(pool_no3, pool_no3 / storage_mm * take_mm)
+        self._massflow_supply_by_layer = by_layer
+        total = sum(by_layer)
+        if total > 0.0:
+            self.event_bus.emit(
+                MassFlowNSupplyComputed(total_kg_ha=total, by_layer=tuple(by_layer))
+            )
 
     def _on_som_decomposed(self, event: SOMDecomposed) -> None:
         """Inject SOM-mineralized N into the NH4 pool (AGRO-79)."""
@@ -247,7 +276,7 @@ class NitrogenCycle:
             eh = eh_by_layer[i] if eh_by_layer and i < len(eh_by_layer) else 200.0
             denitrified += self._denitrify_layer(i, temp_factor, anaerobic_factor, eh)
 
-        volatilized = self._volatilize_surface(temp_factor)
+        volatilized = self._volatilize_surface(temp_factor, ph_by_layer[0])
 
         plant_uptake = self._take_up_plant(max(0.0, plant_demand_kg_ha), root_fractions)
 
@@ -272,20 +301,25 @@ class NitrogenCycle:
 
     # --- Fertilizer APIs -------------------------------------------------
     def apply_urea(self, layer: int, amount_kg_ha: float) -> None:
-        """Add urea N to NH4 pool of a layer (simple immediate hydrolysis).
+        """Add urea N to the NH4 pool of a layer (immediate hydrolysis).
 
-        Notes:
-            This simplified implementation assumes instantaneous conversion of
-            urea to ammonium without volatilization.
+        A surface application (layer 0) also joins the exposed fertilizer pool
+        that ``_volatilize_surface`` depletes at the urea-band rate; deeper
+        placements are incorporated by definition and volatilize as native
+        NH4.
         """
         if 0 <= layer < self._n_layers and amount_kg_ha > 0.0:
             self.state.nh4[layer] += amount_kg_ha
+            if layer == 0:
+                self.state.surface_fertilizer_nh4_kg_ha += amount_kg_ha
 
     def apply_ammonium_nitrate(self, layer: int, amount_kg_ha: float) -> None:
         """Add ammonium nitrate split 50/50 to NH4 and NO3 pools.
 
-        Notes:
-            This simplified split ignores rapid transformations and losses.
+        An acid-forming salt: its NH4 does not raise the surface pH, so it
+        volatilizes as native NH4 (1-3 % of the applied N in the field;
+        Bouwman, Boumans & Batjes 2002) and does not join the exposed urea
+        pool. Rapid transformations at application are ignored.
         """
         if 0 <= layer < self._n_layers and amount_kg_ha > 0.0:
             self.state.nh4[layer] += 0.5 * amount_kg_ha
@@ -483,20 +517,37 @@ class NitrogenCycle:
             )
         return dd
 
-    def _volatilize_surface(self, temp_factor: float) -> float:
-        """NH3 volatilization from surface NH4 (layer 0 only).
+    def _volatilize_surface(self, temp_factor: float, ph: float) -> float:
+        """NH3 volatilization from the surface layer (layer 0 only).
 
-        5-10% daily loss scaled by temperature. Only significant for
-        surface-applied urea/ammonium. Ref: Sommer et al. (2004)
-        Ammonia emission from field-applied manure. Soil Use Manage.
+        Surface-applied urea hydrolyses in a band whose pH rises to ~9, where
+        a third of the ammoniacal N is dissolved NH3; that exposed share of the
+        layer-0 NH4 (``state.surface_fertilizer_nh4_kg_ha``) loses the base
+        rate (5 %/day, Q10-scaled, capped at the max rate) until dissolution,
+        rain and diffusion incorporate it into the matrix at
+        ``fertilizer_incorporation_rate_per_day``, which puts the cumulative
+        urea loss in the 10-30 % field range. Native and incorporated NH4 sits
+        at the bulk soil pH, where the NH3 fraction is ~1 % of the band value
+        (pH 6.8, pKa 9.25), and loses that fraction of the base rate: a few
+        kg N/ha per season at most on unfertilised soil.
+        Ref: Sommer, Schjoerring & Denmead (2004) Adv. Agron. 82: 557-622;
+        Bouwman, Boumans & Batjes (2002) Global Biogeochem. Cycles 16: 1024.
         """
         nh4 = self.state.nh4[0]
         if nh4 <= 0.0:
+            self.state.surface_fertilizer_nh4_kg_ha = 0.0
             return 0.0
-        # Base rate (5%/day default), scaled by temperature Q10
         rate = self._params.volatilization_base_rate * temp_factor
         rate = max(0.0, min(self._params.volatilization_max_rate, rate))
-        loss = rate * nh4
+        exposed = min(nh4, max(0.0, self.state.surface_fertilizer_nh4_kg_ha))
+        fertilizer_loss = exposed * rate
+        ph_scaling = _nh3_fraction(ph) / _nh3_fraction(UREA_BAND_REFERENCE_PH)
+        native_loss = (nh4 - exposed) * rate * ph_scaling
+        incorporation = self._params.fertilizer_incorporation_rate_per_day
+        self.state.surface_fertilizer_nh4_kg_ha = (exposed - fertilizer_loss) * (
+            1.0 - incorporation
+        )
+        loss = fertilizer_loss + native_loss
         if loss <= 0.0:
             return 0.0
         self.state.nh4[0] -= loss

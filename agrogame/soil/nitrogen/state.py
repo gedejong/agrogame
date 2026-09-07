@@ -18,6 +18,10 @@ class SoilNitrogenState:
     - organic_n: Organic nitrogen (kg/ha)
     - nh4: Ammonium (kg/ha)
     - no3: Nitrate (kg/ha)
+
+    ``surface_fertilizer_nh4_kg_ha`` is the share of the layer-0 NH4 that was
+    surface-applied as urea and is still exposed to NH3 loss at the
+    urea-band rate; it never exceeds ``nh4[0]``.
     """
 
     def __init__(self, profile: SoilProfile):
@@ -29,6 +33,7 @@ class SoilNitrogenState:
         # Initialize inorganic pools directly from per-layer initial values
         self.nh4: list[float] = [layer.initial_nh4_kg_ha for layer in profile.layers]
         self.no3: list[float] = [layer.initial_no3_kg_ha for layer in profile.layers]
+        self.surface_fertilizer_nh4_kg_ha: float = 0.0
 
         # Initialize organic N per layer based on soil organic matter (OM)
         # Assumption: 5% of OM mass is nitrogen (simplified agronomic rule of thumb)

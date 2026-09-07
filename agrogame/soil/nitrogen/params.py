@@ -42,11 +42,21 @@ class NitrogenRateParams:
         denitrification_base_rate: NO3- loss first-order fraction per day
             under fully anaerobic conditions (WOFOST/APSIM order of
             magnitude; a few %/day).
-        volatilization_base_rate: Surface NH3 volatilization first-order
-            fraction per day of surface NH4+ (Sommer et al. 2004, Soil Use
-            Manage.; ~5%/day baseline).
+        volatilization_base_rate: NH3 volatilization first-order fraction per
+            day of the exposed surface-fertilizer NH4+ pool at the urea-band
+            reference pH (~5%/day baseline; Sommer, Schjoerring & Denmead
+            2004, Adv. Agron. 82). Native and incorporated NH4+ loses this
+            rate scaled by the NH3 fraction at the bulk soil pH, about 1 %
+            of the band value at pH 6.8.
         volatilization_max_rate: Upper cap on realized daily volatilization
             fraction after temperature scaling (~10%/day).
+        fertilizer_incorporation_rate_per_day: Daily fraction of the exposed
+            surface-fertilizer NH4+ pool that dissolution, rain and diffusion
+            move into the soil matrix, where it volatilizes as native NH4+.
+            With the 5%/day base rate the exposed pool decays at ~19%/day,
+            so cumulative urea loss is ~25 % of the applied N, inside the
+            10-30 % field range (Bouwman, Boumans & Batjes 2002, Global
+            Biogeochem. Cycles 16: 1024).
         denit_clay_reference_pct: Clay % at which the denitrification clay
             multiplier equals 1.0 (loam reference, matching TEXTURE_TO_CLAY).
         denit_clay_sensitivity: Slope of the linear clay response; the
@@ -79,6 +89,7 @@ class NitrogenRateParams:
     denitrification_base_rate: float = 0.02
     volatilization_base_rate: float = 0.05
     volatilization_max_rate: float = 0.10
+    fertilizer_incorporation_rate_per_day: float = 0.15
 
     # Denitrification texture dependence (AC3)
     denit_clay_reference_pct: float = 22.0

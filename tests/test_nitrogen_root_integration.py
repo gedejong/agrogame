@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from agrogame.events import EventBus
 from agrogame.soil.loader import load_soil_presets
-from agrogame.soil.nitrogen import SoilNitrogenState
+from agrogame.soil.nitrogen import MassFlowNSupplyComputed, SoilNitrogenState
 from agrogame.soil.nitrogen.cycle import NitrogenCycle
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -75,7 +75,8 @@ def test_nitrogen_cycle_uses_cached_root_fractions_when_none_passed() -> None:
     assert nstate.no3[1] < 8.0
 
 
-def test_massflow_uptake_increases_with_transpiration() -> None:
+def test_massflow_supply_increases_with_transpiration() -> None:
+    """Potential mass-flow supply rises with transpiration; NO3 is not debited."""
     lib = load_soil_presets(Path("soils/presets.yaml"))
     profile = lib.soils["loam_temperate"]
     nstate = SoilNitrogenState(profile)
@@ -87,12 +88,14 @@ def test_massflow_uptake_increases_with_transpiration() -> None:
     bus = EventBus()
     wstate = SoilWaterState(profile)
     water = CascadingBucketWaterModel(event_bus=bus)
-    _ = NitrogenCycle(
+    cycle = NitrogenCycle(
         bus,
         nstate,
         water_state=cast(_NWaterState, wstate),
         profile=cast(_NWaterProfile, profile),
     )
+    supplies: list[MassFlowNSupplyComputed] = []
+    bus.subscribe(MassFlowNSupplyComputed, supplies.append)
 
     # Simulate two transpiration events with different totals but same distribution
     root_fracs = [1.0 / n_layers] * n_layers
@@ -123,9 +126,13 @@ def test_massflow_uptake_increases_with_transpiration() -> None:
 
     # Expect higher total transpiration on the second day
     assert total2 >= total1
-    # After both events, total NO3 should decrease more than zero
-    total_no3_after = sum(nstate.no3)
-    assert total_no3_after < 10.0 * n_layers
+    # One diagnostic per transpiration event, the larger stream carrying more
+    # nitrate; uptake is demand-driven, so the pool itself is not debited.
+    assert len(supplies) == 2
+    assert supplies[0].total_kg_ha > 0.0
+    assert supplies[1].total_kg_ha >= supplies[0].total_kg_ha
+    assert cycle.massflow_supply_kg_ha == supplies[1].total_kg_ha
+    assert sum(nstate.no3) == 10.0 * n_layers
 
 
 def test_massflow_uptake_bounded_by_availability() -> None:
