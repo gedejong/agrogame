@@ -85,6 +85,15 @@ class CanopyParams:
     # source term, all three stresses in the window reduce grain number.
     grains_per_g_source: float = 0.0  # grains m^-2 per g m^-2 of window assimilate
     grain_set_window_gdd: float = 200.0  # post-anthesis lag/critical window (GDD)
+    # Grain-set floor: the smallest grain population the window can set,
+    # as a fraction of the biomass present when the window opens. Grains
+    # are initiated on spike/ear structures built before anthesis, so a
+    # window with no net growth (severe stress) still sets a small
+    # population from pre-anthesis reserves rather than none. CERES-Wheat
+    # scales grain number with stem mass at anthesis (Ritchie & Otter 1985);
+    # Fischer 1985. grain_number >= grains_per_g_source *
+    # grain_set_floor_frac * window-start biomass.
+    grain_set_floor_frac: float = 0.02
     # Potential final single-kernel weight (CERES G2). Total grain sink =
     # grain_number x potential_kernel_weight. Typical: wheat ~40-45 mg,
     # maize ~250-300 mg, rice ~25 mg, sorghum ~28 mg (Hay & Porter 2006).

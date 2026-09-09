@@ -179,6 +179,7 @@ phenology, canopy dynamics, roots, and optional per-climate overrides. A file is
 | `harvest_index` | number | fraction | 0–1 | 0.45 | Fixed HI (legacy path; used when `grains_per_g_source` = 0). |
 | `grains_per_g_source` | number | grains·m⁻² per g·m⁻² | ≥ 0 | 0.0 | Grain number per unit peri-anthesis assimilate (0 = fixed-HI). |
 | `grain_set_window_gdd` | number | °C·day (GDD) | ≥ 0 | 200.0 | Peri-anthesis critical window for grain set. |
+| `grain_set_floor_frac` | number | fraction | 0–1 | 0.02 | Grain-set floor: `grain_number` ≥ `grains_per_g_source` × this × biomass at window start (grains initiated on pre-anthesis spike/ear structures). |
 | `potential_kernel_weight_mg` | number | mg | ≥ 0 (guidance: 20–300) | 40.0 | Potential single-kernel weight (CERES G2). |
 | `kernel_fill_rate_mg_per_grain_day` | number | mg/grain/day | ≥ 0 | 1.0 | Potential single-kernel daily fill rate. |
 | `hi_max` | number | fraction | 0–1 | 0.55 | Emergent-HI cap (cereal ceiling). |

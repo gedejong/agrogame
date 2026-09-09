@@ -241,15 +241,24 @@ class CanopyModule:
         Grain number is proportional to assimilate accrued during the
         post-anthesis lag/critical window (Andrade et al. 1999 for maize;
         Fischer 1985 for wheat; DSSAT CERES G1 coefficient analogue). Cold,
-        water and N stress all lower it via the reduced source growth. Once
-        the window (``grain_set_window_gdd``) closes the number is frozen, so
-        later filling changes kernel weight, never grain number.
+        water and N stress all lower it via the reduced source growth. A floor
+        proportional to the biomass present when the window opens
+        (``grain_set_floor_frac``) stands for grains initiated on pre-anthesis
+        spike/ear structures, so a fully stressed window still sets a small
+        population (Ritchie & Otter 1985). Once the window
+        (``grain_set_window_gdd``) closes the number is frozen, so later
+        filling changes kernel weight, never grain number.
         """
         p = self.params
         window_end = self._grain_fill_start_gdd + p.grain_set_window_gdd
         if self._current_gdd <= window_end:
             lag_growth = self.state.biomass_g_m2 - self._lag_start_biomass
-            self.state.grain_number = p.grains_per_g_source * max(0.0, lag_growth)
+            floor = (
+                p.grains_per_g_source * p.grain_set_floor_frac * self._lag_start_biomass
+            )
+            self.state.grain_number = max(
+                floor, p.grains_per_g_source * max(0.0, lag_growth)
+            )
         elif not self._grain_number_frozen:
             self._grain_number_frozen = True
             if self.event_bus is not None:
@@ -319,8 +328,10 @@ class CanopyModule:
     ) -> None:
         """Legacy fixed harvest-index allocation (grains_per_g_source == 0).
 
-        Preserved verbatim so non-grain (grape HI=0) and un-migrated presets
-        behave exactly as before this feature.
+        A fixed share of the daily increment goes to grain during grain fill,
+        followed by the daily stem remobilisation. Non-grain presets (grape,
+        HI 0) use this path; the ``hi_max`` cap applied after partitioning
+        bounds the compounding remobilisation for any preset that keeps it.
         """
         p = self.params
         in_grain_fill = self._current_stage == PhenologyStage.GRAIN_FILL
@@ -374,14 +385,17 @@ class CanopyModule:
         return drawn
 
     def _apply_harvest_index_cap(self) -> None:
-        """Bound cumulative grain to ``hi_max`` x total biomass (#321).
+        """Bound cumulative grain to ``hi_max`` x total biomass.
 
-        Safety ceiling that prevents runaway grain under low-stress / high-N
-        conditions; the surplus is returned to stem so total biomass is
-        conserved. Active only for the sink-source model.
+        Ceiling on the emergent harvest index for both grain paths: the
+        sink-source model under low-stress / high-N conditions, and the legacy
+        fixed-``harvest_index`` path, whose daily stem remobilisation would
+        otherwise compound past the crop's physiological maximum. The surplus
+        is returned to stem so total biomass is conserved. A non-positive
+        ``hi_max`` disables the cap (non-grain presets keep HI 0 regardless).
         """
         p = self.params
-        if p.grains_per_g_source <= 0.0 or p.hi_max <= 0.0:
+        if p.hi_max <= 0.0:
             return
         max_grain = p.hi_max * self.state.biomass_g_m2
         excess = self.state.grain_biomass_g_m2 - max_grain

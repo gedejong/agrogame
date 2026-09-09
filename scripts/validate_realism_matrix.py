@@ -1578,7 +1578,6 @@ class CropBand:
 KNOWN_LOW_WHEAT = "unfertilised NL wheat far below literature yields"
 KNOWN_SW_MATURITY = "spring wheat in NL matures around day 90"
 KNOWN_HI_PINNED = "harvest index pinned at the preset hi_max"
-KNOWN_SOY_HI = "soybean harvest index fixed at 0.40"
 KNOWN_PT_ET0 = "Priestley-Taylor ET0, not FAO-56 calibrated"
 KNOWN_DRAINED_DENIT = (
     "drained soils denitrify nothing: the gas profile is read after the "
@@ -1748,7 +1747,6 @@ CROP_BANDS: list[CropBand] = [
         maturity_warn=(110, 180),
         lai_warn=(2, 5),
         source="East African soybean 1.5-3 t/ha",
-        known_yield=KNOWN_SOY_HI,
     ),
     CropBand(
         "soybean",
@@ -1851,7 +1849,7 @@ def _expand_crop_band(band: CropBand) -> list[Check]:
                 _and(base, REACHED),
                 "crop",
                 band.source,
-                band.known_yield if band.crop == "soybean" else "",
+                "",
             )
         )
     if band.maturity_required is True:
@@ -2025,7 +2023,7 @@ PLANT_CHECKS: list[Check] = [
             NORMAL,
             VIABLE,
             REACHED,
-            _not(_crop("winter_wheat", "soybean")),
+            _not(_crop("winter_wheat")),
             _ge("grain_g_m2", 1),
         ),
         source="a harvest index exactly at the genetic cap means grain growth was "
