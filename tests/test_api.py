@@ -425,6 +425,7 @@ def test_step_one_day(client) -> None:
     assert "f1" in data["patches"]
     patch = data["patches"]["f1"][0]
     assert "crop_stage" in patch
+    assert 0.0 <= patch["dev_stage"] <= 2.0
     assert "soil_theta_surface" in patch
     assert data["season_complete"] is False
 

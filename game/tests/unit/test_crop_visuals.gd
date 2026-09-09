@@ -151,14 +151,15 @@ func test_zn_stunting_reduces_plant_scale() -> void:
 			break
 	assert_not_null(found_plant, "Should have at least one plant")
 	if found_plant != null:
-		# Stunt = 0.7, collapse_y = 1.0 (no senescence) → scale (0.7, 0.7, 0.7)
+		# Stunt = 0.7 → uniform scale (0.7, 0.7, 0.7)
 		assert_almost_eq(found_plant.scale.x, 0.7, 0.02, "Zn stunting reduces X scale")
 		assert_almost_eq(found_plant.scale.z, 0.7, 0.02, "Zn stunting reduces Z scale")
 
 
-func test_dead_plant_collapses_vertically() -> void:
+func test_ripe_plant_keeps_its_height() -> void:
 	# Stage 4 with LAI=0 and full grain → _calc_senescence returns 1.0
-	# (1 - 0/3.0) * clamp(2.0) = 1.0, triggering full collapse to Y=0.4.
+	# (1 - 0/3.0) * clamp(2.0) = 1.0. A ripe crop stands at full height until
+	# harvest: senescence recolours it but never squashes or lodges it.
 	var tile_data := {
 		"crop_key": "maize",
 		"crop_stage": 4,
@@ -177,9 +178,12 @@ func test_dead_plant_collapses_vertically() -> void:
 			break
 	assert_not_null(found_plant, "Should have at least one plant")
 	if found_plant != null:
-		# At stage 4 with low LAI / max grain, sen ≈ 1 → Y scale collapses to 0.4.
 		var ratio: float = found_plant.scale.y / found_plant.scale.x
-		assert_almost_eq(ratio, 0.4, 0.1, "Y/X ≈ 0.4 (collapse to 40% height)")
+		assert_almost_eq(ratio, 1.0, 0.01, "Ripe plant scaled uniformly (no collapse)")
+		var up: Vector3 = found_plant.transform.basis.y.normalized()
+		assert_gt(
+			up.y, cos(VisualsRef.NATURAL_LEAN_RAD) - 0.0001, "Ripe watered plant is not lodged"
+		)
 
 
 func _first_plant(container: Node3D) -> Node3D:
@@ -215,12 +219,21 @@ func test_severe_stress_leans_stem() -> void:
 	var upright: Node3D = _first_plant(c1)
 	assert_not_null(upright, "Healthy tile has plants")
 	if upright != null:
-		assert_almost_eq(upright.transform.basis.y.normalized().y, 1.0, 0.001, "Healthy upright")
+		# Healthy plants carry only the slight natural lean, never a lodge.
+		var up_y: float = upright.transform.basis.y.normalized().y
+		assert_gt(up_y, cos(VisualsRef.NATURAL_LEAN_RAD) - 0.0001, "Healthy upright")
 
-	# Severe terminal senescence (stage 4, LAI 0, full grain) → sen≈1 → lodges.
-	# Individual path (2x2 grid): plants lean, stay non-degenerate, vary direction.
+	# Severe drought (water availability 0.1) at terminal senescence (stage 4,
+	# LAI 0, full grain → sen≈1) lodges the stand. Individual path (2x2 grid):
+	# plants lean, stay non-degenerate, vary direction.
 	var stressed := {
-		"crop_key": "maize", "crop_stage": 4, "lai": 0.0, "grain_g_m2": 1000.0, "col": 3, "row": 5
+		"crop_key": "maize",
+		"crop_stage": 4,
+		"lai": 0.0,
+		"grain_g_m2": 1000.0,
+		"water_stress": 0.1,
+		"col": 3,
+		"row": 5,
 	}
 	var c2 := Node3D.new()
 	add_child_autofree(c2)
@@ -242,9 +255,13 @@ func test_severe_stress_leans_stem() -> void:
 	# MultiMesh path uses the same lean via _baked_instance_basis (tested here
 	# directly, since MultiMesh transforms don't read back headless). Same seed,
 	# lodging off vs on → the instance up-axis tilts, proving both paths lodge.
-	var upright_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 1.0, 0.0)
-	var lodged_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 1.0, 1.0)
-	assert_almost_eq(upright_b.y.normalized().y, 1.0, 0.001, "Baked upright instance vertical")
+	var upright_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 0.0)
+	var lodged_b: Basis = VisualsRef._baked_instance_basis(86, 0.5, 1.0, 1.0)
+	assert_gt(
+		upright_b.y.normalized().y,
+		cos(VisualsRef.NATURAL_LEAN_RAD) - 0.0001,
+		"Baked upright instance within natural lean"
+	)
 	assert_lt(lodged_b.y.normalized().y, 0.999, "Baked lodged instance leans")
 	# Non-degenerate: determinant = scale product (0.5³), never 0.
 	assert_gt(absf(lodged_b.determinant()), 0.0, "Baked instance basis not degenerate")

@@ -23,15 +23,25 @@ func test_mature_has_more_children() -> void:
 	large.free()
 
 
-func test_tassel_appears_at_flowering() -> void:
-	# Tassel emerges above growth 0.6 — flowering adds apex geometry.
-	var pre := Renderer.create_plant(0.55, 0.0, {}, 0.0, 0)
-	var flowering := Renderer.create_plant(0.7, 0.0, {}, 0.0, 0)
+func test_tassel_appears_at_heading() -> void:
+	# Reproductive organs are keyed to development, not size: a plant of the
+	# same stature gains tassel and ear geometry once repro > 0.
+	var pre := Renderer.create_plant(0.7, 0.0, {}, 0.0, 0)
+	var heading := Renderer.create_plant(0.7, 0.0, {}, 0.15, 0)
 	assert_gt(
-		flowering.get_child_count(), pre.get_child_count(), "Tassel adds apex geometry at flowering"
+		heading.get_child_count(), pre.get_child_count(), "Tassel adds apex geometry at heading"
 	)
 	pre.free()
-	flowering.free()
+	heading.free()
+
+
+func test_yield_scales_ear_not_count() -> void:
+	# A poor grain set gives a smaller ear, never a missing one.
+	var full := Renderer.create_plant(1.0, 0.0, {}, 0.8, 0, 1.0)
+	var poor := Renderer.create_plant(1.0, 0.0, {}, 0.8, 0, 0.2)
+	assert_eq(full.get_child_count(), poor.get_child_count(), "Same organ count")
+	full.free()
+	poor.free()
 
 
 func test_grain_adds_geometry() -> void:

@@ -131,3 +131,49 @@ Combined sensitivity analysis and benchmarking results suggest this calibration 
 - Keating, B.A. et al. (2003) An overview of APSIM. European Journal of
   Agronomy, 18:267-288.
 - Global Yield Gap Atlas, https://yieldgap.org.
+
+---
+
+## Realism matrix sweep
+
+`scripts/validate_realism_matrix.py` runs the engine outside the game for
+every crop × soil × climate preset combination (7 crops × 9 soils × 3
+climates = 189 normal-weather seasons) plus drought, wet and hot weather
+scenarios on a stress subset (3 crops × 3 soils × 3 climates × 3 scenarios
+= 81 seasons): 270 seasons in about half a minute. Each season is graded
+against literature bands on its season scalars (biomass, grain, harvest
+index, ET partitioning, nitrogen and sulfur ledgers, redox and micronutrient
+stress days, water and mineral-N mass balances) and the whole set against
+ordering and contrast expectations between soils and climates (sand drains
+more than clay, the Sahel yields less than the Kenyan highlands, and so on).
+
+```bash
+poetry run python scripts/validate_realism_matrix.py --plots        # full sweep
+poetry run python scripts/validate_realism_matrix.py --list         # print the run specs
+poetry run python scripts/validate_realism_matrix.py --crops maize --soils loam_temperate --tag quick
+```
+
+Output goes to `out/validation/<tag>/`, with `out/validation/latest` pointing
+at the newest sweep. `out/` is not tracked; the verdict of a sweep belongs in
+the pull request it supports.
+
+| File | Content |
+|------|---------|
+| `report.md` | grade counts, per-check FAIL/WARN tables, growth-limitation table, group findings, notes |
+| `runs.csv` | one row per season with every scalar |
+| `findings.csv` | one row per out-of-band check |
+| `daily/*.csv` | daily traces for FAIL and ERROR seasons (`--daily` writes them for every season) |
+| `plots/*.png` | trajectory and diagnostic plots (`--plots`, needs matplotlib) |
+
+Grades are `ERROR` (the season raised), `FAIL` and `WARN` (a scalar outside
+its band), `PASS`, and `EXPECTED` for crop × climate pairs that are not
+grown there, where poor growth is the right answer. A check with a `known`
+label documents a model limitation that is understood and tracked; the
+report lists those separately from new findings.
+
+Loam-temperate seasons also carry regression anchors: the value from the
+last accepted sweep with a ±1 % band. They make unintended drift visible and
+do not encode literature. After an intentional engine change, re-run the
+sweep, confirm that the movement is the one the change predicts, and re-set
+the anchors in the `_anchor(...)` table to the new values in the same pull
+request.
