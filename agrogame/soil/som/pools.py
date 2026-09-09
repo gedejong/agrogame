@@ -51,6 +51,12 @@ class SOMPoolParams:
     # exp(-depth below the topsoil mid-point / this length). <= 0 disables it.
     fresh_input_efolding_depth_cm: float = 30.0
 
+    # New fields start after a reference bare-soil interval: 60 d at 17 C,
+    # optimum moisture, no priming or fresh inputs. This conditions the fast
+    # pool before the scored season; measured total C is preserved by scaling
+    # the resulting shares. See ADR-015 for the explicit forcing assumption.
+    initial_fallow_days: int = 60
+
     # Aggregate protection (AGRO-104)
     # Base protected fractions (at 40% clay — scaled linearly by clay_pct)
     protection_frac_labile: float = 0.10  # 10% of labile protected
@@ -218,6 +224,11 @@ class ThreePoolSOM:
     def __init__(self, params: SOMPoolParams, n_layers: int) -> None:
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
+        if (
+            not isinstance(params.initial_fallow_days, int)
+            or params.initial_fallow_days < 0
+        ):
+            raise ValueError("initial_fallow_days must be a non-negative integer")
         self.params = params
         # Per-layer disruption countdown (days remaining with protection=0)
         self._disruption_days: list[int] = [0] * n_layers
@@ -248,6 +259,9 @@ class ThreePoolSOM:
         sustains them declines with depth; the stable pool takes the remainder.
         N follows from the pool C:N ratios (labile 12, intermediate 15,
         stable 20).
+
+        The input-fed shares are then conditioned through the configured
+        reference fallow and normalised to the measured layer SOC (ADR-015).
 
         The profile must have at least as many layers as ``self.state.layers``.
         """
@@ -291,6 +305,39 @@ class ThreePoolSOM:
 
             layer_state.stable.c_kg_ha = c_stb
             layer_state.stable.n_kg_ha = c_stb / _DEFAULT_CN_STABLE
+
+        self._condition_initial_shares(profile)
+
+    def _condition_initial_shares(self, profile: SoilProfileView) -> None:
+        """Condition pool shares under the no-input forcing used during play.
+
+        A constant-input equilibrium is a prior for the shares, not a steady
+        state after the input ceases. Apply a reference pre-sowing fallow to
+        those shares, then normalize to measured SOC. This is initialization,
+        not an in-game flux: it emits nothing and starts respiration at zero.
+        RothC's initialization likewise matches measured SOC to a specified
+        input history (Coleman & Jenkinson 1996; ADR-015).
+        """
+        stocks = [layer.total_c for layer in self.state.layers]
+        for _ in range(self.params.initial_fallow_days):
+            for i, soil_layer in enumerate(profile.layers[: len(stocks)]):
+                clay = getattr(soil_layer, "clay_pct", None)
+                self.daily_step(
+                    i,
+                    temp_c=17.0,
+                    wfps=0.6,
+                    clay_pct=_DEFAULT_CLAY_PCT if clay is None else clay,
+                )
+        for layer, stock in zip(self.state.layers, stocks, strict=False):
+            scale = stock / layer.total_c if layer.total_c > 0.0 else 1.0
+            for pool, cn in (
+                (layer.labile, _DEFAULT_CN_LABILE),
+                (layer.intermediate, _DEFAULT_CN_INTERMEDIATE),
+                (layer.stable, _DEFAULT_CN_STABLE),
+            ):
+                pool.c_kg_ha *= scale
+                pool.n_kg_ha = pool.c_kg_ha / cn
+            layer.cumulative_co2_c_kg_ha = 0.0
 
     # ------------------------------------------------------------------
     # Wet-dry disruption (Birch effect, AGRO-104)
