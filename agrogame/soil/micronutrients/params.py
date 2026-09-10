@@ -31,6 +31,11 @@ class MicronutrientParams:
         toxic_fe_ppm: Above this, toxicity stress.
         toxic_zn_ppm: Above this, toxicity stress.
         toxic_mn_ppm: Above this, toxicity stress.
+        sufficiency_ratio: Multiple of the critical level at which the
+            deficiency response plateaus at 1.0. Critical levels sit at
+            ~90 % relative yield (Cate & Nelson 1971); 1.5 reproduces
+            that with the quadratic-plateau curve
+            (:func:`~agrogame.soil.micronutrients.cycle.deficiency_response`).
         om_complexation_factor: Fraction of available pool complexed per unit SOM.
         season_days: Expected season length for daily demand scaling.
     """
@@ -44,8 +49,15 @@ class MicronutrientParams:
     toxic_fe_ppm: float = TOXIC_FE_PPM
     toxic_zn_ppm: float = TOXIC_ZN_PPM
     toxic_mn_ppm: float = TOXIC_MN_PPM
+    sufficiency_ratio: float = 1.5
     om_complexation_factor: float = 0.001
     season_days: float = 150.0
+
+    def __post_init__(self) -> None:
+        if self.sufficiency_ratio <= 0.0:
+            raise ValueError(
+                f"sufficiency_ratio must be > 0, got {self.sufficiency_ratio}"
+            )
 
 
 @dataclass(frozen=True)

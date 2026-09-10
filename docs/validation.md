@@ -159,7 +159,7 @@ the pull request it supports.
 
 | File | Content |
 |------|---------|
-| `report.md` | grade counts, per-check FAIL/WARN tables, growth-limitation table, group findings, notes |
+| `report.md` | grade counts, per-check FAIL/WARN tables, allowed-by-design table, growth-limitation table, group findings, notes |
 | `runs.csv` | one row per season with every scalar |
 | `findings.csv` | one row per out-of-band check |
 | `daily/*.csv` | daily traces for FAIL and ERROR seasons (`--daily` writes them for every season) |
@@ -169,7 +169,14 @@ Grades are `ERROR` (the season raised), `FAIL` and `WARN` (a scalar outside
 its band), `PASS`, and `EXPECTED` for crop × climate pairs that are not
 grown there, where poor growth is the right answer. A check with a `known`
 label documents a model limitation that is understood and tracked; the
-report lists those separately from new findings.
+report lists those separately from new findings. An `info` check never
+grades its run: it records a value the sweep wants to see without judging
+it. When an informational check carries a source, the source says why an
+out-of-band value is intended, and the report lists the affected runs under
+"Allowed by design". Examples are Fe deficiency on the calcareous
+`sandy_arid` preset (lime-induced chlorosis) and Zn deficiency on the two
+low-SOM sands, where the DTPA-Zn range of Sahelian and arid sands sits below
+the critical level.
 
 Loam-temperate seasons also carry regression anchors: the value from the
 last accepted sweep with a ±1 % band. They make unintended drift visible and

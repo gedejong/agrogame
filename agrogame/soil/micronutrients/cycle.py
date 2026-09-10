@@ -310,28 +310,28 @@ class MicronutrientCycle:
         return taken_total
 
     def _compute_stress(self, element: str, uptake: float, demand: float) -> float:
-        """Compute stress factor from uptake/demand and pool levels.
+        """Stress factor for one element: min(supply/demand, pool response).
 
-        Combines supply-demand ratio with deficiency/toxicity thresholds.
+        The pool response is read from the top layer's DTPA-extractable
+        concentration: a quadratic-plateau deficiency curve below
+        ``sufficiency_ratio x critical`` (see :func:`deficiency_response`)
+        and, above ``toxic_*_ppm``, a linear decline that reaches 0 at twice
+        the toxicity threshold (Foy et al. 1978; Marschner 2012).
         """
-        # Supply-demand stress
         if demand <= 0.0:
             supply_stress = 1.0
         else:
             supply_stress = min(1.0, uptake / demand)
-        # Deficiency stress from pool level (top layer)
         avail = getattr(self.state, f"{element}_available")
         top_ppm = avail[0] if avail else 0.0
         critical = getattr(self.params, f"critical_{element}_ppm")
         toxic = getattr(self.params, f"toxic_{element}_ppm")
-        # Below critical: linear stress 0→1
-        if top_ppm < critical:
-            pool_stress = max(0.0, top_ppm / critical)
-        elif top_ppm > toxic:
-            # Toxicity: stress decreases above toxic threshold
+        if top_ppm > toxic:
             pool_stress = max(0.0, 1.0 - (top_ppm - toxic) / toxic)
         else:
-            pool_stress = 1.0
+            pool_stress = deficiency_response(
+                top_ppm, critical, self.params.sufficiency_ratio
+            )
         return float(min(supply_stress, pool_stress))
 
     def _emit_stress(
@@ -345,6 +345,29 @@ class MicronutrientCycle:
                 stress=stress,
             )
         )
+
+
+def deficiency_response(
+    available_ppm: float, critical_ppm: float, sufficiency_ratio: float
+) -> float:
+    """Relative growth allowed by a plant-available (DTPA) concentration.
+
+    Quadratic plateau: ``1 - (1 - x)**2`` with
+    ``x = available / (sufficiency_ratio * critical)``, held at 1.0 from the
+    plateau (``x >= 1``) upward. The curve is continuous with zero slope at
+    the plateau, reaches ``1 - (1 - 1/r)**2`` at the critical level (0.89 for
+    ``r = 1.5``) and 0 in a soil without the element.
+
+    Soil-test critical levels are calibrated where responsive and
+    non-responsive sites separate, in practice at ~90 % relative yield
+    (Cate & Nelson 1971), so the critical level is the start of the
+    response, not the point where growth stops. The DTPA levels Fe 4.5,
+    Zn 0.8 and Mn 1.0 mg/kg follow Lindsay & Norvell 1978.
+    """
+    if critical_ppm <= 0.0 or sufficiency_ratio <= 0.0:
+        return 1.0
+    x = min(1.0, max(0.0, available_ppm) / (sufficiency_ratio * critical_ppm))
+    return 1.0 - (1.0 - x) ** 2
 
 
 def _interpolate_ph(ph: float, table: list[tuple[float, float]]) -> float:

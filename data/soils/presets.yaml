@@ -17,6 +17,20 @@
 # presets, so any S-limitation is an intentional, texture-consistent property
 # of the soil rather than an unset-field artifact.
 # Refs: Eriksen (2009) Adv. Agron. 102; Scherer (2001) Eur. J. Agron. 14:81-111.
+#
+# initial_fe_ppm / initial_zn_ppm / initial_mn_ppm — DTPA-extractable
+# (plant-available) Fe, Zn and Mn per layer, mg/kg (Lindsay & Norvell 1978).
+# The plant response is a quadratic plateau that gives ~90 % relative growth
+# at the critical levels Fe 4.5 / Zn 0.8 / Mn 1.0 (Sims & Johnson 1991) and
+# full growth from 1.5x critical upward (soil/micronutrients/cycle.py).
+# Reference ranges for unfertilised agricultural soils: DTPA-Fe 5-50 mg/kg on
+# acid to neutral soils but 2-4 on calcareous soils, where Fe(III) oxides are
+# insoluble and lime-induced chlorosis follows (Lindsay 1979); DTPA-Zn 1-3 on
+# temperate loams and clays but 0.3-0.8 on low-SOM Sahelian, Sudanian and arid
+# sands, the most widespread micronutrient deficiency in those systems
+# (Sillanpaa 1982; Alloway 2008); DTPA-Mn 2-50, low only on calcareous or
+# heavily leached sands. Only sandy_arid (calcareous: Fe 3.0) and the two
+# low-SOM sands (Zn 0.5) start below a critical level, and do so by design.
 soils:
   sandy_arid:
     name: "Sandy Soil - Arid Region"
@@ -34,7 +48,7 @@ soils:
         initial_p_kg_ha: 10.0
         initial_s_kg_ha: 33.0
         initial_fe_ppm: 3.0
-        initial_zn_ppm: 0.4
+        initial_zn_ppm: 0.5
         initial_mn_ppm: 1.5
       - depth_cm: 40
         texture: sand
@@ -425,9 +439,9 @@ soils:
         initial_nh4_kg_ha: 1.0
         initial_p_kg_ha: 6.0
         initial_s_kg_ha: 34.0
-        initial_fe_ppm: 2.0
-        initial_zn_ppm: 0.3
-        initial_mn_ppm: 1.0
+        initial_fe_ppm: 8.0
+        initial_zn_ppm: 0.5
+        initial_mn_ppm: 3.0
       - depth_cm: 40
         texture: sand
         field_capacity: 0.09
@@ -440,9 +454,9 @@ soils:
         initial_nh4_kg_ha: 0.8
         initial_p_kg_ha: 4.0
         initial_s_kg_ha: 34.0
-        initial_fe_ppm: 1.5
-        initial_zn_ppm: 0.2
-        initial_mn_ppm: 0.8
+        initial_fe_ppm: 6.0
+        initial_zn_ppm: 0.4
+        initial_mn_ppm: 2.5
       - depth_cm: 50
         texture: sand
         field_capacity: 0.08
@@ -455,6 +469,6 @@ soils:
         initial_nh4_kg_ha: 0.5
         initial_p_kg_ha: 3.0
         initial_s_kg_ha: 22.0
-        initial_fe_ppm: 1.0
-        initial_zn_ppm: 0.1
-        initial_mn_ppm: 0.5
+        initial_fe_ppm: 4.0
+        initial_zn_ppm: 0.3
+        initial_mn_ppm: 2.0
