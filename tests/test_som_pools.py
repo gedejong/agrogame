@@ -10,6 +10,7 @@ from agrogame.soil.som.pools import (
     SOMLayerPool,
     SOMPoolParams,
     ThreePoolSOM,
+    steady_state_fractions,
 )
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.models import TEXTURE_TO_CLAY
@@ -45,7 +46,7 @@ class TestInitFromProfile:
         assert layer.labile.c_kg_ha > 0
         assert layer.intermediate.c_kg_ha > 0
         assert layer.stable.c_kg_ha > 0
-        # Stable > intermediate > labile (75/20/5 split)
+        # Stable > intermediate > labile (kinetic steady state)
         assert layer.stable.c_kg_ha > layer.intermediate.c_kg_ha
         assert layer.intermediate.c_kg_ha > layer.labile.c_kg_ha
 
@@ -246,3 +247,195 @@ class TestSnapshotSOM:
         assert "som_labile_c" in d
         restored = SoilSnapshot.from_dict(d)
         assert restored.som_labile_c == [100.0]
+
+
+# ---------------------------------------------------------------------------
+# Initial pool sizing at the kinetic steady state
+# ---------------------------------------------------------------------------
+class TestSteadyStateInitialisation:
+    def test_fallow_conditioning_preserves_stock_and_starts_flux_counters_at_zero(
+        self,
+    ) -> None:
+        profile = load_soil_presets(Path("soils/presets.yaml")).soils["loam_temperate"]
+        prior = ThreePoolSOM(SOMPoolParams(initial_fallow_days=0), len(profile.layers))
+        settled = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        prior.initialize_from_profile(profile)
+        settled.initialize_from_profile(profile)
+        for before, after in zip(
+            prior.state.layers, settled.state.layers, strict=False
+        ):
+            assert after.total_c == pytest.approx(before.total_c)
+            assert after.labile.c_kg_ha < before.labile.c_kg_ha
+            assert after.cumulative_co2_c_kg_ha == 0.0
+
+    def test_negative_fallow_interval_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="initial_fallow_days"):
+            ThreePoolSOM(SOMPoolParams(initial_fallow_days=-1), 1)
+
+    def test_loam_shares_lie_in_the_equilibrium_bands(self) -> None:
+        """~2 % labile, ~30 % intermediate, remainder stable on a loam.
+
+        RothC equilibrium pools for arable topsoil hold a few per cent of C in
+        the fast pools (DPM + BIO) and the bulk in HUM (Coleman & Jenkinson
+        1996); the analytical steady state of this module's kinetics lands in
+        the same bands.
+        """
+        lab, inter, stb = steady_state_fractions(SOMPoolParams(), clay_pct=22.0)
+        assert lab + inter + stb == pytest.approx(1.0)
+        assert 0.01 <= lab <= 0.03
+        assert 0.25 <= inter <= 0.40
+        assert stb > inter > lab
+
+    def test_clay_protection_shifts_carbon_towards_the_stable_pool(self) -> None:
+        """Protection slows the slow pools most, so clays hold less labile C."""
+        params = SOMPoolParams()
+        lab_sand, _, stb_sand = steady_state_fractions(params, clay_pct=5.0)
+        lab_clay, _, stb_clay = steady_state_fractions(params, clay_pct=50.0)
+        assert lab_clay < lab_sand
+        assert stb_clay > stb_sand
+
+    def test_steady_state_pools_hold_under_a_matching_input(self) -> None:
+        """Pools sized by the formula stay put when fed the input it assumes.
+
+        With env_f = 1 (25 °C, 60 % WFPS), no priming and no aggregation the
+        labile pool loses C_lab * k_lab * pf per day, so an equal daily input
+        must leave every pool where it started. The labile pool settles one
+        day's input (k * dt = 5 %) below the continuous-time value because
+        ``daily_step`` adds the input before decomposing; the slow pools move
+        by far less than 1 %.
+        """
+        params = SOMPoolParams()
+        clay = 22.0
+        som = ThreePoolSOM(params, n_layers=1)
+        lab, inter, stb = steady_state_fractions(params, clay)
+        total_c = 40_000.0
+        layer = som.state.layers[0]
+        layer.labile = SOMLayerPool(c_kg_ha=total_c * lab, n_kg_ha=total_c * lab / 12)
+        layer.intermediate = SOMLayerPool(
+            c_kg_ha=total_c * inter, n_kg_ha=total_c * inter / 15
+        )
+        layer.stable = SOMLayerPool(c_kg_ha=total_c * stb, n_kg_ha=total_c * stb / 20)
+        pf_lab = som._protection_factor(params.protection_frac_labile, clay, 0)
+        daily_input = layer.labile.c_kg_ha * params.k_labile * pf_lab
+        start = (layer.labile.c_kg_ha, layer.intermediate.c_kg_ha, layer.stable.c_kg_ha)
+
+        for _ in range(60):
+            som.daily_step(
+                0,
+                temp_c=25.0,
+                wfps=0.6,
+                fresh_c_input=daily_input,
+                fresh_n_input=daily_input / 12.0,
+                clay_pct=clay,
+            )
+
+        assert layer.labile.c_kg_ha == pytest.approx(start[0], rel=0.06)
+        assert layer.intermediate.c_kg_ha == pytest.approx(start[1], rel=0.01)
+        assert layer.stable.c_kg_ha == pytest.approx(start[2], rel=0.01)
+
+    def test_depth_attenuation_moves_deep_carbon_into_the_stable_pool(self) -> None:
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        som = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        som.initialize_from_profile(profile)
+
+        labile = [ly.labile.c_kg_ha / ly.total_c for ly in som.state.layers]
+        stable = [ly.stable.c_kg_ha / ly.total_c for ly in som.state.layers]
+        assert labile == sorted(labile, reverse=True)
+        assert labile[0] > 2 * labile[-1]
+        assert stable == sorted(stable)
+        # Fallow conditioning reduces the fast pool below the input-fed prior.
+        lab_top, _, _ = steady_state_fractions(
+            som.params, profile.layers[0].clay_pct or 22.0
+        )
+        assert 0.0 < labile[0] < lab_top
+
+    def test_disabled_attenuation_gives_depth_uniform_shares(self) -> None:
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        params = SOMPoolParams(fresh_input_efolding_depth_cm=0.0)
+        som = ThreePoolSOM(params, len(profile.layers))
+        som.initialize_from_profile(profile)
+
+        labile = [ly.labile.c_kg_ha / ly.total_c for ly in som.state.layers]
+        assert max(labile) == pytest.approx(min(labile))
+
+    def test_total_carbon_follows_organic_matter_not_the_split(self) -> None:
+        """Total C per layer = OM% x bulk density x depth x 0.58 (van Bemmelen)."""
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        som = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        som.initialize_from_profile(profile)
+
+        for soil_layer, layer in zip(profile.layers, som.state.layers, strict=True):
+            expected_c = (
+                soil_layer.organic_matter_pct
+                / 100.0
+                * soil_layer.bulk_density_g_cm3
+                * 1000.0
+                * soil_layer.depth_cm
+                / 100.0
+                * 10_000.0
+                * 0.58
+            )
+            assert layer.total_c == pytest.approx(expected_c)
+
+
+class TestFirstSeasonMineralisation:
+    """Season-scale net N mineralisation from the initial pools (standalone).
+
+    Loam profile, 150-day season at 17 °C and 60 % WFPS, no fresh input.
+    """
+
+    @staticmethod
+    def _season_net_n(
+        som: ThreePoolSOM, profile: object, days: int = 150, temp_c: float = 17.0
+    ) -> list[float]:
+        layers = profile.layers  # type: ignore[attr-defined]
+        totals = [0.0] * len(layers)
+        for _ in range(days):
+            for i, soil_layer in enumerate(layers):
+                fluxes = som.daily_step(
+                    i, temp_c=temp_c, wfps=0.6, clay_pct=soil_layer.clay_pct or 22.0
+                )
+                totals[i] += fluxes.mineralized_n_kg_ha
+        return totals
+
+    def test_first_season_topsoil_net_mineralisation_is_a_few_percent_of_organic_n(
+        self,
+    ) -> None:
+        """Net mineralisation over one warm season stays <= 5 % of topsoil organic N.
+
+        Field soils mineralise roughly 1-3 % of their organic N per year
+        (Stanford & Smith 1972), so a single 150-day season at 17 °C should
+        release a few per cent of the topsoil organic N at most. Measured
+        ~4.3 % with the steady-state split (the fixed 5/20/75 split gave ~6.8 %).
+        The floor guards against a silently broken source.
+        """
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        som = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        som.initialize_from_profile(profile)
+        organic_n_topsoil = som.state.layers[0].total_n
+
+        season = self._season_net_n(som, profile)
+        fraction = season[0] / organic_n_topsoil
+        assert 0.02 <= fraction <= 0.05, (
+            f"season-1 topsoil net mineralisation {season[0]:.0f} kg N/ha is "
+            f"{100 * fraction:.1f} % of {organic_n_topsoil:.0f} kg organic N/ha"
+        )
+
+    def test_three_seasons_supply_stays_within_factor_one_point_five(self) -> None:
+        """Issue #435: no first-season spike under the actual no-input forcing."""
+        soil_lib = load_soil_presets(Path("soils/presets.yaml"))
+        profile = soil_lib.soils["loam_temperate"]
+        som = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        som.initialize_from_profile(profile)
+
+        season_1 = sum(self._season_net_n(som, profile))
+        season_2 = sum(self._season_net_n(som, profile))
+        season_3 = sum(self._season_net_n(som, profile))
+        assert min(season_1, season_2, season_3) > 0.0
+        assert (
+            max(season_1, season_2, season_3) / min(season_1, season_2, season_3) < 1.5
+        )

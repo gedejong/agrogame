@@ -324,12 +324,16 @@ def _make_full_orch() -> FullSimulationOrchestrator:
 
 
 def _step_waterlogged(orch: FullSimulationOrchestrator, days: int) -> None:
-    """Advance the orchestrator under a waterlogged scenario.
+    """Advance the orchestrator under a perched-water-table scenario.
 
-    Heavy daily rainfall drives the deeper layers reducing, so redox,
-    gas-diffusion, aggregation, biopore, pore-network and micronutrient
-    pools all leave their freshly-initialised defaults — a precondition
-    for a meaningful round-trip assertion.
+    The subsoil layers are held at saturation before every step (a shallow
+    water table) while heavy daily rainfall keeps the topsoil wet but freely
+    draining. The saturated subsoil has no air-filled porosity, so the gas
+    profile turns anoxic there and redox drives those layers reducing while
+    the drained topsoil stays aerobic. Redox, gas-diffusion, aggregation,
+    biopore, pore-network and micronutrient pools all leave their
+    freshly-initialised defaults — a precondition for a meaningful round-trip
+    assertion — and the Eh profile spans more than one acceptor class.
     """
     from datetime import date, timedelta
 
@@ -337,6 +341,9 @@ def _step_waterlogged(orch: FullSimulationOrchestrator, days: int) -> None:
 
     start = date(2024, 5, 1)
     for d in range(days):
+        for i, layer in enumerate(orch.profile.layers):
+            if i > 0:
+                orch.water_state.theta[i] = layer.saturation
         orch.step_day(
             drivers=DailyDrivers(rainfall_mm=40.0),
             tmin_c=16.0,

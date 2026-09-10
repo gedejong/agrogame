@@ -30,12 +30,12 @@ package with the canonical `params/state/module/runtime/events` shape (see
 | `agrogame.soil.phenology` | GDD-driven crop phenology | [phenology.md](phenology.md) |
 | `agrogame.soil.som` | Three-pool SOM (RothC) | [microbial.md](microbial.md) |
 | `agrogame.soil.microbes` | Microbial biomass and activity | [microbial.md](microbial.md) |
-| `agrogame.soil.redox` | Redox dynamics (Eh, dominant acceptor) | — |
-| `agrogame.soil.micronutrients` | Fe/Zn/Mn availability | — |
+| `agrogame.soil.redox` | Redox dynamics (Eh, dominant acceptor) | [soil-gas-redox.md](soil-gas-redox.md) |
+| `agrogame.soil.micronutrients` | Fe/Zn/Mn availability | [soil-gas-redox.md](soil-gas-redox.md) |
 | `agrogame.soil.aggregation` | Macro/meso/micro aggregate dynamics | — |
 | `agrogame.soil.biopores` | Persistent root-channel macropores | — |
 | `agrogame.soil.pore_network` | Pore-network capacity (porosity, connectivity) | — |
-| `agrogame.soil.gas_diffusion` | O₂/CO₂ transport through pore network | — |
+| `agrogame.soil.gas_diffusion` | O₂/CO₂ transport through pore network | [soil-gas-redox.md](soil-gas-redox.md) |
 | `agrogame.soil.phosphorus` | Phosphorus pool dynamics | [phosphorus.md](phosphorus.md) |
 | `agrogame.soil.chemistry` | pH and ion balance | — |
 

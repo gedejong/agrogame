@@ -388,11 +388,14 @@ def project_soil_forecast(
     omitted contributor) and aggregate protection. That source-side divergence
     — the mineral-N distribution × rhizosphere-priming / aggregate-protection
     interaction — is weather-dependent: on the pinned scenario (maize /
-    loam_temperate / NL, seed 42) the net mineral-N Δ lands within ±20 % of the
+    loam_temperate / NL, seed 42, input-fed SOM prior without the #435 fallow)
+    the net mineral-N Δ lands within ±20 % of the
     engine's, but on other weather realisations (other seeds) it can push the
     forecast/engine ratio outside that band. The forecast thus targets *sign*
     agreement, with the close ±20 % magnitude match scoped to the pinned
-    seed-42 scenario rather than holding in general.
+    historical input-fed scenario rather than holding in general. With the
+    fallow-conditioned default the five-day delta can differ by more than
+    20%; the deepening path retains sign agreement in its regression scenario.
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))

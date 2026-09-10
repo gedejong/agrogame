@@ -4,6 +4,27 @@
 
 Accepted (#284).
 
+### Amendment 2026-09-07 — source-term convention and O₂→Eh mapping
+
+The gas-diffusion respiration source is expressed per unit **bulk soil**
+volume (mol C/m³ soil/s × molar volume), the same basis as the bulk-soil
+Millington–Quirk `D_eff` and the cell-integrated `rate × dz` in the solver.
+The earlier per-soil-air form (division by θ_a) overstated the O₂ demand by
+1/θ_a, which is why deeper layers of drained clay read anoxic under the wiring
+described below. `RedoxModule._equilibrium_eh_from_o2` interpolates
+log-linearly in O₂ between `o2_anaerobic_frac` (0.002 → `eh_min_mv`) and
+`o2_aerobic_frac` (0.05 → `eh_max_mv`), so Fe reduction (Eh < 100 mV) needs
+bulk O₂ near 1 % (Ponnamperuma 1972; Reddy & DeLaune 2008).
+
+Consequences for the items below: the "Realism-test drift" entry under
+*Harder* and the first *Follow-ups* bullet are closed — with the corrected
+source term the API constraint in
+`tests/test_api.py::test_step_response_includes_redox_state` is back to "all
+layers Eh > 0" on drained loam without per-layer respiration calibration.
+Denitrification now occurs only where bulk soil air is below 4 % O₂; drained
+mineral soils therefore denitrify nothing at day-start moisture (a limitation
+tracked by the realism sweep, see `docs/soil-gas-redox.md`).
+
 ## Context
 
 #211 (PoreNetworkModule), #213 (DualPorosityWaterModel), #215 (BioporeModule), #216 (RedoxModule micronutrients), and #217 (GasDiffusionModule) shipped with correct physics and unit tests but were not constructed in `FullSimulationOrchestrator`. The pore chain was mathematically complete but functionally inert — none of the science affected gameplay or simulation outputs.

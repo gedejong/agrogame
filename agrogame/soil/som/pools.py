@@ -13,6 +13,7 @@ References:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 
 from agrogame.params.ports import SoilProfileView
 
@@ -43,6 +44,18 @@ class SOMPoolParams:
     # Priming and N cycling
     priming_max: float = 1.5  # max priming multiplier
     cn_critical: float = 25.0  # C:N above which N immobilization occurs
+
+    # Initial pool sizing: fresh-C input (root and litter) declines roughly
+    # exponentially with depth (Jackson et al. 1996), so the labile and
+    # intermediate shares of the kinetic steady state are attenuated by
+    # exp(-depth below the topsoil mid-point / this length). <= 0 disables it.
+    fresh_input_efolding_depth_cm: float = 30.0
+
+    # New fields start after a reference bare-soil interval: 60 d at 17 C,
+    # optimum moisture, no priming or fresh inputs. This conditions the fast
+    # pool before the scored season; measured total C is preserved by scaling
+    # the resulting shares. See ADR-015 for the explicit forcing assumption.
+    initial_fallow_days: int = 60
 
     # Aggregate protection (AGRO-104)
     # Base protected fractions (at 40% clay — scaled linearly by clay_pct)
@@ -129,10 +142,70 @@ _DEFAULT_CN_STABLE = 20.0
 # van Bemmelen factor: C = OM * 0.58
 _VAN_BEMMELEN = 0.58
 
-# Pool distribution of total OM-C at initialisation
-_FRAC_LABILE = 0.05
-_FRAC_INTERMEDIATE = 0.20
-_FRAC_STABLE = 0.75
+# Clay content assumed for a profile layer that carries none (the
+# texture-derived default of ``agrogame.soil.models.SoilLayer``).
+_DEFAULT_CLAY_PCT = 22.0
+
+
+def steady_state_fractions(
+    params: SOMPoolParams, clay_pct: float, mwd_mm: float = 0.0
+) -> tuple[float, float, float]:
+    """Shares of total organic C per pool at the kinetic steady state.
+
+    Under a constant fresh-C input ``F`` into the labile pool each pool
+    settles where its inflow balances its first-order decomposition::
+
+        C_lab = F / k_lab_eff
+        C_int = h_li * F / k_int_eff
+        C_stb = h_li * h_is * F / k_stb_eff
+
+    ``k_*_eff`` is a pool's rate constant times its aggregate-protection
+    factor (the same factor ``daily_step`` applies) and ``h_*`` are the
+    humification fractions that route decomposed C down the chain.
+    Normalising removes ``F`` and the temperature/moisture modifier shared by
+    all pools, so the shares depend only on the rate constants, the
+    humification fractions and protection (clay, aggregate MWD). This is the
+    equilibrium initialisation of RothC and Century (Coleman & Jenkinson 1996;
+    Parton et al. 1987) applied to this module's own kinetics: pools start
+    where a steady input would keep them, so no pool relaxes towards its
+    equilibrium during the first season.
+
+    Returns ``(labile, intermediate, stable)`` summing to 1.
+    """
+    from agrogame.soil.aggregation.dynamic_state import som_protection_factor
+
+    def k_eff(k: float, base_frac: float) -> float:
+        return k * som_protection_factor(
+            base_frac,
+            clay_pct,
+            mwd_mm,
+            clay_scale=params.clay_protection_scale,
+            protection_reduction=params.protection_reduction,
+        )
+
+    h_li = params.humification_labile_to_inter
+    h_is = params.humification_inter_to_stable
+    w_lab = 1.0 / k_eff(params.k_labile, params.protection_frac_labile)
+    w_int = h_li / k_eff(params.k_intermediate, params.protection_frac_intermediate)
+    w_stb = h_li * h_is / k_eff(params.k_stable, params.protection_frac_stable)
+    total = w_lab + w_int + w_stb
+    return w_lab / total, w_int / total, w_stb / total
+
+
+def _fresh_input_attenuation(
+    depth_below_topsoil_cm: float, efolding_cm: float
+) -> float:
+    """Relative fresh-C input at depth (1 in the topsoil, e-folding below).
+
+    Root and litter inputs decline roughly exponentially with depth
+    (Jackson et al. 1996; Jobbagy & Jackson 2000) and subsoil carbon persists
+    largely because that fresh supply is missing (Fontaine et al. 2007), so
+    the pools that fresh input sustains shrink with depth while the stable
+    pool takes the remainder.
+    """
+    if depth_below_topsoil_cm <= 0.0 or efolding_cm <= 0.0:
+        return 1.0
+    return math.exp(-depth_below_topsoil_cm / efolding_cm)
 
 
 # ---------------------------------------------------------------------------
@@ -151,6 +224,11 @@ class ThreePoolSOM:
     def __init__(self, params: SOMPoolParams, n_layers: int) -> None:
         if n_layers < 1:
             raise ValueError(f"n_layers must be >= 1, got {n_layers}")
+        if (
+            not isinstance(params.initial_fallow_days, int)
+            or params.initial_fallow_days < 0
+        ):
+            raise ValueError("initial_fallow_days must be a non-negative integer")
         self.params = params
         # Per-layer disruption countdown (days remaining with protection=0)
         self._disruption_days: list[int] = [0] * n_layers
@@ -172,16 +250,30 @@ class ThreePoolSOM:
     def initialize_from_profile(self, profile: SoilProfileView) -> None:
         """Set initial pool sizes from soil organic matter percentage.
 
-        Distribution: 5 % labile, 20 % intermediate, 75 % stable.
-        C = OM × 0.58 (van Bemmelen factor).
-        N derived from default C:N ratios (labile 12, intermediate 15, stable 20).
+        Total organic C per layer follows from OM % (C = OM × 0.58, van
+        Bemmelen) and is split between the pools at the kinetic steady state of
+        this module's own rate constants (:func:`steady_state_fractions`,
+        evaluated with the layer's clay content and no aggregation). Below the
+        topsoil the labile and intermediate shares are attenuated with depth
+        (``fresh_input_efolding_depth_cm``) because the fresh-C input that
+        sustains them declines with depth; the stable pool takes the remainder.
+        N follows from the pool C:N ratios (labile 12, intermediate 15,
+        stable 20).
+
+        The input-fed shares are then conditioned through the configured
+        reference fallow and normalised to the measured layer SOC (ADR-015).
 
         The profile must have at least as many layers as ``self.state.layers``.
         """
+        params = self.params
+        z_top_cm = 0.0
+        z_mid_topsoil_cm = profile.layers[0].depth_cm / 2.0 if profile.layers else 0.0
         for i, layer_state in enumerate(self.state.layers):
             if i >= len(profile.layers):
                 break
             soil_layer = profile.layers[i]
+            z_mid_cm = z_top_cm + soil_layer.depth_cm / 2.0
+            z_top_cm += soil_layer.depth_cm
 
             # Total organic C in kg/ha (OM% → fraction, times depth and bulk density)
             # 1 ha = 10 000 m², depth in cm → m, density g/cm³ → kg/m³ (×1000)
@@ -191,9 +283,19 @@ class ThreePoolSOM:
             total_om_kg_ha = om_fraction * bulk_kg_m3 * depth_m * 10_000.0
             total_c_kg_ha = total_om_kg_ha * _VAN_BEMMELEN
 
-            c_lab = total_c_kg_ha * _FRAC_LABILE
-            c_int = total_c_kg_ha * _FRAC_INTERMEDIATE
-            c_stb = total_c_kg_ha * _FRAC_STABLE
+            clay_pct = getattr(soil_layer, "clay_pct", None)
+            if clay_pct is None:
+                clay_pct = _DEFAULT_CLAY_PCT
+            frac_lab, frac_int, _ = steady_state_fractions(params, clay_pct)
+            attenuation = _fresh_input_attenuation(
+                z_mid_cm - z_mid_topsoil_cm, params.fresh_input_efolding_depth_cm
+            )
+            frac_lab *= attenuation
+            frac_int *= attenuation
+
+            c_lab = total_c_kg_ha * frac_lab
+            c_int = total_c_kg_ha * frac_int
+            c_stb = total_c_kg_ha - c_lab - c_int
 
             layer_state.labile.c_kg_ha = c_lab
             layer_state.labile.n_kg_ha = c_lab / _DEFAULT_CN_LABILE
@@ -203,6 +305,39 @@ class ThreePoolSOM:
 
             layer_state.stable.c_kg_ha = c_stb
             layer_state.stable.n_kg_ha = c_stb / _DEFAULT_CN_STABLE
+
+        self._condition_initial_shares(profile)
+
+    def _condition_initial_shares(self, profile: SoilProfileView) -> None:
+        """Condition pool shares under the no-input forcing used during play.
+
+        A constant-input equilibrium is a prior for the shares, not a steady
+        state after the input ceases. Apply a reference pre-sowing fallow to
+        those shares, then normalize to measured SOC. This is initialization,
+        not an in-game flux: it emits nothing and starts respiration at zero.
+        RothC's initialization likewise matches measured SOC to a specified
+        input history (Coleman & Jenkinson 1996; ADR-015).
+        """
+        stocks = [layer.total_c for layer in self.state.layers]
+        for _ in range(self.params.initial_fallow_days):
+            for i, soil_layer in enumerate(profile.layers[: len(stocks)]):
+                clay = getattr(soil_layer, "clay_pct", None)
+                self.daily_step(
+                    i,
+                    temp_c=17.0,
+                    wfps=0.6,
+                    clay_pct=_DEFAULT_CLAY_PCT if clay is None else clay,
+                )
+        for layer, stock in zip(self.state.layers, stocks, strict=False):
+            scale = stock / layer.total_c if layer.total_c > 0.0 else 1.0
+            for pool, cn in (
+                (layer.labile, _DEFAULT_CN_LABILE),
+                (layer.intermediate, _DEFAULT_CN_INTERMEDIATE),
+                (layer.stable, _DEFAULT_CN_STABLE),
+            ):
+                pool.c_kg_ha *= scale
+                pool.n_kg_ha = pool.c_kg_ha / cn
+            layer.cumulative_co2_c_kg_ha = 0.0
 
     # ------------------------------------------------------------------
     # Wet-dry disruption (Birch effect, AGRO-104)

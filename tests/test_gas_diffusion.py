@@ -481,3 +481,52 @@ def test_single_layer_respiration_drops_o2() -> None:
     assert (
         state.o2_frac[0] < 0.2095
     ), f"Single-layer profile should drop O2 below atmospheric; got {state.o2_frac[0]}"
+
+
+# ---------- Source-term unit convention ----------
+
+
+def test_volumetric_rate_is_per_bulk_soil_volume() -> None:
+    """kg C/ha/day → volume fraction per second per m³ of bulk soil.
+
+    43.2 kg C/ha/day over a 25 cm layer is 4.32 g C/m²/day = 4.1667e-6
+    mol/m²/s; spread over 0.25 m of soil that is 1.6667e-5 mol/m³/s, and
+    × 0.024 m³/mol gives 4.0e-7 1/s. The O2 sink is the CO2 source × RQ.
+    The rate carries no air-porosity factor: the solver balances it
+    against a bulk-soil D_eff (Millington & Quirk 1961; Moldrup et al. 2000).
+    """
+    profile = _loam()  # layer 0 is 25 cm thick
+    module = GasDiffusionModule(
+        GasDiffusionParams(respiratory_quotient=0.8), GasDiffusionState.from_layers(3)
+    )
+    resp = [43.2, 0.0, 0.0]
+    co2 = module._compute_volumetric_rates(profile, resp, 3, kind="co2_source")
+    o2 = module._compute_volumetric_rates(profile, resp, 3, kind="o2_sink")
+    assert co2[0] == pytest.approx(4.0e-7, rel=1e-6)
+    assert o2[0] == pytest.approx(0.8 * 4.0e-7, rel=1e-6)
+    assert co2[1:] == [0.0, 0.0]
+    assert o2[1:] == [0.0, 0.0]
+
+
+def test_field_capacity_clay_topsoil_stays_aerobic() -> None:
+    """Clay at field capacity under summer-peak respiration keeps aerobic topsoil.
+
+    Aerated cropped topsoil holds ≥ 15 % O2 and 0.5–5 % CO2; only flooded or
+    compacted profiles fall outside (Glinski & Stepniewski 1985).
+    clay_temperate at field capacity retains θ_a ≈ 0.19, and a
+    depth-attenuated 25 kg C/ha/day (temperate summer peak) must leave the
+    topsoil cell above 12 % O2 and below 5 % CO2.
+    """
+    profile = load_soil_presets(Path("soils/presets.yaml")).soils["clay_temperate"]
+    theta = [layer.field_capacity for layer in profile.layers]
+    state = GasDiffusionState.from_layers(len(profile.layers))
+    module = GasDiffusionModule(GasDiffusionParams(), state)
+    module.daily_step(
+        profile=profile,
+        theta=theta,
+        temperature_c=15.0,
+        co2_respiration_kg_c_ha=[18.0, 5.0, 2.0],
+    )
+    assert state.o2_frac[0] > 0.12, f"topsoil O2 {state.o2_frac[0]:.3f}"
+    assert state.co2_frac[0] < 0.05, f"topsoil CO2 {state.co2_frac[0]:.3f}"
+    assert not state.anaerobic[0]

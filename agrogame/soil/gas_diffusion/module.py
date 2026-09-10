@@ -17,9 +17,11 @@ Refs:
     Stepniewski, W. et al. 1994. Soil aeration — oxygen diffusion and
         biological indices. Adv. GeoEcol. 27: 195–218.
 
-Orchestrator wiring (``GasDiffusionRuntime`` subscribing to CO2Respired
-and DayTick) is deferred to a follow-up issue, matching the landing
-order used in #211 and #213.
+Unit convention: the solver works per unit bulk soil volume. ``D_eff``
+is the bulk-soil Millington-Quirk diffusivity and the respiration source
+is spread over the layer's full thickness (mol C/m³ soil/s), so cell
+sources integrate as ``rate × dz`` against face fluxes ``D_eff × dC/dz``
+in the same basis. Concentrations are soil-air volume fractions.
 """
 
 from __future__ import annotations
@@ -173,13 +175,13 @@ class GasDiffusionModule:
         d_eff_o2 = [max(d_floor_o2, d_o2_air * tau[i]) for i in range(n)]
         d_eff_co2 = [max(d_floor_co2, d_co2_air * tau[i]) for i in range(n)]
 
-        # Convert CO2-C respiration (kg C/ha/day) → volumetric consumption
-        # rate in the gas phase (fraction/s of the air-filled pore volume).
+        # Convert CO2-C respiration (kg C/ha/day) → volumetric rate per unit
+        # bulk soil volume (fraction/s), the basis the solver integrates.
         o2_sink = self._compute_volumetric_rates(
-            profile, theta_a, co2_respiration_kg_c_ha, n, kind="o2_sink"
+            profile, co2_respiration_kg_c_ha, n, kind="o2_sink"
         )
         co2_source = self._compute_volumetric_rates(
-            profile, theta_a, co2_respiration_kg_c_ha, n, kind="co2_source"
+            profile, co2_respiration_kg_c_ha, n, kind="co2_source"
         )
 
         # Solve O2 profile (top = atmospheric, bottom = zero-flux)
@@ -242,15 +244,23 @@ class GasDiffusionModule:
     def _compute_volumetric_rates(
         self,
         profile: SoilProfileView,
-        theta_a: list[float],
         co2_respiration_kg_c_ha: list[float],
         n: int,
         kind: str,
     ) -> list[float]:
-        """Convert respiration (kg C/ha/day) → volumetric gas rate (1/s).
+        """Convert respiration (kg C/ha/day) to a volumetric gas rate (1/s).
 
-        kg C/ha/day → mol C/m3-air/s, then O2 sink = RQ × rate, CO2
-        source = rate. Scaled by ``1 / theta_a`` (per unit air volume).
+        The rate is a volume fraction per second per unit **bulk soil**
+        volume: the layer's CO2-C production is spread over its full
+        thickness (mol C/m³ soil/s) and scaled by the molar volume.
+        ``_solve_profile`` integrates ``rate × dz`` over each cell and
+        balances it against the bulk-soil Millington-Quirk diffusivity
+        (Millington & Quirk 1961; Moldrup et al. 2000), so the source must
+        share that basis; a per-soil-air rate (division by θ_a) would
+        overstate the demand on the diffusive supply by 1/θ_a, most in
+        wet, fine-textured soils. The O2 sink is the CO2 source times the
+        respiratory quotient. A saturated layer keeps its sink; the
+        diffusivity floor in ``daily_step`` then yields the anoxic solution.
         """
         secs_per_day = 86400.0
         m2_per_ha = 1e4
@@ -261,17 +271,16 @@ class GasDiffusionModule:
                 co2_respiration_kg_c_ha[i] if i < len(co2_respiration_kg_c_ha) else 0.0
             )
             layer_depth_m = profile.layers[i].depth_cm / 100.0
-            if theta_a[i] <= _EPS or layer_depth_m <= 0.0:
+            if layer_depth_m <= 0.0:
                 rates.append(0.0)
                 continue
             # kg C / (ha · day) → g / (m² · day) via ×1000 / (m²/ha)
             g_c_per_m2_per_day = rate_kg_c_per_ha_per_day * 1000.0 / m2_per_ha
             mol_c_per_m2_per_s = g_c_per_m2_per_day / c_g_per_mol / secs_per_day
-            # Distributed uniformly through air-filled pore volume of the layer:
-            # air volume per m2 soil = theta_a * depth_m
-            mol_per_m3_air_per_s = mol_c_per_m2_per_s / (theta_a[i] * layer_depth_m)
-            # Volume fraction rate = mol/m3 * molar_volume (at T_ref, approximation)
-            frac_per_s = mol_per_m3_air_per_s * self._params.mol_volume_m3_per_mol
+            # Spread over the layer's bulk volume: mol/(m³ soil · s).
+            mol_per_m3_soil_per_s = mol_c_per_m2_per_s / layer_depth_m
+            # Volume fraction rate = mol/m³ × molar volume (at T_ref).
+            frac_per_s = mol_per_m3_soil_per_s * self._params.mol_volume_m3_per_mol
             if kind == "o2_sink":
                 rates.append(frac_per_s * self._params.respiratory_quotient)
             elif kind == "co2_source":
@@ -345,7 +354,10 @@ class GasDiffusionModule:
         rhs[n - 1] = source_sign * source_rate[n - 1] * dz[n - 1]
 
         solution = solve_tridiagonal(a, b, c, rhs)
-        # Clamp to physically meaningful non-negative fractions.
+        # Clamp to physically meaningful fractions. A negative raw O2 value
+        # means the diffusive supply cannot meet the prescribed sink: the
+        # layer is anoxic and its respiration is O2-limited, a feedback the
+        # SOM module does not receive.
         return [max(0.0, min(1.0, v)) for v in solution]
 
     def _microsite_fraction(self, o2_frac: float) -> float:

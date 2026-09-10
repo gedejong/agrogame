@@ -142,6 +142,28 @@ class TestResetCrop:
         biomass = _run_season(orch, start=date(2025, 4, 1), days=100, seed=99)
         assert biomass > 0
 
+    def test_som_pools_survive_reset_crop(self) -> None:
+        """The decomposed SOM pools carry over; they are not re-initialised."""
+        crops, climate, profile = _load_presets()
+        orch = FullSimulationOrchestrator(
+            profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
+        )
+        initial_labile = [ly.labile.c_kg_ha for ly in orch.som.state.layers]
+        _run_season(orch, days=100)
+        before = [
+            (ly.labile.c_kg_ha, ly.intermediate.c_kg_ha, ly.stable.c_kg_ha)
+            for ly in orch.som.state.layers
+        ]
+        assert before[0][0] < 0.5 * initial_labile[0]
+
+        orch.reset_crop(crops.crops["spring_wheat"])
+
+        after = [
+            (ly.labile.c_kg_ha, ly.intermediate.c_kg_ha, ly.stable.c_kg_ha)
+            for ly in orch.som.state.layers
+        ]
+        assert after == before
+
 
 # ---------------------------------------------------------------------------
 # reset_crop resets the per-day CO2 buffer to fresh-init (#352)
