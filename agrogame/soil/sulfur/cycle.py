@@ -29,11 +29,7 @@ from .params import SulfurRateParams
 from .state import SoilSulfurState
 from .types import SulfurFluxes
 from .constants import DEFAULT_SOIL_PH, PH_AVAILABILITY_ANCHORS
-from .sorption import (
-    adsorption_weekly_fraction,
-    distribution_coefficient_l_per_kg,
-    retardation_factor,
-)
+from .sorption import adsorption_weekly_fraction
 
 
 class SulfurCycle:
@@ -74,16 +70,12 @@ class SulfurCycle:
 
     # --- Event handlers -------------------------------------------------
     def _on_water_drained(self, event: WaterDrained) -> None:
-        """Move SO4 with drainage, retarded by reversible sorption.
+        """Advect dissolved sulfate with drainage (Jury & Horton 2004).
 
-        Sulfate is weakly held on Fe/Al-oxide and clay surfaces, so a
-        drainage pulse carries only the solution-phase share of the pool:
-        the fraction moved is ``drainage_mm / (storage_mm * R)`` with the
-        retardation factor ``R = 1 + rho_b * Kd / theta`` of linear
-        equilibrium sorption (Jury & Horton 2004). ``Kd`` rises with clay
-        content and acidity like the adsorption rate; a cycle built without
-        a profile has R = 1 (nitrate-like movement). When the destination
-        layer is outside the profile, the moved amount is a leaching loss.
+        The available pool is dissolved sulfate; adsorption already transfers
+        retained sulfate into a separate immobile pool. Drainage therefore
+        carries concentration times water volume, capped at the dissolved
+        stock. Adsorbed sulfate can move only after desorption releases it.
         """
         from_idx = event.from_layer
         to_idx = event.to_layer
@@ -94,7 +86,7 @@ class SulfurCycle:
         if storage_mm <= 0.0:
             return
 
-        fraction = event.amount_mm / (storage_mm * self._retardation_factor(from_idx))
+        fraction = event.amount_mm / storage_mm
         fraction = max(0.0, min(1.0, fraction))
         if fraction <= 0.0:
             return
@@ -182,18 +174,6 @@ class SulfurCycle:
             return 100.0
         return self._water_state.layer_storage_mm(self._profile, idx)
 
-    def _retardation_factor(self, idx: int) -> float:
-        """``R = 1 + rho_b * Kd / theta`` for a layer; 1.0 without a profile."""
-        if self._water_state is None or self._profile is None:
-            return 1.0
-        layer = self._profile.layers[idx]
-        kd = distribution_coefficient_l_per_kg(
-            self._env.ph_by_layer[idx], self._layer_clay_pct(idx), self._params
-        )
-        return retardation_factor(
-            layer.bulk_density_g_cm3, self._water_state.theta[idx], kd
-        )
-
     def _moisture_factor(self, idx: int) -> float:
         if self._water_state is None or self._profile is None:
             return 1.0
@@ -244,7 +224,7 @@ class SulfurCycle:
         adsorbed SO4 back — the labile equilibrium that distinguishes
         sulfate from near-permanent phosphate fixation. The pH and clay
         dependence is the shared sorption relation that also sizes the
-        initial adsorbed pool and the leaching retardation. Returns the *net*
+        initial adsorbed pool. Returns the *net*
         S moved into the adsorbed pool (negative under net desorption).
         """
         weekly = adsorption_weekly_fraction(ph, self._layer_clay_pct(idx), self._params)

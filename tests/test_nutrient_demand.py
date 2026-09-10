@@ -34,12 +34,14 @@ def _step_days(
     orch: FullSimulationOrchestrator,
     n: int,
     rain: float = 5.0,
-    start_day: int = 0,
+    daily_n_supply: float = 0.0,
 ) -> None:
     from datetime import timedelta
 
-    start = date(2024, 5, 1) + timedelta(days=start_day)
+    start = date(2024, 5, 1)
     for day in range(n):
+        if daily_n_supply > 0.0:
+            orch.apply_fertilizer("ammonium_nitrate", daily_n_supply)
         orch.step_day(
             drivers=DailyDrivers(rainfall_mm=rain),
             tmin_c=15.0,
@@ -162,23 +164,20 @@ def test_explicit_demand_overrides_dynamic() -> None:
 def test_demand_trajectory_rise_then_decline() -> None:
     """Full-season demand rises during vegetative growth, declines at maturity.
 
-    The soil is fertilised at sowing and top-dressed every 30 days so that
-    supply never caps the shoot N stock: an N-limited crop's deficit keeps
-    growing with its biomass, and the trajectory would then describe the soil
-    rather than the demand function.
+    Maintain excess N throughout this demand-function test. This is a
+    controlled nutrient-supply fixture, not a field fertilisation prescription:
+    a single sowing dose can be lost before late growth, and its resulting
+    deficit would describe soil supply rather than the demand function.
     """
     orch, bus = _make_orchestrator()
+    orch.apply_fertilizer("ammonium_nitrate", 200.0)
     n_demands: list[float] = []
     bus.subscribe(
         NutrientStressComputed,
         lambda e: n_demands.append(e.demand_kg_ha) if e.nutrient == "N" else None,
     )
-    # Simulate 120 days — covers emergence through grain fill / maturity.
-    orch.apply_fertilizer("ammonium_nitrate", 200.0)
-    for block in range(4):
-        if block:
-            orch.apply_fertilizer("ammonium_nitrate", 100.0)
-        _step_days(orch, 30, start_day=30 * block)
+    # Simulate 120 days — covers emergence through grain fill / maturity
+    _step_days(orch, 120, daily_n_supply=5.0)
     assert len(n_demands) >= 100
     # Split into thirds: early (establishment/grand growth), mid, late.
     third = len(n_demands) // 3

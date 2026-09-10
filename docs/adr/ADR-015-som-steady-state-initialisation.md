@@ -4,6 +4,57 @@
 
 Accepted — 2026-09-07.
 
+### Amendment: pre-sowing forcing, 2026-09-09
+
+The input-fed equilibrium below is a prior for pool shares, not a steady
+state of the actual simulation, which supplies no fresh carbon. The original
+implementation still released 2.3 times as much N in season 1 as in later
+seasons and therefore did not meet #435. New fields now condition those
+shares through a reference **60-day bare-soil interval at 17 °C, 60% WFPS,
+no priming, no aggregation and no fresh C or N**. The existing daily kinetics
+are used unchanged. This forcing is an explicit pre-sowing scenario
+assumption, not a measured history for each preset or a full zero-input
+equilibrium (the latter would contain no active carbon).
+
+After conditioning, pool shares are normalized to each layer's measured SOC;
+the existing pool C:N values are applied and respiration counters start at
+zero. This computes initial conditions only: it neither removes measured
+carbon nor introduces a hidden in-game carbon input. `initial_fallow_days=0`
+retains the original input-fed prior for experiments with ongoing inputs.
+Saved pools and crop resets remain authoritative and are never conditioned
+again. Sixty days is about 1.7 effective labile turnover times at the stated
+temperature, sufficient to reduce the initial fast-pool pulse without
+changing any rate constant.
+
+RothC's guide explicitly requires an input history when constructing initial
+fractions and notes the sensitivity of fast fractions to input timing:
+https://www.rothamsted.ac.uk/sites/default/files/Documents/RothC_description.pdf
+The conditioning interval and scalar normalization are this model's scenario
+choice, not a prescription from RothC.
+
+Seed-42 NL maize now mineralises 71 / 54 / 51 kg N/ha across three consecutive
+150-day seasons, a largest/smallest ratio of 1.38. Topsoil season-1 release
+is 44 kg N/ha, 1.9% of initial organic N. The tests enforce the original 1.5x
+criterion, including all three seasons, and retain the warm standalone 5%
+ceiling, turnover and C-balance checks.
+
+The original 100-300 kg/ha mineral-N peak depended on the first-season
+surplus. The unfertilised guard remains 30-150 kg/ha; a separate 150 kg N/ha
+dressing test preserves the 100-300 band and drawdown requirement. Crop tests
+whose reference is a fertilised yield now apply N explicitly, and both arms
+of the irrigation comparison receive identical N and S. No yield bound is
+relaxed for this amendment. Early field-soil flux is checked against the
+annual organic-N fraction used in #435, rather than a laboratory potential
+rate that the old initial flush happened to match. The original measured
+table below is retained as the pre-amendment record.
+
+The forecast's historical input-fed fixture remains explicit with conditioning
+disabled; its ±20% delta guard is not a general accuracy promise. A new
+conditioned-default test checks the production deepening path's sign against
+the engine. At day 20 the N stock is 72.2 kg/ha; five days later the engine
+has 94.2 and the heuristic projects 102.5. Improving that source/sink
+approximation is separate from changing initial SOM shares.
+
 ## Context
 
 `ThreePoolSOM` (RothC-like labile / intermediate / stable pools,

@@ -19,7 +19,7 @@ class SoilSulfurState:
 
     Pools tracked per layer:
     - organic_s: Organic sulfur bound in soil organic matter (kg/ha)
-    - available_s: Plant-available sulfate S in solution/exchangeable (kg/ha)
+    - available_s: Dissolved, plant-available sulfate S (kg/ha)
     - adsorbed_s: Reversibly adsorbed sulfate S on Fe/Al oxides (kg/ha)
     """
 

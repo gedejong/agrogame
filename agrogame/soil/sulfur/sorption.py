@@ -3,8 +3,8 @@
 Sulfate is held on Fe/Al-oxide and clay-edge sites by a fast, reversible
 exchange that strengthens with acidity and with oxide/clay surface area
 (Chao et al. 1962; Curtin & Syers 1990). The functions here express that
-dependence once, so the initial sorbed pool, the daily adsorption step and
-the leaching retardation stay mutually consistent.
+dependence once, so initial pool sizing and daily exchange use the same
+kinetic partition. Only dissolved sulfate is transported by drainage.
 """
 
 from __future__ import annotations
@@ -60,35 +60,3 @@ def equilibrium_adsorbed_kg_ha(
         * adsorption_weekly_fraction(ph, clay_pct, params)
         / params.desorption_weekly
     )
-
-
-def distribution_coefficient_l_per_kg(
-    ph: float, clay_pct: float | None, params: SulfurRateParams
-) -> float:
-    """Linear sorption coefficient Kd (L/kg) for sulfate in a layer.
-
-    The reference Kd is scaled by the same clay multiplier as the adsorption
-    rate and doubles between neutral and strongly acid soil, the direction of
-    the pH and oxide-surface dependence of sulfate retention (Chao et al.
-    1962; Curtin & Syers 1990).
-    """
-    return (
-        params.kd_reference_l_per_kg
-        * clay_multiplier(clay_pct, params)
-        * (1.0 + acidity_index(ph))
-    )
-
-
-def retardation_factor(
-    bulk_density_g_cm3: float, theta: float, kd_l_per_kg: float
-) -> float:
-    """Retardation factor ``R = 1 + rho_b * Kd / theta`` of linear sorption.
-
-    The solution phase carries ``1/R`` of a sorbing solute's pool with the
-    drainage front (Jury & Horton 2004, solute transport). Bulk density in
-    g/cm3 equals kg/L, so ``rho_b * Kd`` is dimensionless and ``theta`` is the
-    volumetric water content. A dry or non-sorbing layer returns 1.
-    """
-    if theta <= 0.0 or kd_l_per_kg <= 0.0 or bulk_density_g_cm3 <= 0.0:
-        return 1.0
-    return 1.0 + bulk_density_g_cm3 * kd_l_per_kg / theta

@@ -253,6 +253,25 @@ class TestSnapshotSOM:
 # Initial pool sizing at the kinetic steady state
 # ---------------------------------------------------------------------------
 class TestSteadyStateInitialisation:
+    def test_fallow_conditioning_preserves_stock_and_starts_flux_counters_at_zero(
+        self,
+    ) -> None:
+        profile = load_soil_presets(Path("soils/presets.yaml")).soils["loam_temperate"]
+        prior = ThreePoolSOM(SOMPoolParams(initial_fallow_days=0), len(profile.layers))
+        settled = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
+        prior.initialize_from_profile(profile)
+        settled.initialize_from_profile(profile)
+        for before, after in zip(
+            prior.state.layers, settled.state.layers, strict=False
+        ):
+            assert after.total_c == pytest.approx(before.total_c)
+            assert after.labile.c_kg_ha < before.labile.c_kg_ha
+            assert after.cumulative_co2_c_kg_ha == 0.0
+
+    def test_negative_fallow_interval_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="initial_fallow_days"):
+            ThreePoolSOM(SOMPoolParams(initial_fallow_days=-1), 1)
+
     def test_loam_shares_lie_in_the_equilibrium_bands(self) -> None:
         """~2 % labile, ~30 % intermediate, remainder stable on a loam.
 
@@ -325,11 +344,11 @@ class TestSteadyStateInitialisation:
         assert labile == sorted(labile, reverse=True)
         assert labile[0] > 2 * labile[-1]
         assert stable == sorted(stable)
-        # The topsoil layer is the pure steady state (attenuation 1).
+        # Fallow conditioning reduces the fast pool below the input-fed prior.
         lab_top, _, _ = steady_state_fractions(
             som.params, profile.layers[0].clay_pct or 22.0
         )
-        assert labile[0] == pytest.approx(lab_top)
+        assert 0.0 < labile[0] < lab_top
 
     def test_disabled_attenuation_gives_depth_uniform_shares(self) -> None:
         soil_lib = load_soil_presets(Path("soils/presets.yaml"))
@@ -406,15 +425,8 @@ class TestFirstSeasonMineralisation:
             f"{100 * fraction:.1f} % of {organic_n_topsoil:.0f} kg organic N/ha"
         )
 
-    def test_second_season_supply_is_within_a_factor_two_of_the_first(self) -> None:
-        """Season 1 does not dwarf season 2 the way a relaxing split does.
-
-        With pools far from their kinetic equilibrium the first season carried
-        ~4.4x the net mineralisation of the second; at the steady state the
-        ratio is ~2.0. The remainder is the labile pool draining because the
-        SOM runtime receives no in-season fresh-C input, so the bound guards
-        the initialisation rather than asserting equality.
-        """
+    def test_three_seasons_supply_stays_within_factor_one_point_five(self) -> None:
+        """Issue #435: no first-season spike under the actual no-input forcing."""
         soil_lib = load_soil_presets(Path("soils/presets.yaml"))
         profile = soil_lib.soils["loam_temperate"]
         som = ThreePoolSOM(SOMPoolParams(), len(profile.layers))
@@ -422,5 +434,8 @@ class TestFirstSeasonMineralisation:
 
         season_1 = sum(self._season_net_n(som, profile))
         season_2 = sum(self._season_net_n(som, profile))
-        ratio = season_1 / season_2
-        assert 1.0 < ratio < 2.5, f"season-1/season-2 net mineralisation {ratio:.2f}"
+        season_3 = sum(self._season_net_n(som, profile))
+        assert min(season_1, season_2, season_3) > 0.0
+        assert (
+            max(season_1, season_2, season_3) / min(season_1, season_2, season_3) < 1.5
+        )

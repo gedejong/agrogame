@@ -38,7 +38,7 @@ the same shape as the phosphorus module: `SulfurCycle` holds the processes,
 - **`organic_s`** — S bound in soil organic matter, seeded from the layer's
   organic-matter mass at 0.8 % S (`ORGANIC_MATTER_S_FRACTION`); a 3 % OM
   profile carries roughly 2,000 kg S/ha.
-- **`available_s`** — sulfate-S in solution and readily exchangeable, seeded
+- **`available_s`** — dissolved sulfate-S, seeded
   from `initial_s_kg_ha` in the soil preset.
 - **`adsorbed_s`** — sulfate held reversibly on Fe/Al-oxide and clay-edge
   sites. It starts in kinetic equilibrium with the available pool (see
@@ -62,7 +62,7 @@ All three pools plus scheduled fertiliser releases are conserved;
   fixed weekly fraction of the adsorbed pool. Both run daily at one seventh
   of the weekly fraction; the net exchange is emitted as `SulfurAdsorbed`.
   These relations live in `agrogame.soil.sulfur.sorption` and are shared by
-  the initial state and the leaching term.
+  the initial state and the daily exchange.
 - **Initial equilibrium.** A field soil has equilibrated its sorbed and
   dissolved sulfate over years, so `SoilSulfurState` sizes the adsorbed pool
   at the fast-exchange equilibrium of the two rate constants,
@@ -77,19 +77,16 @@ All three pools plus scheduled fertiliser releases are conserved;
   uptake / demand into `NutrientStressComputed(nutrient="S")` through the
   Liebig stress calculator; demand comes from `DayTick.plant_s_demand_kg_ha`
   (0.05 kg/ha/d when the tick carries none).
-- **Leaching, retarded by sorption.** On `WaterDrained` the fraction of a
-  layer's available sulfate that follows the water is
+- **Leaching.** On `WaterDrained`, dissolved sulfate follows the water:
 
-      fraction = drainage_mm / (storage_mm × R),   R = 1 + ρ_b · Kd / θ
+      moved_kg_ha = available_s × clamp(drainage_mm / storage_mm, 0, 1)
 
-  the retardation factor of linear equilibrium sorption (Jury & Horton
-  2004), with `Kd = kd_reference_l_per_kg × clay_multiplier × (1 + acidity)`
-  so that clayey and acid layers hold sulfate back more (Chao et al. 1962;
-  Curtin & Syers 1990). A neutral loam topsoil (ρ_b 1.3 g/cm³, θ 0.30,
-  pH 6.8) has Kd ≈ 0.53 L/kg and R ≈ 3.3: sulfate moves with the drainage
-  front at about 30 % of the pace of nitrate. Water that leaves the bottom
-  of the profile carries a `NutrientLeached(nutrient="SO4")` loss. A cycle
-  built without a soil profile uses R = 1.
+  The adsorbed pool stays in the layer until daily desorption releases it.
+  This explicit exchange supplies retention; applying an equilibrium
+  retardation factor to the dissolved pool would count that retention twice.
+  For example, 20 kg S/ha in 120 mm of water carries 0.1667 kg S/ha in a
+  1 mm drainage pulse. Internal drainage credits the next layer; drainage
+  outside the profile emits `NutrientLeached(nutrient="SO4")`.
 - **Fertilisers.** `apply_gypsum` adds soluble sulfate at once;
   `apply_elemental_s` releases a small share immediately and schedules the
   rest evenly over its oxidation window, released each day before the
@@ -113,7 +110,5 @@ All three pools plus scheduled fertiliser releases are conserved;
   under anoxia.
 - Every layer is at pH 6.8 until the chemistry module reports per-layer
   values; the initial adsorbed pool is sized at that pH.
-- Sorption is linear with no capacity limit, adequate at agronomic sulfate
-  concentrations. `kd_reference_l_per_kg` is one neutral-topsoil value scaled
-  by clay and acidity, not calibrated per soil preset; acid, oxide-rich
-  subsoils retain considerably more than the model gives them.
+- Sorption is linear with no capacity limit. Its kinetic rates depend on
+  clay and acidity and are not calibrated individually for each soil preset.
