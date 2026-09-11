@@ -2944,21 +2944,21 @@ def _anchor_exact(crop: str, climate: str, metric: str, value: Any) -> Check:
 
 
 def _anchor_checks() -> list[Check]:
-    # Unfertilised loam, seed 42; refreshed after ADR-015 fallow conditioning.
-    # These are regression anchors, not changes to independent science bands.
+    # Unfertilised loam, seed 42, with fallow-conditioned SOM and kinetic
+    # sulfate sorption. These regression anchors are separate from science bands.
     return [
         _anchor("maize", NL, "agb_g_m2", 1062.964, 3),
         _anchor_exact("maize", NL, "final_stage", "GRAIN_FILL"),
         _anchor("maize", NL, "et_actual_mm", 392, 3),
-        _anchor("maize", KENYA, "agb_g_m2", 1131.388, abs_tol=2.5),
+        _anchor("maize", KENYA, "agb_g_m2", 1336.090, abs_tol=2.5),
         _anchor("maize", KENYA, "grain_g_m2", 412, 3),
-        _anchor("maize", KENYA, "harvest_index", 0.35, 3),
+        _anchor("maize", KENYA, "harvest_index", 0.304, 3),
         _anchor_exact("maize", KENYA, "final_stage", "MATURITY"),
         _anchor_exact("maize", KENYA, "day_flowering", 78),
         _anchor_exact("maize", KENYA, "day_maturity", 173),
         _anchor("maize", KENYA, "rain_mm", 913.5),
-        _anchor("maize", KENYA, "evap_mm", 209.587),
-        _anchor("maize", KENYA, "transp_mm", 357.851),
+        _anchor("maize", KENYA, "evap_mm", 202.032),
+        _anchor("maize", KENYA, "transp_mm", 365.405),
         _anchor("maize", KENYA, "runoff_mm", 134.8),
         _anchor("maize", KENYA, "deep_perc_mm", 329.8),
         _anchor("maize", KENYA, "no3_leached_kg_ha", 24.401),
@@ -2968,7 +2968,7 @@ def _anchor_checks() -> list[Check]:
         _anchor("maize", KENYA, "n_uptake_kg_ha", 87.808),
         _anchor("maize", KENYA, "n_massflow_no3_kg_ha", 0.333, abs_tol=0.1),
         _anchor("maize", KENYA, "som_c_change_pct", -1.403, 3),
-        _anchor_exact("maize", KENYA, "drought_senescence_events", 16.0),
+        _anchor_exact("maize", KENYA, "drought_senescence_events", 22.0),
         _anchor("maize", SAHEL, "agb_g_m2", 751.671, 3),
         _anchor("maize", SAHEL, "grain_g_m2", 177, 3),
         _anchor("maize", SAHEL, "harvest_index", 0.234, 3),
@@ -2979,8 +2979,8 @@ def _anchor_checks() -> list[Check]:
         _anchor("spring_wheat", NL, "agb_g_m2", 309.617, 3),
         _anchor_exact("spring_wheat", NL, "final_stage", "MATURITY"),
         _anchor("spring_wheat", KENYA, "agb_g_m2", 889, 3, info=True),
-        _anchor("winter_wheat", NL, "agb_g_m2", 275, 3),
-        _anchor("winter_wheat", NL, "grain_g_m2", 151, 3),
+        _anchor("winter_wheat", NL, "agb_g_m2", 301.118, 3),
+        _anchor("winter_wheat", NL, "grain_g_m2", 165.615, 3),
         _anchor("winter_wheat", NL, "harvest_index", 0.55, abs_tol=0.005),
         _anchor_exact("winter_wheat", NL, "final_stage", "MATURITY"),
         _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 30.866, 3),

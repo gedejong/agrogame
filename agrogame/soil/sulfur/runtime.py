@@ -8,6 +8,10 @@ from .cycle import SulfurCycle
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.plant.stress import StressCalculator
 
+# Soil temperature used for ticks that carry no air temperatures (unit wiring,
+# legacy callers): a temperate mid-season value.
+FALLBACK_SOIL_TEMPERATURE_C: float = 18.0
+
 
 @dataclass
 class SulfurRuntime:
@@ -32,7 +36,9 @@ class SulfurRuntime:
         demand = 0.05
         if ev.plant_s_demand_kg_ha is not None:
             demand = float(ev.plant_s_demand_kg_ha)
-        flux = self.cycle.daily_step(temperature_c=18.0, plant_demand_kg_ha=demand)
+        flux = self.cycle.daily_step(
+            temperature_c=self._soil_temperature_c(ev), plant_demand_kg_ha=demand
+        )
         if self._stress is not None:
             stress = self._stress.nutrient_from_uptake_demand(
                 uptake_kg_ha=flux.plant_uptake_kg_ha, demand_kg_ha=demand
@@ -45,3 +51,15 @@ class SulfurRuntime:
                     stress=stress,
                 )
             )
+
+    @staticmethod
+    def _soil_temperature_c(ev: DayTick) -> float:
+        """Daily mean air temperature as the soil-temperature proxy for S turnover.
+
+        The same proxy drives the gas-diffusion and nitrogen runtimes, so the
+        temperature response of S mineralisation follows the climate instead
+        of a fixed value.
+        """
+        if ev.tmin_c is None or ev.tmax_c is None:
+            return FALLBACK_SOIL_TEMPERATURE_C
+        return 0.5 * (float(ev.tmin_c) + float(ev.tmax_c))

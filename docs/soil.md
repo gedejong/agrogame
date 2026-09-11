@@ -37,6 +37,7 @@ package with the canonical `params/state/module/runtime/events` shape (see
 | `agrogame.soil.pore_network` | Pore-network capacity (porosity, connectivity) | — |
 | `agrogame.soil.gas_diffusion` | O₂/CO₂ transport through pore network | [soil-gas-redox.md](soil-gas-redox.md) |
 | `agrogame.soil.phosphorus` | Phosphorus pool dynamics | [phosphorus.md](phosphorus.md) |
+| `agrogame.soil.sulfur` | Sulfate, adsorbed and organic S pools | [sulfur.md](sulfur.md) |
 | `agrogame.soil.chemistry` | pH and ion balance | — |
 
 ## Notes
