@@ -5,6 +5,17 @@
 Accepted (2026-07-03) — [#360](https://github.com/gedejong/agrogame/issues/360)
 (follow-up to #351 / #357).
 
+### Amendment 2026-09-07 — uptake is demand-driven; mass flow is a diagnostic
+
+Decision point 3 described soil N uptake as "mass-flow (soil-supply) limited".
+The uptake in `NitrogenCycle._take_up_plant` is demand-driven and capped by the
+mineral N available in each rooted layer. The transpiration mass-flow term is
+computed for diagnosis only and published as
+`MassFlowNSupplyComputed(total_kg_ha, by_layer)`; it neither debits the nitrate
+pool nor credits the plant stock. Debiting it removed nitrate that no plant
+stock ever received (of the order of 100 kg N/ha per season under a full maize
+canopy), and crediting it would double-count the demand-driven uptake.
+
 ## Context
 
 Before this change the crop's N-stress signal was **flow-based**: the

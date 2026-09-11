@@ -157,14 +157,17 @@ def test_volatilization_sensitivity() -> None:
         state = SoilNitrogenState(prof)
         # Isolate volatilization: no organic N (no mineralization) and acidic
         # pH (no nitrification) so surface NH4 change is volatilization only.
+        # Surface urea feeds the exposed pool that loses the base rate; native
+        # NH4 at pH 4 loses a negligible fraction of it.
         state.organic_n = [0.0] * len(prof.layers)
-        nh4_before = state.nh4[0]
         cyc = NitrogenCycle(
             EventBus(),
             state,
             profile=cast(Any, prof),
             params=_n_params(volatilization_base_rate=base * k),
         )
+        cyc.apply_urea(0, 100.0)
+        nh4_before = state.nh4[0]
         cyc.daily_step(temperature_c=15.0, ph_by_layer=[4.0, 4.0, 4.0])
         responses.append(nh4_before - state.nh4[0])
     assert _monotonic_increasing(responses)

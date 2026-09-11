@@ -9,15 +9,22 @@ lightweight to allow iterative development.
 
 from __future__ import annotations
 
-from .events import NutrientLeached, NitrificationOccurred
+from .events import (
+    MassFlowNSupplyComputed,
+    NutrientLeached,
+    NitrificationOccurred,
+    VolatilizationOccurred,
+)
 from .params import NitrogenRateParams
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
 from .module import NitrogenCycle
 
 __all__ = [
+    "MassFlowNSupplyComputed",
     "NutrientLeached",
     "NitrificationOccurred",
+    "VolatilizationOccurred",
     "NitrogenRateParams",
     "SoilNitrogenState",
     "NitrogenFluxes",

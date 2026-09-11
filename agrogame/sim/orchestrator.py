@@ -210,6 +210,7 @@ class SoilSnapshot:
     n_nh4: list[float] = field(default_factory=list)
     n_no3: list[float] = field(default_factory=list)
     n_organic: list[float] = field(default_factory=list)
+    n_surface_fertilizer_nh4: float = 0.0
     p_available: list[float] = field(default_factory=list)
     p_fixed: list[float] = field(default_factory=list)
     p_organic: list[float] = field(default_factory=list)
@@ -249,6 +250,7 @@ class SoilSnapshot:
             "n_nh4": list(self.n_nh4),
             "n_no3": list(self.n_no3),
             "n_organic": list(self.n_organic),
+            "n_surface_fertilizer_nh4": float(self.n_surface_fertilizer_nh4),
             "p_available": list(self.p_available),
             "p_fixed": list(self.p_fixed),
             "p_organic": list(self.p_organic),
@@ -287,6 +289,7 @@ class SoilSnapshot:
             n_nh4=list(data["n_nh4"]),
             n_no3=list(data["n_no3"]),
             n_organic=list(data["n_organic"]),
+            n_surface_fertilizer_nh4=float(data.get("n_surface_fertilizer_nh4", 0.0)),
             p_available=list(data["p_available"]),
             p_fixed=list(data["p_fixed"]),
             p_organic=list(data["p_organic"]),
@@ -825,6 +828,7 @@ class FullSimulationOrchestrator:
             n_nh4=list(self.n_state.nh4),
             n_no3=list(self.n_state.no3),
             n_organic=list(self.n_state.organic_n),
+            n_surface_fertilizer_nh4=self.n_state.surface_fertilizer_nh4_kg_ha,
             p_available=list(self.p_state.available_p),
             p_fixed=list(self.p_state.fixed_p),
             p_organic=list(self.p_state.organic_p),
@@ -863,6 +867,9 @@ class FullSimulationOrchestrator:
         self.n_state.nh4 = list(snapshot.n_nh4)
         self.n_state.no3 = list(snapshot.n_no3)
         self.n_state.organic_n = list(snapshot.n_organic)
+        self.n_state.surface_fertilizer_nh4_kg_ha = float(
+            snapshot.n_surface_fertilizer_nh4
+        )
         self.p_state.available_p = list(snapshot.p_available)
         self.p_state.fixed_p = list(snapshot.p_fixed)
         self.p_state.organic_p = list(snapshot.p_organic)

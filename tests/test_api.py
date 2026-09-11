@@ -932,11 +932,11 @@ def test_report_preserves_per_patch_yield_after_harvest(client) -> None:
     patch = report.json()["patches"]["f1"][0]
     # Per-patch yield reflects the harvested grain, not the cleared 0.0.
     assert patch["grain_t_ha"] > 0.0, "Per-patch yield preserved after harvest"
-    # /report serializes grain_t_ha as round(grain_g_m2 / 100.0, 2), so compare
-    # like-for-like at 2-dp resolution. abs=0.01 (one hundredths step) absorbs the
-    # action response's own 1-dp grain rounding landing on the far side of a
-    # hundredths boundary, while still asserting the yield is preserved to 2 dp.
-    assert patch["grain_t_ha"] == pytest.approx(round(grain_g_m2 / 100.0, 2), abs=0.01)
+    # The action and report round independently. Compare integer hundredths
+    # of t/ha so a one-step rounding difference has an exact tolerance.
+    reported_hundredths = round(patch["grain_t_ha"] * 100)
+    harvested_hundredths = round(grain_g_m2)
+    assert abs(reported_hundredths - harvested_hundredths) <= 1
     # Crop identity survives the clear, so the GYGA lookup resolves to maize's
     # water-limited potential (11.0) rather than the 10.0 empty-crop default.
     assert patch["crop_key"] == "maize"
