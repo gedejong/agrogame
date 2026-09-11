@@ -20,9 +20,7 @@ from agrogame.soil.sulfur import (
 )
 from agrogame.soil.sulfur.constants import DEFAULT_SOIL_PH
 from agrogame.soil.sulfur.sorption import (
-    distribution_coefficient_l_per_kg,
     equilibrium_adsorbed_kg_ha,
-    retardation_factor,
 )
 
 
@@ -299,40 +297,50 @@ def test_sulfate_moves_between_layers_on_internal_drainage() -> None:
     assert state.available_s[1] > 0.0
 
 
-def test_sulfate_leaching_is_retarded_by_sorption() -> None:
-    """A drainage pulse carries 1/R of the share nitrate-like movement would."""
+@pytest.mark.parametrize("to_layer", [1, 999])
+@pytest.mark.parametrize("drainage_mm", [1.0, 60.0, 240.0])
+def test_drainage_advects_dissolved_sulfate_only(
+    to_layer: int, drainage_mm: float
+) -> None:
+    """Dissolved flux is concentration times drainage; sorbed stock stays put."""
     profile = make_profile()
     bus = EventBus()
+    _, state = _cycle(profile, bus)
+    leached: list[NutrientLeached] = []
+    bus.subscribe(NutrientLeached, leached.append)
+    adsorbed = list(state.adsorbed_s)
+    total = state.total_sulfur_kg_ha()
+    # 20 kg/ha dissolved in 120 mm of water (40 cm layer at theta 0.30).
+    expected = min(20.0, 20.0 / 120.0 * drainage_mm)
+    bus.emit(WaterDrained(from_layer=0, to_layer=to_layer, amount_mm=drainage_mm))
+    assert state.available_s[0] == pytest.approx(20.0 - expected)
+    assert state.adsorbed_s == adsorbed
+    if to_layer == 1:
+        assert state.available_s[1] == pytest.approx(expected)
+        assert not leached
+        assert state.total_sulfur_kg_ha() == pytest.approx(total)
+    else:
+        assert len(leached) == 1
+        assert leached[0].amount_kg_ha == pytest.approx(expected)
+        assert state.total_sulfur_kg_ha() + expected == pytest.approx(total)
+
+
+def test_adsorbed_sulfate_is_mobile_only_after_desorption() -> None:
+    profile = make_profile(organic_matter_pct=0.0)
+    bus = EventBus()
     cycle, state = _cycle(profile, bus)
-    state.available_s = [20.0, 0.0, 0.0]
-    water = SoilWaterState(profile)
-    storage0 = water.layer_storage_mm(profile, 0)
-    top = profile.layers[0]
-    kd = distribution_coefficient_l_per_kg(
-        DEFAULT_SOIL_PH, top.clay_pct, SulfurRateParams()
-    )
-    r_factor = retardation_factor(top.bulk_density_g_cm3, water.theta[0], kd)
-    assert r_factor > 2.0
-    bus.emit(WaterDrained(from_layer=0, to_layer=1, amount_mm=storage0 * 0.5))
-    moved = state.available_s[1]
-    assert moved == pytest.approx(20.0 * 0.5 / r_factor)
-    assert moved < 20.0 * 0.5
-
-
-def test_retardation_rises_with_clay_and_acidity() -> None:
-    params = SulfurRateParams()
-    kd_loam = distribution_coefficient_l_per_kg(7.0, 22.0, params)
-    assert kd_loam == pytest.approx(params.kd_reference_l_per_kg)
-    assert distribution_coefficient_l_per_kg(7.0, 50.0, params) > kd_loam
-    assert distribution_coefficient_l_per_kg(7.0, 5.0, params) < kd_loam
-    assert distribution_coefficient_l_per_kg(4.0, 22.0, params) == pytest.approx(
-        2.0 * kd_loam
-    )
-    assert retardation_factor(1.3, 0.3, kd_loam) == pytest.approx(
-        1.0 + 1.3 * kd_loam / 0.3
-    )
-    assert retardation_factor(1.3, 0.0, kd_loam) == 1.0
-    assert retardation_factor(1.3, 0.3, 0.0) == 1.0
+    state.available_s = [0.0, 0.0, 0.0]
+    state.adsorbed_s = [70.0, 0.0, 0.0]
+    pulse = WaterDrained(from_layer=0, to_layer=1, amount_mm=120.0)
+    bus.emit(pulse)
+    assert state.available_s == [0.0, 0.0, 0.0]
+    assert state.adsorbed_s[0] == 70.0
+    cycle.daily_step(temperature_c=25.0, plant_demand_kg_ha=0.0)
+    released = state.available_s[0]
+    assert released > 0.0
+    bus.emit(pulse)
+    assert state.available_s[1] == pytest.approx(released)
+    assert state.total_sulfur_kg_ha() == pytest.approx(70.0)
 
 
 # --- Fertilizer -------------------------------------------------------------

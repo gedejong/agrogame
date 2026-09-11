@@ -18,6 +18,7 @@ while the constant-root-depth projector holds it fixed).
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -46,7 +47,9 @@ _ESTABLISH_DAYS = 20
 _HORIZON_DAYS = 5
 
 
-def _build(days: int, seed: int = 42) -> tuple[FullSimulationOrchestrator, list]:
+def _build(
+    days: int, seed: int = 42, *, input_fed_reference: bool = True
+) -> tuple[FullSimulationOrchestrator, list]:
     _load_crop_presets_cached.cache_clear()
     _load_climate_presets_cached.cache_clear()
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
@@ -60,6 +63,11 @@ def _build(days: int, seed: int = 42) -> tuple[FullSimulationOrchestrator, list]
     orch = FullSimulationOrchestrator(
         profile, crop=crop, latitude_deg=climate.latitude_deg
     )
+    if input_fed_reference:
+        # Preserve the input-fed SOM prior used by the #353/#383 regression
+        # scenario. New games instead condition that prior through a fallow.
+        orch.som.params = replace(orch.som.params, initial_fallow_days=0)
+        orch.som.initialize_from_profile(profile)
     return orch, series.records
 
 
@@ -270,6 +278,31 @@ def test_forecast_deepening_delta_tracks_engine_magnitude() -> None:
     # lands within ±20% of the engine Δ. Measured ratio ≈ 1.07 here (cf ≈ 0.50).
     ratio = deep_delta / engine_delta
     assert 0.8 <= ratio <= 1.2, f"deepening Δ ratio {ratio:.2f} outside ±20% [0.8, 1.2]"
+
+
+def test_conditioned_default_forecast_tracks_engine_direction() -> None:
+    """The production deepening path retains sign agreement after #435.
+
+    The historical ±20% magnitude guard above is specific to the input-fed
+    reference. A fallow-conditioned soil has a different source/sink balance;
+    the approximate forecast promises direction, not that relative tolerance.
+    """
+    orch, records = _build(25, input_fed_reference=False)
+    for rec in records[:20]:
+        _step(orch, rec)
+    inputs = _forecast_inputs(orch)
+    weather = [
+        ((r.tmin_c + r.tmax_c) / 2, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
+        for r in records[20:]
+    ]
+    forecast = project_soil_forecast(
+        weather=weather, **inputs, **_deepening_kwargs(orch)
+    )
+    for rec in records[20:]:
+        _step(orch, rec)
+    anchor = inputs["mineral_n_kg_ha"]
+    assert _root_zone_mineral_n(orch) > anchor
+    assert forecast[-1].mineral_n_kg_ha > anchor
 
 
 def test_forecast_deepening_leaves_water_channel_unchanged() -> None:

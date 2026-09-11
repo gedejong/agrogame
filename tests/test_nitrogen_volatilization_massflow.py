@@ -171,6 +171,74 @@ def test_temperature_scaled_rate_is_capped() -> None:
     assert before - state.nh4[0] == pytest.approx(10.0)
 
 
+@pytest.mark.parametrize("sink", ["uptake", "nitrification"])
+@pytest.mark.parametrize("fraction", [0.25, 1.0])
+def test_ammonium_sinks_remove_the_exposed_share(sink: str, fraction: float) -> None:
+    cycle, state = _cycle(
+        nh4_top=100.0,
+        params=NitrogenRateParams(
+            nitrification_base_rate=fraction, nitrification_max_rate=1.0
+        ),
+    )
+    cycle._env.fungal_fraction_by_layer = [0.0] * N_LAYERS
+    cycle.apply_urea(0, 100.0)
+    state.no3 = [0.0] * N_LAYERS
+    initial_total = state.total_nitrogen_kg_ha()
+    if sink == "uptake":
+        removed = cycle._take_up_plant(200.0 * fraction, [1.0, 0.0, 0.0])
+        assert state.total_nitrogen_kg_ha() + removed == pytest.approx(initial_total)
+    else:
+        removed = cycle._nitrify_layer(0, 1.0, 1.0, 1.0, 1.0)
+        assert state.no3[0] == pytest.approx(removed)
+        assert state.total_nitrogen_kg_ha() == pytest.approx(initial_total)
+    assert removed == pytest.approx(200.0 * fraction)
+    assert state.nh4[0] == pytest.approx(200.0 * (1.0 - fraction))
+    assert state.surface_fertilizer_nh4_kg_ha == pytest.approx(100.0 * (1.0 - fraction))
+
+
+@pytest.mark.parametrize("sink", ["uptake", "nitrification"])
+def test_fully_consumed_fertilizer_does_not_expose_mineralized_n(sink: str) -> None:
+    from agrogame.soil.som.events import SOMDecomposed
+
+    cycle, state = _cycle(
+        nh4_top=0.0,
+        params=NitrogenRateParams(
+            nitrification_base_rate=1.0, nitrification_max_rate=1.0
+        ),
+    )
+    cycle._env.fungal_fraction_by_layer = [0.0] * N_LAYERS
+    cycle.apply_urea(0, 100.0)
+    state.no3 = [0.0] * N_LAYERS
+    if sink == "uptake":
+        cycle._take_up_plant(100.0, [1.0, 0.0, 0.0])
+    else:
+        cycle._nitrify_layer(0, 1.0, 1.0, 1.0, 1.0)
+    assert state.nh4[0] == 0.0
+    assert state.surface_fertilizer_nh4_kg_ha == 0.0
+    cycle.event_bus.emit(
+        SOMDecomposed(
+            layer=0,
+            pool="labile",
+            decomposed_c_kg_ha=120.0,
+            mineralized_n_kg_ha=10.0,
+        )
+    )
+    native, _ = _cycle(nh4_top=10.0)
+    assert cycle._volatilize_surface(1.0, 6.8) == pytest.approx(
+        native._volatilize_surface(1.0, 6.8)
+    )
+
+
+def test_subsoil_uptake_does_not_consume_surface_exposure() -> None:
+    cycle, state = _cycle(nh4_top=0.0)
+    cycle.apply_urea(0, 100.0)
+    cycle.apply_urea(1, 50.0)
+    state.no3 = [0.0] * N_LAYERS
+    assert cycle._take_up_plant(50.0, [0.0, 1.0, 0.0]) == 50.0
+    assert state.surface_fertilizer_nh4_kg_ha == 100.0
+    assert state.nh4 == [100.0, 0.0, 0.0]
+
+
 # --- mass flow ------------------------------------------------------------------
 
 

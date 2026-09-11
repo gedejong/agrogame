@@ -34,11 +34,7 @@ class SulfurRateParams:
     (clay) surface area, but is markedly weaker and more labile than phosphate
     fixation (Bolan et al. 1988, J. Soil Sci.; Curtin & Syers 1990, J. Soil
     Sci.; Marsh et al. 1987). The clay response is reference-normalized so a
-    loam-textured layer is unchanged (multiplier 1.0). The same acidity and
-    clay dependence scales the sorption coefficient that retards sulfate
-    leaching, so the sorbed pool, the daily exchange and the drainage
-    transport describe one sorption process
-    (:mod:`agrogame.soil.sulfur.sorption`).
+    loam-textured layer is unchanged (multiplier 1.0).
 
     Attributes:
         mineralization_monthly_min: Lower bound of organic-S -> SO4
@@ -61,14 +57,6 @@ class SulfurRateParams:
         adsorption_clay_sensitivity: Slope of the linear clay response.
         adsorption_clay_min_mult: Lower clamp on the clay multiplier.
         adsorption_clay_max_mult: Upper clamp on the clay multiplier.
-        kd_reference_l_per_kg: Linear sorption coefficient of sulfate (L/kg)
-            for a neutral layer at the reference clay content, setting the
-            leaching retardation ``R = 1 + rho_b * Kd / theta``. At 0.5 L/kg a
-            neutral loam topsoil (rho_b 1.3 g/cm3, theta 0.30) has R ~ 3:
-            sulfate follows the drainage front a few times slower than nitrate,
-            the weak retention typical of neutral temperate topsoils (Harward &
-            Reisenauer 1966), while acid, oxide-rich subsoils reach several
-            L/kg (Curtin & Syers 1990).
     """
 
     mineralization_monthly_min: float = 0.0006
@@ -84,6 +72,3 @@ class SulfurRateParams:
     adsorption_clay_sensitivity: float = 0.75
     adsorption_clay_min_mult: float = 0.3
     adsorption_clay_max_mult: float = 3.0
-
-    # Leaching retardation (linear equilibrium sorption)
-    kd_reference_l_per_kg: float = 0.5

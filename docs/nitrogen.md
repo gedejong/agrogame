@@ -32,6 +32,11 @@ Daily step inputs
 
 ### NH3 volatilisation
 
+Uptake and nitrification remove the exposed-fertiliser tag in proportion to
+NH4 removed from the mixed surface pool. Complete removal clears the tag
+before mineralisation or another application can replenish NH4. Subsoil
+removal leaves the surface tag unchanged.
+
 Only the surface layer volatilises. Surface-applied urea hydrolyses in a band whose pH
 rises to about 9, where roughly a third of the ammoniacal N is dissolved NH3.
 `SoilNitrogenState.surface_fertilizer_nh4_kg_ha` tracks that exposed share of the
