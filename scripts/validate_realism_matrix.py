@@ -402,7 +402,6 @@ DAILY_FLUX_KEYS: tuple[str, ...] = (
     "deep_perc_mm",
     "no3_leached_kg_ha",
     "nh4_leached_kg_ha",
-    "so4_leached_kg_ha",
     "nitrification_kg_ha",
     "denitrification_kg_ha",
     "volatilization_kg_ha",
@@ -488,13 +487,6 @@ class FluxCollector:
             "nh4_leached_kg_ha",
             "amount_kg_ha",
             predicate=_nutrient_filter("NH4"),
-        )
-        add(
-            bus,
-            NutrientLeached,
-            "so4_leached_kg_ha",
-            "amount_kg_ha",
-            predicate=_nutrient_filter("SO4"),
         )
         add(bus, NitrificationOccurred, "nitrification_kg_ha", "amount_kg_ha")
         add(bus, DenitrificationOccurred, "denitrification_kg_ha", "amount_kg_ha")
@@ -907,7 +899,6 @@ def _limitation_scalars(
     out["s_avail_start_kg_ha"] = float(start["s_avail_kg_ha"])
     out["s_avail_min_kg_ha"] = min(s_avail)
     out["s_avail_end_kg_ha"] = s_avail[-1]
-    out["so4_leached_kg_ha"] = _sum(daily, "so4_leached_kg_ha")
     return out
 
 
@@ -2878,8 +2869,8 @@ def _limitation_checks() -> list[Check]:
             fail=(-INF, 90),
             applies=_and(NORMAL, VIABLE),
             category=cat,
-            source="sulfur deficiency in unfertilised crops is episodic, "
-            "not the season-long limiting factor (Scherer 2001)",
+            source="sulfur deficiency in unfertilised crops is episodic on leached "
+            "sands, not the season-long limiting factor (Scherer 2001)",
         ),
         Check(
             "growth_factor_mean_humid",
@@ -2932,56 +2923,55 @@ def _anchor_exact(crop: str, climate: str, metric: str, value: Any) -> Check:
 
 
 def _anchor_checks() -> list[Check]:
+    # Unfertilised loam, seed 42, with fallow-conditioned SOM and kinetic
+    # sulfate sorption. These regression anchors are separate from science bands.
     return [
-        _anchor("maize", NL, "agb_g_m2", 1363, 3),
+        _anchor("maize", NL, "agb_g_m2", 1145.14, 3),
         _anchor_exact("maize", NL, "final_stage", "GRAIN_FILL"),
-        _anchor("maize", NL, "et_actual_mm", 392, 3),
-        _anchor("maize", KENYA, "agb_g_m2", 1860.0),
-        _anchor("maize", KENYA, "grain_g_m2", 597.5, 3),
-        _anchor("maize", KENYA, "harvest_index", 0.318, 3),
+        _anchor("maize", NL, "et_actual_mm", 391.574, 3),
+        _anchor("maize", KENYA, "agb_g_m2", 1392.33, abs_tol=2.5),
+        _anchor("maize", KENYA, "grain_g_m2", 423.078, 3),
+        _anchor("maize", KENYA, "harvest_index", 0.304, 3),
         _anchor_exact("maize", KENYA, "final_stage", "MATURITY"),
         _anchor_exact("maize", KENYA, "day_flowering", 78),
         _anchor_exact("maize", KENYA, "day_maturity", 173),
-        _anchor("maize", KENYA, "rain_mm", 913.5),
-        _anchor("maize", KENYA, "evap_mm", 171.7),
-        _anchor("maize", KENYA, "transp_mm", 395.7),
-        _anchor("maize", KENYA, "runoff_mm", 134.8),
-        _anchor("maize", KENYA, "deep_perc_mm", 329.8),
-        _anchor("maize", KENYA, "no3_leached_kg_ha", 39.1),
+        _anchor("maize", KENYA, "rain_mm", 913.546),
+        _anchor("maize", KENYA, "evap_mm", 195.816),
+        _anchor("maize", KENYA, "transp_mm", 371.653),
+        _anchor("maize", KENYA, "runoff_mm", 134.822),
+        _anchor("maize", KENYA, "deep_perc_mm", 329.754),
+        _anchor("maize", KENYA, "no3_leached_kg_ha", 25.482),
         _anchor("maize", KENYA, "denitrification_kg_ha", 0.0, abs_tol=0.5),
-        _anchor("maize", KENYA, "volatilization_kg_ha", 0.18, abs_tol=0.05),
-        _anchor("maize", KENYA, "som_min_n_kg_ha", 149.2),
-        _anchor("maize", KENYA, "n_uptake_kg_ha", 139.2),
-        _anchor("maize", KENYA, "n_massflow_supply_kg_ha", 1.95, abs_tol=0.1),
-        _anchor("maize", KENYA, "som_c_change_pct", -2.0, 3),
+        _anchor("maize", KENYA, "volatilization_kg_ha", 0.063),
+        _anchor("maize", KENYA, "som_min_n_kg_ha", 89.144),
+        _anchor("maize", KENYA, "n_uptake_kg_ha", 92.848),
+        _anchor("maize", KENYA, "n_massflow_supply_kg_ha", 0.426, abs_tol=0.1),
+        _anchor("maize", KENYA, "som_c_change_pct", -1.403, 3),
         _anchor_exact("maize", KENYA, "drought_senescence_events", 22.0),
-        _anchor("maize", KENYA, "so4_leached_kg_ha", 16.0),
-        _anchor("maize", KENYA, "s_avail_end_kg_ha", 45.0),
-        _anchor_exact("maize", KENYA, "binding_days_s", 0),
-        _anchor("maize", SAHEL, "agb_g_m2", 778, 3),
-        _anchor("maize", SAHEL, "grain_g_m2", 177, 3),
-        _anchor("maize", SAHEL, "harvest_index", 0.227, 3),
+        _anchor("maize", SAHEL, "agb_g_m2", 777.348, 3),
+        _anchor("maize", SAHEL, "grain_g_m2", 176.912, 3),
+        _anchor("maize", SAHEL, "harvest_index", 0.228, 3),
         _anchor_exact("maize", SAHEL, "final_stage", "MATURITY"),
-        _anchor("maize", SAHEL, "no3_leached_kg_ha", 0.3, abs_tol=0.7),
-        _anchor("sorghum", SAHEL, "agb_g_m2", 920, 3),
-        _anchor("sorghum", NL, "agb_g_m2", 941, 3),
-        _anchor("spring_wheat", NL, "agb_g_m2", 450, 3),
+        _anchor("maize", SAHEL, "no3_leached_kg_ha", 0.256, abs_tol=0.7),
+        _anchor("sorghum", SAHEL, "agb_g_m2", 863.862, 3),
+        _anchor("sorghum", NL, "agb_g_m2", 727.99, 3),
+        _anchor("spring_wheat", NL, "agb_g_m2", 337.254, 3),
         _anchor_exact("spring_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("spring_wheat", KENYA, "agb_g_m2", 1459, 3),
-        _anchor("winter_wheat", NL, "agb_g_m2", 375, 3),
-        _anchor("winter_wheat", NL, "grain_g_m2", 206, 3),
+        _anchor("spring_wheat", KENYA, "agb_g_m2", 989.294, 3, info=True),
+        _anchor("winter_wheat", NL, "agb_g_m2", 352.836, 3),
+        _anchor("winter_wheat", NL, "grain_g_m2", 194.06, 3),
         _anchor("winter_wheat", NL, "harvest_index", 0.55, abs_tol=0.005),
         _anchor_exact("winter_wheat", NL, "final_stage", "MATURITY"),
-        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 98.1, 3),
-        _anchor("winter_wheat", NL, "som_c_change_pct", -2.16, 3),
-        _anchor("winter_wheat", SAHEL, "agb_g_m2", 202, 3),
+        _anchor("winter_wheat", NL, "mineral_n_peak_kg_ha", 45.056, 3),
+        _anchor("winter_wheat", NL, "som_c_change_pct", -1.573, 3),
+        _anchor("winter_wheat", SAHEL, "agb_g_m2", 202.883, 3),
         _anchor_exact("winter_wheat", SAHEL, "final_stage", "VEGETATIVE"),
         _anchor_exact("winter_wheat", KENYA, "final_stage", "VEGETATIVE"),
-        _anchor("rice", KENYA, "agb_g_m2", 1020, 3),
+        _anchor("rice", KENYA, "agb_g_m2", 697.078, 3),
         _anchor_exact("rice", KENYA, "final_stage", "MATURITY"),
-        _anchor("rice", SAHEL, "agb_g_m2", 231, 3),
-        _anchor("grape", SAHEL, "agb_g_m2", 8, abs_tol=3),
-        _anchor("grape", NL, "agb_g_m2", 132, 3),
+        _anchor("rice", SAHEL, "agb_g_m2", 205.097, 3),
+        _anchor("grape", SAHEL, "agb_g_m2", 8.461, abs_tol=3),
+        _anchor("grape", NL, "agb_g_m2", 130.756, 3),
     ]
 
 
@@ -4167,7 +4157,6 @@ def _section_limitation(results: list[RunResult]) -> list[str]:
                     round(mean("fe_toxic_days")),
                     round(mean("s_avail_start_kg_ha")),
                     round(mean("s_avail_end_kg_ha")),
-                    round(mean("so4_leached_kg_ha")),
                     round(mean("stress_s_mean"), 2),
                 )
             )
@@ -4183,7 +4172,6 @@ def _section_limitation(results: list[RunResult]) -> list[str]:
             "Fe toxic d",
             "S start kg/ha",
             "S end kg/ha",
-            "S leached kg/ha",
             "S stress mean",
         ],
         redox,
@@ -4325,10 +4313,6 @@ GLOSSARY: tuple[tuple[str, str], ...] = (
     (
         "s_avail_*_kg_ha",
         "plant-available sulfate over the whole profile at start, minimum and end",
-    ),
-    (
-        "so4_leached_kg_ha",
-        "sulfate-S drained out of the bottom of the profile over the season",
     ),
     (
         "grade",

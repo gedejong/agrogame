@@ -97,9 +97,14 @@ layers are scaled by `exp(-(z_mid - z_mid_topsoil) /
 fresh_input_efolding_depth_cm)` (default 30 cm) and the stable pool takes
 the remainder. Pool N follows the fixed C:N ratios 12 / 15 / 20.
 
-Sizing the pools at their equilibrium removes the first-season flush a
-fixed split produces (a 5 % labile pool at C:N 12 decomposes almost entirely
-within one warm season) while leaving the standing SOM-C unchanged. The pool
+The input-fed equilibrium is only a prior: without continuing fresh inputs,
+its fast pool still produces a first-season flush. New fields therefore
+condition the shares through a reference 60-day bare-soil interval at 17 °C
+and 60 % WFPS, with no fresh inputs or priming. The resulting C shares are
+normalised to the measured total SOC and assigned the pool C:N ratios.
+This is an explicit initial-state assumption, not a simulated C input or a
+claim about a field's actual history. Set `initial_fallow_days=0` to retain
+the input-fed prior. Decomposition rates are unchanged. The pool
 object is a preserved state container: a crop reset hands it to the rebuilt
 runtime, so seasons carry their decomposed pools forward. See
 [ADR-015](adr/ADR-015-som-steady-state-initialisation.md).
@@ -112,4 +117,3 @@ References
 - Davidson, E. A., Janssens, I. A. (2006). Temperature sensitivity of soil carbon decomposition and feedbacks to climate change.
 - Allison, S. D., Vitousek, P. M. (2005). Responses of soil microorganisms to moisture and temperature.
 - Sinsabaugh, R. L. (2010). Phenol oxidase, peroxidase and organic matter dynamics of soil.
-

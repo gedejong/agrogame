@@ -471,7 +471,7 @@ class NitrogenCycle:
         dn = min(nh4, rate * nh4)
         if dn <= 0.0:
             return 0.0
-        self.state.nh4[idx] -= dn
+        self._remove_nh4(idx, dn)
         self.state.no3[idx] += dn
         self.event_bus.emit(NitrificationOccurred(layer=idx, amount_kg_ha=dn))
         return dn
@@ -554,6 +554,25 @@ class NitrogenCycle:
         self.event_bus.emit(VolatilizationOccurred(layer=0, amount_kg_ha=loss))
         return loss
 
+    def _remove_nh4(self, layer: int, amount_kg_ha: float) -> float:
+        """Remove ammonium and its proportional exposed-fertilizer share.
+
+        Uptake and nitrification draw from the mixed layer pool. Tracking the
+        exposed subset at removal prevents later mineralisation from inheriting
+        the exposure of fertilizer that has already left the ammonium pool.
+        Volatilisation uses its own source-specific losses instead.
+        """
+        pool = self.state.nh4[layer]
+        taken = min(max(0.0, amount_kg_ha), pool)
+        remaining = pool - taken
+        if layer == 0:
+            exposed = min(pool, max(0.0, self.state.surface_fertilizer_nh4_kg_ha))
+            self.state.surface_fertilizer_nh4_kg_ha = (
+                exposed * remaining / pool if pool > 0.0 else 0.0
+            )
+        self.state.nh4[layer] = remaining
+        return taken
+
     def _take_up_plant(self, total_demand: float, root_fractions: list[float]) -> float:
         if total_demand <= 0.0:
             return 0.0
@@ -569,7 +588,6 @@ class NitrogenCycle:
             remaining = want - take_no3
             take_nh4 = 0.0
             if remaining > 0.0:
-                take_nh4 = min(self.state.nh4[i], remaining)
-                self.state.nh4[i] -= take_nh4
+                take_nh4 = self._remove_nh4(i, remaining)
             taken += take_no3 + take_nh4
         return taken
