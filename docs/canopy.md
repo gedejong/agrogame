@@ -62,7 +62,12 @@ CERES-style model so harvest index becomes an *emergent*, bounded outcome:
    announced via `GrainNumberSet`. Because that window growth already
    integrates temperature (cold), water and N stress through the RUE source
    term, all three stresses in the window lower grain number (Andrade et al.
-   1999; Fischer 1985; DSSAT CERES `G1`).
+   1999; Fischer 1985; DSSAT CERES `G1`). A floor of
+   `grains_per_g_source * grain_set_floor_frac * (biomass at window start)`
+   stands for the grains initiated on spike/ear structures built before
+   anthesis, so a window with no net growth still sets a small population
+   from pre-anthesis reserves rather than none (CERES-Wheat scales grain
+   number with stem mass at anthesis; Ritchie & Otter 1985).
 2. **Grain filling (kernel weight).** Each day a fill *demand* =
    `grain_number * kernel_fill_rate_mg_per_grain_day` (bounded by the
    remaining total sink `grain_number * potential_kernel_weight_mg`, CERES
@@ -77,13 +82,20 @@ CERES-style model so harvest index becomes an *emergent*, bounded outcome:
    Realised kernel weight (`grain / grain_number`) still drops under stress —
    via lower current assimilate and a finite reserve pool — just not to zero.
 3. **Emergent, bounded HI.** Cumulative grain is capped at
-   `hi_max * total_biomass` (safety ceiling ~0.50-0.55 for cereals). Grain
-   number, not the cap, is the dominant yield lever in unstressed runs.
+   `hi_max * total_biomass` (physiological ceiling ~0.50-0.55 for cereals,
+   0.45 for soybean). Grain number, not the cap, is the dominant yield lever
+   in unstressed runs.
 
 Remobilisation and the cap are internal transfers, so total biomass is
-unchanged. `grains_per_g_source == 0` (grape, un-migrated presets) keeps the
-legacy fixed-`harvest_index` allocation. State (`grain_number`) resets on
-`Harvested` and round-trips through `to_dict`/`from_dict`.
+unchanged. `grains_per_g_source == 0` keeps the legacy fixed-`harvest_index`
+allocation; among the shipped presets only grape (HI 0) uses it. The `hi_max`
+cap applies on both paths: on the legacy path the daily stem remobilisation
+(`remobilization_fraction`) would otherwise compound grain past the crop's
+ceiling. Soybean runs on the sink-source path with seed-crop parameters
+(seeds per g of pod-set assimilate, a 250-GDD pod-set window, 160 mg
+potential seed weight, 5 mg/seed/day fill; Egli 1998; CROPGRO pod
+addition). State (`grain_number`) resets on `Harvested` and round-trips
+through `to_dict`/`from_dict`.
 
 ### Rainfall interception
 

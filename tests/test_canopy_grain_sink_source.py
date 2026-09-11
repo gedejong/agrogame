@@ -1,14 +1,18 @@
 """Unit tests for the sink-source grain model (#321).
 
-Covers grain-number setting during the peri-anthesis window, freezing +
-diagnostic event, kernel-weight fill kinetics, heat/reserve effects, the
-hi_max safety cap, harvest reset, and state persistence. The legacy
-fixed-HI path is exercised separately in ``test_canopy_events.py``.
+Covers grain-number setting during the peri-anthesis window (including the
+grain-set floor), freezing + diagnostic event, kernel-weight fill kinetics,
+heat/reserve effects, the hi_max cap on both grain paths, harvest reset,
+state persistence, and the soybean preset's sink-source migration. The
+legacy fixed-HI allocation itself is exercised in ``test_canopy_events.py``.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from agrogame.events import EventBus
+from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 from agrogame.soil.phenology.events import GddAccumulated
 from agrogame.soil.canopy import CanopyModule, CanopyParams
@@ -241,3 +245,120 @@ def test_canopy_state_grain_number_round_trips() -> None:
     # Backward compat: missing grain_number defaults to 0.0.
     legacy = CanopyState.from_dict({"lai": 1.0, "biomass_g_m2": 10.0})
     assert legacy.grain_number == 0.0
+
+
+def test_legacy_fixed_hi_path_capped_at_hi_max() -> None:
+    """Legacy path: compounding stem remobilisation stops at hi_max x biomass."""
+    bus = EventBus()
+    params = CanopyParams(
+        extinction_coefficient_k=0.6,
+        radiation_use_efficiency_g_per_mj=3.0,
+        specific_leaf_area_m2_per_g=0.02,
+        lai_max=6.0,
+        senescence_rate_per_day=0.0,
+        leaf_fraction_grain_fill=0.1,
+        harvest_index=0.5,
+        remobilization_fraction=0.5,
+        hi_max=0.3,
+    )
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 4.0
+    canopy.state.biomass_g_m2 = 500.0
+    canopy.state.stem_biomass_g_m2 = 300.0
+    _enter_grain_fill(canopy, bus, at_gdd=900.0)
+    for i in range(30):
+        _step(canopy, bus, total_gdd=950.0 + i * 20.0)
+        hi = canopy.state.grain_biomass_g_m2 / canopy.state.biomass_g_m2
+        assert hi <= 0.3 + 1e-9
+    # 50 %/d remobilisation of a 300 g stem would push HI far past 0.3, so
+    # the cap binds; the surplus goes back to stem and the pools stay
+    # within the shoot total.
+    assert canopy.state.grain_biomass_g_m2 > 0.0
+    assert abs(canopy.state.grain_biomass_g_m2 - 0.3 * canopy.state.biomass_g_m2) < 1e-9
+    assert canopy.state.stem_biomass_g_m2 >= 0.0
+    assert (
+        canopy.state.stem_biomass_g_m2 + canopy.state.grain_biomass_g_m2
+        <= canopy.state.biomass_g_m2 + 1e-9
+    )
+
+
+def test_grain_set_floor_when_window_has_no_growth() -> None:
+    """A window without assimilate still sets grains from window-start biomass."""
+    bus = EventBus()
+    events: list[GrainNumberSet] = []
+    bus.subscribe(GrainNumberSet, lambda e: events.append(e))
+    canopy = CanopyModule(_sink_params(), event_bus=bus)
+    canopy.state.lai = 4.0
+    canopy.state.biomass_g_m2 = 500.0
+    canopy.state.stem_biomass_g_m2 = 300.0
+    _enter_grain_fill(canopy, bus, at_gdd=900.0)
+    for gdd in (920.0, 960.0, 1000.0):  # dark days spanning the whole window
+        bus.emit(GddAccumulated(daily_gdd=1.0, total_gdd=gdd))
+        canopy.daily_step(
+            incident_shortwave_mj_m2=0.0,
+            temp_factor=1.0,
+            water_stress=1.0,
+            n_stress=1.0,
+        )
+    expected_floor = 50.0 * 0.02 * 500.0  # grains/g x floor frac x start biomass
+    assert canopy.state.biomass_g_m2 == 500.0
+    assert abs(canopy.state.grain_number - expected_floor) < 1e-9
+    assert canopy.state.grain_number > 0.0
+
+    _step(canopy, bus, total_gdd=1010.0)  # window closed: frozen at the floor
+    assert abs(canopy.state.grain_number - expected_floor) < 1e-9
+    assert len(events) == 1
+    assert abs(events[0].grain_number - expected_floor) < 1e-9
+
+    for i in range(20):  # filling the small population gives a positive HI
+        _step(canopy, bus, total_gdd=1030.0 + i * 20.0)
+    assert canopy.state.grain_biomass_g_m2 > 0.0
+    assert canopy.state.grain_biomass_g_m2 / canopy.state.biomass_g_m2 > 0.0
+
+
+def test_grain_set_floor_inactive_when_window_growth_exceeds_it() -> None:
+    """With ample window growth grain number stays assimilate-driven."""
+    bus = EventBus()
+    canopy = CanopyModule(_sink_params(), event_bus=bus)
+    canopy.state.lai = 4.0
+    canopy.state.biomass_g_m2 = 500.0
+    _enter_grain_fill(canopy, bus, at_gdd=900.0)
+    for gdd in (920.0, 960.0, 1000.0):
+        _step(canopy, bus, total_gdd=gdd)
+    window_growth = canopy.state.biomass_g_m2 - 500.0
+    assert 50.0 * window_growth > 50.0 * 0.02 * 500.0
+    assert abs(canopy.state.grain_number - 50.0 * window_growth) < 1e-9
+
+
+def test_soybean_preset_on_sink_source_path_with_hi_ceiling() -> None:
+    """Soybean sets seed number from window assimilate and caps HI at 0.45."""
+    _load_crop_presets_cached.cache_clear()
+    lib = load_crop_presets(Path("data/crops/presets.yaml"))
+    params = lib.get_preset("soybean").canopy
+    assert params.grains_per_g_source == 8.0
+    assert params.grain_set_window_gdd == 250.0
+    assert params.potential_kernel_weight_mg == 160.0
+    assert params.kernel_fill_rate_mg_per_grain_day == 5.0
+    assert params.hi_max == 0.45
+    assert params.harvest_index == 0.40  # legacy fallback value kept
+
+    bus = EventBus()
+    canopy = CanopyModule(params, event_bus=bus)
+    canopy.state.lai = 3.5
+    canopy.state.biomass_g_m2 = 325.0
+    canopy.state.stem_biomass_g_m2 = 180.0
+    _enter_grain_fill(canopy, bus, at_gdd=700.0)
+    # Flowering (700 GDD) to maturity (1400 GDD) at ~9 GDD/day, the pace of
+    # a highland tropical season.
+    for day in range(1, 79):
+        _step(canopy, bus, total_gdd=700.0 + 9.0 * day)
+    assert canopy.state.grain_number > 0.0
+    hi = canopy.state.grain_biomass_g_m2 / canopy.state.biomass_g_m2
+    # Seed number x potential seed weight, not the cap, bounds the yield.
+    assert 0.25 <= hi < 0.45
+    seed_weight_mg = canopy.state.grain_biomass_g_m2 / canopy.state.grain_number * 1e3
+    assert seed_weight_mg <= 160.0 + 1e-6
+    assert (
+        canopy.state.stem_biomass_g_m2 + canopy.state.grain_biomass_g_m2
+        <= canopy.state.biomass_g_m2 + 1e-9
+    )

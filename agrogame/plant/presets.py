@@ -108,6 +108,7 @@ def _build_canopy(raw: dict) -> CanopyParams:
         harvest_index=float(c.get("harvest_index", 0.45)),
         grains_per_g_source=float(c.get("grains_per_g_source", 0.0)),
         grain_set_window_gdd=float(c.get("grain_set_window_gdd", 200.0)),
+        grain_set_floor_frac=float(c.get("grain_set_floor_frac", 0.02)),
         potential_kernel_weight_mg=float(c.get("potential_kernel_weight_mg", 40.0)),
         kernel_fill_rate_mg_per_grain_day=float(
             c.get("kernel_fill_rate_mg_per_grain_day", 1.0)
