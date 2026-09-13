@@ -250,6 +250,15 @@ def test_season_response_includes_soil_state(client) -> None:
     for som_c in ss["som_labile_c"]:
         assert som_c >= 0.0, f"SOM labile C {som_c} negative"
 
+    # The inspector receives native kg C/ha, not g C/m²; convert only in the UI.
+    from agrogame.api.state import games
+
+    som = games[game_id].field_manager.fields["f1"].patches[0].orch.som
+    for pool in ("labile", "intermediate", "stable"):
+        assert ss[f"som_{pool}_c"] == pytest.approx(
+            [getattr(layer, pool).c_kg_ha for layer in som.state.layers]
+        )
+
     # Aggregates
     assert ss["som_total_c_g_m2"] > 0.0, "Total SOM should be positive"
     assert 0.0 <= ss["theta_surface"] <= 0.6

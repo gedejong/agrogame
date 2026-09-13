@@ -50,12 +50,16 @@ class SoilStateResponse(BaseModel):
     p_available: list[float] = Field(description="Available P per layer (g/m²)")
     ph: list[float] = Field(description="Soil pH per layer")
 
-    # SOM pool summaries (per-layer C in g/m²)
-    som_labile_c: list[float] = Field(description="Labile SOM carbon per layer")
-    som_intermediate_c: list[float] = Field(
-        description="Intermediate SOM carbon per layer"
+    # SOM pool arrays pass through the model's kg C/ha stocks without conversion.
+    som_labile_c: list[float] = Field(
+        description="Labile SOM carbon per layer (kg C/ha)"
     )
-    som_stable_c: list[float] = Field(description="Stable SOM carbon per layer")
+    som_intermediate_c: list[float] = Field(
+        description="Intermediate SOM carbon per layer (kg C/ha)"
+    )
+    som_stable_c: list[float] = Field(
+        description="Stable SOM carbon per layer (kg C/ha)"
+    )
 
     # Microbial state
     microbe_c: list[float] = Field(description="Microbial biomass C per layer")
