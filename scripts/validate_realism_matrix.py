@@ -2204,7 +2204,10 @@ def _nitrogen_checks() -> list[Check]:
         ),
         "sahel": (
             _clim(SAHEL),
-            {"LIGHT": ((0, 40), 100), "MEDIUM": ((0, 15), 60), "HEAVY": ((0, 15), 60)},
+            # PO-approved tolerance (2026-09-13): the corrected stack gives
+            # 62.3 kg N/ha on loam. Keep WARN at 15; only MEDIUM's failure
+            # ceiling moves 60 -> 65. This is not a new literature estimate.
+            {"LIGHT": ((0, 40), 100), "MEDIUM": ((0, 15), 65), "HEAVY": ((0, 15), 60)},
         ),
     }
     for tag, (pred, by_drainage) in leach_bands.items():
@@ -2218,7 +2221,13 @@ def _nitrogen_checks() -> list[Check]:
                     _and(NORMAL, MINERAL, pred, _drainage(drainage)),
                     "nitrogen",
                     "unfertilised nitrate leaching by texture and rainfall (Di & "
-                    "Cameron 2002)",
+                    "Cameron 2002)"
+                    + (
+                        "; Sahel MEDIUM fail ceiling 65 kg N/ha is a "
+                        "PO-approved tolerance (2026-09-13), not a literature bound"
+                        if tag == "sahel" and drainage == "MEDIUM"
+                        else ""
+                    ),
                 )
             )
     checks += [

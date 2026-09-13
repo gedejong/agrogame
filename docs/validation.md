@@ -184,3 +184,15 @@ do not encode literature. After an intentional engine change, re-run the
 sweep, confirm that the movement is the one the change predicts, and re-set
 the anchors in the `_anchor(...)` table to the new values in the same pull
 request.
+
+### Accepted Sahel leaching tolerance (2026-09-13)
+
+The project owner approved raising the normal-weather, mineral-soil Sahel
+**MEDIUM drainage** nitrate-leaching failure ceiling from 60 to **65 kg N/ha**
+after the merged nitrogen/sulfur/SOM corrections produced 62.3 kg N/ha in the
+loam sweep. The warning ceiling stays at **15 kg N/ha**: this case is still
+reported as WARN, not silently graded as normal. Values above 65 still fail;
+LIGHT and HEAVY drainage classes and all other climates are unchanged.
+
+This is an accepted model-validation tolerance, not a new empirical estimate
+from Di & Cameron (2002). No simulation parameters or outputs changed.

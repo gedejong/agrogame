@@ -94,3 +94,29 @@ def test_check_band_grades_scalars(harness: ModuleType) -> None:
     assert harness.evaluate_check(check, {**scalars, "x": math.nan}) is None
     assert harness.evaluate_check(check, {"run_id": "unit__run"}) is None
     assert harness.build_checks()
+
+
+@pytest.mark.parametrize(
+    ("value", "severity"),
+    [(15.0, None), (15.1, "WARN"), (62.3, "WARN"), (65.0, "WARN"), (65.1, "FAIL")],
+)
+def test_approved_sahel_leaching_tolerance(
+    harness: ModuleType, value: float, severity: str | None
+) -> None:
+    checks = {check.name: check for check in harness.build_checks()}
+    check = checks["no3_leached:sahel:medium"]
+    assert check.warn == (0, 15)
+    assert check.fail == (0, 65)
+    assert "PO-approved tolerance" in check.source
+    assert checks["no3_leached:sahel:heavy"].fail == (0, 60)
+    assert checks["no3_leached:sahel:light"].fail == (0, 100)
+    scalars = {
+        "run_id": "approved_sahel_tolerance",
+        "scenario": "normal",
+        "soil_class": "LOAM",
+        "climate": harness.SAHEL,
+        "drainage": "MEDIUM",
+        "no3_leached_kg_ha": value,
+    }
+    finding = harness.evaluate_check(check, scalars)
+    assert (finding.severity if finding else None) == severity
