@@ -4,8 +4,9 @@ const NutrientPanel = preload("res://scripts/nutrient_panel.gd")
 
 
 func test_nutrient_bars_defined() -> void:
-	for key: String in ["NO₃", "NH₄", "P", "SOM", "Water", "pH", "Microbe", "MWD"]:
+	for key: String in ["NO₃", "NH₄", "P", "Water", "pH", "Microbe", "MWD"]:
 		assert_true(NutrientPanel.NUTRIENT_BARS.has(key), "Bar config for %s" % key)
+	assert_false(NutrientPanel.NUTRIENT_BARS.has("SOM"), "Carbon is not a stress bar")
 
 
 func test_biology_bars_defined() -> void:

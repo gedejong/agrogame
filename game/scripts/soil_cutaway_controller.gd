@@ -4,6 +4,7 @@ extends RefCounted
 ## nutrient panel, and tile info panel lifecycle.
 
 const SoilView = preload("res://scripts/soil_view.gd")
+const OrganicCarbonSummary = preload("res://scripts/organic_carbon_summary.gd")
 
 var _soil_view: Node3D = null
 var _nutrient_panel: PanelContainer = null
@@ -176,9 +177,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	var NutrientPanel := preload("res://scripts/nutrient_panel.gd")
 	_nutrient_panel = PanelContainer.new()
 	_nutrient_panel.set_script(NutrientPanel)
-	var vp: Viewport = ui_layer.get_viewport()
-	_nutrient_panel.position = Vector2(vp.get_visible_rect().size.x - 280, 16)
-	_nutrient_panel.size = Vector2(260, 0)
+	_nutrient_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	var layers_data: Array[Dictionary] = []
 	var biomass := {}
 	for col_data: Dictionary in columns:
@@ -193,7 +192,6 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 		var no3: Array = soil_state.get("n_no3", [])
 		var nh4: Array = soil_state.get("n_nh4", [])
 		var p: Array = soil_state.get("p_available", [])
-		var som: Array = soil_state.get("som_labile_c", [])
 		var theta: Array = soil_state.get("water_theta", [])
 		var ph: Array = soil_state.get("ph", [])
 		var mic: Array = soil_state.get("microbe_c", [])
@@ -216,7 +214,6 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 				"NO₃": no3[i] if i < no3.size() else 0.0,
 				"NH₄": nh4[i] if i < nh4.size() else 0.0,
 				"P": p[i] if i < p.size() else 0.0,
-				"SOM": som[i] if i < som.size() else 0.0,
 				"Water": theta[i] if i < theta.size() else 0.0,
 				"pH": ph[i] if i < ph.size() else 6.5,
 				"Microbe": mic[i] if i < mic.size() else 0.0,
@@ -235,6 +232,7 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 					{
 						"depth_label": lbl,
 						"values": vals,
+						"carbon_pools": OrganicCarbonSummary.pools_for_layer(soil_state, i),
 						"dominant_acceptor": acc,
 					}
 				)
@@ -245,6 +243,10 @@ func _show_nutrient_panel(columns: Array[Dictionary], ui_layer: CanvasLayer) -> 
 	_nutrient_panel.layer_selected.connect(_on_layer_selected)
 	_nutrient_panel.visible = true
 	ui_layer.add_child(_nutrient_panel)
+	_nutrient_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_nutrient_panel.offset_left = -276
+	_nutrient_panel.offset_right = -16
+	_nutrient_panel.offset_top = 16
 
 
 func _on_layer_selected(_layer_idx: int) -> void:

@@ -7,6 +7,8 @@ signal flow_filter_changed(filter_name: String)
 signal flow_toggle_changed(visible: bool)
 signal layer_selected(layer_idx: int)
 
+const OrganicCarbonSummary = preload("res://scripts/organic_carbon_summary.gd")
+
 ## Max/optimal values calibrated from simulation output (maize on loam, 150 days).
 ## Values stored in g/m² (simulation native unit); converted at display time.
 ## "mass_type": "mass" for g/m²↔kg/ha, "carbon" for gC/m²↔kgC/ha, "" for no conversion.
@@ -40,16 +42,6 @@ const NUTRIENT_BARS := {
 		"opt_max": 20.0,
 		"mass_type": "mass",
 		"tooltip": "Phosphorus — essential for roots and energy, easily locked up in soil",
-	},
-	"SOM":
-	{
-		"color": UiTheme.SUBSTANCE_CARBON,
-		"icon": "res://assets/icons/icon_som.svg",
-		"max": 2500.0,
-		"opt_min": 200.0,
-		"opt_max": 2500.0,
-		"mass_type": "carbon",
-		"tooltip": "Soil organic matter — feeds microbes, improves structure and water holding",
 	},
 	"Water":
 	{
@@ -275,6 +267,11 @@ func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> vo
 		var body := VBoxContainer.new()
 		body.add_theme_constant_override("separation", 2)
 		body.visible = (i == 0)  # only top layer expanded
+		var carbon_summary := VBoxContainer.new()
+		carbon_summary.name = "OrganicCarbonSummary"
+		carbon_summary.set_script(OrganicCarbonSummary)
+		carbon_summary.show_pools(layer.get("carbon_pools", {}))
+		body.add_child(carbon_summary)
 		var vals: Dictionary = layer.get("values", {})
 		var acc: String = layer.get("dominant_acceptor", "O2")
 		for key: String in NUTRIENT_BARS:
