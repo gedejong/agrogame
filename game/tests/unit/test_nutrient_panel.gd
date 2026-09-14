@@ -9,6 +9,16 @@ func test_nutrient_bars_defined() -> void:
 	assert_false(NutrientPanel.NUTRIENT_BARS.has("SOM"), "Carbon is not a stress bar")
 
 
+func test_carbon_uses_original_som_row_position() -> void:
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [{"depth_label": "0-20cm", "values": {}}]
+	panel.show_layers(layers)
+	var body: VBoxContainer = panel._layer_bodies[0]
+	assert_eq(body.get_child(3).name, &"OrganicCarbonSummary", "Carbon follows N, N, P")
+
+
 func test_biology_bars_defined() -> void:
 	# #317: microbial N and fungal fraction per-layer bars.
 	for key: String in ["MicrobeN", "Fungal"]:
