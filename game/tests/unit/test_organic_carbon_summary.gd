@@ -23,6 +23,14 @@ func _make_summary(pools: Dictionary) -> VBoxContainer:
 	return summary
 
 
+func _pool_label_text(summary: VBoxContainer, pool: String) -> String:
+	var row: HBoxContainer = summary.get_node("PoolBreakdown/" + pool)
+	for child: Node in row.get_children():
+		if child is Label and child.name != &"Value":
+			return (child as Label).text
+	return "<no label>"
+
+
 func test_total_is_sum_of_all_three_pools() -> void:
 	var summary := _make_summary({"Labile": 100.0, "Intermediate": 200.0, "Stable": 700.0})
 	assert_eq(summary.get_node("TotalRow/TotalCarbonValue").text, "100.0 gC/m²")
@@ -112,3 +120,42 @@ func test_composition_track_is_empty_for_zero_or_missing_stock() -> void:
 		assert_false(track.has_node("Labile"))
 		assert_false(track.has_node("Intermediate"))
 		assert_false(track.has_node("Stable"))
+
+
+func test_pool_rows_show_share_of_total_carbon() -> void:
+	var summary := _make_summary({"Labile": 100.0, "Intermediate": 200.0, "Stable": 700.0})
+	assert_eq(_pool_label_text(summary, "Labile"), "Labile  10.0%")
+	assert_eq(_pool_label_text(summary, "Intermediate"), "Intermediate  20.0%")
+	assert_eq(_pool_label_text(summary, "Stable"), "Stable  70.0%")
+
+
+func test_pool_shares_are_unit_independent_and_sum_to_one_hundred() -> void:
+	ProjectSettings.set_setting(MASS_SETTING, UiTheme.MASS_UNIT_KGHA)
+	var summary := _make_summary({"Labile": 123.0, "Intermediate": 456.0, "Stable": 789.0})
+	assert_eq(_pool_label_text(summary, "Labile"), "Labile  9.0%")
+	assert_eq(_pool_label_text(summary, "Intermediate"), "Intermediate  33.3%")
+	assert_eq(_pool_label_text(summary, "Stable"), "Stable  57.7%")
+	var total_share: float = 0.0
+	for pool: String in ["Labile", "Intermediate", "Stable"]:
+		var text: String = _pool_label_text(summary, pool)
+		total_share += float(text.get_slice("  ", 1).trim_suffix("%"))
+	assert_almost_eq(
+		total_share, 100.0, 0.15, "Three one-decimal shares must still read as a whole"
+	)
+
+
+func test_zero_total_carbon_appends_no_share() -> void:
+	var summary := _make_summary({"Labile": 0.0, "Intermediate": 0.0, "Stable": 0.0})
+	assert_eq(_pool_label_text(summary, "Labile"), "Labile")
+	assert_eq(_pool_label_text(summary, "Intermediate"), "Intermediate")
+	assert_eq(_pool_label_text(summary, "Stable"), "Stable")
+
+
+func test_missing_or_invalid_pool_appends_no_share_to_any_row() -> void:
+	var summary := _make_summary({"Labile": 100.0, "Intermediate": 200.0})
+	assert_eq(_pool_label_text(summary, "Labile"), "Labile")
+	assert_eq(_pool_label_text(summary, "Stable"), "Stable")
+	for invalid: Variant in [null, "100", -1.0, NAN, INF]:
+		var partial := _make_summary({"Labile": invalid, "Intermediate": 1.0, "Stable": 2.0})
+		assert_eq(_pool_label_text(partial, "Labile"), "Labile")
+		assert_eq(_pool_label_text(partial, "Intermediate"), "Intermediate")
