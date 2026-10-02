@@ -6,6 +6,7 @@ import json
 import os
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -79,6 +80,40 @@ def _reset_all_crops(s: GameSession) -> None:
             # Patch.reset_crop re-subscribes the recorder to the rebuilt event
             # bus so new-season events are captured (#402).
             patch.reset_crop(preset)
+
+
+def _charge_seed(s: GameSession, day: int = 0) -> None:
+    """Charge seed for every planted patch at the start of a season (#508).
+
+    Catalog games start pre-planted — ``POST /games`` assigns each patch a
+    ``crop_key`` — and every subsequent season replants via ``_reset_all_crops``.
+    Neither path goes through the manual ``plant`` action, so seed was never
+    charged and was a free input. Charged once per planted patch, scaled by its
+    ``area_fraction`` (the field is modelled as 1 ha), under ledger category
+    ``seed``. A bare patch (``crop_key == ""``) is skipped.
+
+    Must be called *after* ``EconomicLedger.reset_season`` so the charge lands in
+    the new season's costs rather than being cleared by the reset.
+    """
+    prices = PriceTable.load()
+    for field in s.field_manager.fields.values():
+        for patch in field.patches:
+            crop_key = patch.config.crop_key
+            if not crop_key:
+                continue
+            per_ha = _seed_cost_per_ha(crop_key, prices)
+            amount = int(round(per_ha * patch.config.area_fraction))
+            s.ledger.record_cost(day, "seed", f"seed {crop_key}", amount)
+
+
+def _quarter_of(day: date) -> int:
+    """Calendar quarter (1-4) of ``day``.
+
+    The harvest quarter selects the crop's seasonal price multiplier (ADR-003).
+    Settlement used to hard-code the ``quarter=3`` default, leaving the Q1/Q2/Q4
+    multipliers inert (#508).
+    """
+    return (day.month - 1) // 3 + 1
 
 
 def _dynamic_soil_properties(patch: Patch) -> tuple[list[float], list[float]]:
@@ -268,6 +303,12 @@ def create_game(req: CreateGameRequest) -> GameCreatedResponse:
 
     ledger = EconomicLedger(balance_credits=req.starting_credits)
     session = GameSession(game_id=game_id, field_manager=fm, ledger=ledger)
+    # Catalog games arrive pre-planted, so season 1's seed is charged here —
+    # the manual `plant` action is never taken on that crop (#508).
+    try:
+        _charge_seed(session)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     games[game_id] = session
     return GameCreatedResponse(
         game_id=game_id,
@@ -337,6 +378,10 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         _reset_all_crops(s)
         s.season_settled = False
         s.ledger.reset_season()
+        # Seed for the replanted crop, charged after the ledger reset so it
+        # lands in the new season's costs (#508). Season 1's seed was charged
+        # at game creation.
+        _charge_seed(s)
 
     start_date = s.current_date
 
@@ -490,20 +535,76 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
 _VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest", "tillage"}
 
 
+# Nutrient element each fertiliser product supplies, mirroring
+# ``FullSimulationOrchestrator.apply_fertilizer``: the engine takes the
+# application rate as kg of *element* per ha (kg N, kg P or kg S), never kg of
+# product, so the price must be per kg of element too (#508).
+_FERTILIZER_NUTRIENT: dict[str, str] = {
+    "urea": "N",
+    "ammonium_nitrate": "N",
+    "tsp": "P",
+    "gypsum": "S",
+    "elemental_s": "S",
+}
+
+
+def fertilizer_price_key(fert_type: str) -> str:
+    """Price-table key for a fertiliser type, in credits per kg of nutrient.
+
+    Raises:
+        ValueError: If the fertiliser type supplies no known nutrient.
+    """
+    nutrient = _FERTILIZER_NUTRIENT.get(fert_type)
+    if nutrient is None:
+        raise ValueError(
+            f"Unknown fertilizer type {fert_type!r}; "
+            f"choose from {sorted(_FERTILIZER_NUTRIENT)}"
+        )
+    return f"fertilizer_{fert_type}_per_kg_{nutrient}"
+
+
+def _seed_cost_per_ha(crop_key: str, prices: PriceTable) -> float:
+    """Seed cost in credits per hectare for ``crop_key``.
+
+    Raises:
+        ValueError: If the crop has no ``seed_<crop>`` entry. An unpriced input
+            is a configuration error, not a free one (#508).
+    """
+    per_ha = prices.input_costs.get(f"seed_{crop_key}")
+    if per_ha is None:
+        raise ValueError(
+            f"No seed price for crop {crop_key!r} "
+            f"(missing input_costs.seed_{crop_key} in data/economy/prices.yaml)"
+        )
+    return per_ha
+
+
 def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
-    """Compute action cost from PriceTable (data/economy/prices.yaml)."""
+    """Compute action cost from PriceTable (data/economy/prices.yaml).
+
+    Raises:
+        ValueError: If a fertiliser type or crop has no price entry. There is no
+            fallback price: an unpriced input used to cost 1 cr/kg, which made
+            sulfur effectively free (#508).
+    """
     if action == "irrigate":
         per_mm = prices.input_costs.get("irrigation_per_mm", 2)
         return int(per_mm * params.get("amount_mm", 20))
     if action == "fertilize":
         labor = prices.input_costs.get("labor_per_action", 50)
-        fert_type = params.get("type", "urea")
-        per_kg = prices.input_costs.get(f"fertilizer_{fert_type}", 1)
+        fert_type = str(params.get("type", "urea"))
+        key = fertilizer_price_key(fert_type)
+        if key not in prices.input_costs:
+            raise ValueError(
+                f"No price for fertilizer type {fert_type!r} "
+                f"(missing input_costs.{key} in data/economy/prices.yaml)"
+            )
+        # `amount` is kg of nutrient element per ha, matching the engine.
         amount = params.get("amount_kg_ha", 50)
-        return int(labor + per_kg * amount)
+        return int(labor + prices.input_costs[key] * amount)
     if action == "plant":
-        crop_key = params.get("crop_key", "maize")
-        return int(prices.input_costs.get(f"seed_{crop_key}", 200))
+        crop_key = str(params.get("crop_key", "maize"))
+        return int(_seed_cost_per_ha(crop_key, prices))
     if action == "harvest":
         return int(prices.input_costs.get("labor_per_action", 50))
     if action == "tillage":
@@ -597,7 +698,13 @@ def _harvest_action(
     # credit their own share; full-field harvest (patch_idx=-1) settles the whole
     # field in one call.
     revenue_before = s.ledger.season_revenue
-    profit = s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=area_ha)
+    profit = s.ledger.settle_season(
+        grain_g_m2,
+        crop_key,
+        prices,
+        quarter=_quarter_of(s.current_date),
+        area_ha=area_ha,
+    )
     revenue = s.ledger.season_revenue - revenue_before
     s.season_settled = True
 
@@ -658,7 +765,13 @@ def _settle_standing_grain(
         )
         / total_area
     )
-    s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=total_area)
+    s.ledger.settle_season(
+        grain_g_m2,
+        crop_key,
+        prices,
+        quarter=_quarter_of(s.current_date),
+        area_ha=total_area,
+    )
     s.season_settled = True
     for p in standing:
         # Capture harvested grain so the per-patch report survives the grain
@@ -794,6 +907,9 @@ def _reset_session_for_new_season(s: GameSession) -> None:
     s.run_count += 1
     s.season_settled = False
     s.ledger.reset_season()
+    # Seed for the replanted crop, after the reset so it lands in the new
+    # season's costs (#508).
+    _charge_seed(s)
     s.turn_manager = None
 
 
@@ -982,7 +1098,12 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     from agrogame.game.economy import PriceTable
 
     prices = PriceTable.load()
-    cost = _compute_action_cost(req.action, req.params, prices)
+    # An unpriced fertiliser or crop raises rather than silently costing 1
+    # cr/kg; surface it as a 400 rather than a 500 (#508).
+    try:
+        cost = _compute_action_cost(req.action, req.params, prices)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
 
     if s.ledger.balance_credits < cost:
         raise HTTPException(
@@ -1067,7 +1188,12 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
         raise HTTPException(400, f"Unknown action: {req.action}")
 
     prices = PriceTable.load()
-    cost = _compute_action_cost(req.action, req.params, prices)
+    # An unpriced fertiliser or crop raises rather than silently costing 1
+    # cr/kg; surface it as a 400 rather than a 500 (#508).
+    try:
+        cost = _compute_action_cost(req.action, req.params, prices)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return ActionPreviewResponse(
         action=req.action,
         cost_credits=cost,
