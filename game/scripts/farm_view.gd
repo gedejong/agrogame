@@ -471,7 +471,7 @@ func _on_ff_all() -> void:
 	_ensure_game(
 		func() -> void:
 			_set_buttons_disabled(true)
-			_api_client.start_season(_game_id, _on_season_complete)
+			_api_client.run_season(_game_id, _on_season_complete)
 	)
 
 
@@ -942,12 +942,9 @@ func _on_action_complete(success: bool, data: Dictionary) -> void:
 	_step_days(1)
 
 
-func _on_season_complete(success: bool, _data: Dictionary) -> void:
-	_set_buttons_disabled(false)
-	if not success:
-		status_label.text = "Season failed — backend error"
-		return
-	status_label.text = "Season complete"
+func _on_season_complete(success: bool, data: Dictionary) -> void:
+	_on_step_complete(success, data)  # final /step result: show end-of-season state
+	status_label.text = "Season complete" if success else "Season failed — backend error"
 
 
 func _on_soil_view() -> void:
