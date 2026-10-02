@@ -46,6 +46,7 @@ func test_preview_actions_cover_fixed_cost_buttons() -> void:
 	assert_has(actions, "irrigate")
 	assert_has(actions, "fertilize")
 	assert_has(actions, "tillage")
+	assert_has(actions, "lime")
 
 
 func test_preview_irrigate_params_match_handler() -> void:
@@ -64,3 +65,13 @@ func test_preview_fertilize_is_variable_cost() -> void:
 		if spec["action"] == "fertilize":
 			assert_true(spec.get("variable_cost", false), "fertilize previews a from-price")
 			assert_true(spec["params"].is_empty(), "fertilize params resolved dynamically")
+
+
+func test_preview_lime_is_variable_cost() -> void:
+	# Lime is offered in t/ha tiers through its own picker (#465), so like
+	# fertilize it previews the cheapest tier as a "from" price rather than a
+	# fixed cost.
+	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+		if spec["action"] == "lime":
+			assert_true(spec.get("variable_cost", false), "lime previews a from-price")
+			assert_true(spec["params"].is_empty(), "lime params resolved dynamically")

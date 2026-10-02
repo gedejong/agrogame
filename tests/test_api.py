@@ -1920,6 +1920,156 @@ def test_bare_soil_has_zero_plant_biomass(client) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Lime action (#465)
+# ---------------------------------------------------------------------------
+def _lime_body(amount_kg_ha: float, layer: int | None = None) -> dict:
+    params: dict = {"amount_kg_ha": amount_kg_ha}
+    if layer is not None:
+        params["layer"] = layer
+    return {"field_id": "f1", "action": "lime", "params": params}
+
+
+def _ph_by_layer(game_id: str) -> list[float]:
+    """Per-layer pH straight off the session, with no intervening day step.
+
+    ``/step`` would also expose it (``SoilStateResponse.ph``), but advancing a
+    day applies the daily buffering and P-fixation drift, which muddies an
+    exact before/after comparison.
+    """
+    from agrogame.api.state import games
+
+    patch = games[game_id].field_manager.fields["f1"].patches[0]
+    return list(patch.orch.chem.ph_by_layer)
+
+
+def _balance(client, game_id: str) -> int:
+    return client.get(f"/api/v1/games/{game_id}/status").json()["balance_credits"]
+
+
+def test_lime_preview_matches_charged_cost(client) -> None:
+    """Preview and execute agree exactly, and the price is not truncated.
+
+    Lime is the first input priced below 1 credit/kg (0.075 cr/kg), so an
+    int-typed per-kg price would charge 0 or 1000 rather than 75 (#465).
+    """
+    game_id = _create_game(client)
+    body = _lime_body(1000.0)
+
+    preview = client.post(f"/api/v1/games/{game_id}/action/preview", json=body)
+    assert preview.status_code == 200
+    # labor 50 + 0.075 cr/kg * 1000 kg/ha = 125 credits.
+    assert preview.json()["cost_credits"] == 125
+
+    before = _balance(client, game_id)
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["cost_credits"] == preview.json()["cost_credits"]
+    assert data["balance_credits"] == before - 125
+
+
+def test_lime_cost_rounds_half_up_matching_client(client) -> None:
+    """2.5 t/ha costs 238 on both the preview and the action path.
+
+    labor 50 + 0.075 cr/kg * 2500 kg/ha = 237.5 (exact in binary), so half-up
+    rounding gives 238 and truncation 237. The Godot client pins the same tier
+    at 238 (``LimePicker.cost_for``, test_lime_picker.gd) and shows "238 cr";
+    a truncating backend would display one price and charge another.
+    """
+    game_id = _create_game(client)
+    body = _lime_body(2500.0)
+
+    preview = client.post(f"/api/v1/games/{game_id}/action/preview", json=body)
+    assert preview.status_code == 200
+    assert preview.json()["cost_credits"] == 238
+
+    before = _balance(client, game_id)
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["cost_credits"] == 238
+    assert data["balance_credits"] == before - 238
+
+
+def test_lime_raises_topsoil_ph_by_a_plausible_fraction(client) -> None:
+    """2.5 t/ha on loam_temperate gives roughly +0.3 pH, not +2.5."""
+    game_id = _create_game(client)
+    before = _ph_by_layer(game_id)[0]
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=_lime_body(2500.0))
+    assert resp.status_code == 200
+    after = _ph_by_layer(game_id)[0]
+    assert 0.25 <= after - before <= 0.40
+
+
+def test_lime_zero_amount_is_a_free_no_op(client) -> None:
+    game_id = _create_game(client)
+    before_ph = _ph_by_layer(game_id)
+    before_balance = _balance(client, game_id)
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=_lime_body(0.0))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "no-op"
+    assert data["cost_credits"] == 0
+    assert data["balance_credits"] == before_balance
+    assert _ph_by_layer(game_id) == before_ph
+    # The preview agrees that a no-op is free.
+    preview = client.post(
+        f"/api/v1/games/{game_id}/action/preview", json=_lime_body(0.0)
+    )
+    assert preview.json()["cost_credits"] == 0
+
+
+def test_lime_out_of_range_layer_is_422_and_costs_nothing(client) -> None:
+    game_id = _create_game(client)
+    n_layers = len(_ph_by_layer(game_id))
+    before_balance = _balance(client, game_id)
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action", json=_lime_body(1000.0, layer=99)
+    )
+    assert resp.status_code == 422
+    assert f"[0, {n_layers})" in resp.json()["detail"]
+    assert _balance(client, game_id) == before_balance
+    # Preview rejects it the same way rather than quoting a price.
+    preview = client.post(
+        f"/api/v1/games/{game_id}/action/preview", json=_lime_body(1000.0, layer=99)
+    )
+    assert preview.status_code == 422
+
+
+def test_lime_non_integer_layer_is_422(client) -> None:
+    game_id = _create_game(client)
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={
+            "field_id": "f1",
+            "action": "lime",
+            "params": {"amount_kg_ha": 1000.0, "layer": "topsoil"},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_lime_targets_the_requested_layer(client) -> None:
+    game_id = _create_game(client)
+    before = _ph_by_layer(game_id)
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action", json=_lime_body(2000.0, layer=1)
+    )
+    assert resp.status_code == 200
+    after = _ph_by_layer(game_id)
+    assert after[1] > before[1]
+    assert after[0] == pytest.approx(before[0])
+
+
+def test_lime_absurd_rate_saturates_at_ph_ceiling(client) -> None:
+    game_id = _create_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=_lime_body(50_000.0))
+    assert resp.status_code == 200
+    assert _ph_by_layer(game_id)[0] == pytest.approx(9.0)
+
+
 # Grape fruit settlement (#448)
 # ---------------------------------------------------------------------------
 def _create_crop_game(client, crop_key: str, climate_key: str) -> str:

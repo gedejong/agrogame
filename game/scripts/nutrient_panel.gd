@@ -181,6 +181,15 @@ const BAR_STRESS := UiTheme.ACCENT_RED
 const BAR_MARGINAL := UiTheme.ACCENT_GOLD
 const BAR_OK := UiTheme.ACCENT_GREEN
 
+# pH display band (#465). Most crops prefer pH 5.5-7.5 (Marschner 2012); below
+# it P availability and Al toxicity bite, above it Zn/Fe/Mn go insoluble
+# (Lindsay 1979). Acid and alkaline get distinct colours so the readout shows
+# which direction the soil has drifted.
+const PH_OPT_MIN := 5.5
+const PH_OPT_MAX := 7.5
+const PH_ACID_COLOR := UiTheme.ACCENT_GOLD
+const PH_ALKALINE_COLOR := UiTheme.ACCENT_BLUE
+
 ## Eh display range and zone thresholds (mV).
 const EH_MIN_MV := -300.0
 const EH_MAX_MV := 450.0
@@ -428,7 +437,8 @@ func _add_bar_row(
 		display_val = UiTheme.to_display_mass_from_gm2(val)
 		unit = UiTheme.carbon_label()
 	if label == "pH":
-		val_lbl.text = "%.1f" % val
+		val_lbl.text = format_ph(val)
+		val_lbl.modulate = ph_band_color(val)
 	elif label == "Eh":
 		val_lbl.text = "%.0f" % val
 	elif display_val >= 100.0:
@@ -447,6 +457,34 @@ func _add_bar_row(
 	row.add_child(val_lbl)
 	row.tooltip_text = cfg.get("tooltip", "")
 	parent.add_child(row)
+
+
+## Per-layer pH readout — one decimal, no unit (#465).
+static func format_ph(val: float) -> String:
+	return "%.1f" % val
+
+
+## Band name for a pH value: "acid" below PH_OPT_MIN, "alkaline" above
+## PH_OPT_MAX, "optimal" in between. Most crops prefer pH 5.5-7.5 (Marschner
+## 2012); outside that band P and micronutrient availability both fall away.
+static func ph_band(val: float) -> String:
+	if val < PH_OPT_MIN:
+		return "acid"
+	if val > PH_OPT_MAX:
+		return "alkaline"
+	return "optimal"
+
+
+## Colour for a pH value's band — acid and alkaline are distinguished so the
+## readout says which way the soil has drifted, not just that it has.
+static func ph_band_color(val: float) -> Color:
+	match ph_band(val):
+		"acid":
+			return PH_ACID_COLOR
+		"alkaline":
+			return PH_ALKALINE_COLOR
+		_:
+			return BAR_OK
 
 
 static func _stress_color(key: String, val: float, opt_min: float, opt_max: float) -> Color:
