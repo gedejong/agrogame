@@ -1270,12 +1270,26 @@ def test_winter_wheat_oct_start_grain_yield() -> None:
     assert 0.30 < realized_hi < 0.56
 
 
-def test_grape_zero_grain() -> None:
-    """Grape has harvest_index=0, so grain_biomass should be zero."""
-    _biomass, _lai, _stage, grain = _run_scenario(
+def test_grape_fruit_fraction_in_published_band() -> None:
+    """Grape fruit is 50-60% of above-ground biomass (replaces test_grape_zero_grain).
+
+    Castelan-Estrada, Vivin & Gaudillere 2002, Ann. Bot. 89:401-408: at
+    maturity Merlot fruit was ~50, 54 and 60% of current-year above-ground dry
+    biomass across soil treatments. The old test asserted grain == 0, which
+    encoded the HI=0 defect (#448), not a literature bound.
+    """
+    biomass, _lai, _stage, fruit = _run_scenario(
         "grape", "netherlands_temperate", date(2024, 4, 1)
     )
-    assert grain == 0.0
+    # Marginal NL season (no maturity in 150 d): fruit present, never above
+    # the published 60% ceiling.
+    assert 0.0 < fruit / biomass <= 0.60
+    biomass, _lai, _stage, fruit = _run_scenario(
+        "grape", "kenya_highlands", date(2024, 4, 1)
+    )
+    # Productive season: inside the band, with 0.45 allowing modest shortfall
+    # below the 50% low end. Measured seed=42: ~0.50.
+    assert 0.45 <= fruit / biomass <= 0.60
 
 
 # --- Grain sink-source: floret fertility + grain filling (#321) ---

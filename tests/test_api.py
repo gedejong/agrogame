@@ -2068,3 +2068,81 @@ def test_lime_absurd_rate_saturates_at_ph_ceiling(client) -> None:
     resp = client.post(f"/api/v1/games/{game_id}/action", json=_lime_body(50_000.0))
     assert resp.status_code == 200
     assert _ph_by_layer(game_id)[0] == pytest.approx(9.0)
+
+
+# Grape fruit settlement (#448)
+# ---------------------------------------------------------------------------
+def _create_crop_game(client, crop_key: str, climate_key: str) -> str:
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [
+                {
+                    "field_id": "f1",
+                    "patches": [
+                        {
+                            "soil_profile_key": "loam_temperate",
+                            "crop_key": crop_key,
+                            "climate_key": climate_key,
+                            "area_fraction": 1.0,
+                        }
+                    ],
+                }
+            ],
+            "starting_credits": 10000,
+        },
+    )
+    assert resp.status_code == 200
+    return resp.json()["game_id"]
+
+
+def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tuple:
+    from agrogame.api.state import games
+
+    game_id = _create_crop_game(client, crop_key, climate_key)
+    resp = client.post(f"/api/v1/games/{game_id}/step?days={days}&seed=42")
+    assert resp.status_code == 200
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {}},
+    )
+    assert resp.status_code == 200
+    patch = games[game_id].field_manager.fields["f1"].patches[0]
+    return resp.json(), patch.harvested_grain_g_m2
+
+
+# Pinned independently of the preset so a changed fraction fails the test:
+# USDA FoodData Central FDC 174683, water 80.54 g/100 g -> 1 - 0.8054.
+_GRAPE_DMF_USDA = 0.1946
+
+
+def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float) -> int:
+    from agrogame.game.economy import PriceTable
+
+    # Same quarter the ledger uses (default Q3), area 1.0 ha.
+    price = PriceTable.load().get_crop_price(crop_key, 3)
+    return int(dry_g_m2 * 10.0 / dmf * 1.0 * price)
+
+
+def test_grape_season_earns_fruit_revenue(client) -> None:
+    """A Kenya grape season sells fruit and earns money (#448, AC4)."""
+    dmf = _GRAPE_DMF_USDA
+    data, fruit_g_m2 = _grow_and_harvest(client, "grape", "kenya_highlands", 150)
+    assert data["harvest_product"] == "fruit"
+    assert fruit_g_m2 > 0.0
+    assert data["revenue_credits"] > 0
+    assert data["revenue_credits"] == _expected_revenue(fruit_g_m2, "grape", dmf)
+    assert data["sold_kg_ha"] == pytest.approx(fruit_g_m2 * 10.0 / dmf, abs=0.05)
+
+
+def test_grape_sahel_marginal_season_settles_without_error(client) -> None:
+    data, _fruit = _grow_and_harvest(client, "grape", "sahel_arid", 150)
+    assert data["status"] == "executed"
+    assert data["revenue_credits"] >= 0
+
+
+def test_grain_harvest_reports_grain_product_at_dry_mass(client) -> None:
+    """Grain crops: product 'grain', sold mass == dry kg/ha (fraction 1.0)."""
+    data, grain_g_m2 = _grow_and_harvest(client, "maize", "netherlands_temperate", 60)
+    assert data["harvest_product"] == "grain"
+    assert data["sold_kg_ha"] == pytest.approx(grain_g_m2 * 10.0, abs=0.05)

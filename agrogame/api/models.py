@@ -320,9 +320,18 @@ class ActionResponse(BaseModel):
     balance_credits: int
     day_number: int
     # Harvest-only settlement fields (0 for non-harvest actions).
+    # grain_g_m2 is the harvested-organ dry mass: grain for cereals, fruit for
+    # grape (#448).
     grain_g_m2: float = 0.0
     revenue_credits: int = 0
     profit_credits: int = 0
+    harvest_product: str = Field(
+        default="", description="Sold product, e.g. 'grain' or 'fruit' (#448)"
+    )
+    sold_kg_ha: float = Field(
+        default=0.0,
+        description="Sold (fresh) mass, kg/ha: dry kg/ha / dry-matter fraction",
+    )
 
 
 class ActionPreviewResponse(BaseModel):
@@ -378,6 +387,13 @@ class PatchYieldReport(BaseModel):
     grade: str = Field(description="Letter grade A-F based on yield ratio")
     som_total_c_g_m2: float
     theta_surface: float
+    harvest_product: str = Field(
+        default="grain", description="Sold product, e.g. 'grain' or 'fruit' (#448)"
+    )
+    sold_kg_ha: float = Field(
+        default=0.0,
+        description="Sold (fresh) mass, kg/ha: dry kg/ha / dry-matter fraction",
+    )
 
 
 class CostBreakdown(BaseModel):
