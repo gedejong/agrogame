@@ -510,7 +510,8 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
             return 0
         labor_lime = float(prices.input_costs.get("labor_per_action", 50))
         per_kg_lime = float(prices.input_costs.get("amendment_lime_per_kg", 0.075))
-        return int(round(labor_lime + per_kg_lime * amount_lime))
+        # Round half up, matching LimePicker.cost_for in the Godot client.
+        return int(labor_lime + per_kg_lime * amount_lime + 0.5)
     if action == "plant":
         crop_key = params.get("crop_key", "maize")
         return int(prices.input_costs.get(f"seed_{crop_key}", 200))

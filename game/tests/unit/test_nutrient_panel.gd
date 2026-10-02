@@ -145,3 +145,43 @@ func test_accordion_toggle_layer() -> void:
 	assert_true(panel._layer_bodies[1].visible, "Layer 1 expanded after click")
 	panel._on_layer_header(1)
 	assert_false(panel._layer_bodies[1].visible, "Layer 1 collapsed after 2nd click")
+
+
+# --- Per-layer pH readout (#465) ------------------------------------------
+func test_format_ph_one_decimal() -> void:
+	# AC #10: one value per layer, one decimal.
+	assert_eq(NutrientPanel.format_ph(5.0), "5.0", "acid value")
+	assert_eq(NutrientPanel.format_ph(6.84), "6.8", "neutral value")
+	assert_eq(NutrientPanel.format_ph(8.0), "8.0", "alkaline value")
+
+
+func test_ph_band_names_acid_optimal_alkaline() -> void:
+	assert_eq(NutrientPanel.ph_band(5.0), "acid")
+	assert_eq(NutrientPanel.ph_band(6.8), "optimal")
+	assert_eq(NutrientPanel.ph_band(8.0), "alkaline")
+	# Band edges are inclusive of the optimal range.
+	assert_eq(NutrientPanel.ph_band(NutrientPanel.PH_OPT_MIN), "optimal")
+	assert_eq(NutrientPanel.ph_band(NutrientPanel.PH_OPT_MAX), "optimal")
+
+
+func test_ph_band_color_distinguishes_acid_from_alkaline() -> void:
+	var acid: Color = NutrientPanel.ph_band_color(5.0)
+	var optimal: Color = NutrientPanel.ph_band_color(6.8)
+	var alkaline: Color = NutrientPanel.ph_band_color(8.0)
+	assert_eq(acid, NutrientPanel.PH_ACID_COLOR)
+	assert_eq(optimal, NutrientPanel.BAR_OK)
+	assert_eq(alkaline, NutrientPanel.PH_ALKALINE_COLOR)
+	assert_ne(acid, alkaline, "acid and alkaline are not the same colour")
+
+
+func test_ph_renders_per_layer() -> void:
+	# AC #10: one pH value per layer, from the state.ph array.
+	var panel := PanelContainer.new()
+	panel.set_script(NutrientPanel)
+	add_child_autofree(panel)
+	var layers: Array[Dictionary] = [
+		{"depth_label": "0-25cm", "values": {"pH": 5.2}, "dominant_acceptor": "O2"},
+		{"depth_label": "25-60cm", "values": {"pH": 7.9}, "dominant_acceptor": "O2"},
+	]
+	panel.show_layers(layers)
+	assert_eq(panel._layer_bodies.size(), 2, "one body per layer")
