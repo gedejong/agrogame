@@ -46,6 +46,11 @@ const CUTAWAY_DEPTH := 1.0
 
 ## cm → world units. Must match farm_view.METERS_PER_TILE.
 const SCALE_CM := 0.005
+## Collapsed scale for the open/close animation (#484). Y must stay non-zero:
+## a zero scale makes every descendant's global basis singular, and the physics
+## server inverts each CollisionObject3D transform (the flow tubes' hover-pick
+## Area3Ds), logging "det == 0" once per collider. 0.001 is invisible on screen.
+const COLLAPSED_SCALE := Vector3(1, 0.001, 1)
 const _SHADER := preload("res://shaders/soil_cutaway.gdshader")
 
 var _active := false
@@ -109,7 +114,7 @@ func show_cutaway(columns: Array[Dictionary]) -> void:
 	_update_flow_overlay(columns)
 	visible = true
 	_active = true
-	scale = Vector3(1, 0, 1)
+	scale = COLLAPSED_SCALE
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_OUT)
 	tween.set_trans(Tween.TRANS_BACK)
@@ -205,7 +210,7 @@ func hide_view() -> void:
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_IN)
 	tween.set_trans(Tween.TRANS_BACK)
-	tween.tween_property(self, "scale", Vector3(1, 0, 1), 0.3)
+	tween.tween_property(self, "scale", COLLAPSED_SCALE, 0.3)
 	tween.tween_callback(
 		func() -> void:
 			visible = false
