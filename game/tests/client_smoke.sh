@@ -36,9 +36,12 @@ ERROR_RE='^(USER |SCRIPT )?ERROR:'
 # '^...ERROR:' and the job would pass with errors present. Godot writes none to
 # a file today; a future version, a pty runner or a wrapper could.
 strip_ansi() {
-    # CSI: ESC [ params intermediates(0x20-0x2F) final(0x40-0x7E), per ECMA-48.
+    # CSI: ESC [ params(0x30-0x3F) intermediates(0x20-0x2F) final(0x40-0x7E),
+    # per ECMA-48 5.4. The parameter class is spelled out as 0-9:;<=>? because
+    # BSD sed rejects the range [0-?]; ':' carries ITU T.416 colon-SGR such as
+    # ESC[38:5:196m, and '<=>' the private-parameter prefixes (#499 review).
     # OSC: ESC ] ... terminated by BEL or ST (ESC \).
-    sed -E $'s#\x1B\\[[0-9;?]*[ -/]*[@-~]##g; s#\x1B\\][^\x07\x1B]*(\x07|\x1B\\\\)##g' "$1"
+    sed -E $'s#\x1B\\[[0-9:;<=>?]*[ -/]*[@-~]##g; s#\x1B\\][^\x07\x1B]*(\x07|\x1B\\\\)##g' "$1"
 }
 
 reached_cutaway() {
