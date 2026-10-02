@@ -23,6 +23,7 @@ from agrogame.soil.chemistry import (
     ChemistryParams,
     ChemistryRuntime,
     ChemistryState,
+    LayerBufferProperties,
     LimeApplied,
     SoilChemistryModule,
     SoilPHUpdated,
@@ -33,6 +34,15 @@ from agrogame.soil.phosphorus.events import PhosphorusFixationOccurred
 _ABS = 1e-12
 
 
+# loam_temperate layer 0: 25 cm, BD 1.45, 22 % clay, 2.0 % OM.
+_LOAM_LAYER = LayerBufferProperties(
+    depth_cm=25.0,
+    bulk_density_g_cm3=1.45,
+    clay_pct=22.0,
+    organic_matter_pct=2.0,
+)
+
+
 def _module(
     bus: EventBus, base_ph: float = 6.8, n_layers: int = 2
 ) -> SoilChemistryModule:
@@ -40,6 +50,7 @@ def _module(
         ChemistryParams(),
         ChemistryState.from_layers(n_layers, base_ph=base_ph),
         bus,
+        layer_properties=[_LOAM_LAYER] * n_layers,
     )
 
 
@@ -51,7 +62,11 @@ def test_default_params_match_legacy_constants() -> None:
     assert p.buffering_rate == 0.001
     assert p.no3_leach_ph_delta == 0.005
     assert p.p_fixation_ph_delta == 0.002
-    assert p.lime_ph_delta_per_kg_ha == 0.001
+    # #465: the flat lime_ph_delta_per_kg_ha (0.001) is replaced by a
+    # buffer-capacity formulation; see test_lime_requirement_*.
+    assert p.phbc_clay_max_cmol_kg == 8.5
+    assert p.phbc_clay_half_pct == 25.0
+    assert p.phbc_oc_cmol_per_pct == 0.6
     assert p.acidifying_ph_delta_per_kg_ha == 0.0005
     assert p.ph_floor == 4.0
     assert p.ph_ceiling == 9.0
@@ -74,11 +89,22 @@ def test_daily_step_defaults_to_param_target() -> None:
 
 
 def test_lime_raises_ph_and_caps_at_ceiling() -> None:
+    """#465: pH rise is rate / lime requirement, not a flat per-kg delta.
+
+    On the loam reference layer the lime requirement is ~8.47 t/ha per pH
+    unit, so 1 t/ha gives ~+0.118 pH — not the +1.0 the old flat
+    ``lime_ph_delta_per_kg_ha = 0.001`` produced on any soil.
+    """
     bus = EventBus()
     chem = _module(bus, base_ph=6.8)
-    chem.apply_lime(0, 1000.0)  # +0.001 * 1000 = +1.0
-    assert chem.ph_by_layer[0] == pytest.approx(7.8, abs=_ABS)
-    chem.apply_lime(0, 5000.0)  # 7.8 + 5.0 -> capped at 9.0
+    lr = chem.lime_requirement_kg_ha_per_ph(0)
+    chem.apply_lime(0, 1000.0)
+    assert chem.ph_by_layer[0] == pytest.approx(6.8 + 1000.0 / lr, abs=_ABS)
+    assert chem.ph_by_layer[0] == pytest.approx(6.918, abs=1e-3)
+    # A non-positive rate is a no-op.
+    chem.apply_lime(0, 0.0)
+    assert chem.ph_by_layer[0] == pytest.approx(6.918, abs=1e-3)
+    chem.apply_lime(0, 50_000.0)  # absurd rate -> saturates at the ceiling
     assert chem.ph_by_layer[0] == pytest.approx(9.0, abs=_ABS)
 
 
@@ -148,14 +174,16 @@ def test_runtime_dispatches_all_events() -> None:
     assert len(seen) == 2  # one SoilPHUpdated per layer
     assert chem.ph_by_layer[0] == pytest.approx(6.8, abs=_ABS)
 
+    # #465: buffer-capacity response on the loam reference layer.
     bus.emit(LimeApplied(layer=0, rate_kg_ha=1000.0))
-    assert chem.ph_by_layer[0] == pytest.approx(7.8, abs=_ABS)
+    lime_ph = 6.8 + 1000.0 / chem.lime_requirement_kg_ha_per_ph(0)
+    assert chem.ph_by_layer[0] == pytest.approx(lime_ph, abs=_ABS)
 
     bus.emit(AcidifyingFertilizerApplied(layer=1, rate_kg_ha=1000.0))
     assert chem.ph_by_layer[1] == pytest.approx(6.3, abs=_ABS)
 
     bus.emit(NutrientLeached(nutrient="NO3", amount_kg_ha=1.0, layer=0))
-    assert chem.ph_by_layer[0] == pytest.approx(7.795, abs=_ABS)
+    assert chem.ph_by_layer[0] == pytest.approx(lime_ph - 0.005, abs=_ABS)
 
     bus.emit(PhosphorusFixationOccurred(layer=1, amount_fixed_kg_ha=1.0))
     assert chem.ph_by_layer[1] == pytest.approx(6.298, abs=_ABS)

@@ -34,6 +34,8 @@ from agrogame.soil.chemistry import (
     ChemistryParams,
     ChemistryRuntime,
     ChemistryState,
+    LayerBufferProperties,
+    LimeApplied,
     SoilChemistryModule,
 )
 from agrogame.atmosphere.et import Evapotranspiration, EtParams, ResidueState
@@ -519,7 +521,18 @@ class FullSimulationOrchestrator:
         # Chemistry emits pH events used by N/P. Pure logic; the runtime
         # (wired in _subscription_plan, #288) owns all event subscriptions.
         self.chem = SoilChemistryModule(
-            self.chem_params, self.chem_state, self.event_bus
+            self.chem_params,
+            self.chem_state,
+            self.event_bus,
+            layer_properties=[
+                LayerBufferProperties(
+                    depth_cm=ly.depth_cm,
+                    bulk_density_g_cm3=ly.bulk_density_g_cm3,
+                    clay_pct=ly.clay_pct if ly.clay_pct is not None else 22.0,
+                    organic_matter_pct=ly.organic_matter_pct,
+                )
+                for ly in self.profile.layers
+            ],
         )
         self.redox = RedoxModule(
             RedoxParams(), self.redox_state, event_bus=self.event_bus
@@ -1186,6 +1199,36 @@ class FullSimulationOrchestrator:
         """
         depths = [ly.depth_cm for ly in self.profile.layers]
         self.agg_module.apply_tillage(intensity, layer_depths_cm=depths)
+
+    def apply_lime(self, amount_kg_ha: float, layer: int = 0) -> None:
+        """Apply agricultural lime (CaCO3-equivalent) to a soil layer.
+
+        Sibling of :meth:`apply_fertilizer` rather than a fertilizer type:
+        lime is an amendment that supplies no limiting nutrient, so it
+        routes to the chemistry module, not a nutrient cycle (#465).
+
+        Emits ``LimeApplied`` so ``ChemistryRuntime`` stays the single path
+        into ``SoilChemistryModule.apply_lime``. The pH rise depends on the
+        layer's buffer capacity; see
+        ``SoilChemistryModule.lime_requirement_kg_ha_per_ph``.
+
+        Args:
+            amount_kg_ha: CaCO3-equivalent rate (kg/ha). Non-positive is a
+                no-op.
+            layer: Target soil layer index (default 0 = top layer).
+
+        Raises:
+            ValueError: If ``layer`` is outside the profile.
+        """
+        if amount_kg_ha <= 0.0:
+            return
+        if not (0 <= layer < len(self.profile.layers)):
+            raise ValueError(
+                f"Layer {layer} out of range [0, {len(self.profile.layers)})"
+            )
+        self.event_bus.emit(
+            LimeApplied(layer=int(layer), rate_kg_ha=float(amount_kg_ha))
+        )
 
     def apply_fertilizer(
         self, fert_type: str, amount_kg_ha: float, layer: int = 0
