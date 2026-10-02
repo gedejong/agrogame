@@ -1969,6 +1969,30 @@ def test_lime_preview_matches_charged_cost(client) -> None:
     assert data["balance_credits"] == before - 125
 
 
+def test_lime_cost_rounds_half_up_matching_client(client) -> None:
+    """2.5 t/ha costs 238 on both the preview and the action path.
+
+    labor 50 + 0.075 cr/kg * 2500 kg/ha = 237.5 (exact in binary), so half-up
+    rounding gives 238 and truncation 237. The Godot client pins the same tier
+    at 238 (``LimePicker.cost_for``, test_lime_picker.gd) and shows "238 cr";
+    a truncating backend would display one price and charge another.
+    """
+    game_id = _create_game(client)
+    body = _lime_body(2500.0)
+
+    preview = client.post(f"/api/v1/games/{game_id}/action/preview", json=body)
+    assert preview.status_code == 200
+    assert preview.json()["cost_credits"] == 238
+
+    before = _balance(client, game_id)
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=body)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["status"] == "executed"
+    assert data["cost_credits"] == 238
+    assert data["balance_credits"] == before - 238
+
+
 def test_lime_raises_topsoil_ph_by_a_plausible_fraction(client) -> None:
     """2.5 t/ha on loam_temperate gives roughly +0.3 pH, not +2.5."""
     game_id = _create_game(client)
