@@ -55,6 +55,8 @@ references/
 game/.godot/
 game/.mono/
 game/bin/
+# Temporary settings pin written by game/tests/client_smoke.sh (#497)
+game/override.cfg
 *.import
 # Un-ignore stress icon imports so SVG scale=4.0 persists for all devs
 !game/assets/icons/icon_frost.svg.import

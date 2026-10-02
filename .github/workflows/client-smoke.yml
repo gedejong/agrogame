@@ -33,6 +33,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Smoke matcher self-test
+        # Proves the error matcher survives ANSI escapes (#497); no backend needed.
+        run: bash game/tests/client_smoke_selftest.sh
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
