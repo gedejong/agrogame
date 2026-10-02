@@ -13,6 +13,32 @@ from agrogame.plant.roots.params import RootParams
 
 
 @dataclass(frozen=True)
+class HarvestProduct:
+    """What a crop sells and its dry-matter fraction at sale (#448).
+
+    The harvested-organ pool (``grain_biomass_g_m2``) is dry mass; the market
+    prices fresh product. Sold mass = dry mass / ``dry_matter_fraction``. Grain
+    crops omit the preset block and default to grain at 1.0: priced per kg dry
+    grain, exactly as before (ADR-003).
+    """
+
+    name: str = "grain"
+    dry_matter_fraction: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not self.name:
+            raise ValueError("harvest_product name must be non-empty")
+        if not 0.0 < self.dry_matter_fraction <= 1.0:
+            raise ValueError(
+                "harvest_product dry_matter_fraction must be in (0, 1], "
+                f"got {self.dry_matter_fraction}"
+            )
+
+
+GRAIN_PRODUCT = HarvestProduct()
+
+
+@dataclass(frozen=True)
 class CropPreset:
     name: str
     phenology: CropPhenologyParams
@@ -34,6 +60,7 @@ class CropPreset:
     n_crit_a: float | None = None
     n_crit_b: float | None = None
     key: str = ""
+    harvest_product: HarvestProduct = GRAIN_PRODUCT
 
 
 @dataclass
@@ -140,6 +167,15 @@ def _build_roots(raw: dict) -> RootParams:
     )
 
 
+def _build_harvest_product(raw: dict) -> HarvestProduct:
+    hp = raw.get("harvest_product")
+    if hp is None:
+        return GRAIN_PRODUCT
+    return HarvestProduct(
+        name=str(hp["name"]), dry_matter_fraction=float(hp["dry_matter_fraction"])
+    )
+
+
 def _apply_canopy_overrides(base: CanopyParams, overrides: dict) -> CanopyParams:
     """Apply partial canopy overrides on top of a base CanopyParams."""
     fields: dict = {}
@@ -199,6 +235,7 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
                 float(raw["n_crit_b"]) if raw.get("n_crit_b") is not None else None
             ),
             key=key,
+            harvest_product=_build_harvest_product(raw),
         )
         crops[key] = base
 

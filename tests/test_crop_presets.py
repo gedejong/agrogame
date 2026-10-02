@@ -126,3 +126,42 @@ def test_orchestrator_accepts_crop_preset() -> None:
             sim_date=date(2024, 6, 1),
         )
         assert orch.canopy.state.biomass_g_m2 >= 0.0
+
+
+def test_grape_harvest_product_is_cited_fruit_and_grain_is_default() -> None:
+    """#448: grape sells fruit at the USDA-cited fraction; grains default."""
+    from agrogame.plant.presets import GRAIN_PRODUCT, load_crop_presets
+
+    lib = load_crop_presets()
+    grape = lib.get_preset("grape", "kenya_highlands")  # override keeps product
+    assert grape.harvest_product.name == "fruit"
+    assert grape.harvest_product.dry_matter_fraction == 0.1946
+    assert lib.crops["maize"].harvest_product == GRAIN_PRODUCT
+
+
+@pytest.mark.parametrize("dmf", [0.0, 1.5])
+def test_harvest_product_rejects_out_of_range_fraction(dmf: float) -> None:
+    from agrogame.config.validation import ValidationError, validate_data
+    from agrogame.plant.presets import HarvestProduct
+
+    with pytest.raises(ValueError, match="dry_matter_fraction"):
+        HarvestProduct(name="fruit", dry_matter_fraction=dmf)
+    crop = {
+        "name": "x",
+        "phenology": {
+            "base_temperature_c": 10,
+            "max_temperature_c": 35,
+            "emergence_gdd": 50,
+            "flowering_gdd": 400,
+            "maturity_gdd": 1800,
+        },
+        "canopy": {
+            "extinction_coefficient_k": 0.5,
+            "rue_g_per_mj": 1.5,
+            "sla_m2_per_g": 0.02,
+            "lai_max": 4,
+        },
+        "harvest_product": {"name": "fruit", "dry_matter_fraction": dmf},
+    }
+    with pytest.raises(ValidationError):
+        validate_data({"crops": {"x": crop}}, "crop_preset")

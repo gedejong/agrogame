@@ -54,7 +54,7 @@ from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
 from agrogame.weather.types import WeatherRecord
 
-from agrogame.plant.presets import load_crop_presets
+from agrogame.plant.presets import GRAIN_PRODUCT, HarvestProduct, load_crop_presets
 
 router = APIRouter(prefix="/api/v1")
 
@@ -539,9 +539,26 @@ def _field_has_standing_crop(field: Field, patch_idx: int = -1) -> bool:
     return any(patch.config.crop_key for patch in _target_patches(field, patch_idx))
 
 
+def _harvest_product(crop_key: str, climate_key: str) -> HarvestProduct:
+    """Sold product and its dry-matter fraction for ``crop_key`` (#448).
+
+    Looked up by key because harvest clears the orchestrator's current crop
+    before settlement. Grain crops carry the default (grain, 1.0).
+    """
+    if not crop_key:
+        return GRAIN_PRODUCT
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    return crops.get_preset(crop_key, climate_key).harvest_product
+
+
+def _sold_kg_ha(dry_g_m2: float, product: HarvestProduct) -> float:
+    """Sold (fresh) kg/ha from harvested dry g/m² (ADR-003, #448)."""
+    return dry_g_m2 * 10.0 / product.dry_matter_fraction
+
+
 def _harvest_action(
     s: GameSession, field: Field, prices: PriceTable, patch_idx: int = -1
-) -> tuple[float, int, int]:
+) -> tuple[float, int, int, HarvestProduct]:
     """Harvest the targeted patch(es) and settle season economics.
 
     ``patch_idx`` selects a single patch; the default (-1) harvests the whole
@@ -553,7 +570,7 @@ def _harvest_action(
     off the targeted patch(es) so subsequent day responses report a bare patch.
     Non-targeted patches are left standing.
 
-    Returns ``(grain_g_m2, revenue_credits, profit_credits)``.
+    Returns ``(grain_g_m2, revenue_credits, profit_credits, product)``.
     """
     from agrogame.game.turn import SeasonResult
 
@@ -581,6 +598,7 @@ def _harvest_action(
         / area_ha
     )
     crop_key = targets[0].config.crop_key
+    product = _harvest_product(crop_key, targets[0].config.climate_key)
 
     # Finalize each targeted crop in the domain layer (history + N fixation
     # credit + _current_crop reset). Only the requested patch(es) are finalized,
@@ -597,7 +615,13 @@ def _harvest_action(
     # credit their own share; full-field harvest (patch_idx=-1) settles the whole
     # field in one call.
     revenue_before = s.ledger.season_revenue
-    profit = s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=area_ha)
+    profit = s.ledger.settle_season(
+        grain_g_m2,
+        crop_key,
+        prices,
+        area_ha=area_ha,
+        dry_matter_fraction=product.dry_matter_fraction,
+    )
     revenue = s.ledger.season_revenue - revenue_before
     s.season_settled = True
 
@@ -632,7 +656,7 @@ def _harvest_action(
         patch.orch.canopy.state.grain_biomass_g_m2 = 0.0
         patch.orch.canopy.state.lai = 0.0
 
-    return grain_g_m2, revenue, profit
+    return grain_g_m2, revenue, profit, product
 
 
 def _settle_standing_grain(
@@ -658,7 +682,14 @@ def _settle_standing_grain(
         )
         / total_area
     )
-    s.ledger.settle_season(grain_g_m2, crop_key, prices, area_ha=total_area)
+    product = _harvest_product(crop_key, standing[0].config.climate_key)
+    s.ledger.settle_season(
+        grain_g_m2,
+        crop_key,
+        prices,
+        area_ha=total_area,
+        dry_matter_fraction=product.dry_matter_fraction,
+    )
     s.season_settled = True
     for p in standing:
         # Capture harvested grain so the per-patch report survives the grain
@@ -995,10 +1026,14 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     grain_g_m2 = 0.0
     revenue_credits = 0
     profit_credits = 0
+    harvest_product = ""
+    sold_kg_ha = 0.0
     if req.action == "harvest":
-        grain_g_m2, revenue_credits, profit_credits = _harvest_action(
+        grain_g_m2, revenue_credits, profit_credits, product = _harvest_action(
             s, field, prices, harvest_patch_idx
         )
+        harvest_product = product.name
+        sold_kg_ha = round(_sold_kg_ha(grain_g_m2, product), 1)
     elif req.action == "plant":
         # Plant targets a specific patch (or all if no patch_idx given)
         crop_key = req.params.get("crop_key", "maize")
@@ -1049,6 +1084,8 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         grain_g_m2=round(grain_g_m2, 1),
         revenue_credits=revenue_credits,
         profit_credits=profit_credits,
+        harvest_product=harvest_product,
+        sold_kg_ha=sold_kg_ha,
     )
 
 
@@ -1296,6 +1333,7 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
             crop_key = p.harvested_crop_key or p.config.crop_key
             grain_t_ha = grain_g_m2 / 100.0
             climate = p.config.climate_key
+            product = _harvest_product(crop_key, climate)
             gyga = _GYGA_YIELDS.get(crop_key, {}).get(climate, 10.0)
             ratio = min(grain_t_ha / gyga, 1.0) if gyga > 0 else 0.0
             snap = p.orch.snapshot_soil()
@@ -1317,6 +1355,8 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
                     theta_surface=round(
                         snap.water_theta[0] if snap.water_theta else 0.0, 4
                     ),
+                    harvest_product=product.name,
+                    sold_kg_ha=round(_sold_kg_ha(grain_g_m2, product), 1),
                 )
             )
 
