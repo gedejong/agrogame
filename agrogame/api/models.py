@@ -191,6 +191,19 @@ class PatchResultResponse(BaseModel):
     )
 
 
+class SeasonStartedResponse(BaseModel):
+    """Season set up by ``/start-season``; no days have been stepped (#487).
+
+    Days are driven through ``/step``. End-of-season results come from the
+    ``/step`` response (``season_complete``), ``GET /status`` and ``/report``.
+    """
+
+    season_number: int = Field(description="1-based number of the season set up")
+    start_date: str = Field(description="First day of the season (ISO format)")
+    season_days: int = Field(description="Days of weather generated for the season")
+    day_number: int = Field(description="Days stepped so far (always 0 here)")
+
+
 class SeasonResultResponse(BaseModel):
     total_days: int
     start_date: str = Field(description="Simulation start date (ISO format)")

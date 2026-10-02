@@ -82,6 +82,21 @@ func start_season(game_id: String, callback: Callable) -> void:
 	)
 
 
+## Run Season (#487): /start-season only sets the season up, so every day of
+## the generated series is stepped through /step, the single day loop.
+## callback receives the final /step result (season_complete at its end).
+func run_season(game_id: String, callback: Callable) -> void:
+	start_season(
+		game_id,
+		func(success: bool, data: Dictionary) -> void:
+			var days: int = int(data.get("season_days", 0))
+			if not success or days <= 0:
+				callback.call(false, {})
+				return
+			step_day(game_id, days, callback)
+	)
+
+
 func _on_season_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:

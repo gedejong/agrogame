@@ -35,6 +35,7 @@ from agrogame.api.models import (
     PlanRequest,
     ReviseRequest,
     SeasonResultResponse,
+    SeasonStartedResponse,
     SoilStateResponse,
 )
 from agrogame.api.forecast import (
@@ -316,12 +317,17 @@ def submit_plan(game_id: str, req: PlanRequest) -> dict:
     return {"status": "plan_accepted", "event_count": len(plan.events)}
 
 
-@router.post("/games/{game_id}/start-season", response_model=SeasonResultResponse)
-def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultResponse:
-    """Run N simulation days, continuing from the session's current date.
+@router.post("/games/{game_id}/start-season", response_model=SeasonStartedResponse)
+def start_season(
+    game_id: str, days: int = 150, seed: int = 42
+) -> SeasonStartedResponse:
+    """Set up a season and return without stepping (#487).
 
-    On subsequent calls, soil state is preserved and crops are reset
-    so management decisions compound over multiple growing periods.
+    From the second season on, crops and season economics are reset (soil state
+    is preserved, so management compounds across seasons). Weather for ``days``
+    days is generated from the session's current date with seed
+    ``base_seed + run_count``. Days are then driven through ``/step``, which is
+    the single day loop and the single interrupt path.
     """
     s = _get_session(game_id)
     if not s.field_manager.fields:
@@ -338,18 +344,17 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         s.season_settled = False
         s.ledger.reset_season()
 
-    start_date = s.current_date
-
-    # Generate weather starting from the session's current date
+    # Generate weather starting from the session's current date. /step consumes
+    # it from index 0, so the session date and the weather index agree.
     first_field = next(iter(s.field_manager.fields.values()))
     climate_key = first_field.patches[0].config.climate_key
     climates = load_climate_presets(Path("data/climate/presets.yaml"))
     climate = climates.climates[climate_key]
     gen = SyntheticWeatherGenerator(climate, seed=effective_seed)
-    series = gen.generate(days, start_date)
-    s.weather = series.records
+    s.weather = gen.generate(days, s.current_date).records
+    s.day_index = 0
+    s.season_active = True
 
-    # Create turn manager for pause detection (uses first patch)
     first_patch = first_field.patches[0]
     tm = GameTurnManager(
         orch=first_patch.orch,
@@ -358,64 +363,15 @@ def start_season(game_id: str, days: int = 150, seed: int = 42) -> SeasonResultR
         pause_config=PauseConfig(),
         crop_key=first_patch.config.crop_key,
     )
+    tm.phase = SeasonPhase.EXECUTING
     s.turn_manager = tm
     s.pause_events = []
 
-    # Step ALL fields/patches each day
-    from agrogame.soil.water.types import DailyDrivers as _DD
-
-    tm.phase = SeasonPhase.EXECUTING
-    for i, rec in enumerate(s.weather):
-        drivers = _DD(rainfall_mm=rec.precip_mm or 0.0)
-        s.field_manager.step_day(
-            drivers=drivers,
-            tmin_c=rec.tmin_c,
-            tmax_c=rec.tmax_c,
-            shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
-            sim_date=rec.day,
-        )
-        tm.current_day = i + 1
-
-    tm.phase = SeasonPhase.SETTLING
-    grain = first_patch.orch.canopy.state.grain_biomass_g_m2
-    from agrogame.game.turn import SeasonResult
-
-    tm.result = SeasonResult(
-        total_days=tm.current_day,
-        grain_g_m2=grain,
-        grain_kg_ha=grain * 10.0,
-        pause_count=0,
-        crop_key=tm.crop_key,
-    )
-
-    # Advance session date and run counter
-    from datetime import timedelta
-
-    end_date = start_date + timedelta(days=days)
-    s.current_date = end_date
-    s.run_count += 1
-
-    # Build per-field, per-patch results with soil state
-    field_results: dict[str, list[PatchResultResponse]] = {}
-    for fid, fld in s.field_manager.fields.items():
-        field_results[fid] = [
-            PatchResultResponse(
-                patch_idx=i,
-                crop_key=p.config.crop_key,
-                grain_g_m2=p.orch.canopy.state.grain_biomass_g_m2,
-                grain_kg_ha=p.orch.canopy.state.grain_biomass_g_m2 * 10,
-                soil_state=_build_soil_state(p),
-            )
-            for i, p in enumerate(fld.patches)
-        ]
-
-    return SeasonResultResponse(
-        total_days=tm.current_day,
-        start_date=start_date.isoformat(),
-        end_date=end_date.isoformat(),
-        season_number=s.run_count,
-        pause_count=0,
-        field_results=field_results,
+    return SeasonStartedResponse(
+        season_number=s.run_count + 1,
+        start_date=s.current_date.isoformat(),
+        season_days=len(s.weather),
+        day_number=s.day_index,
     )
 
 
@@ -957,6 +913,7 @@ def _finalize_season(s: GameSession) -> None:
             crop_key=first_patch.config.crop_key,
         )
     s.turn_manager.current_day = s.day_index
+    s.turn_manager.phase = SeasonPhase.SETTLING
     s.turn_manager.result = SeasonResult(
         total_days=s.day_index,
         grain_g_m2=grain,
@@ -975,7 +932,7 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     s = _get_session(game_id)
     if not s.field_manager.fields:
         raise HTTPException(400, "No fields configured")
-    # If weather was consumed by /start-season, regenerate for new stepping
+    # A finished season's weather is exhausted: start a new season.
     if s.weather and s.day_index >= len(s.weather):
         _reset_session_for_new_season(s)
     _ensure_weather(s, seed)

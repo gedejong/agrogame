@@ -49,6 +49,25 @@ def _create_game(client) -> str:
     return resp.json()["game_id"]
 
 
+def _run_season(client, game_id: str, days: int, seed: int | None = None) -> dict:
+    """Run Season as the client now does it (#487): set up, then step every day.
+
+    ``/start-season`` only sets the season up; ``/step`` drives the days. Returns
+    the end-of-season ``SeasonResultResponse`` from ``GET /status``, which carries
+    what ``/start-season`` itself returned before #487.
+    """
+    query = f"days={days}" + (f"&seed={seed}" if seed is not None else "")
+    setup = client.post(f"/api/v1/games/{game_id}/start-season?{query}")
+    assert setup.status_code == 200, setup.text
+    assert setup.json()["day_number"] == 0
+    step = client.post(f"/api/v1/games/{game_id}/step?days={days}")
+    assert step.status_code == 200, step.text
+    assert step.json()["season_complete"]
+    result = client.get(f"/api/v1/games/{game_id}/status").json()["season_result"]
+    assert result is not None
+    return result
+
+
 # ---------------------------------------------------------------------------
 # AC: full lifecycle — create, plan, run, get results
 # ---------------------------------------------------------------------------
@@ -74,9 +93,7 @@ def test_full_lifecycle(client) -> None:
     assert resp.json()["event_count"] == 2
 
     # Start season
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
-    assert resp.status_code == 200
-    data = resp.json()
+    data = _run_season(client, game_id, 50, 42)
     assert data["total_days"] == 50
 
     # Get status with results
@@ -147,7 +164,7 @@ def test_save_and_load_roundtrip(client, tmp_path, monkeypatch) -> None:
     game_id = _create_game(client)
 
     # Run a short season to change state
-    client.post(f"/api/v1/games/{game_id}/start-season?days=10&seed=42")
+    _run_season(client, game_id, 10, 42)
 
     # Get state before save
     status_before = client.get(f"/api/v1/games/{game_id}/status").json()
@@ -211,9 +228,7 @@ def test_openapi_docs(client) -> None:
 def test_season_response_includes_soil_state(client) -> None:
     """Soil state fields present and physically plausible after season."""
     game_id = _create_game(client)
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
-    assert resp.status_code == 200
-    data = resp.json()
+    data = _run_season(client, game_id, 50, 42)
 
     # Backward compat: grain_g_m2 still present
     assert "field_results" in data
@@ -267,9 +282,7 @@ def test_season_response_includes_soil_state(client) -> None:
 def test_season_response_backward_compatible(client) -> None:
     """Existing fields (total_days, pause_count, field_results) unchanged."""
     game_id = _create_game(client)
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=1")
-    assert resp.status_code == 200
-    data = resp.json()
+    data = _run_season(client, game_id, 30, 1)
     assert "total_days" in data
     assert data["total_days"] == 30
     assert "pause_count" in data
@@ -279,7 +292,7 @@ def test_season_response_backward_compatible(client) -> None:
 def test_status_includes_soil_state(client) -> None:
     """GET /status also includes soil_state after season."""
     game_id = _create_game(client)
-    client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
+    _run_season(client, game_id, 30, 42)
     resp = client.get(f"/api/v1/games/{game_id}/status")
     assert resp.status_code == 200
     status = resp.json()
@@ -296,8 +309,7 @@ def test_status_includes_soil_state(client) -> None:
 def test_season_response_includes_dates(client) -> None:
     """Response includes start_date and end_date in ISO format."""
     game_id = _create_game(client)
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
-    data = resp.json()
+    data = _run_season(client, game_id, 50, 42)
     assert data["start_date"] == "2024-04-01"
     assert data["end_date"] == "2024-05-21"
     assert data["total_days"] == 50
@@ -307,17 +319,17 @@ def test_consecutive_seasons_advance_date(client) -> None:
     """Each /start-season continues from where the previous ended."""
     game_id = _create_game(client)
 
-    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42").json()
+    r1 = _run_season(client, game_id, 50, 42)
     assert r1["start_date"] == "2024-04-01"
     assert r1["end_date"] == "2024-05-21"
     assert r1["season_number"] == 1
 
-    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
+    r2 = _run_season(client, game_id, 50)
     assert r2["start_date"] == "2024-05-21"
     assert r2["end_date"] == "2024-07-10"
     assert r2["season_number"] == 2
 
-    r3 = client.post(f"/api/v1/games/{game_id}/start-season?days=50").json()
+    r3 = _run_season(client, game_id, 50)
     assert r3["start_date"] == "2024-07-10"
     assert r3["season_number"] == 3
 
@@ -326,8 +338,8 @@ def test_consecutive_seasons_produce_different_yields(client) -> None:
     """Soil state evolves between runs — yields and SOM should differ."""
     game_id = _create_game(client)
 
-    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42").json()
-    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=100").json()
+    r1 = _run_season(client, game_id, 100, 42)
+    r2 = _run_season(client, game_id, 100)
 
     p1 = r1["field_results"]["f1"][0]
     p2 = r2["field_results"]["f1"][0]
@@ -344,9 +356,7 @@ def test_consecutive_seasons_produce_different_yields(client) -> None:
 def test_first_season_backward_compatible(client) -> None:
     """First season with explicit seed behaves identically to old behavior."""
     game_id = _create_game(client)
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
-    assert resp.status_code == 200
-    data = resp.json()
+    data = _run_season(client, game_id, 50, 42)
     assert data["total_days"] == 50
     assert "field_results" in data
     assert data["start_date"] == "2024-04-01"
@@ -393,9 +403,7 @@ def _create_multi_patch_game(client) -> str:
 def test_multi_patch_returns_three_patches(client) -> None:
     """3-patch game returns per-patch results with different soil states."""
     game_id = _create_multi_patch_game(client)
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
-    assert resp.status_code == 200
-    patches = resp.json()["field_results"]["f1"]
+    patches = _run_season(client, game_id, 100, 42)["field_results"]["f1"]
     assert len(patches) == 3
 
     # Each patch should have soil_state
@@ -552,9 +560,9 @@ def test_step_records_events_after_start_season_reset(client) -> None:
     """
     game_id = _create_game(client)
     # Season 1: run_count 0 -> 1 (no reset yet).
-    client.post(f"/api/v1/games/{game_id}/start-season?days=40&seed=42")
+    _run_season(client, game_id, 40, 42)
     # Season 2: run_count > 0 -> _reset_all_crops clears the bus.
-    client.post(f"/api/v1/games/{game_id}/start-season?days=40&seed=7")
+    _run_season(client, game_id, 40, 7)
     # Step the freshly reset season and confirm events flow.
     resp = client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
     assert resp.status_code == 200
@@ -674,12 +682,32 @@ def test_get_forecast(client) -> None:
         assert "rain_mm" in day
 
 
-def test_start_season_still_works(client) -> None:
-    """Backward compat: /start-season runs all days at once."""
+def test_start_season_sets_up_without_stepping(client) -> None:
+    """/start-season sets the season up and steps zero days (#487).
+
+    Replaces the pre-#487 ``test_start_season_still_works``, which asserted the
+    old semantics (all days run in one call); this is the approved change.
+    """
+    from agrogame.api.state import games
+
     game_id = _create_game(client)
     resp = client.post(f"/api/v1/games/{game_id}/start-season?days=50&seed=42")
     assert resp.status_code == 200
-    assert resp.json()["total_days"] == 50
+    data = resp.json()
+    assert data == {
+        "season_number": 1,
+        "start_date": "2024-04-01",
+        "season_days": 50,
+        "day_number": 0,
+    }
+    s = games[game_id]
+    assert s.day_index == 0
+    assert len(s.weather) == 50
+    assert s.weather[0].day.isoformat() == "2024-04-01"
+    assert s.current_date.isoformat() == "2024-04-01"
+    assert s.run_count == 0
+    patch = s.field_manager.fields["f1"].patches[0]
+    assert patch.orch.canopy.state.biomass_g_m2 == 0.0  # nothing grew
 
 
 # ---------------------------------------------------------------------------
@@ -689,7 +717,7 @@ def test_harvest_report_after_season(client) -> None:
     """GET /report returns yield, GYGA grade, P&L after completed season."""
     game_id = _create_game(client)
     # Run a season and do an action for cost tracking
-    client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
+    _run_season(client, game_id, 100, 42)
 
     resp = client.get(f"/api/v1/games/{game_id}/report")
     assert resp.status_code == 200
@@ -1004,9 +1032,7 @@ def test_start_season_after_per_patch_harvest_does_not_keyerror(client) -> None:
     assert _session(game_id).field_manager.fields["f1"].patches[0].config.crop_key == ""
 
     # Start a new season: previously this 500'd on get_preset("").
-    resp = client.post(f"/api/v1/games/{game_id}/start-season?days=60&seed=7")
-    assert resp.status_code == 200, resp.text
-    patches = resp.json()["field_results"]["f1"]
+    patches = _run_season(client, game_id, 60, 7)["field_results"]["f1"]
     assert len(patches) == 3
     # Every patch is in a valid state (soil carried across the reset).
     for p in patches:
@@ -1023,9 +1049,7 @@ def test_start_season_after_per_patch_harvest_does_not_keyerror(client) -> None:
         json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
     )
     assert harvest2.status_code == 200
-    resp2 = client.post(f"/api/v1/games/{game_id}/start-season?days=60&seed=9")
-    assert resp2.status_code == 200, resp2.text
-    patches2 = resp2.json()["field_results"]["f1"]
+    patches2 = _run_season(client, game_id, 60, 9)["field_results"]["f1"]
     assert patches2[0]["crop_key"] == ""
     assert patches2[1]["crop_key"] == ""
     assert patches2[2]["crop_key"] == "maize"
@@ -1040,12 +1064,9 @@ def test_start_season_normal_reset_path_unchanged(client) -> None:
     """
     game_id = _create_multi_patch_game(client)
     # Season 1: no manual harvest — every patch keeps crop_key="maize".
-    r1 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=42")
-    assert r1.status_code == 200
+    _run_season(client, game_id, 100, 42)
     # Season 2 triggers _reset_all_crops on all-cropped patches (the normal path).
-    r2 = client.post(f"/api/v1/games/{game_id}/start-season?days=100&seed=7")
-    assert r2.status_code == 200, r2.text
-    patches = r2.json()["field_results"]["f1"]
+    patches = _run_season(client, game_id, 100, 7)["field_results"]["f1"]
     assert len(patches) == 3
     for p in patches:
         assert p["crop_key"] == "maize", "Cropped patches keep their crop on reset"
@@ -2146,3 +2167,73 @@ def test_grain_harvest_reports_grain_product_at_dry_mass(client) -> None:
     data, grain_g_m2 = _grow_and_harvest(client, "maize", "netherlands_temperate", 60)
     assert data["harvest_product"] == "grain"
     assert data["sold_kg_ha"] == pytest.approx(grain_g_m2 * 10.0, abs=0.05)
+
+
+# ---------------------------------------------------------------------------
+# AC (#487): one day loop; /start-season sets up, /step drives every day
+# ---------------------------------------------------------------------------
+def test_first_step_after_start_season_consumes_its_weather(client) -> None:
+    """Session date and weather index agree after /start-season (#487).
+
+    Before #487, /start-season stepped 150 days without advancing day_index, so
+    the next /step replayed the April record on an August session date.
+    """
+    from datetime import timedelta
+
+    from agrogame.api.state import games
+
+    game_id = _create_game(client)
+    setup = client.post(f"/api/v1/games/{game_id}/start-season?days=20&seed=42")
+    first_record = games[game_id].weather[0]
+    step = client.post(f"/api/v1/games/{game_id}/step?days=1").json()
+    assert step["day_number"] == 1
+    assert step["weather"]["date"] == first_record.day.isoformat()
+    assert step["weather"]["date"] == setup.json()["start_date"]
+    # The session date is the day after the consumed record (the /step
+    # convention), not ~150 days later as the old embedded loop left it.
+    next_day = first_record.day + timedelta(days=1)
+    assert step["date"] == next_day.isoformat()
+
+
+def test_step_after_completed_season_starts_a_new_one(client) -> None:
+    """After Run Season completes, the next /step opens a fresh season (#487)."""
+    from agrogame.api.state import games
+
+    game_id = _create_game(client)
+    _run_season(client, game_id, 20, 42)
+    end_date = games[game_id].current_date
+    step = client.post(f"/api/v1/games/{game_id}/step?days=1").json()
+    s = games[game_id]
+    # _reset_session_for_new_season: fresh weather from the session date,
+    # consumed from index 0, so the reported record is the next calendar day.
+    assert step["day_number"] == 1
+    assert s.day_index == 1
+    assert step["weather"]["date"] == end_date.isoformat()
+    assert s.weather[0].day == end_date
+
+
+def test_two_run_season_cycles_carry_soil_over(client) -> None:
+    """Two Run Season cycles complete on one session; soil carries across (#487).
+
+    Season 2's setup resets the crop but must start from season 1's final soil.
+    """
+    from agrogame.api.state import games
+
+    game_id = _create_multi_patch_game(client)
+    r1 = _run_season(client, game_id, 100, 42)
+    patches = games[game_id].field_manager.fields["f1"].patches
+    theta_end_1 = [list(p.orch.water_state.theta) for p in patches]
+    som_end_1 = [p["soil_state"]["som_total_c_g_m2"] for p in r1["field_results"]["f1"]]
+
+    setup = client.post(f"/api/v1/games/{game_id}/start-season?days=100").json()
+    assert setup["season_number"] == 2
+    assert [list(p.orch.water_state.theta) for p in patches] == theta_end_1
+    for p in patches:
+        assert p.orch.canopy.state.biomass_g_m2 == 0.0  # crop reset, soil kept
+
+    client.post(f"/api/v1/games/{game_id}/step?days=100")
+    r2 = client.get(f"/api/v1/games/{game_id}/status").json()["season_result"]
+    assert r2["season_number"] == 2
+    assert r2["start_date"] == r1["end_date"]
+    som_end_2 = [p["soil_state"]["som_total_c_g_m2"] for p in r2["field_results"]["f1"]]
+    assert som_end_2 != som_end_1  # season 2 evolved from season 1's soil
