@@ -26,8 +26,32 @@ class EventBus:
         """Register `handler` to be called every time an `event_type` is emitted."""
         self._handlers[event_type].append(handler)
 
+    def unsubscribe(self, event_type: type[T], handler: Callable[[T], None]) -> bool:
+        """Remove one registration of `handler` for `event_type` (#486).
+
+        Teardown path for an **external observer that is retired while the bus
+        lives on**, such as a `GameTurnManager` replaced at season setup: the
+        observer removes exactly its own subscription. Contrast `clear()`.
+
+        Bound methods compare equal when they wrap the same function on the
+        same instance, so the method passed to `subscribe` can be removed with
+        a fresh reference to it. Returns True if a registration was removed and
+        False if none was present (e.g. the bus was cleared since).
+        """
+        handlers = self._handlers.get(event_type)
+        if not handlers or handler not in handlers:
+            return False
+        handlers.remove(handler)
+        return True
+
     def clear(self) -> None:
-        """Remove all event subscriptions."""
+        """Remove all event subscriptions.
+
+        Teardown path for the **whole bus**, used when its owner rebuilds every
+        subscription itself (the orchestrator's crop reset re-wires its own
+        modules). Never use it to retire a single observer: it would drop the
+        simulation's subscriptions too. Use `unsubscribe()` for that.
+        """
         self._handlers.clear()
 
     def emit(self, event: Any) -> None:
