@@ -1,0 +1,90 @@
+name: Client Smoke
+
+# Runs the real Godot client headless against a live backend and fails on any
+# Godot runtime error in its log (#489). Those errors fail neither the build
+# nor GUT; #484 regressed silently for two months because nothing read them.
+# Backend changes can break the client too, so this triggers on both sides.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'game/**'
+      - 'agrogame/**'
+      - 'data/**'
+      - 'poetry.lock'
+      - '.github/workflows/client-smoke.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'game/**'
+      - 'agrogame/**'
+      - 'data/**'
+      - 'poetry.lock'
+      - '.github/workflows/client-smoke.yml'
+
+env:
+  GODOT_VERSION: "4.6.1"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: '2.1.3'
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pypoetry/virtualenvs
+          key: poetry-smoke-${{ runner.os }}-py3.10-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            poetry-smoke-${{ runner.os }}-py3.10-
+
+      - name: Install backend
+        run: poetry install --no-interaction --only main -E api
+
+      - name: Install Godot
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: ${{ env.GODOT_VERSION }}
+          use-dotnet: false
+
+      - name: Import Godot project
+        run: godot --editor --headless --quit || true
+        working-directory: game
+
+      - name: Start backend
+        run: |
+          poetry run uvicorn agrogame.api.app:create_app --factory --port 8000 \
+            > api.log 2>&1 &
+          for _ in $(seq 60); do
+            curl -sf -m 2 http://localhost:8000/openapi.json >/dev/null && exit 0
+            sleep 1
+          done
+          echo "::error::Backend did not start"; cat api.log; exit 1
+
+      - name: Client smoke run
+        env:
+          SMOKE_LOG: client_smoke.log
+        run: bash game/tests/client_smoke.sh
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-smoke-logs
+          path: |
+            client_smoke.log
+            api.log
+          if-no-files-found: ignore
