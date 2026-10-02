@@ -267,11 +267,6 @@ func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> vo
 		var body := VBoxContainer.new()
 		body.add_theme_constant_override("separation", 2)
 		body.visible = (i == 0)  # only top layer expanded
-		var carbon_summary := VBoxContainer.new()
-		carbon_summary.name = "OrganicCarbonSummary"
-		carbon_summary.set_script(OrganicCarbonSummary)
-		carbon_summary.show_pools(layer.get("carbon_pools", {}))
-		body.add_child(carbon_summary)
 		var vals: Dictionary = layer.get("values", {})
 		var acc: String = layer.get("dominant_acceptor", "O2")
 		for key: String in NUTRIENT_BARS:
@@ -279,6 +274,12 @@ func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> vo
 			var val: float = vals.get(key, 0.0)
 			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
 			_add_bar_row(body, key, val, cfg, suffix)
+			if key == "P":
+				var carbon_summary := VBoxContainer.new()
+				carbon_summary.name = "OrganicCarbonSummary"
+				carbon_summary.set_script(OrganicCarbonSummary)
+				carbon_summary.show_pools(layer.get("carbon_pools", {}))
+				body.add_child(carbon_summary)
 		_layer_bodies.append(body)
 		vbox.add_child(body)
 
