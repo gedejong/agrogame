@@ -487,7 +487,7 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
 # Day-by-day game loop (#125)
 # ---------------------------------------------------------------------------
 
-_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest", "tillage"}
+_VALID_ACTIONS = {"irrigate", "fertilize", "lime", "plant", "harvest", "tillage"}
 
 
 def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
@@ -501,6 +501,17 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
         per_kg = prices.input_costs.get(f"fertilizer_{fert_type}", 1)
         amount = params.get("amount_kg_ha", 50)
         return int(labor + per_kg * amount)
+    if action == "lime":
+        # Lime is the first input priced below 1 credit/kg, so the per-kg
+        # price and the product must stay float until the final rounding —
+        # an int cast on ``per_kg`` would silently zero the amendment (#465).
+        amount_lime = float(params.get("amount_kg_ha", 0.0))
+        if amount_lime <= 0.0:
+            return 0
+        labor_lime = float(prices.input_costs.get("labor_per_action", 50))
+        per_kg_lime = float(prices.input_costs.get("amendment_lime_per_kg", 0.075))
+        # Round half up, matching LimePicker.cost_for in the Godot client.
+        return int(labor_lime + per_kg_lime * amount_lime + 0.5)
     if action == "plant":
         crop_key = params.get("crop_key", "maize")
         return int(prices.input_costs.get(f"seed_{crop_key}", 200))
@@ -509,6 +520,28 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     if action == "tillage":
         return int(prices.input_costs.get("labor_per_action", 50))
     return 0
+
+
+def _validate_lime_params(field: Field, params: dict) -> int:
+    """Validate a lime request's target layer and return it (#465).
+
+    Raises:
+        HTTPException: 422 when ``layer`` is not an integer inside the
+            profile's layer range, naming the valid range.
+    """
+    raw_layer = params.get("layer", 0)
+    try:
+        layer = int(raw_layer)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            422, f"layer must be an integer, got {raw_layer!r}"
+        ) from exc
+    n_layers = min(len(p.orch.profile.layers) for p in field.patches)
+    if not (0 <= layer < n_layers):
+        raise HTTPException(
+            422, f"layer {layer} out of range; valid range is [0, {n_layers})"
+        )
+    return layer
 
 
 def _target_patches(field: Field, patch_idx: int) -> list[Patch]:
@@ -964,6 +997,20 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
             422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
         ) from exc
 
+    # Lime: validate the target layer before charging, and treat a
+    # non-positive rate as a free no-op (#465).
+    lime_layer: int = 0
+    if req.action == "lime":
+        lime_layer = _validate_lime_params(field, req.params)
+        if float(req.params.get("amount_kg_ha", 0.0)) <= 0.0:
+            return ActionResponse(
+                status="no-op",
+                action=req.action,
+                cost_credits=0,
+                balance_credits=s.ledger.balance_credits,
+                day_number=s.day_index,
+            )
+
     # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
     # no result clobber (#341). The frontend gates the UI path, but the backend
     # must be safe too. Scoped to the requested patch so a multi-patch field
@@ -1031,6 +1078,10 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                     req.params.get("type", "urea"),
                     req.params.get("amount_kg_ha", 50.0),
                 )
+            elif req.action == "lime":
+                patch.orch.apply_lime(
+                    float(req.params.get("amount_kg_ha", 0.0)), lime_layer
+                )
             elif req.action == "tillage":
                 intensity = float(req.params.get("intensity", 0.5))
                 if not (0.0 <= intensity <= 1.0):
@@ -1065,6 +1116,9 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
         raise HTTPException(404, f"Field {req.field_id} not found")
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
+
+    if req.action == "lime":
+        _validate_lime_params(s.field_manager.fields[req.field_id], req.params)
 
     prices = PriceTable.load()
     cost = _compute_action_cost(req.action, req.params, prices)
