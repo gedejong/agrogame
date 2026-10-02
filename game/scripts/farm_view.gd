@@ -755,10 +755,13 @@ func _on_fertilizer_selected(option_id: int) -> void:
 	var amount: float = params["amount_kg_ha"]
 	var cost: int = FertilizerPicker.cost_for(fert_type, amount)
 	var display_name: String = FertilizerPicker.LABELS.get(fert_type, fert_type)
+	# Rate is kg of nutrient element, not kg of product (#508).
+	var unit: String = FertilizerPicker.unit_for(fert_type)
 	_ensure_game(
 		func() -> void:
 			status_label.text = (
-				"Applying %s %d kg/ha — est. %d credits" % [display_name, int(amount), cost]
+				"Applying %s %d %s — est. %d credits"
+				% [display_name, int(amount), unit, cost]
 			)
 			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
 	)

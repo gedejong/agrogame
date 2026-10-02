@@ -68,23 +68,62 @@ func test_selecting_ammonium_nitrate_yields_correct_params() -> void:
 
 # AC #3: cost reflects the chosen type — mirrors routes._compute_action_cost.
 func test_cost_matches_backend_formula() -> void:
-	# labor(50) + per_kg * amount. urea per_kg=1, tsp per_kg=2.
-	assert_eq(FertilizerPicker.cost_for("urea", 50.0), 100)
-	assert_eq(FertilizerPicker.cost_for("ammonium_nitrate", 50.0), 100)
-	assert_eq(FertilizerPicker.cost_for("tsp", 50.0), 150)
-	assert_eq(FertilizerPicker.cost_for("tsp", 100.0), 250)
+	# labor(50) + price_per_kg_nutrient * kg_nutrient, truncated (#508).
+	# urea 1.47/kg N, ammonium_nitrate 3.63/kg N, tsp 4.73/kg P.
+	assert_eq(FertilizerPicker.cost_for("urea", 50.0), 123)
+	assert_eq(FertilizerPicker.cost_for("ammonium_nitrate", 50.0), 231)
+	assert_eq(FertilizerPicker.cost_for("tsp", 50.0), 286)
+	assert_eq(FertilizerPicker.cost_for("tsp", 100.0), 523)
 
 
-func test_cost_unknown_type_defaults_per_kg_one() -> void:
-	assert_eq(FertilizerPicker.cost_for("mystery", 50.0), 100)
+# #465 lesson: the previewed cost must match the backend's int() truncation at
+# a non-integral cost, not just at round numbers.
+func test_cost_truncates_like_the_backend_at_a_non_integral_cost() -> void:
+	# 50 + 1.47 * 50 = 123.5 exactly — truncates to 123, never rounds to 124.
+	assert_eq(FertilizerPicker.cost_for("urea", 50.0), 123)
+	# 50 + 4.73 * 25 = 168.25 — truncates to 168.
+	assert_eq(FertilizerPicker.cost_for("tsp", 25.0), 168)
+
+
+func test_cost_unknown_type_is_labor_only() -> void:
+	# There is no per-kg fallback any more: the backend raises for an unpriced
+	# type, so the picker must not invent a 1 cr/kg price either (#508).
+	assert_eq(FertilizerPicker.cost_for("mystery", 50.0), 50)
+
+
+# AC #2: rates and prices are per kg of nutrient element, and the label says so.
+func test_nutrient_and_unit_name_the_element() -> void:
+	assert_eq(FertilizerPicker.nutrient_for("urea"), "N")
+	assert_eq(FertilizerPicker.nutrient_for("ammonium_nitrate"), "N")
+	assert_eq(FertilizerPicker.nutrient_for("tsp"), "P")
+	assert_eq(FertilizerPicker.nutrient_for("mystery"), "")
+	assert_eq(FertilizerPicker.unit_for("urea"), "kg N/ha")
+	assert_eq(FertilizerPicker.unit_for("tsp"), "kg P/ha")
+	assert_eq(FertilizerPicker.unit_for("mystery"), "kg/ha")
+
+
+func test_every_offered_type_is_priced_and_has_a_nutrient() -> void:
+	for fert_type: String in FertilizerPicker.TYPES:
+		assert_true(
+			FertilizerPicker.PRICE_PER_KG_NUTRIENT.has(fert_type),
+			"%s must have a per-kg-nutrient price" % fert_type
+		)
+		assert_false(FertilizerPicker.nutrient_for(fert_type).is_empty())
 
 
 func test_label_shows_type_amount_and_cost() -> void:
-	# TSP at first amount tier (25 kg/ha) → 50 + 2*25 = 100 cr.
+	# TSP at first tier (25 kg P/ha) → 50 + 4.73*25 = 168.25 → 168 cr.
 	var label: String = FertilizerPicker.label_for(2 * FertilizerPicker.AMOUNTS_KG_HA.size())
 	assert_string_contains(label, "TSP")
-	assert_string_contains(label, "25 kg/ha")
-	assert_string_contains(label, "100 cr")
+	assert_string_contains(label, "25 kg P/ha")
+	assert_string_contains(label, "168 cr")
+
+
+func test_label_names_nitrogen_for_n_fertilizers() -> void:
+	assert_string_contains(FertilizerPicker.label_for(0), "kg N/ha")
+	assert_string_contains(
+		FertilizerPicker.label_for(FertilizerPicker.AMOUNTS_KG_HA.size()), "kg N/ha"
+	)
 
 
 # #349 review: the Fertilize button gates on the cheapest tier, not urea-50.
@@ -93,8 +132,8 @@ func test_cheapest_option_is_lowest_cost() -> void:
 	var cheapest_cost: int = FertilizerPicker.cost_for(
 		FertilizerPicker.type_for(cheapest), FertilizerPicker.amount_for(cheapest)
 	)
-	# labor(50) + 1 * 25 = 75 for urea/ammonium_nitrate at the smallest tier.
-	assert_eq(cheapest_cost, 75, "cheapest tier costs 75 cr")
+	# labor(50) + 1.47 * 25 = 86.75 → 86 for urea at the smallest tier (#508).
+	assert_eq(cheapest_cost, 86, "cheapest tier costs 86 cr")
 	for i in range(FertilizerPicker.option_count()):
 		var cost: int = FertilizerPicker.cost_for(
 			FertilizerPicker.type_for(i), FertilizerPicker.amount_for(i)
@@ -104,14 +143,14 @@ func test_cheapest_option_is_lowest_cost() -> void:
 
 func test_is_affordable_reflects_option_cost() -> void:
 	var cheapest: int = FertilizerPicker.cheapest_option_id()
-	assert_true(FertilizerPicker.is_affordable(cheapest, 75), "exact cheapest balance affordable")
+	assert_true(FertilizerPicker.is_affordable(cheapest, 86), "exact cheapest balance affordable")
 	assert_false(
-		FertilizerPicker.is_affordable(cheapest, 74), "one short of cheapest not affordable"
+		FertilizerPicker.is_affordable(cheapest, 85), "one short of cheapest not affordable"
 	)
-	# tsp at 100 kg/ha = 50 + 2*100 = 250 cr (last option, type-major layout).
+	# tsp at 100 kg P/ha = 50 + 4.73*100 = 523 cr (last option, type-major).
 	var tsp_100: int = FertilizerPicker.option_count() - 1
-	assert_false(FertilizerPicker.is_affordable(tsp_100, 100), "250 cr tier blocked at 100 cr")
-	assert_true(FertilizerPicker.is_affordable(tsp_100, 250), "250 cr tier affordable at 250 cr")
+	assert_false(FertilizerPicker.is_affordable(tsp_100, 100), "523 cr tier blocked at 100 cr")
+	assert_true(FertilizerPicker.is_affordable(tsp_100, 523), "523 cr tier affordable at 523 cr")
 
 
 func test_is_affordable_out_of_range_is_false() -> void:

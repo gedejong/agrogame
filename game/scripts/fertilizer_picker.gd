@@ -6,24 +6,35 @@ extends RefCounted
 ## backend's `fertilize` action expects, and estimates its cost. The cost
 ## formula mirrors routes._compute_action_cost so the label shown before
 ## applying matches the eventual ledger deduction; per-kg prices mirror
-## data/economy/prices.yaml input_costs.fertilizer_*.
+## data/economy/prices.yaml input_costs.fertilizer_*_per_kg_*.
+##
+## The rate is kg of **nutrient element** per ha, not kg of product: the
+## engine applies it as kg N / kg P / kg S, so the picker says "kg N/ha" and
+## the price is per kg of that element (#508).
 
-## Fertilizer types offered, in display order. Backend maps each to a
-## nutrient: urea/ammonium_nitrate → N, tsp → P.
+## Fertilizer types offered, in display order.
 const TYPES: Array[String] = ["urea", "ammonium_nitrate", "tsp"]
-## Human-readable labels with the nutrient supplied, shown in the picker.
+## Human-readable product names shown in the picker.
 const LABELS := {
-	"urea": "Urea (N)",
-	"ammonium_nitrate": "Ammonium Nitrate (N)",
-	"tsp": "TSP (P)",
+	"urea": "Urea",
+	"ammonium_nitrate": "Ammonium Nitrate",
+	"tsp": "TSP",
 }
-## Per-kg product cost — mirrors prices.yaml input_costs.fertilizer_*.
-const PRICE_PER_KG := {
-	"urea": 1,
-	"ammonium_nitrate": 1,
-	"tsp": 2,
+## Nutrient element each product supplies — mirrors routes._FERTILIZER_NUTRIENT.
+const NUTRIENTS := {
+	"urea": "N",
+	"ammonium_nitrate": "N",
+	"tsp": "P",
 }
-## Application-rate tiers (kg/ha) offered per type.
+## Cost per kg of nutrient element — mirrors prices.yaml
+## input_costs.fertilizer_<type>_per_kg_<N|P|S>. Non-integral by nature, so
+## keep these floats: truncating here would drift from /action/preview.
+const PRICE_PER_KG_NUTRIENT := {
+	"urea": 1.47,
+	"ammonium_nitrate": 3.63,
+	"tsp": 4.73,
+}
+## Application-rate tiers, in kg of nutrient element per ha, offered per type.
 const AMOUNTS_KG_HA: Array[float] = [25.0, 50.0, 100.0]
 ## Flat labor charge per management action (prices.yaml labor_per_action).
 const LABOR_PER_ACTION := 50
@@ -43,7 +54,7 @@ static func type_for(option_id: int) -> String:
 	return TYPES[type_idx]
 
 
-## Application rate (kg/ha) for a flat option id, or 0.0 when out of range.
+## Application rate (kg nutrient/ha) for an option id, or 0.0 out of range.
 static func amount_for(option_id: int) -> float:
 	if option_id < 0 or option_id >= option_count():
 		return 0.0
@@ -59,9 +70,24 @@ static func params_for(option_id: int) -> Dictionary:
 	return {"type": fert_type, "amount_kg_ha": amount_for(option_id)}
 
 
+## Nutrient element a type supplies ("N", "P", "S"), or "" when unknown.
+static func nutrient_for(fert_type: String) -> String:
+	return NUTRIENTS.get(fert_type, "")
+
+
+## Display unit for a type, e.g. "kg N/ha". Falls back to "kg/ha" when the
+## type is unknown, which the picker never offers.
+static func unit_for(fert_type: String) -> String:
+	var nutrient: String = nutrient_for(fert_type)
+	return "kg/ha" if nutrient.is_empty() else "kg %s/ha" % nutrient
+
+
 ## Estimated cost in credits — mirrors routes._compute_action_cost("fertilize").
+## `amount_kg_ha` is kg of nutrient element. Truncates exactly as the backend's
+## int() does, so the previewed cost matches the ledger deduction even at the
+## non-integral per-kg prices the cited table produces (#465, #508).
 static func cost_for(fert_type: String, amount_kg_ha: float) -> int:
-	var per_kg: int = PRICE_PER_KG.get(fert_type, 1)
+	var per_kg: float = PRICE_PER_KG_NUTRIENT.get(fert_type, 0.0)
 	return int(LABOR_PER_ACTION + per_kg * amount_kg_ha)
 
 
@@ -87,7 +113,7 @@ static func is_affordable(option_id: int, balance: int) -> bool:
 	return balance >= cost_for(fert_type, amount_for(option_id))
 
 
-## Picker label, e.g. "Urea (N)  50 kg/ha — 100 cr". Empty when out of range.
+## Picker label, e.g. "Urea  50 kg N/ha — 123 cr". Empty when out of range.
 static func label_for(option_id: int) -> String:
 	var fert_type: String = type_for(option_id)
 	if fert_type.is_empty():
@@ -95,7 +121,7 @@ static func label_for(option_id: int) -> String:
 	var amount: float = amount_for(option_id)
 	var cost: int = cost_for(fert_type, amount)
 	var name: String = LABELS.get(fert_type, fert_type)
-	return "%s  %d kg/ha — %d cr" % [name, int(amount), cost]
+	return "%s  %d %s — %d cr" % [name, int(amount), unit_for(fert_type), cost]
 
 
 ## True when a new type group begins at this option id (for menu separators).

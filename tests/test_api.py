@@ -113,7 +113,9 @@ def test_create_game(client) -> None:
     assert "game_id" in data
     assert data["phase"] == "planning"
     assert data["field_count"] == 1
-    assert data["balance_credits"] == 10000
+    # The patch arrives pre-planted, so season-1 seed (maize, 200 cr/ha at
+    # area_fraction 1.0) is charged at creation — it used to be free (#508).
+    assert data["balance_credits"] == 10000 - 200
 
 
 # ---------------------------------------------------------------------------
@@ -776,10 +778,15 @@ def test_two_season_economics_roundtrip(client) -> None:
 
     r2 = client.get(f"/api/v1/games/{game_id}/report").json()
     assert r2["season_number"] > r1["season_number"], "Season number should increment"
-    assert r2["total_cost_credits"] == 0, "Season 2 has no actions = no costs"
-    assert r2["balance_before"] == s1_balance_after, (
+    # Season 2 takes no player actions, but the automatic replant still buys
+    # seed — that charge is the whole point of #508, and it must survive
+    # EconomicLedger.reset_season.
+    assert r2["total_cost_credits"] == 200, "Season 2 costs are seed only"
+    # Season 2's pre-settlement balance is season 1's closing balance less the
+    # season-2 seed charge — the only cost taken before the report (#508).
+    assert r2["balance_before"] == s1_balance_after - 200, (
         f"Season 2 balance_before ({r2['balance_before']}) should equal "
-        f"season 1 balance_after ({s1_balance_after})"
+        f"season 1 balance_after ({s1_balance_after}) minus the seed charge"
     )
 
 
@@ -838,8 +845,9 @@ def test_harvest_action_clears_crop_and_settles(client) -> None:
     # Settlement fields returned inline (so the frontend can surface P&L).
     assert data["grain_g_m2"] > 0.0, "Harvested grain reported"
     assert data["revenue_credits"] > 0, "Harvest produced revenue"
-    # profit = revenue - season costs (which include the 50-credit harvest labor)
-    assert data["profit_credits"] == data["revenue_credits"] - 50
+    # profit = revenue - season costs: the 50-credit harvest labor plus the
+    # 200-credit season-start seed charge (#508).
+    assert data["profit_credits"] == data["revenue_credits"] - 50 - 200
 
     # Crop is cleared: a subsequent /step reports a bare patch.
     resp = client.post(f"/api/v1/games/{game_id}/step?days=1")
