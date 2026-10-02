@@ -2237,3 +2237,61 @@ def test_two_run_season_cycles_carry_soil_over(client) -> None:
     assert r2["start_date"] == r1["end_date"]
     som_end_2 = [p["soil_state"]["som_total_c_g_m2"] for p in r2["field_results"]["f1"]]
     assert som_end_2 != som_end_1  # season 2 evolved from season 1's soil
+
+
+# ---------------------------------------------------------------------------
+# AC (#486): turn managers never accumulate on the first patch's bus
+# ---------------------------------------------------------------------------
+def _turn_manager_handlers(game_id: str) -> int:
+    from agrogame.api.state import games
+    from agrogame.game.turn import GameTurnManager
+    from agrogame.plant.events import NutrientStressComputed
+
+    bus = games[game_id].field_manager.fields["f1"].patches[0].orch.event_bus
+    return sum(
+        1
+        for h in bus._handlers.get(NutrientStressComputed, [])
+        if isinstance(getattr(h, "__self__", None), GameTurnManager)
+    )
+
+
+def test_turn_manager_handlers_constant_across_three_seasons(client) -> None:
+    """AC1 as written (#486): N=3 seasons leave the same count as one.
+
+    Note: this holds even without the fix, because orch.reset_crop clears the
+    bus every season; the stacking test below is the one that detects a leak.
+    """
+    game_id = _create_game(client)
+    _run_season(client, game_id, 60, 42)
+    after_one = _turn_manager_handlers(game_id)
+    _run_season(client, game_id, 60)
+    _run_season(client, game_id, 60)
+    assert after_one == 1
+    assert _turn_manager_handlers(game_id) == after_one
+
+
+def test_repeated_setup_within_a_season_does_not_stack_managers(client) -> None:
+    """Re-running /start-season mid-season replaces, not stacks, the manager.
+
+    Setup-only /start-season (#487) does not reset the crop within a season, so
+    nothing clears the bus between calls; the old manager must unsubscribe.
+    """
+    from agrogame.api.state import games
+
+    game_id = _create_game(client)
+    client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
+    first = games[game_id].turn_manager
+    client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
+    client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
+    assert _turn_manager_handlers(game_id) == 1
+    # The replaced manager is deaf to events emitted after replacement.
+    from agrogame.plant.events import NutrientStressComputed
+
+    bus = games[game_id].field_manager.fields["f1"].patches[0].orch.event_bus
+    bus.emit(
+        NutrientStressComputed(
+            nutrient="N", uptake_kg_ha=1.0, demand_kg_ha=2.0, stress=0.2
+        )
+    )
+    assert first._last_n_stress == 1.0
+    assert games[game_id].turn_manager._last_n_stress == pytest.approx(0.2)

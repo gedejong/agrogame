@@ -101,6 +101,19 @@ class GameTurnManager:
 
         self.orch.event_bus.subscribe(NutrientStressComputed, self._on_nutrient_stress)
 
+    def close(self) -> None:
+        """Unsubscribe from the orchestrator's bus when this manager is retired.
+
+        The orchestrator outlives the manager, so a manager that is replaced
+        or dropped without closing keeps receiving events (#486). Idempotent,
+        and safe after the bus was cleared by a crop reset.
+        """
+        from agrogame.plant.events import NutrientStressComputed
+
+        self.orch.event_bus.unsubscribe(
+            NutrientStressComputed, self._on_nutrient_stress
+        )
+
     def _on_nutrient_stress(self, ev: Any) -> None:
         if getattr(ev, "nutrient", "").upper() == "N":
             self._last_n_stress = max(0.0, min(1.0, float(ev.stress)))

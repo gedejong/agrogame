@@ -243,3 +243,34 @@ def test_season_result_fields() -> None:
     assert r.total_days == 30
     assert r.grain_kg_ha == pytest.approx(r.grain_g_m2 * 10.0)
     assert r.crop_key == "maize"
+
+
+# ---------------------------------------------------------------------------
+# AC (#486): a retired manager unsubscribes from the orchestrator's bus
+# ---------------------------------------------------------------------------
+def _n_stress(stress: float):
+    from agrogame.plant.events import NutrientStressComputed
+
+    return NutrientStressComputed(
+        nutrient="N", uptake_kg_ha=1.0, demand_kg_ha=2.0, stress=stress
+    )
+
+
+def test_closed_manager_no_longer_receives_events() -> None:
+    orch, weather = _make_orch_and_weather(days=10)
+    old = GameTurnManager(orch, weather)
+    old.close()
+    new = GameTurnManager(orch, weather)
+    orch.event_bus.emit(_n_stress(0.3))
+    assert old._last_n_stress == 1.0, "retired manager must not see new events"
+    assert new._last_n_stress == pytest.approx(0.3)
+
+
+def test_close_is_idempotent_and_safe_after_bus_clear() -> None:
+    orch, weather = _make_orch_and_weather(days=10)
+    tm = GameTurnManager(orch, weather)
+    tm.close()
+    tm.close()  # second close is a no-op
+    tm2 = GameTurnManager(orch, weather)
+    orch.event_bus.clear()  # a crop reset tore the bus down first
+    tm2.close()  # must not raise

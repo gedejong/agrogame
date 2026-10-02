@@ -364,7 +364,7 @@ def start_season(
         crop_key=first_patch.config.crop_key,
     )
     tm.phase = SeasonPhase.EXECUTING
-    s.turn_manager = tm
+    _replace_turn_manager(s, tm)
     s.pause_events = []
 
     return SeasonStartedResponse(
@@ -806,6 +806,17 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
     )
 
 
+def _replace_turn_manager(s: GameSession, tm: GameTurnManager | None) -> None:
+    """Retire the session's current turn manager, then install ``tm`` (#486).
+
+    The manager subscribes to the first patch's bus, which outlives it; closing
+    unsubscribes it so a replaced manager never keeps receiving events.
+    """
+    if s.turn_manager is not None and s.turn_manager is not tm:
+        s.turn_manager.close()
+    s.turn_manager = tm
+
+
 def _reset_session_for_new_season(s: GameSession) -> None:
     """Reset session state when /step is called after a finished season."""
     s.weather = []
@@ -814,7 +825,7 @@ def _reset_session_for_new_season(s: GameSession) -> None:
     s.run_count += 1
     s.season_settled = False
     s.ledger.reset_season()
-    s.turn_manager = None
+    _replace_turn_manager(s, None)
 
 
 def _build_daily_snapshot(
