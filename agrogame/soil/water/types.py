@@ -30,9 +30,9 @@ class DailyDrivers:
         irrigation_mm: Irrigation input (mm).
         evaporation_mm: Potential evaporation demand (mm).
         rainfall_intensity_mm_hr: Peak rainfall intensity during the day
-            (mm/hr). Used by dual-porosity models (#213) to decide
-            matrix vs macropore partitioning. When None, the estimate
-            ``rainfall_mm / 24`` is used as a uniform-rate fallback.
+            (mm/hr). No water model currently reads it: its only consumer,
+            the dual-porosity model, was retired (#466, ADR-016). Kept for
+            preferential flow v2 (#485). ``None`` means no intensity known.
     """
 
     def __init__(
