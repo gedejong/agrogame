@@ -20,17 +20,23 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from fastapi.testclient import TestClient
 
-from agrogame.api.app import create_app
-from agrogame.api.routes import (
+# The API extra (fastapi, httpx) is absent from CI jobs that install only the
+# base package, e.g. the benchmark job; skip the module there, as test_api does.
+pytest.importorskip("fastapi")
+pytest.importorskip("httpx")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from agrogame.api.app import create_app  # noqa: E402
+from agrogame.api.routes import (  # noqa: E402
     _compute_action_cost,
     _quarter_of,
     _seed_cost_per_ha,
     fertilizer_price_key,
 )
-from agrogame.api.state import games
-from agrogame.game.economy import PriceTable
+from agrogame.api.state import games  # noqa: E402
+from agrogame.game.economy import PriceTable  # noqa: E402
 
 #: The default catalog scenario (three NL maize patches) — the flow that never
 #: charged seed, because it arrives pre-planted.
