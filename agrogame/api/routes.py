@@ -1613,6 +1613,7 @@ def save_game(game_id: str) -> dict:
         season_days=s.season_days,
         season_active=s.season_active,
         season_settled=s.season_settled,
+        season_completed=s.season_completed,
     )
     path = _SAVE_DIR / f"{game_id}.agrosave.json"
     save_to_file(state, path)
