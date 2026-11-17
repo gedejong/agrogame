@@ -24,7 +24,10 @@ def prices() -> PriceTable:
 # ---------------------------------------------------------------------------
 class TestPriceTable:
     def test_load_prices(self, prices: PriceTable) -> None:
-        assert "fertilizer_urea" in prices.input_costs
+        # Priced per kg of nutrient element, not per kg of product (#508).
+        assert "fertilizer_urea_per_kg_N" in prices.input_costs
+        assert "fertilizer_tsp_per_kg_P" in prices.input_costs
+        assert "fertilizer_urea" not in prices.input_costs
         assert "maize" in prices.crop_prices
         assert prices.crop_prices["maize"].base_credits_per_kg == pytest.approx(0.22)
 

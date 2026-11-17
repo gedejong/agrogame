@@ -2,27 +2,56 @@
 # All values in credits. 1 credit ≈ 1 EUR for educational reference.
 
 input_costs:
-  # Seed costs per ha
+  # Seed costs per ha. Keyed by crop preset key (data/crops/presets.yaml), so
+  # every plantable crop needs an entry: an unpriced crop raises rather than
+  # falling back to a default (#508). `seed_wheat` was never a preset key and
+  # so was never charged; it is split here into the two real wheat presets at
+  # its original value, which is a unit fix, not a price change.
   seed_maize: 200
-  seed_wheat: 150
+  seed_winter_wheat: 150
+  seed_spring_wheat: 150
   seed_rice: 180
   seed_sorghum: 120
   seed_soybean: 250
   seed_grape: 500
-  # Fertilizer costs per kg product
-  fertilizer_urea: 1          # ~0.45 kg N per kg urea
-  fertilizer_ammonium_nitrate: 1
-  fertilizer_tsp: 2           # triple superphosphate
+  # Fertilizer costs, per kg of **nutrient element** (kg N, kg P, kg S). The
+  # engine (FullSimulationOrchestrator.apply_fertilizer) applies the rate as kg
+  # of element, never kg of product, so the old per-kg-of-product keys
+  # undercharged every nutrient by its nutrient fraction (#508). Derivation and
+  # sources: see "Fertilizer pricing basis" at the foot of this file.
+  #
+  # Urea 46-0-0: USD 338.27/t ÷ 1000 = 0.33827/kg urea ÷ 0.46 kg N/kg
+  #   = 0.73537 USD/kg N ⇒ ×2 = 1.47
+  fertilizer_urea_per_kg_N: 1.47
+  # Ammonium nitrate 34-0-0: USD 560/short ton ÷ 907.185 kg = 0.61729/kg AN
+  #   ÷ 0.34 kg N/kg = 1.81557 USD/kg N ⇒ ×2 = 3.63
+  # NOTE — deliberate inconsistency, do not "tidy" it away. This is a 2014 US
+  # farm-gate price while urea and TSP are 2024 international wholesale
+  # benchmarks, so AN reads ~2.5× urea per kg N partly as an artefact of the
+  # supply-chain basis rather than of real AN-vs-urea economics. It was priced
+  # anyway because a dated price on the right (farm-gate) basis beats no price
+  # at all, and because the #438 representative management plan applies AN, so
+  # leaving it unpriced would force the margin baseline onto urea. Refresh it
+  # if a recent farm-gate AN series appears; the USDA survey behind this figure
+  # was discontinued after 2014.
+  fertilizer_ammonium_nitrate_per_kg_N: 3.63
+  # TSP 0-46-0: USD 474.56/t ÷ 1000 = 0.47456/kg TSP ÷ 0.20074 kg P/kg
+  #   = 2.36401 USD/kg P ⇒ ×2 = 4.73
+  fertilizer_tsp_per_kg_P: 4.73
+  # Gypsum and elemental sulfur are deliberately UNPRICED — see the foot of
+  # this file. Applying either raises a ValueError (HTTP 400) rather than
+  # falling back to the old 1 cr/kg default. Tracked in #509.
   # Soil amendments, per kg product. Ground agricultural limestone is
-  # ~EUR 30-50/t delivered and spread; this table runs ~2x the real world
-  # (urea at 1 cr/kg vs ~EUR 400/t), so 75 cr/t = 0.075 cr/kg (#465).
+  # ~EUR 30-50/t delivered and spread; this table runs ~2x the real world (the
+  # x2 convention recorded under "Fertilizer pricing basis" at the foot of this
+  # file), so 75 cr/t = 0.075 cr/kg (#465). Priced per kg of product while
+  # apply_lime takes kg CaCO3-equivalent/ha; the two coincide for a product of
+  # ~100% calcium carbonate equivalence, and no conversion is applied.
   amendment_lime_per_kg: 0.075
   # Irrigation cost per mm applied per ha
   irrigation_per_mm: 2
   # Labor cost per management action
   labor_per_action: 50
-  # Equipment cost per season (flat)
-  equipment_per_season: 500
 
 crop_prices:
   maize:
@@ -43,6 +72,92 @@ crop_prices:
   soybean:
     base_credits_per_kg: 0.35
     seasonal_multipliers: [1.0, 1.0, 1.1, 0.9]
+  # DO NOT "fix" grape's price. Grape out-earns the staples several-fold
+  # (scripts/economy_margins.py; current figures on PR #511), but that is a
+  # missing perennial cost structure (#501) — it is costed as an
+  # annual, so it pays no establishment, trellis or multi-year maintenance
+  # cost. Cutting the price would hide that gap behind a compensating error
+  # and nothing would later reveal it. Fix #501, not this number (#508 AC7).
   grape:
     base_credits_per_kg: 0.80
     seasonal_multipliers: [0.8, 0.9, 1.2, 1.1]
+
+# ---------------------------------------------------------------------------
+# Fertilizer pricing basis (#508)
+# ---------------------------------------------------------------------------
+# Derivation, per fertilizer product:
+#
+#   credits per kg nutrient
+#     = (cited product price in USD per tonne ÷ 1000)  # USD per kg of product
+#       ÷ (nutrient mass fraction of the product)      # USD per kg of element
+#       × 2                                            # game convention, below
+#
+# The ×2 is a game-balance convention, not a literature value: it is what the
+# pre-#508 table already encoded (`fertilizer_urea: 1` cr per kg of urea is
+# roughly twice the ~0.34-0.50 USD/kg world urea price), and it keeps inputs a
+# meaningful constraint while crop revenue sits at ~1× the world reference
+# price. Credits are read 1:1 against the US dollars the cited sources quote.
+#
+# Sources are NOT on one common basis, and that is a recorded judgement per
+# source rather than an oversight. Each figure below was read in the cited file
+# itself.
+#
+#   Urea   USD 338.27 per metric tonne of product, 2024 calendar-year average.
+#          World Bank Commodity Price Data ("Pink Sheet"), sheet "Annual Prices
+#          (Nominal)", column Urea; series "Urea, (Ukraine), prill spot f.o.b.
+#          Middle East, beginning March 2022; previously, f.o.b. Black Sea".
+#          International wholesale f.o.b. 0.46 kg N per kg of product
+#          (commercial 46-0-0; pure CO(NH2)2 is 0.466).
+#
+#   TSP    USD 474.56 per metric tonne of product, 2024 calendar-year average.
+#          Same file, column TSP; series "TSP (triple superphosphate), spot,
+#          import US Gulf". US Gulf import, wholesale. 0.46 P2O5 by the
+#          conventional grade, × 0.4364 (P/P2O5 = 2×30.974/141.945)
+#          = 0.2007 kg P per kg of product. Note the engine applies kg P, not
+#          kg P2O5 — mixing those two is a 2.3× error on its own.
+#
+#   Ammonium nitrate
+#          USD 560 per **short ton** (2000 lb = 907.185 kg) of product, March
+#          2014. USDA ERS "Fertilizer Use and Price", table 7, "Average U.S.
+#          farm prices of selected fertilizers", units "Dollars per material
+#          short ton". US farm-gate (retail). 0.34 kg N per kg of product
+#          (commercial 34-0-0; pure NH4NO3 is 0.350).
+#          Dated: the underlying USDA NASS "Prices Paid for Fertilizer" survey
+#          was discontinued, and March 2014 is its final release, so this is
+#          the most recent US farm price that exists. Refresh if a current
+#          farm-gate AN series appears. See the NOTE at the key above for why
+#          the basis mismatch against urea/TSP was accepted rather than
+#          normalised away.
+#
+# UNPRICED ON PURPOSE — gypsum and elemental sulfur (#509)
+#
+#   No published **agricultural** price was found for either. What exists is
+#   industrial, at the mine or plant gate, and is not a farm input price in any
+#   useful sense:
+#
+#     Gypsum   USGS Mineral Commodity Summaries 2026, Gypsum: "Price, annual
+#              average, dollars per metric ton: Crude, free on board (f.o.b.)
+#              mine: 10, 11, 12, 12, 13" for 2021-2025e. Crude rock at the mine
+#              gate, excluding freight and spreading, which dominate the
+#              delivered cost of agricultural gypsum. Ohio State Extension
+#              ANR-20 (2005) gives natural gypsum USD 12.75/ton as of 12/2004
+#              with no stated supply-chain basis.
+#
+#     Elemental sulfur
+#              USGS MCS 2026, Sulfur: "Price, average unit value, free on
+#              board, mine and (or) plant, dollars per metric ton of elemental
+#              sulfur: 90.40, 177.8, 58.90, 46.42, 180" for 2021-2025e.
+#              Recovered industrial sulfur at the refinery gate, and the series
+#              swings roughly fourfold between adjacent years — 46.42 in 2024
+#              against 180 estimated for 2025 — so any single year is an
+#              arbitrary pick, and the swing is itself the tell that this is not
+#              a farm input price.
+#
+#   Applying either therefore raises a ValueError (HTTP 400) naming the missing
+#   key, rather than being charged a guessed number. That is deliberate: the
+#   Phase B rebalance (#438) will tune the economy *against* whatever sits in
+#   this table, so a wrong sulfur price would be balanced around and the two
+#   errors would cancel into a plausible-looking result that nothing later
+#   reveals — the same trap documented on crop_prices.grape above. A visibly
+#   unusable action is discoverable in a second; a quietly wrong price is
+#   discoverable never.

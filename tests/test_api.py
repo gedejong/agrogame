@@ -130,7 +130,9 @@ def test_create_game(client) -> None:
     assert "game_id" in data
     assert data["phase"] == "planning"
     assert data["field_count"] == 1
-    assert data["balance_credits"] == 10000
+    # The patch arrives pre-planted, so season-1 seed (maize, 200 cr/ha at
+    # area_fraction 1.0) is charged at creation — it used to be free (#508).
+    assert data["balance_credits"] == 10000 - 200
 
 
 # ---------------------------------------------------------------------------
@@ -804,10 +806,15 @@ def test_two_season_economics_roundtrip(client) -> None:
 
     r2 = client.get(f"/api/v1/games/{game_id}/report").json()
     assert r2["season_number"] > r1["season_number"], "Season number should increment"
-    assert r2["total_cost_credits"] == 0, "Season 2 has no actions = no costs"
-    assert r2["balance_before"] == s1_balance_after, (
+    # Season 2 takes no player actions, but the automatic replant still buys
+    # seed — that charge is the whole point of #508, and it must survive
+    # EconomicLedger.reset_season.
+    assert r2["total_cost_credits"] == 200, "Season 2 costs are seed only"
+    # Season 2's pre-settlement balance is season 1's closing balance less the
+    # season-2 seed charge — the only cost taken before the report (#508).
+    assert r2["balance_before"] == s1_balance_after - 200, (
         f"Season 2 balance_before ({r2['balance_before']}) should equal "
-        f"season 1 balance_after ({s1_balance_after})"
+        f"season 1 balance_after ({s1_balance_after}) minus the seed charge"
     )
 
 
@@ -866,8 +873,9 @@ def test_harvest_action_clears_crop_and_settles(client) -> None:
     # Settlement fields returned inline (so the frontend can surface P&L).
     assert data["grain_g_m2"] > 0.0, "Harvested grain reported"
     assert data["revenue_credits"] > 0, "Harvest produced revenue"
-    # profit = revenue - season costs (which include the 50-credit harvest labor)
-    assert data["profit_credits"] == data["revenue_credits"] - 50
+    # profit = revenue - season costs: the 50-credit harvest labor plus the
+    # 200-credit season-start seed charge (#508).
+    assert data["profit_credits"] == data["revenue_credits"] - 50 - 200
 
     # Crop is cleared: a subsequent /step reports a bare patch.
     resp = client.post(f"/api/v1/games/{game_id}/step?days=1")
@@ -2118,6 +2126,8 @@ def _create_crop_game(client, crop_key: str, climate_key: str) -> str:
 
 
 def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tuple:
+    """Grow, harvest, and return ``(response, harvested g/m2, harvest quarter)``."""
+    from agrogame.api.routes import _quarter_of
     from agrogame.api.state import games
 
     game_id = _create_crop_game(client, crop_key, climate_key)
@@ -2128,8 +2138,9 @@ def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tup
         json={"field_id": "f1", "action": "harvest", "params": {}},
     )
     assert resp.status_code == 200
-    patch = games[game_id].field_manager.fields["f1"].patches[0]
-    return resp.json(), patch.harvested_grain_g_m2
+    session = games[game_id]
+    patch = session.field_manager.fields["f1"].patches[0]
+    return resp.json(), patch.harvested_grain_g_m2, _quarter_of(session.current_date)
 
 
 # Pinned independently of the preset so a changed fraction fails the test:
@@ -2137,34 +2148,40 @@ def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tup
 _GRAPE_DMF_USDA = 0.1946
 
 
-def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float) -> int:
+def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float, quarter: int) -> int:
     from agrogame.game.economy import PriceTable
 
-    # Same quarter the ledger uses (default Q3), area 1.0 ha.
-    price = PriceTable.load().get_crop_price(crop_key, 3)
+    # The ledger settles at the real harvest quarter (#508), area 1.0 ha.
+    price = PriceTable.load().get_crop_price(crop_key, quarter)
     return int(dry_g_m2 * 10.0 / dmf * 1.0 * price)
 
 
 def test_grape_season_earns_fruit_revenue(client) -> None:
     """A Kenya grape season sells fruit and earns money (#448, AC4)."""
     dmf = _GRAPE_DMF_USDA
-    data, fruit_g_m2 = _grow_and_harvest(client, "grape", "kenya_highlands", 150)
+    data, fruit_g_m2, quarter = _grow_and_harvest(
+        client, "grape", "kenya_highlands", 150
+    )
     assert data["harvest_product"] == "fruit"
     assert fruit_g_m2 > 0.0
     assert data["revenue_credits"] > 0
-    assert data["revenue_credits"] == _expected_revenue(fruit_g_m2, "grape", dmf)
+    assert data["revenue_credits"] == _expected_revenue(
+        fruit_g_m2, "grape", dmf, quarter
+    )
     assert data["sold_kg_ha"] == pytest.approx(fruit_g_m2 * 10.0 / dmf, abs=0.05)
 
 
 def test_grape_sahel_marginal_season_settles_without_error(client) -> None:
-    data, _fruit = _grow_and_harvest(client, "grape", "sahel_arid", 150)
+    data, _fruit, _quarter = _grow_and_harvest(client, "grape", "sahel_arid", 150)
     assert data["status"] == "executed"
     assert data["revenue_credits"] >= 0
 
 
 def test_grain_harvest_reports_grain_product_at_dry_mass(client) -> None:
     """Grain crops: product 'grain', sold mass == dry kg/ha (fraction 1.0)."""
-    data, grain_g_m2 = _grow_and_harvest(client, "maize", "netherlands_temperate", 60)
+    data, grain_g_m2, _quarter = _grow_and_harvest(
+        client, "maize", "netherlands_temperate", 60
+    )
     assert data["harvest_product"] == "grain"
     assert data["sold_kg_ha"] == pytest.approx(grain_g_m2 * 10.0, abs=0.05)
 
