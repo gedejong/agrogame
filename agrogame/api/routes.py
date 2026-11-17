@@ -623,6 +623,22 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
+def _action_cost_or_400(action: str, params: dict, prices: PriceTable) -> int:
+    """``_compute_action_cost`` for an API route, with pricing errors as a 400.
+
+    An unpriced fertiliser or crop raises rather than silently costing 1 cr/kg;
+    surface it as a 400 rather than a 500 (#508). Shared by ``/action`` and
+    ``/action/preview`` so the two cannot drift.
+
+    Raises:
+        HTTPException: 400 naming the missing price key.
+    """
+    try:
+        return _compute_action_cost(action, params, prices)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
 def _validate_lime_params(field: Field, params: dict) -> int:
     """Validate a lime request's target layer and return it (#465).
 
@@ -1166,12 +1182,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     from agrogame.game.economy import PriceTable
 
     prices = PriceTable.load()
-    # An unpriced fertiliser or crop raises rather than silently costing 1
-    # cr/kg; surface it as a 400 rather than a 500 (#508).
-    try:
-        cost = _compute_action_cost(req.action, req.params, prices)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    cost = _action_cost_or_400(req.action, req.params, prices)
 
     if s.ledger.balance_credits < cost:
         raise HTTPException(
@@ -1269,12 +1280,7 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
         _validate_lime_params(s.field_manager.fields[req.field_id], req.params)
 
     prices = PriceTable.load()
-    # An unpriced fertiliser or crop raises rather than silently costing 1
-    # cr/kg; surface it as a 400 rather than a 500 (#508).
-    try:
-        cost = _compute_action_cost(req.action, req.params, prices)
-    except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+    cost = _action_cost_or_400(req.action, req.params, prices)
     return ActionPreviewResponse(
         action=req.action,
         cost_credits=cost,
