@@ -20,8 +20,9 @@ plow-zone channels to tillage, and donates their volume into the reported
 pore-network macropore pool. No simulated flux reads that pool or the
 biopore state except the water balance's effective-porosity cap
 (total - crypto), which the donation raises by <= 0.0016 m³/m³ at 500 /m².
-The cap binds only when a layer saturates, and then moves θ by
-<= 5.5e-4 m³/m³ at 500 /m² (ADR-010 #524 amendment, ADR-016).
+The cap binds only when a layer saturates, and then moves θ by at most half
+the donated volume fraction (<= 7.9e-4 m³/m³ at 500 /m²; ADR-010 #524
+amendment, ADR-016).
 """
 
 from __future__ import annotations

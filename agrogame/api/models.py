@@ -114,7 +114,7 @@ class SoilStateResponse(BaseModel):
             "Macropore fraction per layer (>50 µm). Reported structure: the only "
             "simulated reader of the partition is the water balance's "
             "effective-porosity cap, which biopore donation into this pool raises "
-            "(θ shift ≤ 5.5e-4 m³/m³ at 500 /m², only when a layer saturates; "
+            "(θ shift ≤ 7.9e-4 m³/m³ at 500 /m², only when a layer saturates; "
             "ADR-010)."
         ),
     )

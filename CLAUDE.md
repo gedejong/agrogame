@@ -19,7 +19,7 @@ Concretely, the simulation includes:
   (mineralisation, nitrification, denitrification, leaching), gas diffusion.
 - **Soil biology**: microbial decomposer pools, root-channel biopore
   formation, decay and tillage loss (reported structure; its only simulated
-  reader is the effective-porosity cap, which moves θ by ≤ 5.5e-4 m³/m³ at
+  reader is the effective-porosity cap, which moves θ by ≤ 7.9e-4 m³/m³ at
   500 /m² and only when a layer saturates, ADR-010/016), root–microbe
   interactions.
 - **Plant biology**: phenology (GDD-driven), canopy light interception,

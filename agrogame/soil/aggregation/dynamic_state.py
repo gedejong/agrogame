@@ -79,8 +79,9 @@ def effective_porosity(
     The aggregation-driven macro/meso split and connectivity feed no
     simulated flux (ADR-016, #524). Biopore donation draws on crypto first,
     so it raises this value by at most the biopore volume fraction (0.0016
-    at 500 /m²). That binds only when a layer saturates, moving θ by
-    <= 5.5e-4 m³/m³ at 500 /m² (ADR-010 #524 amendment). The old scalar
+    at 500 /m²). That binds only when a layer saturates, moving θ by at
+    most half as much (<= 7.9e-4 m³/m³ at 500 /m², ADR-010 #524 amendment),
+    since the bucket retains at most half the excess. The old scalar
     shift was a crude heuristic with ~zero dynamical effect, so removing it
     loses no load-bearing physics; see the #289 PR for the measured
     magnitude of the shift.

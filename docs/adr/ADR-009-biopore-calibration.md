@@ -8,9 +8,9 @@ Accepted (#290).
 
 - Biopores drive no simulated flux except through the water balance's
   effective-porosity cap, which donation raises by ≤ 0.0016 m³/m³ at
-  500 /m² and which binds only when a layer saturates. Then θ moves by
-  ≤ 5.5e-4 m³/m³ at 500 /m², about 100× less at in-game densities (ADR-010,
-  #524 amendment). Density pinned at 0 and at 500 /m² leaves every simulated
+  500 /m² and which binds only when a layer saturates. Then θ moves by at
+  most half the donated volume fraction (≤ 7.9e-4 m³/m³ at 500 /m²), about
+  100× less at in-game densities (ADR-010, #524 amendment). Density pinned at 0 and at 500 /m² leaves every simulated
   output unchanged over two non-saturating maize seasons on loam and clay
   (`tests/integration/test_biopore_coupling.py`). This calibration therefore
   targets what is in practice a reported index, the biopore volume donated
@@ -19,7 +19,7 @@ Accepted (#290).
   measurable simulation effect" at the old density, and the *Easier* claim
   that 50.8 /m² clears "the noise floor that #284 needs". Outside saturated
   layers players see no simulation effect at any density, and inside them
-  the effect is ≤ 5.5e-4 m³/m³ in θ even at the 500 /m² cap, so there is no
+  the effect is ≤ 7.9e-4 m³/m³ in θ even at the 500 /m² cap, so there is no
   noise floor to clear.
 - Corrected references: Pierret et al. 2007 is *Vadose Zone J.* 6:269–281
   (doi:10.2136/vzj2006.0067), and Kautz 2015 is *Renew. Agric. Food Syst.*
