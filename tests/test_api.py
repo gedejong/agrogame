@@ -2105,6 +2105,8 @@ def _create_crop_game(client, crop_key: str, climate_key: str) -> str:
 
 
 def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tuple:
+    """Grow, harvest, and return ``(response, harvested g/m2, harvest quarter)``."""
+    from agrogame.api.routes import _quarter_of
     from agrogame.api.state import games
 
     game_id = _create_crop_game(client, crop_key, climate_key)
@@ -2115,8 +2117,9 @@ def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tup
         json={"field_id": "f1", "action": "harvest", "params": {}},
     )
     assert resp.status_code == 200
-    patch = games[game_id].field_manager.fields["f1"].patches[0]
-    return resp.json(), patch.harvested_grain_g_m2
+    session = games[game_id]
+    patch = session.field_manager.fields["f1"].patches[0]
+    return resp.json(), patch.harvested_grain_g_m2, _quarter_of(session.current_date)
 
 
 # Pinned independently of the preset so a changed fraction fails the test:
@@ -2124,33 +2127,39 @@ def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tup
 _GRAPE_DMF_USDA = 0.1946
 
 
-def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float) -> int:
+def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float, quarter: int) -> int:
     from agrogame.game.economy import PriceTable
 
-    # Same quarter the ledger uses (default Q3), area 1.0 ha.
-    price = PriceTable.load().get_crop_price(crop_key, 3)
+    # The ledger settles at the real harvest quarter (#508), area 1.0 ha.
+    price = PriceTable.load().get_crop_price(crop_key, quarter)
     return int(dry_g_m2 * 10.0 / dmf * 1.0 * price)
 
 
 def test_grape_season_earns_fruit_revenue(client) -> None:
     """A Kenya grape season sells fruit and earns money (#448, AC4)."""
     dmf = _GRAPE_DMF_USDA
-    data, fruit_g_m2 = _grow_and_harvest(client, "grape", "kenya_highlands", 150)
+    data, fruit_g_m2, quarter = _grow_and_harvest(
+        client, "grape", "kenya_highlands", 150
+    )
     assert data["harvest_product"] == "fruit"
     assert fruit_g_m2 > 0.0
     assert data["revenue_credits"] > 0
-    assert data["revenue_credits"] == _expected_revenue(fruit_g_m2, "grape", dmf)
+    assert data["revenue_credits"] == _expected_revenue(
+        fruit_g_m2, "grape", dmf, quarter
+    )
     assert data["sold_kg_ha"] == pytest.approx(fruit_g_m2 * 10.0 / dmf, abs=0.05)
 
 
 def test_grape_sahel_marginal_season_settles_without_error(client) -> None:
-    data, _fruit = _grow_and_harvest(client, "grape", "sahel_arid", 150)
+    data, _fruit, _quarter = _grow_and_harvest(client, "grape", "sahel_arid", 150)
     assert data["status"] == "executed"
     assert data["revenue_credits"] >= 0
 
 
 def test_grain_harvest_reports_grain_product_at_dry_mass(client) -> None:
     """Grain crops: product 'grain', sold mass == dry kg/ha (fraction 1.0)."""
-    data, grain_g_m2 = _grow_and_harvest(client, "maize", "netherlands_temperate", 60)
+    data, grain_g_m2, _quarter = _grow_and_harvest(
+        client, "maize", "netherlands_temperate", 60
+    )
     assert data["harvest_product"] == "grain"
     assert data["sold_kg_ha"] == pytest.approx(grain_g_m2 * 10.0, abs=0.05)
