@@ -51,7 +51,12 @@ from agrogame.api.forecast import (
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
 from agrogame.game.field import Field, FieldManager, Patch, PatchConfig
-from agrogame.game.turn import GameTurnManager, PauseConfig, SeasonPhase
+from agrogame.game.turn import (
+    GameTurnManager,
+    PauseEvent,
+    SeasonPhase,
+    interrupt_count,
+)
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
@@ -286,6 +291,26 @@ def _get_session(game_id: str) -> GameSession:
     return games[game_id]
 
 
+def _pause_event_responses(events: list[PauseEvent]) -> list[PauseEventResponse]:
+    return [
+        PauseEventResponse(
+            day=pe.day,
+            reason=pe.reason.value,
+            message=pe.message,
+            field_id=pe.field_id,
+            interrupt=pe.interrupt,
+        )
+        for pe in events
+    ]
+
+
+def _reset_pause_state(s: GameSession) -> None:
+    """Start a new season's alerts: clear the log and re-arm every latch (#470)."""
+    s.pause_events = []
+    if s.pause_detector is not None:
+        s.pause_detector.reset()
+
+
 def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     """Every field's patches with their current config, in patch order (#516).
 
@@ -355,10 +380,7 @@ def get_game(game_id: str) -> GameStatusResponse:
         phase=phase,
         current_day=current_day,
         balance_credits=s.ledger.balance_credits,
-        pause_events=[
-            PauseEventResponse(day=pe.day, reason=pe.reason.value, message=pe.message)
-            for pe in s.pause_events
-        ],
+        pause_events=_pause_event_responses(s.pause_events),
         fields=_field_layouts(s),
     )
 
@@ -426,14 +448,12 @@ def start_season(
     first_patch = first_field.patches[0]
     tm = GameTurnManager(
         orch=first_patch.orch,
-        weather=s.weather,
         plan=first_patch.orch.management_plan,
-        pause_config=PauseConfig(),
         crop_key=first_patch.config.crop_key,
     )
     tm.phase = SeasonPhase.EXECUTING
     _replace_turn_manager(s, tm)
-    s.pause_events = []
+    _reset_pause_state(s)
 
     return SeasonStartedResponse(
         season_number=s.run_count + 1,
@@ -477,7 +497,9 @@ def get_status(game_id: str) -> GameStatusResponse:
                 start_date=start.isoformat(),
                 end_date=end.isoformat(),
                 season_number=s.run_count,
-                pause_count=r.pause_count,
+                # Live season count: the result may be recorded at a harvest or
+                # at first-patch maturity, before a later alert on another patch.
+                pause_count=interrupt_count(s.pause_events),
                 field_results=field_results,
             )
 
@@ -486,10 +508,7 @@ def get_status(game_id: str) -> GameStatusResponse:
         phase=phase,
         current_day=current_day,
         balance_credits=s.ledger.balance_credits,
-        pause_events=[
-            PauseEventResponse(day=pe.day, reason=pe.reason.value, message=pe.message)
-            for pe in s.pause_events
-        ],
+        pause_events=_pause_event_responses(s.pause_events),
         season_result=season_result,
         fields=_field_layouts(s),
     )
@@ -758,17 +777,13 @@ def _harvest_action(
 
     # Record a SeasonResult so GET /report works in the day-by-day loop.
     if not s.turn_manager:
-        s.turn_manager = GameTurnManager(
-            orch=targets[0].orch,
-            weather=s.weather,
-            crop_key=crop_key,
-        )
+        s.turn_manager = GameTurnManager(orch=targets[0].orch, crop_key=crop_key)
     s.turn_manager.current_day = s.day_index
     s.turn_manager.result = SeasonResult(
         total_days=s.day_index,
         grain_g_m2=grain_g_m2,
         grain_kg_ha=grain_g_m2 * 10.0,
-        pause_count=0,
+        pause_count=interrupt_count(s.pause_events),
         crop_key=crop_key,
     )
 
@@ -959,8 +974,8 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
 def _replace_turn_manager(s: GameSession, tm: GameTurnManager | None) -> None:
     """Retire the session's current turn manager, then install ``tm`` (#486).
 
-    The manager subscribes to the first patch's bus, which outlives it; closing
-    unsubscribes it so a replaced manager never keeps receiving events.
+    Since #470 the manager holds no bus subscription, so ``close()`` releases
+    nothing; every replacement still goes through this one retirement point.
     """
     if s.turn_manager is not None and s.turn_manager is not tm:
         s.turn_manager.close()
@@ -979,6 +994,7 @@ def _reset_session_for_new_season(s: GameSession) -> None:
     # season's costs (#508).
     _charge_seed(s)
     _replace_turn_manager(s, None)
+    _reset_pause_state(s)
 
 
 def _build_daily_snapshot(
@@ -1036,8 +1052,16 @@ def _build_daily_snapshot(
     )
 
 
-def _run_day_step(s: GameSession, idx: int, rec: WeatherRecord) -> list:
-    """Run one day's simulation step and return per-patch snapshots."""
+def _run_day_step(
+    s: GameSession, idx: int, rec: WeatherRecord
+) -> tuple[list[DailySnapshot], list[PauseEvent]]:
+    """Run one day's simulation step; return per-patch snapshots and new alerts.
+
+    Pause detection runs here, after the day, over every field and patch
+    (#470). It only reads each patch's day record, so it cannot alter the
+    simulation. Frost looks at tomorrow's minimum temperature, when there is
+    a tomorrow in this season's weather.
+    """
     from agrogame.soil.water.types import DailyDrivers as _DD
 
     for fld in s.field_manager.fields.values():
@@ -1060,7 +1084,17 @@ def _run_day_step(s: GameSession, idx: int, rec: WeatherRecord) -> list:
     for fid, fld in s.field_manager.fields.items():
         for pi, p in enumerate(fld.patches):
             snapshots.append(_build_daily_snapshot(fid, pi, p, rec, day_num, day_date))
-    return snapshots
+    return snapshots, _detect_pauses(s, idx, day_num)
+
+
+def _detect_pauses(s: GameSession, idx: int, day_num: int) -> list[PauseEvent]:
+    """Run the session's detector after day ``idx``; log and return new alerts."""
+    if s.pause_detector is None:
+        return []
+    tomorrow = s.weather[idx + 1].tmin_c if idx + 1 < len(s.weather) else None
+    fired = s.pause_detector.observe_fields(day_num, s.field_manager.fields, tomorrow)
+    s.pause_events.extend(fired)
+    return fired
 
 
 def _finalize_season(s: GameSession) -> None:
@@ -1072,9 +1106,7 @@ def _finalize_season(s: GameSession) -> None:
     grain = first_patch.orch.canopy.state.grain_biomass_g_m2
     if not s.turn_manager:
         s.turn_manager = GameTurnManager(
-            orch=first_patch.orch,
-            weather=s.weather,
-            crop_key=first_patch.config.crop_key,
+            orch=first_patch.orch, crop_key=first_patch.config.crop_key
         )
     s.turn_manager.current_day = s.day_index
     s.turn_manager.phase = SeasonPhase.SETTLING
@@ -1082,15 +1114,50 @@ def _finalize_season(s: GameSession) -> None:
         total_days=s.day_index,
         grain_g_m2=grain,
         grain_kg_ha=grain * 10.0,
-        pause_count=0,
+        pause_count=interrupt_count(s.pause_events),
         crop_key=first_patch.config.crop_key,
     )
     s.run_count += 1
 
 
+@dataclass
+class _StepRun:
+    """Outcome of one ``/step`` call's day loop."""
+
+    last_rec: WeatherRecord
+    snapshots: list[DailySnapshot]
+    fired: list[PauseEvent]
+    stepped: int = 0
+    stopped: bool = False
+
+
+def _step_days_loop(s: GameSession, steps: int, stop_on_pause: bool) -> _StepRun:
+    """Step up to ``steps`` days from ``s.day_index``, stopping on an interrupt
+    after the day it fires when ``stop_on_pause`` is set (#470)."""
+    run = _StepRun(last_rec=s.weather[s.day_index], snapshots=[], fired=[])
+    for idx in range(s.day_index, s.day_index + steps):
+        run.last_rec = s.weather[idx]
+        day_snapshots, day_fired = _run_day_step(s, idx, run.last_rec)
+        run.snapshots.extend(day_snapshots)
+        run.fired.extend(day_fired)
+        run.stepped += 1
+        if stop_on_pause and any(e.interrupt for e in day_fired):
+            run.stopped = True
+            break
+    return run
+
+
 @router.post("/games/{game_id}/step", response_model=DayResultResponse)
-def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
-    """Advance the simulation by N days."""
+def step_days(
+    game_id: str, days: int = 1, seed: int = 42, stop_on_pause: bool = False
+) -> DayResultResponse:
+    """Advance the simulation by N days.
+
+    Alerts raised on the stepped days are returned in ``pause_events``. With
+    ``stop_on_pause=true`` the call stops after the first day on which an
+    interrupting pause fires and reports the unstepped remainder in
+    ``days_remaining`` (#470). Without it, all N days are stepped as before.
+    """
     from datetime import timedelta
 
     s = _get_session(game_id)
@@ -1105,21 +1172,16 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     if steps <= 0:
         raise HTTPException(400, "Season complete — no more days to simulate")
 
-    snapshots: list = []
-    last_rec = s.weather[s.day_index]
-    for i in range(steps):
-        idx = s.day_index + i
-        if idx >= len(s.weather):
-            break
-        rec = s.weather[idx]
-        last_rec = rec
-        snapshots.extend(_run_day_step(s, idx, rec))
+    run = _step_days_loop(s, steps, stop_on_pause)
+    s.day_index += run.stepped
+    s.current_date = s.current_date + timedelta(days=run.stepped)
 
-    s.day_index += steps
-    s.current_date = s.current_date + timedelta(days=steps)
-
-    result = _build_day_result(s, last_rec)
-    result.daily_snapshots = snapshots
+    result = _build_day_result(s, run.last_rec)
+    result.daily_snapshots = run.snapshots
+    result.pause_events = _pause_event_responses(run.fired)
+    result.days_stepped = run.stepped
+    result.days_remaining = steps - run.stepped
+    result.stopped_on_pause = run.stopped
 
     if result.season_complete and (not s.turn_manager or not s.turn_manager.result):
         _finalize_season(s)
@@ -1606,6 +1668,10 @@ def save_game(game_id: str) -> dict:
         season_days=s.season_days,
         season_active=s.season_active,
         season_settled=s.season_settled,
+        pause_detector_data=(
+            s.pause_detector.to_dict() if s.pause_detector is not None else None
+        ),
+        pause_events_data=[pe.to_dict() for pe in s.pause_events],
     )
     path = _SAVE_DIR / f"{game_id}.agrosave.json"
     save_to_file(state, path)

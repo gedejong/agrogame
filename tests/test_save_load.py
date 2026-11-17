@@ -167,6 +167,38 @@ class TestGameState:
         assert isinstance(kwargs["ledger"], EconomicLedger)
         assert kwargs["ledger"].balance_credits == 5000
 
+    def test_pause_state_round_trips(self) -> None:
+        """Alert latches and this season's alerts are optional v1 keys (#470)."""
+        from agrogame.game.turn import PauseDetector, PauseEvent, PauseReason
+
+        detector = PauseDetector()
+        detector.latch("f1", PauseReason.DROUGHT).fire()
+        event = PauseEvent(
+            day=9, reason=PauseReason.DROUGHT, message="Drought", field_id="f1"
+        )
+        state = self._make_state()
+        state.pause_detector_data = detector.to_dict()
+        state.pause_events_data = [event.to_dict()]
+        restored = GameState.from_dict(json.loads(json.dumps(state.to_dict())))
+        kwargs = restored.to_session_kwargs()
+        assert kwargs["pause_detector"].to_dict() == detector.to_dict()
+        assert kwargs["pause_events"] == [event]
+
+    def test_pre_470_save_loads_with_every_reason_armed(self) -> None:
+        """A v1 save written before #470 has neither key and still loads."""
+        from agrogame.game.save import _compute_checksum
+
+        d = self._make_state().to_dict()
+        for key in ("pause_detector", "pause_events", "checksum"):
+            d.pop(key)
+        d["checksum"] = _compute_checksum(d)
+        kwargs = GameState.from_dict(d).to_session_kwargs()
+        assert kwargs["pause_events"] == []
+        assert kwargs["pause_detector"].to_dict() == {
+            "latches": [],
+            "last_interrupt_day": {},
+        }
+
 
 # --- File I/O ---
 

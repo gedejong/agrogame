@@ -18,6 +18,7 @@ import agrogame
 
 from agrogame.game.economy import EconomicLedger
 from agrogame.game.field import FieldManager
+from agrogame.game.turn import PauseDetector, PauseEvent
 
 SCHEMA_VERSION = 1
 
@@ -37,6 +38,10 @@ class GameState:
     season_days: int
     season_active: bool = False
     season_settled: bool = False
+    # Optional keys within schema v1 (#470): alert latches and this season's
+    # alerts. A save without them loads with every reason armed and no alerts.
+    pause_detector_data: dict[str, Any] | None = None
+    pause_events_data: list[dict[str, Any]] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON persistence."""
@@ -55,6 +60,8 @@ class GameState:
             "season_active": self.season_active,
             "season_settled": self.season_settled,
             "weather": self.weather_data,
+            "pause_detector": self.pause_detector_data,
+            "pause_events": self.pause_events_data or [],
         }
         payload["checksum"] = _compute_checksum(payload)
         return payload
@@ -84,6 +91,8 @@ class GameState:
             season_active=bool(data.get("season_active", False)),
             season_settled=bool(data.get("season_settled", False)),
             weather_data=data.get("weather", []),
+            pause_detector_data=data.get("pause_detector"),
+            pause_events_data=data.get("pause_events"),
         )
 
     def to_session_kwargs(self) -> dict[str, Any]:
@@ -91,6 +100,11 @@ class GameState:
         from agrogame.weather.types import WeatherRecord
 
         weather = [WeatherRecord.from_dict(w) for w in self.weather_data]
+        detector = (
+            PauseDetector.from_dict(self.pause_detector_data)
+            if self.pause_detector_data
+            else PauseDetector()
+        )
         return {
             "game_id": self.game_id,
             "field_manager": FieldManager.from_dict(self.field_manager_data),
@@ -103,6 +117,10 @@ class GameState:
             "season_days": self.season_days,
             "season_active": self.season_active,
             "season_settled": self.season_settled,
+            "pause_detector": detector,
+            "pause_events": [
+                PauseEvent.from_dict(e) for e in self.pause_events_data or []
+            ],
         }
 
 

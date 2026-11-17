@@ -1,6 +1,10 @@
 # ADR-004: Game Loop and Turn System
 
-## Status: Proposed
+## Status: Superseded by ADR-017 (never accepted)
+
+This ADR stayed `Proposed` and the shipped game diverged from it, toward the
+"daily turns" alternative it rejected. [ADR-017](ADR-017-in-season-alerts.md)
+records the loop that shipped (#470).
 
 ## Context
 
