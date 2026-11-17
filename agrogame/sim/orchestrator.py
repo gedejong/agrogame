@@ -199,13 +199,15 @@ def build_default_orchestrator() -> SimulationOrchestrator:
 class SoilSnapshot:
     """Serializable snapshot of soil state between seasons.
 
-    Captures water, nitrogen, phosphorus, microbial, and chemistry pools
-    so they can be persisted to disk and restored for multi-season simulation.
+    Captures water, nitrogen, phosphorus, sulfur, microbial, and chemistry
+    pools so they can be persisted to disk and restored for multi-season
+    simulation.
 
-    The whole-shoot plant-N stock (#360) is intentionally *not* captured
-    here: it is a within-season plant property that resets to zero for each
-    new crop (a fresh seedling holds ~no shoot N). ``reset_crop`` rebuilds
-    ``plant_n_state`` fresh, so no round-trip is needed.
+    The whole-shoot plant-N stock (#360) is still *not* captured here: it is
+    a within-season plant property that resets to zero for each new crop (a
+    fresh seedling holds ~no shoot N), and ``reset_crop`` rebuilds
+    ``plant_n_state`` fresh. A mid-season save persists it with the patch's
+    plant state instead (``FieldManager.to_dict``, #515; ADR-013).
     """
 
     water_theta: list[float] = field(default_factory=list)
@@ -244,6 +246,11 @@ class SoilSnapshot:
     biopore: dict[str, Any] = field(default_factory=dict)
     gas_diffusion: dict[str, Any] = field(default_factory=dict)
     water_theta_macro: list[float] = field(default_factory=list)
+    # Sulfur pools (#515). Empty lists mean a pre-#515 save, which restores
+    # the profile's initial pools as before.
+    s_available: list[float] = field(default_factory=list)
+    s_adsorbed: list[float] = field(default_factory=list)
+    s_organic: list[float] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON/YAML persistence."""
@@ -281,6 +288,9 @@ class SoilSnapshot:
             "biopore": dict(self.biopore),
             "gas_diffusion": dict(self.gas_diffusion),
             "water_theta_macro": list(self.water_theta_macro),
+            "s_available": list(self.s_available),
+            "s_adsorbed": list(self.s_adsorbed),
+            "s_organic": list(self.s_organic),
         }
 
     @classmethod
@@ -320,6 +330,9 @@ class SoilSnapshot:
             biopore=dict(data.get("biopore") or {}),
             gas_diffusion=dict(data.get("gas_diffusion") or {}),
             water_theta_macro=list(data.get("water_theta_macro") or []),
+            s_available=list(data.get("s_available") or []),
+            s_adsorbed=list(data.get("s_adsorbed") or []),
+            s_organic=list(data.get("s_organic") or []),
         )
 
 
@@ -446,9 +459,9 @@ class FullSimulationOrchestrator:
         self.canopy = CanopyModule(canopy_params, event_bus=self.event_bus)
         self.roots = RootModule(root_params, event_bus=self.event_bus)
         self.root_state = RootState()
-        # Whole-shoot plant-N accounting (#360). Fresh stock each season —
-        # intentionally non-persisted (see SoilSnapshot docstring): a new
-        # crop starts with ~0 shoot N.
+        # Whole-shoot plant-N accounting (#360). Fresh stock each season: a
+        # new crop starts with ~0 shoot N. Not in SoilSnapshot; a mid-season
+        # save carries it with the plant state (FieldManager.to_dict, #515).
         self.plant_n_module = PlantNitrogenModule(_plant_n_params(crop))
         self.plant_n_state = PlantNitrogenState()
 
@@ -834,6 +847,18 @@ class FullSimulationOrchestrator:
         """Current accumulated whole-shoot N stock (kg/ha)."""
         return self.plant_n_state.n_stock_kg_ha
 
+    @property
+    def day_counter(self) -> int:
+        """Days stepped since the season started; indexes ``management_plan``."""
+        return self._day_counter
+
+    @day_counter.setter
+    def day_counter(self, value: int) -> None:
+        """Restore the season day counter from a save (#515)."""
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ValueError(f"day_counter must be a non-negative int, got {value!r}")
+        self._day_counter = value
+
     def snapshot_soil(self) -> SoilSnapshot:
         """Capture current soil state as a serializable snapshot."""
         return SoilSnapshot(
@@ -872,6 +897,9 @@ class FullSimulationOrchestrator:
             biopore=self.biopore_state.to_dict(),
             gas_diffusion=self.gas_state.to_dict(),
             water_theta_macro=list(getattr(self.water_state, "theta_macro", []) or []),
+            s_available=list(self.s_state.available_s),
+            s_adsorbed=list(self.s_state.adsorbed_s),
+            s_organic=list(self.s_state.organic_s),
         )
 
     def restore_soil(self, snapshot: SoilSnapshot) -> None:
@@ -886,6 +914,12 @@ class FullSimulationOrchestrator:
         self.p_state.available_p = list(snapshot.p_available)
         self.p_state.fixed_p = list(snapshot.p_fixed)
         self.p_state.organic_p = list(snapshot.p_organic)
+        if snapshot.s_available:
+            # Rebinds the pool lists on the preserved state object that
+            # SulfurCycle holds, as for N and P above (#515).
+            self.s_state.available_s = list(snapshot.s_available)
+            self.s_state.adsorbed_s = list(snapshot.s_adsorbed)
+            self.s_state.organic_s = list(snapshot.s_organic)
         if snapshot.microbe_c:
             for i, ly in enumerate(self.microbes.state.layers):
                 ly.c_kg_ha = snapshot.microbe_c[i]

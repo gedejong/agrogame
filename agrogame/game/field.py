@@ -8,15 +8,17 @@ coordinator.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any
 
 from agrogame.events.recorder import EventRecorder
+from agrogame.plant.nitrogen.state import PlantNitrogenState
 from agrogame.plant.presets import CropPreset, load_crop_presets
 from agrogame.plant.roots.types import RootState
 from agrogame.soil.canopy.types import CanopyState
 from agrogame.soil.phenology.types import PhenologyState
+from agrogame.sim.management import ManagementPlan
 from agrogame.sim.orchestrator import FullSimulationOrchestrator, SoilSnapshot
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
@@ -42,6 +44,19 @@ class PatchResult:
     grain_g_m2: float
     grain_kg_ha: float
     soil_snapshot: SoilSnapshot
+
+
+def _copy_fields(target: Any, source: Any) -> None:
+    """Copy every dataclass field of ``source`` onto ``target`` in place (#515).
+
+    Runtimes capture state objects when they are wired (``RootsRuntime`` and
+    ``ETRuntime`` hold ``orch.root_state``; ``PlantNitrogenRuntime`` holds
+    ``orch.plant_n_state``). A load must write into those objects: rebinding
+    the orchestrator attribute leaves the runtimes advancing a stale copy,
+    which froze root depth and restarted uptake from a 5 cm root.
+    """
+    for f in fields(source):
+        setattr(target, f.name, getattr(source, f.name))
 
 
 class Patch:
@@ -90,6 +105,57 @@ class Patch:
         """
         self.orch.reset_crop(preset)
         self.recorder = EventRecorder(self.orch.event_bus)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize this patch's config, soil, plant and management state."""
+        orch = self.orch
+        return {
+            "config": {
+                "soil_profile_key": self.config.soil_profile_key,
+                "crop_key": self.config.crop_key,
+                "climate_key": self.config.climate_key,
+                "area_fraction": self.config.area_fraction,
+            },
+            "soil_snapshot": orch.snapshot_soil().to_dict(),
+            "canopy_state": orch.canopy.state.to_dict(),
+            "phenology_state": orch.phenology.state.to_dict(),
+            "root_state": orch.root_state.to_dict(),
+            # Optional keys within schema v1 (#515), like #284/#285/#371.
+            "plant_n_state": orch.plant_n_state.to_dict(),
+            "management_plan": orch.management_plan.to_dict(),
+            "day_counter": orch.day_counter,
+            "harvested_grain_g_m2": self.harvested_grain_g_m2,
+            "harvested_crop_key": self.harvested_crop_key,
+        }
+
+    def restore_state(self, data: dict[str, Any]) -> None:
+        """Restore soil, plant and management state saved by :meth:`to_dict`.
+
+        Plant state is written into the live objects (see ``_copy_fields``).
+        Keys added in #515 are optional: a pre-#515 save leaves the shoot-N
+        stock, plan and day counter at their fresh-patch values.
+        """
+        orch = self.orch
+        orch.restore_soil(SoilSnapshot.from_dict(data["soil_snapshot"]))
+        if data.get("canopy_state"):
+            _copy_fields(orch.canopy.state, CanopyState.from_dict(data["canopy_state"]))
+        if data.get("phenology_state"):
+            phs = PhenologyState.from_dict(data["phenology_state"])
+            _copy_fields(orch.phenology.state, phs)
+            # Sync canopy module's stage tracking from restored phenology
+            orch.canopy._current_stage = phs.stage
+            orch.canopy._current_gdd = phs.accumulated_gdd
+        if data.get("root_state"):
+            _copy_fields(orch.root_state, RootState.from_dict(data["root_state"]))
+        if data.get("plant_n_state"):
+            restored_n = PlantNitrogenState.from_dict(data["plant_n_state"])
+            _copy_fields(orch.plant_n_state, restored_n)
+        if data.get("management_plan") is not None:
+            orch.management_plan = ManagementPlan.from_dict(data["management_plan"])
+        orch.day_counter = int(data.get("day_counter", 0))
+        grain = data.get("harvested_grain_g_m2")
+        self.harvested_grain_g_m2 = None if grain is None else float(grain)
+        self.harvested_crop_key = data.get("harvested_crop_key")
 
     def harvest(self) -> PatchResult:
         snap = self.orch.harvest()
@@ -198,23 +264,7 @@ class FieldManager:
         """Serialize all fields for save/load."""
         return {
             "fields": {
-                fid: {
-                    "patches": [
-                        {
-                            "config": {
-                                "soil_profile_key": p.config.soil_profile_key,
-                                "crop_key": p.config.crop_key,
-                                "climate_key": p.config.climate_key,
-                                "area_fraction": p.config.area_fraction,
-                            },
-                            "soil_snapshot": p.orch.snapshot_soil().to_dict(),
-                            "canopy_state": p.orch.canopy.state.to_dict(),
-                            "phenology_state": p.orch.phenology.state.to_dict(),
-                            "root_state": p.orch.root_state.to_dict(),
-                        }
-                        for p in f.patches
-                    ]
-                }
+                fid: {"patches": [p.to_dict() for p in f.patches]}
                 for fid, f in self.fields.items()
             }
         }
@@ -224,42 +274,17 @@ class FieldManager:
         """Restore from save data."""
         mgr = cls()
         for fid, fdata in data.get("fields", {}).items():
-            configs = []
-            snapshots = []
-            plant_states = []
-            for pdata in fdata.get("patches", []):
-                cfg = pdata["config"]
-                configs.append(
-                    PatchConfig(
-                        soil_profile_key=cfg["soil_profile_key"],
-                        crop_key=cfg["crop_key"],
-                        climate_key=cfg["climate_key"],
-                        area_fraction=float(cfg["area_fraction"]),
-                    )
+            patch_data = fdata.get("patches", [])
+            configs = [
+                PatchConfig(
+                    soil_profile_key=pdata["config"]["soil_profile_key"],
+                    crop_key=pdata["config"]["crop_key"],
+                    climate_key=pdata["config"]["climate_key"],
+                    area_fraction=float(pdata["config"]["area_fraction"]),
                 )
-                snapshots.append(SoilSnapshot.from_dict(pdata["soil_snapshot"]))
-                plant_states.append(
-                    {
-                        "canopy": pdata.get("canopy_state"),
-                        "phenology": pdata.get("phenology_state"),
-                        "root": pdata.get("root_state"),
-                    }
-                )
+                for pdata in patch_data
+            ]
             field_obj = mgr.add_field(fid, configs)
-            for i, snap in enumerate(snapshots):
-                field_obj.patches[i].orch.restore_soil(snap)
-                ps = plant_states[i]
-                if ps["canopy"]:
-                    cs = CanopyState.from_dict(ps["canopy"])
-                    field_obj.patches[i].orch.canopy.state = cs
-                if ps["phenology"]:
-                    phs = PhenologyState.from_dict(ps["phenology"])
-                    field_obj.patches[i].orch.phenology.state = phs
-                    # Sync canopy module's stage tracking from restored phenology
-                    canopy = field_obj.patches[i].orch.canopy
-                    canopy._current_stage = phs.stage
-                    canopy._current_gdd = phs.accumulated_gdd
-                if ps["root"]:
-                    rs = RootState.from_dict(ps["root"])
-                    field_obj.patches[i].orch.root_state = rs
+            for patch, pdata in zip(field_obj.patches, patch_data, strict=True):
+                patch.restore_state(pdata)
         return mgr
