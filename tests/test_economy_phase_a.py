@@ -229,15 +229,15 @@ class TestHarvestQuarter:
     def test_report_settles_standing_crop_at_its_quarter(
         self, client: TestClient, prices: PriceTable, crop_key: str, climate_key: str
     ) -> None:
-        """``GET /report`` settles still-standing patches at the current quarter.
+        """Season completion settles still-standing patches at their quarter.
 
-        This is the client's own path: ``farm_view.gd`` calls ``/report`` after
-        every harvest action, so harvesting one patch of a two-patch field
-        settles the other through ``_settle_standing_grain``. The session starts
-        on 1 April, so the report lands in Q2. Maize pays 0.9 in Q2 against the
-        old hard-coded Q3's 0.8; grape, settled on sold fruit since #448, pays
-        0.9 against 1.2, so the quarter and the dry-matter fraction are pinned
-        together on the one path neither was tested on.
+        End-of-season settlement runs in the ``/step`` that completes the season
+        (#518); ``/report`` is a read in every state, mid-season included. A
+        30-day season set up on 1 April completes on 1 May, in Q2, with patch 0
+        harvested before completion and patch 1 still standing. Maize pays 0.9
+        in Q2 against the old hard-coded Q3's 0.8; grape, settled on sold fruit
+        since #448, pays 0.9 against 1.2, so the quarter and the dry-matter
+        fraction are pinned together on the completion path.
         """
         patch = {
             "soil_profile_key": "loam_temperate",
@@ -247,14 +247,13 @@ class TestHarvestQuarter:
         }
         game_id = _create_game(client, [patch, dict(patch)])
         session = games[game_id]
-        client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
-        assert _quarter_of(session.current_date) == 2
+        client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
+        client.post(f"/api/v1/games/{game_id}/step?days=5")
 
         harvested, standing = next(iter(session.field_manager.fields.values())).patches
         harvested.orch.canopy.state.grain_biomass_g_m2 = 300.0
-        standing.orch.canopy.state.grain_biomass_g_m2 = 400.0
 
-        # Harvest patch 0 only; patch 1 stays standing for /report to settle.
+        # Harvest patch 0 only; patch 1 stays standing for completion to settle.
         resp = client.post(
             f"/api/v1/games/{game_id}/action",
             json={
@@ -267,12 +266,31 @@ class TestHarvestQuarter:
         assert standing.config.crop_key == crop_key
         revenue_before = session.ledger.season_revenue
 
+        # A mid-season /report settles nothing.
+        assert client.get(f"/api/v1/games/{game_id}/report").status_code == 200
+        assert session.ledger.season_revenue == revenue_before
+
+        client.post(f"/api/v1/games/{game_id}/step?days=24")
+        # Load the standing patch just before the completing day. The day runs
+        # the harvest-index cap (grain <= hi_max x biomass), which would move a
+        # bare 400 g/m2 back to stem on a 29-day-old crop, so biomass is loaded
+        # to match. The expected value uses the grain as it stands at completion.
+        standing.orch.canopy.state.biomass_g_m2 = 2000.0
+        standing.orch.canopy.state.grain_biomass_g_m2 = 400.0
+        step = client.post(f"/api/v1/games/{game_id}/step?days=1")
+        assert step.status_code == 200, step.text
+        assert step.json()["season_complete"]
+        assert session.current_date == date(2024, 5, 1)
+        assert _quarter_of(session.current_date) == 2
+
         report = client.get(f"/api/v1/games/{game_id}/report")
         assert report.status_code == 200, report.text
-        assert standing.orch.canopy.state.grain_biomass_g_m2 == 0.0
+        # The sold load is what stands at completion; settlement leaves it there.
+        standing_g_m2 = standing.orch.canopy.state.grain_biomass_g_m2
+        assert standing_g_m2 > 0.0
 
         dmf = _harvest_product(crop_key, climate_key).dry_matter_fraction
-        sold_kg = 400.0 * 10.0 / dmf * 0.5
+        sold_kg = standing_g_m2 * 10.0 / dmf * 0.5
         q2_revenue = int(sold_kg * prices.get_crop_price(crop_key, quarter=2))
         q3_revenue = int(sold_kg * prices.get_crop_price(crop_key, quarter=3))
         assert report.json()["revenue_credits"] - revenue_before == q2_revenue

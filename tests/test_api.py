@@ -1040,23 +1040,37 @@ def test_start_season_after_per_patch_harvest_does_not_keyerror(client) -> None:
     assert _session(game_id).field_manager.fields["f1"].patches[0].config.crop_key == ""
 
     # Start a new season: previously this 500'd on get_preset("").
-    patches = _run_season(client, game_id, 60, 7)["field_results"]["f1"]
-    assert len(patches) == 3
-    # Every patch is in a valid state (soil carried across the reset).
-    for p in patches:
-        assert p["soil_state"] is not None
-    # The harvested patch stays bare (crop-free reset); the others keep maize.
-    assert patches[0]["crop_key"] == ""
-    assert patches[1]["crop_key"] == "maize"
-    assert patches[2]["crop_key"] == "maize"
+    setup = client.post(f"/api/v1/games/{game_id}/start-season?days=60&seed=7")
+    assert setup.status_code == 200, setup.text
+    # The harvested patch stays bare; the others keep maize.
+    f1 = _session(game_id).field_manager.fields["f1"]
+    assert [p.config.crop_key for p in f1.patches] == ["", "maize", "maize"]
 
-    # Second season boundary: harvest a still-standing patch, then start-season
-    # again — the bare-patch reset path holds across multiple seasons.
+    # Harvest a still-standing patch *during* season 2: a harvest after the
+    # season has completed is refused (#518), so the second bare patch is made
+    # before completion. It must still succeed.
+    client.post(f"/api/v1/games/{game_id}/step?days=30")
     harvest2 = client.post(
         f"/api/v1/games/{game_id}/action",
         json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 1}},
     )
     assert harvest2.status_code == 200
+    step = client.post(f"/api/v1/games/{game_id}/step?days=30")
+    assert step.status_code == 200, step.text
+    assert step.json()["season_complete"]
+    result = client.get(f"/api/v1/games/{game_id}/status").json()["season_result"]
+    patches = result["field_results"]["f1"]
+    assert len(patches) == 3
+    # Every patch is in a valid state (soil carried across the reset).
+    for p in patches:
+        assert p["soil_state"] is not None
+    # Patch 0 stayed bare through the reset; patch 1 was harvested this season.
+    assert patches[0]["crop_key"] == ""
+    assert patches[1]["crop_key"] == ""
+    assert patches[2]["crop_key"] == "maize"
+
+    # Second season boundary, now with two bare patches: start-season again —
+    # the bare-patch reset path holds across multiple seasons.
     patches2 = _run_season(client, game_id, 60, 9)["field_results"]["f1"]
     assert patches2[0]["crop_key"] == ""
     assert patches2[1]["crop_key"] == ""
@@ -1419,13 +1433,19 @@ def test_full_field_equals_sum_of_patches_unequal_areas(client) -> None:
 
 
 def test_end_of_season_settles_only_standing_after_partial_harvest(client) -> None:
-    """End-of-season /report settles standing patches once; total == harvest-all (#371).
+    """End-of-season settlement pays standing patches once, never patch 0 (#371).
 
-    After a partial staggered harvest (patch 0 only), the end-of-season path
-    settles the still-standing patches 1/2 exactly once — patch 0 is not
-    re-settled — and the season total equals a full-field harvest of the same
-    grain state.
+    After a partial staggered harvest (patch 0 only), the ``/step`` that
+    completes the season settles the still-standing patches 1/2 exactly once
+    (#518) and does not re-settle patch 0: the season total is patch 0's
+    harvest revenue plus an independently computed completion settlement. The
+    full-field == Σ per-patch property is
+    ``test_full_field_equals_sum_of_patches_unequal_areas``'s.
     """
+    from datetime import date
+
+    from agrogame.game.economy import PriceTable
+
     game_id = _create_multi_patch_game(client)
     client.post(f"/api/v1/games/{game_id}/step?days=150&seed=42")
 
@@ -1435,25 +1455,32 @@ def test_end_of_season_settles_only_standing_after_partial_harvest(client) -> No
     ).json()
     assert r0["status"] == "executed"
 
-    # /report is the end-of-season trigger: it settles standing patches 1/2.
+    # The default season runs to day 200; the completing /step settles 1/2.
+    step = client.post(f"/api/v1/games/{game_id}/step?days=50")
+    assert step.status_code == 200, step.text
+    assert step.json()["season_complete"]
     report = client.get(f"/api/v1/games/{game_id}/report").json()
-    season_total = report["revenue_credits"]
-    assert (
-        season_total > r0["revenue_credits"]
-    ), "Standing grain 1/2 settled at season end"
 
-    # Idempotent: a repeat /report does not re-settle the (now zeroed) grain.
-    report_again = client.get(f"/api/v1/games/{game_id}/report").json()
-    assert report_again["revenue_credits"] == season_total
+    # Expected settlement of patches 1/2, from their grain as it stood at
+    # completion (settlement leaves it in place), with settle_season's
+    # area-weighted mean, per-kg price and integer truncation.
+    standing = _session(game_id).field_manager.fields["f1"].patches[1:]
+    area = sum(p.config.area_fraction for p in standing)
+    grain = (
+        sum(
+            p.orch.canopy.state.grain_biomass_g_m2 * p.config.area_fraction
+            for p in standing
+        )
+        / area
+    )
+    end = date.fromisoformat(report["end_date"])
+    price = PriceTable.load().get_crop_price("maize", (end.month - 1) // 3 + 1)
+    completion = int(grain * 10.0 / 1.0 * area * price)
+    assert completion > 0, "Standing grain 1/2 settled at season end"
+    assert report["revenue_credits"] == r0["revenue_credits"] + completion
 
-    # The season total equals a full-field harvest on an identical game/seed.
-    full_game = _create_multi_patch_game(client)
-    client.post(f"/api/v1/games/{full_game}/step?days=150&seed=42")
-    full = client.post(
-        f"/api/v1/games/{full_game}/action",
-        json={"field_id": "f1", "action": "harvest", "params": {}},
-    ).json()
-    assert season_total == pytest.approx(full["revenue_credits"], abs=3)
+    # A repeat /report is a read: the same body, nothing settled again.
+    assert client.get(f"/api/v1/games/{game_id}/report").json() == report
 
 
 def test_staggered_harvest_survives_save_load(client, tmp_path, monkeypatch) -> None:
@@ -2172,9 +2199,31 @@ def test_grape_season_earns_fruit_revenue(client) -> None:
 
 
 def test_grape_sahel_marginal_season_settles_without_error(client) -> None:
-    data, _fruit, _quarter = _grow_and_harvest(client, "grape", "sahel_arid", 150)
-    assert data["status"] == "executed"
-    assert data["revenue_credits"] >= 0
+    """A marginal Sahel grape season settles through the fruit path (#448, #518).
+
+    Sahel grape matures, and so completes its season, before day 150; the
+    completing ``/step`` settles it (#518), so there is nothing left to harvest.
+    """
+    from datetime import date
+
+    game_id = _create_crop_game(client, "grape", "sahel_arid")
+    step = client.post(f"/api/v1/games/{game_id}/step?days=150&seed=42")
+    assert step.status_code == 200, step.text
+    assert step.json()["season_complete"]
+
+    s = _session(game_id)
+    canopy = s.field_manager.fields["f1"].patches[0].orch.canopy.state
+    report = client.get(f"/api/v1/games/{game_id}/report")
+    assert report.status_code == 200, report.text
+    body = report.json()
+    assert body["patches"]["f1"][0]["harvest_product"] == "fruit"
+    quarter = (date.fromisoformat(body["end_date"]).month - 1) // 3 + 1
+    expected = _expected_revenue(
+        canopy.grain_biomass_g_m2, "grape", _GRAPE_DMF_USDA, quarter
+    )
+    assert s.ledger.season_revenue >= 0
+    assert s.ledger.season_revenue == expected
+    assert body["revenue_credits"] == expected
 
 
 def test_grain_harvest_reports_grain_product_at_dry_mass(client) -> None:
