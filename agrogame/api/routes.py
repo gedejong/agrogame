@@ -30,6 +30,7 @@ from agrogame.api.models import (
     GameStatusResponse,
     HarvestReportResponse,
     PatchDayResponse,
+    PatchLayoutResponse,
     PatchResultResponse,
     PatchYieldReport,
     PauseEventResponse,
@@ -285,6 +286,27 @@ def _get_session(game_id: str) -> GameSession:
     return games[game_id]
 
 
+def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
+    """Every field's patches with their current config, in patch order (#516).
+
+    The client lays out its tiles from this, so a one-patch scenario renders as
+    one band instead of the three hard-coded soil bands.
+    """
+    return {
+        fid: [
+            PatchLayoutResponse(
+                patch_idx=i,
+                soil_profile_key=p.config.soil_profile_key,
+                crop_key=p.config.crop_key,
+                climate_key=p.config.climate_key,
+                area_fraction=p.config.area_fraction,
+            )
+            for i, p in enumerate(field.patches)
+        ]
+        for fid, field in s.field_manager.fields.items()
+    }
+
+
 @router.post("/games", response_model=GameCreatedResponse)
 def create_game(req: CreateGameRequest) -> GameCreatedResponse:
     """Create a new game session."""
@@ -337,6 +359,7 @@ def get_game(game_id: str) -> GameStatusResponse:
             PauseEventResponse(day=pe.day, reason=pe.reason.value, message=pe.message)
             for pe in s.pause_events
         ],
+        fields=_field_layouts(s),
     )
 
 
@@ -468,6 +491,7 @@ def get_status(game_id: str) -> GameStatusResponse:
             for pe in s.pause_events
         ],
         season_result=season_result,
+        fields=_field_layouts(s),
     )
 
 
@@ -1124,6 +1148,16 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         raise HTTPException(
             422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
         ) from exc
+    # A per-patch action aimed past the field's last patch is a client error.
+    # Plant used to charge seed and plant nothing (#516); a negative index
+    # still means "every patch".
+    n_patches = len(field.patches)
+    if req.action in ("plant", "harvest") and harvest_patch_idx >= n_patches:
+        raise HTTPException(
+            400,
+            f"patch_idx {harvest_patch_idx} out of range; field "
+            f"{req.field_id!r} has {n_patches} patch(es)",
+        )
 
     # Lime: validate the target layer before charging, and treat a
     # non-positive rate as a free no-op (#465).
@@ -1139,7 +1173,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                 day_number=s.day_index,
             )
 
-    # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
+    # Guard: harvesting a bare target is a no-op — no charge,
     # no result clobber (#341). The frontend gates the UI path, but the backend
     # must be safe too. Scoped to the requested patch so a multi-patch field
     # only no-ops when that patch is bare (#359).
