@@ -37,6 +37,7 @@ class GameState:
     season_days: int
     season_active: bool = False
     season_settled: bool = False
+    season_completed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to a plain dict for JSON persistence."""
@@ -54,6 +55,8 @@ class GameState:
             "season_days": self.season_days,
             "season_active": self.season_active,
             "season_settled": self.season_settled,
+            # Optional key within schema v1 (#518), like #515's.
+            "season_completed": self.season_completed,
             "weather": self.weather_data,
         }
         payload["checksum"] = _compute_checksum(payload)
@@ -83,6 +86,7 @@ class GameState:
             season_days=int(data.get("season_days", 200)),
             season_active=bool(data.get("season_active", False)),
             season_settled=bool(data.get("season_settled", False)),
+            season_completed=bool(data.get("season_completed", False)),
             weather_data=data.get("weather", []),
         )
 
@@ -103,6 +107,7 @@ class GameState:
             "season_days": self.season_days,
             "season_active": self.season_active,
             "season_settled": self.season_settled,
+            "season_completed": self.season_completed,
         }
 
 

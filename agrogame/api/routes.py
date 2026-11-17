@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException
 
 if TYPE_CHECKING:
+    from agrogame.game.turn import SeasonResult
     from agrogame.sim.orchestrator import SoilSnapshot
 
 from agrogame.api.models import (
@@ -383,6 +384,7 @@ def start_season(
     if s.run_count > 0:
         _reset_all_crops(s)
         s.season_settled = False
+        s.season_completed = False
         s.ledger.reset_season()
         # Seed for the replanted crop, charged after the ledger reset so it
         # lands in the new season's costs (#508). Season 1's seed was charged
@@ -595,6 +597,20 @@ def _action_cost_or_400(action: str, params: dict, prices: PriceTable) -> int:
         raise HTTPException(400, str(exc)) from exc
 
 
+def _reject_harvest_after_completion(s: GameSession, action: str) -> None:
+    """Refuse a Harvest once the season has completed and settled (#518).
+
+    Completion already sold every standing crop. Harvesting afterwards would
+    charge labour for no revenue and clear ``crop_key``, leaving the patch bare
+    next season. Raised before any cost is computed, so nothing is charged.
+
+    Raises:
+        HTTPException: 400 when ``action`` is ``harvest`` after completion.
+    """
+    if action == "harvest" and s.season_completed:
+        raise HTTPException(400, "Season settled: start the next season")
+
+
 def _validate_lime_params(field: Field, params: dict) -> int:
     """Validate a lime request's target layer and return it (#465).
 
@@ -766,46 +782,48 @@ def _harvest_action(
     return grain_g_m2, revenue, profit, product
 
 
-def _settle_standing_grain(
-    s: GameSession, field: Field, prices: PriceTable, crop_key: str
-) -> None:
-    """Settle any still-standing (un-harvested) grain on ``field`` exactly once.
+def _settle_standing_grain(s: GameSession, field: Field, prices: PriceTable) -> None:
+    """Settle the still-standing (un-harvested) crops on ``field`` (#518).
 
-    End-of-season path (called from ``GET /report``). Patches already harvested
-    per-patch carry ``crop_key=""`` and were settled at harvest time, so they are
-    skipped here — no double counting (ADR-003). Settlement is area-weighted and
-    accrues onto the ledger's running season total. Grain is zeroed after
-    settling (harvested off), so a repeated ``/report`` settles nothing — this
-    gives idempotency off standing-crop state rather than a per-season boolean.
+    End-of-season path, run once by ``_complete_season``. Patches already
+    harvested by action carry ``crop_key=""`` and were settled then, so they are
+    skipped: no double counting (ADR-003). Each patch is paid at *its own*
+    crop's price and harvest product. Patches sharing a crop and climate are
+    settled together, area-weighted, with the ``settle_season`` arithmetic, at
+    the quarter of ``current_date`` (#511). The sold grain is captured on the
+    patch for the per-patch report (#341) but left in the canopy: settling once
+    is guaranteed by ``season_completed``, not by zeroing, so ``/status`` and
+    later ``/step`` responses still show the season's yield. ``crop_key`` is kept
+    so the next season's reset still has a preset to plant.
     """
-    standing = [p for p in field.patches if p.config.crop_key]
-    if not standing:
-        return
-    total_area = sum(p.config.area_fraction for p in standing)
-    grain_g_m2 = (
-        sum(
-            p.orch.canopy.state.grain_biomass_g_m2 * p.config.area_fraction
-            for p in standing
+    groups: dict[tuple[str, str], list[Patch]] = {}
+    for p in field.patches:
+        if p.config.crop_key:
+            key = (p.config.crop_key, p.config.climate_key)
+            groups.setdefault(key, []).append(p)
+    for (crop_key, climate_key), standing in groups.items():
+        total_area = sum(p.config.area_fraction for p in standing)
+        grain_g_m2 = (
+            sum(
+                p.orch.canopy.state.grain_biomass_g_m2 * p.config.area_fraction
+                for p in standing
+            )
+            / total_area
         )
-        / total_area
-    )
-    product = _harvest_product(crop_key, standing[0].config.climate_key)
-    s.ledger.settle_season(
-        grain_g_m2,
-        crop_key,
-        prices,
-        quarter=_quarter_of(s.current_date),
-        area_ha=total_area,
-        dry_matter_fraction=product.dry_matter_fraction,
-    )
-    s.season_settled = True
-    for p in standing:
-        # Capture harvested grain so the per-patch report survives the grain
-        # being zeroed (#341); keep crop_key so the next season's crop reset
-        # still has a preset to plant.
-        p.harvested_grain_g_m2 = p.orch.canopy.state.grain_biomass_g_m2
-        p.harvested_crop_key = p.config.crop_key
-        p.orch.canopy.state.grain_biomass_g_m2 = 0.0
+        s.ledger.settle_season(
+            grain_g_m2,
+            crop_key,
+            prices,
+            quarter=_quarter_of(s.current_date),
+            area_ha=total_area,
+            dry_matter_fraction=_harvest_product(
+                crop_key, climate_key
+            ).dry_matter_fraction,
+        )
+        s.season_settled = True
+        for p in standing:
+            p.harvested_grain_g_m2 = p.orch.canopy.state.grain_biomass_g_m2
+            p.harvested_crop_key = p.config.crop_key
 
 
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
@@ -950,6 +968,7 @@ def _reset_session_for_new_season(s: GameSession) -> None:
     _reset_all_crops(s)
     s.run_count += 1
     s.season_settled = False
+    s.season_completed = False
     s.ledger.reset_season()
     # Seed for the replanted crop, after the reset so it lands in the new
     # season's costs (#508).
@@ -1039,8 +1058,8 @@ def _run_day_step(s: GameSession, idx: int, rec: WeatherRecord) -> list:
     return snapshots
 
 
-def _finalize_season(s: GameSession) -> None:
-    """Create SeasonResult so /report works after season completion."""
+def _finalize_season(s: GameSession) -> SeasonResult:
+    """Record the season's SeasonResult (replacing any harvest-time one)."""
     from agrogame.game.turn import SeasonResult
 
     first_field = next(iter(s.field_manager.fields.values()))
@@ -1062,6 +1081,30 @@ def _finalize_season(s: GameSession) -> None:
         crop_key=first_patch.config.crop_key,
     )
     s.run_count += 1
+    return s.turn_manager.result
+
+
+def _complete_season(s: GameSession) -> None:
+    """Complete the season exactly once: record it, then settle every field.
+
+    Runs in the ``/step`` whose response first reports ``season_complete``
+    (ADR-003, ADR-004 rule 4), so a finished season is already paid when the
+    client autosaves (#518). The once-per-season guard is ``season_completed``,
+    not the presence of a result: a mid-season harvest records a result too, and
+    used to suppress completion altogether.
+    """
+    balance_before = s.ledger.balance_credits
+    result = _finalize_season(s)
+    prices = PriceTable.load()
+    for fld in s.field_manager.fields.values():
+        _settle_standing_grain(s, fld, prices)
+    if s.turn_manager is not None:
+        s.turn_manager.result = replace(
+            result,
+            balance_before=balance_before,
+            balance_after=s.ledger.balance_credits,
+        )
+    s.season_completed = True
 
 
 @router.post("/games/{game_id}/step", response_model=DayResultResponse)
@@ -1097,8 +1140,11 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     result = _build_day_result(s, last_rec)
     result.daily_snapshots = snapshots
 
-    if result.season_complete and (not s.turn_manager or not s.turn_manager.result):
-        _finalize_season(s)
+    if result.season_complete and not s.season_completed:
+        _complete_season(s)
+        # The completing response carries the settled balance; each patch's
+        # grain stays as stepped, which is what was sold (#518).
+        result.balance_credits = s.ledger.balance_credits
 
     return result
 
@@ -1111,6 +1157,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         raise HTTPException(404, f"Field {req.field_id} not found")
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
+    _reject_harvest_after_completion(s, req.action)
 
     field = s.field_manager.fields[req.field_id]
 
@@ -1250,6 +1297,7 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
         raise HTTPException(404, f"Field {req.field_id} not found")
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
+    _reject_harvest_after_completion(s, req.action)
 
     if req.action == "lime":
         _validate_lime_params(s.field_manager.fields[req.field_id], req.params)
@@ -1458,15 +1506,16 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
     end_date = s.current_date
     start_date = end_date - timedelta(days=r.total_days)
 
-    # Settle any still-standing grain (accrues onto the running season total),
-    # then read the balance. Patches already harvested per-patch were settled at
-    # harvest time and are skipped, and the grain is zeroed after settling so a
-    # repeated /report is idempotent (ADR-003 per-patch accrual).
-    prices = PriceTable.load()
-    first_field = next(iter(s.field_manager.fields.values()))
-    balance_before = s.ledger.balance_credits
-    _settle_standing_grain(s, first_field, prices, r.crop_key)
-    balance_after = s.ledger.balance_credits
+    # A read (#518): the season-completing /step already settled every standing
+    # crop. balance_before/after bracket that settlement; before completion (a
+    # result recorded by a mid-season harvest) there has been none, so both are
+    # the current balance.
+    balance_before = (
+        r.balance_before if r.balance_before is not None else s.ledger.balance_credits
+    )
+    balance_after = (
+        r.balance_after if r.balance_after is not None else s.ledger.balance_credits
+    )
 
     # Build per-patch yield reports
     patch_reports: dict[str, list[PatchYieldReport]] = {}

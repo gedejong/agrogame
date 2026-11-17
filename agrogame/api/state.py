@@ -34,6 +34,9 @@ class GameSession:
     season_days: int = DEFAULT_SEASON_DAYS
     season_active: bool = False
     season_settled: bool = False
+    # The /step that completed this season has run: standing crops are settled
+    # and completion cannot happen again until the next season starts (#518).
+    season_completed: bool = False
 
 
 # Global in-memory store — no database for V1

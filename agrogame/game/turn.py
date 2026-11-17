@@ -62,6 +62,10 @@ class SeasonResult:
     grain_kg_ha: float
     pause_count: int
     crop_key: str = ""
+    # Ledger balance immediately before and after the end-of-season settlement
+    # (#518). None for a result recorded by a mid-season harvest action.
+    balance_before: int | None = None
+    balance_after: int | None = None
 
 
 class GameTurnManager:
