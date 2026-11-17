@@ -21,7 +21,7 @@ input_costs:
   # sources: see "Fertilizer pricing basis" at the foot of this file.
   #
   # Urea 46-0-0: USD 338.27/t ÷ 1000 = 0.33827/kg urea ÷ 0.46 kg N/kg
-  #   = 1.4707 USD/kg N ⇒ ×2 = 1.47
+  #   = 0.73537 USD/kg N ⇒ ×2 = 1.47
   fertilizer_urea_per_kg_N: 1.47
   # Ammonium nitrate 34-0-0: USD 560/short ton ÷ 907.185 kg = 0.61729/kg AN
   #   ÷ 0.34 kg N/kg = 1.81557 USD/kg N ⇒ ×2 = 3.63
@@ -35,7 +35,7 @@ input_costs:
   # if a recent farm-gate AN series appears; the USDA survey behind this figure
   # was discontinued after 2014.
   fertilizer_ammonium_nitrate_per_kg_N: 3.63
-  # TSP 0-46-0: USD 474.56/t ÷ 1000 = 0.47456/kg TSP ÷ 0.2007 kg P/kg
+  # TSP 0-46-0: USD 474.56/t ÷ 1000 = 0.47456/kg TSP ÷ 0.20074 kg P/kg
   #   = 2.36401 USD/kg P ⇒ ×2 = 4.73
   fertilizer_tsp_per_kg_P: 4.73
   # Gypsum and elemental sulfur are deliberately UNPRICED — see the foot of

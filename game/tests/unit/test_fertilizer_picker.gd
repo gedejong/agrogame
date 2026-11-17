@@ -67,6 +67,9 @@ func test_selecting_ammonium_nitrate_yields_correct_params() -> void:
 
 
 # AC #3: cost reflects the chosen type — mirrors routes._compute_action_cost.
+# The backend half of these pins, against the shipped prices.yaml, plus a
+# constant-by-constant parity check of this picker against that file, is
+# tests/test_economy_phase_a.py::TestPickerParity (#508 AC2).
 func test_cost_matches_backend_formula() -> void:
 	# labor(50) + price_per_kg_nutrient * kg_nutrient, truncated (#508).
 	# urea 1.47/kg N, ammonium_nitrate 3.63/kg N, tsp 4.73/kg P.

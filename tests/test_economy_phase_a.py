@@ -17,7 +17,9 @@ one over a single season.
 
 from __future__ import annotations
 
+import re
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -30,7 +32,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from agrogame.api.app import create_app  # noqa: E402
 from agrogame.api.routes import (  # noqa: E402
+    _FERTILIZER_NUTRIENT,
     _compute_action_cost,
+    _harvest_product,
     _quarter_of,
     _seed_cost_per_ha,
     fertilizer_price_key,
@@ -195,6 +199,62 @@ class TestHarvestQuarter:
         assert resp.json()["revenue_credits"] == int(500.0 * 10.0 * q2_price)
         assert int(500.0 * 10.0 * q2_price) != int(500.0 * 10.0 * q3_price)
 
+    @pytest.mark.parametrize(
+        ("crop_key", "climate_key"),
+        [("maize", "netherlands_temperate"), ("grape", "kenya_highlands")],
+    )
+    def test_report_settles_standing_crop_at_its_quarter(
+        self, client: TestClient, prices: PriceTable, crop_key: str, climate_key: str
+    ) -> None:
+        """``GET /report`` settles still-standing patches at the current quarter.
+
+        This is the client's own path: ``farm_view.gd`` calls ``/report`` after
+        every harvest action, so harvesting one patch of a two-patch field
+        settles the other through ``_settle_standing_grain``. The session starts
+        on 1 April, so the report lands in Q2. Maize pays 0.9 in Q2 against the
+        old hard-coded Q3's 0.8; grape, settled on sold fruit since #448, pays
+        0.9 against 1.2, so the quarter and the dry-matter fraction are pinned
+        together on the one path neither was tested on.
+        """
+        patch = {
+            "soil_profile_key": "loam_temperate",
+            "crop_key": crop_key,
+            "climate_key": climate_key,
+            "area_fraction": 0.5,
+        }
+        game_id = _create_game(client, [patch, dict(patch)])
+        session = games[game_id]
+        client.post(f"/api/v1/games/{game_id}/step?days=5&seed=42")
+        assert _quarter_of(session.current_date) == 2
+
+        harvested, standing = next(iter(session.field_manager.fields.values())).patches
+        harvested.orch.canopy.state.grain_biomass_g_m2 = 300.0
+        standing.orch.canopy.state.grain_biomass_g_m2 = 400.0
+
+        # Harvest patch 0 only; patch 1 stays standing for /report to settle.
+        resp = client.post(
+            f"/api/v1/games/{game_id}/action",
+            json={
+                "field_id": "field_1",
+                "action": "harvest",
+                "params": {"patch_idx": 0},
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert standing.config.crop_key == crop_key
+        revenue_before = session.ledger.season_revenue
+
+        report = client.get(f"/api/v1/games/{game_id}/report")
+        assert report.status_code == 200, report.text
+        assert standing.orch.canopy.state.grain_biomass_g_m2 == 0.0
+
+        dmf = _harvest_product(crop_key, climate_key).dry_matter_fraction
+        sold_kg = 400.0 * 10.0 / dmf * 0.5
+        q2_revenue = int(sold_kg * prices.get_crop_price(crop_key, quarter=2))
+        q3_revenue = int(sold_kg * prices.get_crop_price(crop_key, quarter=3))
+        assert report.json()["revenue_credits"] - revenue_before == q2_revenue
+        assert q2_revenue != q3_revenue
+
 
 # ---------------------------------------------------------------------------
 # Fertilizer is priced per kg of nutrient element (AC1)
@@ -268,3 +328,101 @@ class TestFertilizerPricing:
         )
         assert resp.status_code == 400
         assert "guano" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# The Godot picker's prices cannot drift from prices.yaml (AC2)
+# ---------------------------------------------------------------------------
+_PICKER_GD = (
+    Path(__file__).resolve().parents[1] / "game" / "scripts" / "fertilizer_picker.gd"
+)
+
+
+def _gd_dict_const(source: str, name: str) -> dict[str, str]:
+    """Entries of a ``const NAME := {"key": value, ...}`` block in GDScript."""
+    match = re.search(rf"^const {name} := \{{(.*?)^\}}", source, re.S | re.M)
+    if match is None:
+        raise ValueError(f"const {name} not found in {_PICKER_GD}")
+    return dict(re.findall(r'"(\w+)":\s*"?([\w.]+)"?', match.group(1)))
+
+
+def _gd_int_const(source: str, name: str) -> int:
+    """Value of a ``const NAME := <int>`` line in GDScript."""
+    match = re.search(rf"^const {name}(?::\s*int)? := (\d+)$", source, re.M)
+    if match is None:
+        raise ValueError(f"const {name} not found in {_PICKER_GD}")
+    return int(match.group(1))
+
+
+class TestPickerParity:
+    """``FertilizerPicker`` hand-copies the price table; these keep it honest.
+
+    The client computes its cost labels locally, so its constants duplicate
+    ``data/economy/prices.yaml``. GUT pins the picker's costs to literals but
+    never reads the YAML, and the rest of the Python suite never reads the
+    GDScript, so editing one side alone used to leave every test green while
+    the picker showed one price and ``/action`` charged another. Phase B (#438)
+    edits exactly these numbers.
+    """
+
+    @pytest.mark.parametrize(
+        ("fert_type", "amount_kg_ha", "expected"),
+        [
+            ("urea", 50.0, 123),
+            ("ammonium_nitrate", 50.0, 231),
+            ("tsp", 50.0, 286),
+            ("tsp", 100.0, 523),
+            ("tsp", 25.0, 168),
+        ],
+    )
+    def test_preview_and_action_charge_the_picker_pinned_cost(
+        self,
+        client: TestClient,
+        fert_type: str,
+        amount_kg_ha: float,
+        expected: int,
+    ) -> None:
+        """The shipped table charges what the picker shows.
+
+        The same literals are pinned on the client side in
+        ``game/tests/unit/test_fertilizer_picker.gd``
+        (``test_cost_matches_backend_formula`` and
+        ``test_cost_truncates_like_the_backend_at_a_non_integral_cost``).
+        Urea 50 kg N is 50 + 1.47 × 50 = 123.5 and TSP 25 kg P is 168.25, so
+        those two also pin truncation rather than rounding.
+        """
+        game_id = _create_game(client, NL_MAIZE_PATCHES)
+        body = {
+            "field_id": "field_1",
+            "action": "fertilize",
+            "params": {"type": fert_type, "amount_kg_ha": amount_kg_ha},
+        }
+        preview = client.post(f"/api/v1/games/{game_id}/action/preview", json=body)
+        assert preview.status_code == 200, preview.text
+        assert preview.json()["cost_credits"] == expected
+
+        before = games[game_id].ledger.balance_credits
+        resp = client.post(f"/api/v1/games/{game_id}/action", json=body)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["cost_credits"] == expected
+        assert resp.json()["balance_credits"] == before - expected
+
+    def test_picker_constants_match_the_price_table(self, prices: PriceTable) -> None:
+        """Every picker constant equals its ``prices.yaml`` / routes counterpart."""
+        source = _PICKER_GD.read_text(encoding="utf-8")
+        offered = re.search(r"^const TYPES: Array\[String\] = \[(.*)\]$", source, re.M)
+        assert offered is not None, "const TYPES not found"
+        types = re.findall(r'"(\w+)"', offered.group(1))
+        gd_prices = _gd_dict_const(source, "PRICE_PER_KG_NUTRIENT")
+        gd_nutrients = _gd_dict_const(source, "NUTRIENTS")
+
+        assert types, "picker offers no fertiliser types"
+        assert set(gd_prices) == set(types)
+        for fert_type in types:
+            assert gd_nutrients[fert_type] == _FERTILIZER_NUTRIENT[fert_type]
+            key = fertilizer_price_key(fert_type)
+            assert float(gd_prices[fert_type]) == prices.input_costs[key], key
+        assert (
+            _gd_int_const(source, "LABOR_PER_ACTION")
+            == prices.input_costs["labor_per_action"]
+        )
