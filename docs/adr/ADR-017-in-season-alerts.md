@@ -50,10 +50,12 @@ Signals are the simulation's own state, never a proxy:
 | nitrogen | N stress < 0.9 | stage ∈ {emerged, vegetative, flowering} | 3 | 10 | yes |
 | frost | tomorrow's tmin < the crop's `frost_threshold_c` | stage ∈ {emerged, vegetative, flowering} | 1 | 7 | no, a notice only |
 
-- Ks is the `WaterStressComputed.stress` payload, Ta/Tp, the FAO-56
-  water-stress coefficient (Allen et al. 1998, eq. 84), as the canopy
-  receives it. N stress is the graded NNI-based `NutrientStressComputed`
-  payload for N (ADR-013).
+- Ks is the `WaterStressComputed.stress` payload as the canopy receives it:
+  Ta/Tp, actual over potential transpiration from supply and demand
+  (`water_from_supply_demand`). It plays the role of the FAO-56 water-stress
+  coefficient Ks (Allen et al. 1998, ch. 8), which FAO-56 itself derives from
+  root-zone depletion. N stress is the graded NNI-based
+  `NutrientStressComputed` payload for N (ADR-013).
 - The frost gate is `FROST_VULNERABLE_STAGES`, the constant
   `CanopyRuntime._check_frost_damage` itself uses. An alert therefore never
   claims a vulnerability the damage model does not apply.
@@ -219,4 +221,4 @@ rice's 10 °C threshold is a chilling-injury question for the rice preset
 - #470 (this decision), #486, #487, #493, #494, #495, #519
 - ADR-001 (persistence), ADR-004 (superseded), ADR-013 (plant-N stress)
 - Allen, R. G., Pereira, L. S., Raes, D. & Smith, M. (1998). *Crop
-  evapotranspiration*. FAO Irrigation and Drainage Paper 56, eq. 84.
+  evapotranspiration*. FAO Irrigation and Drainage Paper 56, ch. 8 (Ks).

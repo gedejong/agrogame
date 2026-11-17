@@ -950,8 +950,8 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
 def _replace_turn_manager(s: GameSession, tm: GameTurnManager | None) -> None:
     """Retire the session's current turn manager, then install ``tm`` (#486).
 
-    The manager subscribes to the first patch's bus, which outlives it; closing
-    unsubscribes it so a replaced manager never keeps receiving events.
+    Since #470 the manager holds no bus subscription, so ``close()`` releases
+    nothing; every replacement still goes through this one retirement point.
     """
     if s.turn_manager is not None and s.turn_manager is not tm:
         s.turn_manager.close()

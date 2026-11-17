@@ -121,10 +121,12 @@ class PauseConfig:
     about 600 seasons; table in ADR-017). The rarity target behind them, at
     most 4 interrupts per season, is a judgement rather than a measurement.
 
-    The signals themselves are the simulation's own: Ks is Ta/Tp, the FAO-56
-    water-stress coefficient (Allen et al. 1998, eq. 84), as the canopy uses
-    it; N stress is the graded NNI-based factor (ADR-013). The frost threshold
-    is each crop's own ``frost_threshold_c``.
+    The signals themselves are the simulation's own. Ks is Ta/Tp, actual over
+    potential transpiration from supply and demand (``water_from_supply_demand``),
+    as the canopy receives it; it plays the role of the FAO-56 water-stress
+    coefficient Ks (Allen et al. 1998, ch. 8), which FAO-56 itself derives from
+    root-zone depletion. N stress is the graded NNI-based factor (ADR-013). The
+    frost threshold is each crop's own ``frost_threshold_c``.
     """
 
     drought_ks_threshold: float = 0.4
@@ -225,9 +227,10 @@ class PauseLatchState:
 
     ``run_days`` counts consecutive days the condition held; ``clear_days``
     counts consecutive days it did not. A fired latch disarms and re-arms after
-    ``rearm_days`` clear days. ``deferred`` marks a reason that was ready but
-    held back by interrupt spacing; it fires on the first allowed day on which
-    its condition still holds.
+    ``rearm_days`` clear days. A reason held back by interrupt spacing stays
+    armed with ``run_days >= onset``, so it fires on the first allowed day on
+    which its condition still holds. ``deferred`` is informational: it records
+    that state for inspection and saves, and no decision reads it.
     """
 
     armed: bool = True
