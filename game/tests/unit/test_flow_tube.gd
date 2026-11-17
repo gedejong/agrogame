@@ -265,6 +265,72 @@ func test_valid_path_tube_attaches_path_follows() -> void:
 	assert_gt(_count_path_follows(tube), 0, "Valid path should attach PathFollow3D particles")
 
 
+func test_tween_magnitude_path_tube_creates_no_tween() -> void:
+	# #520: a path tube has an ArrayMesh and PathFollow3D particles, so neither
+	# tweener applied and Godot logged "started with no Tweeners".
+	var tube: FlowTube = FlowTubeRef.create(
+		{"path": [Vector3.ZERO, Vector3(0, -0.1, 0.05), Vector3(0.02, -0.2, 0.1)], "magnitude": 0.5}
+	)
+	add_child_autofree(tube)
+	var mesh: Mesh = tube._tube_mesh.mesh
+	var before: Array[Tween] = get_tree().get_processed_tweens()
+	tube.tween_magnitude(0.6)
+	assert_eq(_new_tweens(before).size(), 0, "Path tube must create no tween")
+	assert_same(tube._tube_mesh.mesh, mesh, "Path tube mesh must be left alone")
+	await wait_process_frames(3)
+	assert_engine_error_count(0, "No 'started with no Tweeners' engine error")
+
+
+func test_tween_magnitude_cylinder_tweens_radius_to_target() -> void:
+	var tube := _make_cylinder_tube(0.5, Vector3(0, -0.2, 0))
+	var before: Array[Tween] = get_tree().get_processed_tweens()
+	tube.tween_magnitude(0.8, 0.05)
+	var created := _new_tweens(before)
+	assert_eq(created.size(), 1, "Cylinder tube creates exactly one tween")
+	await wait_for_signal(created[0].finished, 1.0)
+	var target := lerpf(FlowTubeRef.MIN_RADIUS, FlowTubeRef.MAX_RADIUS, sqrt(0.8))
+	assert_almost_eq(_get_tube_radius(tube), target, 1e-6, "Radius reaches the AC1 target")
+
+
+func test_tween_magnitude_degenerate_cylinder_creates_no_tween() -> void:
+	# start == end builds neither mesh nor particles, so there is nothing to tween.
+	var tube := _make_cylinder_tube(0.5, Vector3.ZERO)
+	var before: Array[Tween] = get_tree().get_processed_tweens()
+	tube.tween_magnitude(0.6)
+	assert_eq(_new_tweens(before).size(), 0, "Degenerate tube must create no tween")
+
+
+func test_tween_magnitude_particle_count_matches_build() -> void:
+	# #520 AC2: an identical refresh kept 30 particles at 0.5 but main cut them to
+	# 10 (x20, 2..20 against _build_particles' x60, 1..60).
+	var tube := _make_cylinder_tube(0.5, Vector3(0, -0.2, 0))
+	assert_eq(tube._particles.amount, 30, "Build count at magnitude 0.5")
+	var before: Array[Tween] = get_tree().get_processed_tweens()
+	tube.tween_magnitude(0.5, 0.05)
+	await wait_for_signal(_new_tweens(before)[0].finished, 1.0)
+	assert_eq(tube._particles.amount, 30, "Same magnitude keeps the build count")
+	before = get_tree().get_processed_tweens()
+	tube.tween_magnitude(0.8, 0.05)
+	await wait_for_signal(_new_tweens(before)[0].finished, 1.0)
+	assert_eq(tube._particles.amount, 48, "New magnitude gets _build_particles' count")
+
+
+func _make_cylinder_tube(magnitude: float, end: Vector3) -> FlowTube:
+	var tube: FlowTube = FlowTubeRef.create(
+		{"start": Vector3.ZERO, "end": end, "color": Color.BLUE, "magnitude": magnitude}
+	)
+	add_child_autofree(tube)
+	return tube
+
+
+func _new_tweens(before: Array[Tween]) -> Array[Tween]:
+	var created: Array[Tween] = []
+	for tw: Tween in get_tree().get_processed_tweens():
+		if not before.has(tw):
+			created.append(tw)
+	return created
+
+
 func _count_path_follows(node: Node) -> int:
 	var n := 0
 	for child: Node in node.get_children():

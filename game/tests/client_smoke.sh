@@ -3,8 +3,10 @@
 #
 # Godot runtime errors fail neither the build nor GUT, so they surface only in
 # the client's stdout. #484 regressed silently for two months that way. This
-# runs the real client headless against a live backend until it reaches the
-# soil cutaway, then fails on any ERROR line in the log.
+# runs the real client headless against a live backend until it has built the
+# soil cutaway and refreshed it once, then fails on any ERROR line in the log.
+# The refresh is the identical one a player gets by pressing View Soil again:
+# it drives the branch where surviving flow tubes are re-tweened (#520).
 #
 # Usage: bash game/tests/client_smoke.sh   (run from the repo root, backend up)
 # Env:   GODOT (default: godot), SMOKE_TIMEOUT seconds (default: 60),
@@ -15,8 +17,9 @@
 #
 # Stops on wall-clock time, not frame count: headless runs frames as fast as it
 # can, so --quit-after would exit before the backend answers. No production
-# client code serves this check; settings are pinned via a temporary
-# game/override.cfg, which Godot reads natively.
+# client code serves this check; settings and the test-only autoload
+# tests/smoke_refresh.gd, which presses View Soil the second time, are pinned
+# via a temporary game/override.cfg, which Godot reads natively.
 
 set -euo pipefail
 
@@ -25,9 +28,11 @@ TIMEOUT="${SMOKE_TIMEOUT:-60}"
 GRACE="${SMOKE_GRACE:-5}"
 API_URL="http://localhost:8000/openapi.json"
 OVERRIDE="game/override.cfg"
-# Printed by soil_view.gd once the flow overlay is built: proof the run
-# reached the cutaway rather than passing vacuously on an empty field.
+# Printed by soil_view.gd each time the flow overlay is built or refreshed.
+# Two lines prove the run reached the first build and the refresh, rather than
+# passing vacuously on an empty field or on the first build alone.
 LIVENESS='^\[FLOW\] tubes='
+LIVENESS_COUNT=2
 # Engine and script errors as Godot 4 prints them.
 ERROR_RE='^(USER |SCRIPT )?ERROR:'
 
@@ -45,7 +50,9 @@ strip_ansi() {
 }
 
 reached_cutaway() {
-    strip_ansi "$1" | grep -qE "$LIVENESS"
+    local builds
+    builds=$(strip_ansi "$1" | grep -cE "$LIVENESS" || true)
+    [ "$builds" -ge "$LIVENESS_COUNT" ]
 }
 
 # Exit status 1 and a per-class summary when the log holds runtime errors.
@@ -64,11 +71,11 @@ check_errors() {
 
 if [ -n "${SMOKE_CHECK_LOG:-}" ]; then
     if ! reached_cutaway "$SMOKE_CHECK_LOG"; then
-        echo "Log never reached the cutaway (no '[FLOW] tubes=')." >&2
+        echo "Log never reached the cutaway refresh (< $LIVENESS_COUNT '[FLOW] tubes=')." >&2
         exit 1
     fi
     check_errors "$SMOKE_CHECK_LOG"
-    echo "Log check: reached cutaway, 0 runtime errors."
+    echo "Log check: reached cutaway refresh, 0 runtime errors."
     exit 0
 fi
 
@@ -109,6 +116,10 @@ cat >"$OVERRIDE" <<'EOF'
 debug/skip_menu=true
 debug/auto_cutaway=true
 debug/flow_tubes_test=false
+
+[autoload]
+
+SmokeRefresh="*res://tests/smoke_refresh.gd"
 EOF
 
 "$GODOT" --headless --path game >"$LOG" 2>&1 &
@@ -126,13 +137,14 @@ for _ in $(seq "$TIMEOUT"); do
     sleep 1
 done
 if $reached; then
-    # Errors from the overlay's first physics tick land just after liveness.
+    # Errors from the refresh's first frames (tweens, physics) land just after
+    # liveness; an empty tween reports on the next process frame.
     sleep "$GRACE"
 fi
 if ! kill -0 "$godot_pid" 2>/dev/null; then
     wait "$godot_pid" || true
     if ! $reached; then
-        echo "Client exited before reaching the cutaway. Log: $LOG" >&2
+        echo "Client exited before reaching the cutaway refresh. Log: $LOG" >&2
         tail -n 30 "$LOG" >&2
         exit 1
     fi
@@ -141,7 +153,8 @@ cleanup
 godot_pid=""
 
 if ! $reached; then
-    echo "Client never reached the cutaway within ${TIMEOUT}s (no '[FLOW] tubes=')." >&2
+    echo "Client never reached the cutaway refresh within ${TIMEOUT}s" \
+        "(< $LIVENESS_COUNT '[FLOW] tubes=')." >&2
     echo "Log: $LOG" >&2
     tail -n 30 "$LOG" >&2
     exit 1
@@ -149,4 +162,4 @@ fi
 
 check_errors "$LOG"
 
-echo "Client smoke: reached cutaway, 0 runtime errors. Log: $LOG"
+echo "Client smoke: reached cutaway refresh, 0 runtime errors. Log: $LOG"
