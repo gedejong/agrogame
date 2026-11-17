@@ -77,7 +77,8 @@ def _step(
 
 
 def _save(fm: FieldManager) -> dict[str, Any]:
-    return json.loads(json.dumps(fm.to_dict()))
+    saved: dict[str, Any] = json.loads(json.dumps(fm.to_dict()))
+    return saved
 
 
 def _orchs(fm: FieldManager) -> list[Orch]:
@@ -379,3 +380,10 @@ def test_ac11_two_seasons_with_mid_season_and_boundary_saves(runs: dict) -> None
         _step(manager, start, SEASON, seed=43, year=2025)
     _assert_within_ac1(_end_values(loaded), _end_values(fm), "season 2, d=60 save")
     _assert_within_ac1(_end_values(resumed), _end_values(fm), "season 2, boundary save")
+
+
+@pytest.mark.parametrize("bad", [-1, 1.5, True, "60"])
+def test_day_counter_rejects_invalid_values(bad: Any) -> None:
+    orch = _orchs(_new_manager())[0]
+    with pytest.raises(ValueError, match="day_counter"):
+        orch.day_counter = bad
