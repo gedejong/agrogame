@@ -35,6 +35,7 @@ MAX_INTERRUPTS_PER_SEASON = 4  # (a): judgement, anchored on ADR-004's ~5 min se
 SPACING_DAYS = 3  # (e)
 FROST_GATE = {"emerged", "vegetative", "flowering"}  # (c)
 N_GATE = {"emerged", "vegetative", "flowering"}  # (d)
+DROUGHT_KS = 0.4  # PauseConfig.drought_ks_threshold
 
 
 def _catalog() -> list[tuple[str, list[dict[str, Any]]]]:
@@ -70,6 +71,8 @@ class Season:
 
     events: list[dict[str, Any]] = field(default_factory=list)
     stages: dict[tuple[str, int], set[str]] = field(default_factory=dict)
+    # Lowest emitted Ks (WaterStressComputed) over the field's patches per day.
+    min_ks: dict[tuple[str, int], float] = field(default_factory=dict)
     status_events: list[dict[str, Any]] = field(default_factory=list)
     final: dict[str, Any] = field(default_factory=dict)
 
@@ -118,6 +121,10 @@ def _play_season(client, game_id: str, seed: int, stop: bool) -> Season:
         for snap in r["daily_snapshots"]:
             key = (snap["field_id"], snap["day_number"])
             season.stages.setdefault(key, set()).add(snap["crop_stage"])
+            for ev in snap["events"]:
+                if ev["event_type"] == "WaterStressComputed":
+                    low = min(season.min_ks.get(key, 1.0), ev["data"]["stress"])
+                    season.min_ks[key] = low
         remaining = r["days_remaining"]
     status = client.get(f"/api/v1/games/{game_id}/status").json()
     season.status_events = status["pause_events"]
@@ -190,6 +197,21 @@ def test_b_sahel_sorghum_gets_a_drought_pause_every_season(runs) -> None:
     for name, season in _seasons(runs, sahel):
         drought = [e for e in season.events if e["reason"] == "drought"]
         assert drought and all(e["interrupt"] for e in drought), name
+
+
+def test_drought_alerts_agree_with_the_simulated_water_stress(runs) -> None:
+    """Every drought alert day has a patch whose emitted Ks is below threshold.
+
+    Guards the signal itself: a proxy such as topsoil theta/FC still fires in
+    the Sahel, so (b) alone cannot tell it from Ks. The emitted
+    ``WaterStressComputed`` payload is used, not the snapshot ``water_stress``
+    field, which holds the canopy's memory-averaged, VPD-scaled growth factor.
+    """
+    for name, season in _seasons(runs):
+        for e in season.events:
+            if e["reason"] == "drought":
+                key = (e["field_id"], e["day"])
+                assert season.min_ks[key] < DROUGHT_KS, (name, e)
 
 
 def test_c_frost_notices_only_in_canopy_damage_stages(runs) -> None:
