@@ -2,6 +2,7 @@ extends GutTest
 
 const FarmView = preload("res://scripts/farm_view.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
+const ApiClientTest = preload("res://tests/unit/test_api_client.gd")
 
 var _auto_cutaway: bool
 
@@ -212,6 +213,79 @@ func test_missing_game_returns_to_title_without_creating_one() -> void:
 	await wait_frames(3)
 	assert_eq(changes, ["res://scenes/main.tscn"])
 	assert_eq(api.calls, [["get_game", "gone"]], "no replacement game")
+
+
+## Chain `chain`'s reply for _PREVIEW_ACTIONS[i]. cost_credits encodes both,
+## irrigate 11/21, fertilize 12/22, tillage 13/23, lime 14/24. The older chain
+## of each overlapping pair (odd) is unaffordable and the newer (even) is
+## affordable, so a stale reply also shows in the tooltip, `disabled` and balance.
+func _preview_reply(chain: int, i: int) -> Dictionary:
+	var code: int = 10 * chain + i + 1
+	var newer: bool = chain % 2 == 0
+	var balance: int = 1000 + code if newer else code - 1
+	return {"cost_credits": code, "balance_credits": balance, "affordable": newer}
+
+
+## No button may show a code whose last digit belongs to another action.
+func _assert_own_codes(view: Node3D, after: String) -> void:
+	var price := RegEx.create_from_string("(\\d+)cr\\)$")
+	for i in range(FarmView._PREVIEW_ACTIONS.size()):
+		var btn: Button = view._action_button_for(FarmView._PREVIEW_ACTIONS[i]["action"])
+		var found := price.search(btn.text)
+		if found != null:
+			assert_eq(int(found.get_string(1)) % 10, i + 1, "%s after %s" % [btn.text, after])
+
+
+## Start chain `older` and answer its first preview, start chain `older + 1`
+## while the second is in flight (a fast second Next Day), then answer every
+## remaining preview one at a time, checking the buttons after each reply.
+func _overlap_two_refreshes(view: Node3D, api: ApiClientTest.PreviewStubClient, older: int) -> void:
+	view._refresh_action_costs()
+	api.resolve(_preview_reply(older, 0))
+	view._refresh_action_costs()
+	# The remaining replies in FIFO order, as [chain offset, action index].
+	for reply: Array in [[0, 1], [1, 0], [0, 2], [1, 1], [0, 3], [1, 2], [1, 3]]:
+		var chain: int = older + reply[0]
+		api.resolve(_preview_reply(chain, reply[1]))
+		_assert_own_codes(view, "reply %d" % (10 * chain + reply[1] + 1))
+
+
+func _assert_chain_shown(view: Node3D, chain: int) -> void:
+	for i in range(FarmView._PREVIEW_ACTIONS.size()):
+		var spec: Dictionary = FarmView._PREVIEW_ACTIONS[i]
+		var btn: Button = view._action_button_for(spec["action"])
+		var code: int = 10 * chain + i + 1
+		var label := ActionCost.format_button_label(
+			spec["label"], code, spec.get("variable_cost", false)
+		)
+		assert_eq(btn.text, label, "chain %d's price" % chain)
+		assert_eq(btn.tooltip_text, ActionCost.tooltip_text(spec["action"], code, 1000 + code))
+		assert_false(btn.disabled, "%s enabled by chain %d's reply" % [spec["label"], chain])
+	assert_eq(view._balance_credits, 1000 + 10 * chain + 4, "balance from the last reply")
+
+
+func test_overlapping_cost_refreshes_keep_each_price_on_its_own_button() -> void:
+	# #523 AC6: Next Day twice in quick succession starts a second preview chain
+	# while the first is in flight. Each reply must land on its own action's
+	# button, and once both chains finish the newest one's prices must show.
+	GameState.game_id = ""  # no hand-over, so _ready fetches nothing
+	var api: ApiClientTest.PreviewStubClient = ApiClientTest.PreviewStubClient.new()
+	add_child_autofree(api)
+	var view: Node3D = FarmViewScene.instantiate()
+	view._api_client = api
+	add_child_autofree(view)
+	view._game_id = "g"
+	# Two rounds: the queue drains completely and behaves the same next time.
+	for older: int in [1, 3]:
+		_overlap_two_refreshes(view, api, older)
+		_assert_chain_shown(view, older + 1)
+	# Each reply answered the preview then in flight, so this order is what
+	# makes the chain numbers encoded in the replies true.
+	var order := [
+		"irrigate", "fertilize", "irrigate", "tillage", "fertilize", "lime", "tillage", "lime"
+	]
+	assert_eq(api.sent.map(func(s: Array) -> String: return s[0]), order + order, "FIFO")
+	assert_eq(api.overlapping_sends, 0, "one preview in flight at a time")
 
 
 func test_unreachable_backend_stays_without_new_game() -> void:

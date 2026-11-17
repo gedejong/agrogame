@@ -16,10 +16,15 @@ var _callback: Callable
 var _season_callback: Callable
 var _step_callback: Callable
 var _action_callback: Callable
-var _preview_callback: Callable
 var _forecast_callback: Callable
 var _report_callback: Callable
 var _game_callback: Callable
+## Previews share _preview_request, which takes one request at a time, so they
+## wait here in FIFO order as {url, body, callback} (#523). Each callback stays
+## bound to its own entry, so a response can only reach the call that made it.
+## Entries are opaque: any action, any params, any number of them.
+var _preview_queue: Array[Dictionary] = []
+var _preview_in_flight: Dictionary = {}  # the entry sent; empty when idle
 
 
 func _ready() -> void:
@@ -145,24 +150,43 @@ func preview_action(
 	game_id: String, action: String, params: Dictionary, callback: Callable
 ) -> void:
 	## Fetch an action's estimated cost + affordability without executing it (#318).
-	_preview_callback = callback
+	## Queued behind any preview in flight and sent in call order (#523).
 	var req := {"field_id": "field_1", "action": action, "params": params}
-	var body_str := JSON.stringify(req)
-	(
-		_preview_request
-		. request(
-			BASE_URL + "/games/" + game_id + "/action/preview",
-			["Content-Type: application/json"],
-			HTTPClient.METHOD_POST,
-			body_str,
-		)
+	var url := BASE_URL + "/games/" + game_id + "/action/preview"
+	_preview_queue.append({"url": url, "body": JSON.stringify(req), "callback": callback})
+	_send_next_preview()
+
+
+## Send the oldest waiting preview unless one is in flight. A send request()
+## rejects fails its own entry only, and the queue moves on (#523).
+func _send_next_preview() -> void:
+	while _preview_in_flight.is_empty() and not _preview_queue.is_empty():
+		var entry: Dictionary = _preview_queue.pop_front()
+		if _send_preview(entry["url"], entry["body"]) == OK:
+			_preview_in_flight = entry
+			return
+		var callback: Callable = entry["callback"]
+		callback.call(false, {})
+
+
+## The preview path's only network call; tests override it to stub the transport.
+func _send_preview(url: String, body: String) -> Error:
+	return _preview_request.request(
+		url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, body
 	)
 
 
 func _on_preview_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:
-	_dispatch_callback(_preview_callback, result, response_code, body)
+	var entry: Dictionary = _preview_in_flight
+	_preview_in_flight = {}
+	if entry.is_empty():
+		push_error("[API] preview response with no preview in flight")
+		return
+	var callback: Callable = entry["callback"]
+	_dispatch_callback(callback, result, response_code, body)
+	_send_next_preview()
 
 
 func get_forecast(game_id: String, callback: Callable) -> void:
