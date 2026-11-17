@@ -184,13 +184,17 @@ func test_two_patches_sharing_a_soil_map_by_index() -> void:
 	assert_eq(_band(view, "crop_key"), ["maize", "maize", "maize", "rice", "rice", "rice"])
 	assert_eq(_band(view, "lai"), [1.0, 1.0, 1.0, 3.0, 3.0, 3.0])
 	assert_eq(view._daily_history.keys(), [0, 1], "one history per patch")
-	# Plant and Harvest from column 5 target patch 1; completion touches band 1 only.
+	# Plant and Harvest send the tile's own patch: 0 from column 0, 1 from column
+	# 5. A soil-name lookup gives the same index for both bands and fails here.
 	var api: ApiStub = view._api_client
-	view._select_tile(5, 0)
-	view._on_crop_selected(FarmView.AVAILABLE_CROPS.find("sorghum"))
-	assert_eq(api.calls[-1], ["action", "plant", {"crop_key": "sorghum", "patch_idx": 1}])
-	view._on_harvest_pressed()
-	assert_eq(api.calls[-1], ["action", "harvest", {"patch_idx": 1}])
+	for case: Array in [[0, 0], [5, 1]]:
+		view._select_tile(case[0], 0)
+		view._on_crop_selected(FarmView.AVAILABLE_CROPS.find("sorghum"))
+		var plant := {"crop_key": "sorghum", "patch_idx": case[1]}
+		assert_eq(api.calls[-1], ["action", "plant", plant], "plant from column %d" % case[0])
+		view._on_harvest_pressed()
+		assert_eq(api.calls[-1], ["action", "harvest", {"patch_idx": case[1]}])
+	# Completion touches band 1 only.
 	view._on_plant_complete(true, {}, "sorghum", 1)
 	assert_eq(_band(view, "crop_key"), ["maize", "maize", "maize", "sorghum", "sorghum", "sorghum"])
 

@@ -1231,6 +1231,9 @@ def test_harvest_on_bare_target_is_noop_even_if_other_patches_stand(client) -> N
 @pytest.mark.parametrize(
     ("action", "params"),
     [
+        # One past the end is the index a stale three-band client would send.
+        ("harvest", {"patch_idx": 1}),
+        ("plant", {"crop_key": "maize", "patch_idx": 1}),
         ("harvest", {"patch_idx": 5}),
         ("plant", {"crop_key": "maize", "patch_idx": 2}),
     ],
