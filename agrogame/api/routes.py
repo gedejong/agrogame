@@ -1127,6 +1127,32 @@ def step_days(game_id: str, days: int = 1, seed: int = 42) -> DayResultResponse:
     return result
 
 
+def _validated_patch_idx(field: Field, req: ActionRequest) -> int:
+    """The action's ``patch_idx``, validated at the API boundary.
+
+    A malformed value is a clean 422 rather than an unhandled
+    ValueError/TypeError (500). A ``plant`` or ``harvest`` aimed past the
+    field's last patch is a 400, raised before any cost is recorded: plant used
+    to charge seed and plant nothing (#516). A negative index, the default,
+    still means every patch.
+    """
+    raw_patch_idx = req.params.get("patch_idx", -1)
+    try:
+        patch_idx = int(raw_patch_idx)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
+        ) from exc
+    n_patches = len(field.patches)
+    if req.action in ("plant", "harvest") and patch_idx >= n_patches:
+        raise HTTPException(
+            400,
+            f"patch_idx {patch_idx} out of range; field "
+            f"{req.field_id!r} has {n_patches} patch(es)",
+        )
+    return patch_idx
+
+
 @router.post("/games/{game_id}/action", response_model=ActionResponse)
 def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     """Execute an immediate management action on the current day."""
@@ -1139,25 +1165,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     field = s.field_manager.fields[req.field_id]
 
     # Harvest targets a specific patch (or the whole field if no patch_idx).
-    # Validate at the API boundary so a malformed patch_idx yields a clean 422
-    # rather than an unhandled ValueError/TypeError → 500.
-    raw_patch_idx = req.params.get("patch_idx", -1)
-    try:
-        harvest_patch_idx = int(raw_patch_idx)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
-        ) from exc
-    # A per-patch action aimed past the field's last patch is a client error.
-    # Plant used to charge seed and plant nothing (#516); a negative index
-    # still means "every patch".
-    n_patches = len(field.patches)
-    if req.action in ("plant", "harvest") and harvest_patch_idx >= n_patches:
-        raise HTTPException(
-            400,
-            f"patch_idx {harvest_patch_idx} out of range; field "
-            f"{req.field_id!r} has {n_patches} patch(es)",
-        )
+    harvest_patch_idx = _validated_patch_idx(field, req)
 
     # Lime: validate the target layer before charging, and treat a
     # non-positive rate as a free no-op (#465).
