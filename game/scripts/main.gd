@@ -2,7 +2,11 @@ extends Control
 ## Main menu — minimal connectivity proof for AGRO-113.
 ## "New Game" button calls POST /api/v1/games via the ApiClient.
 
+const FARM_SCENE := "res://scenes/farm_view.tscn"
+
 var api_client: Node
+## Scene changer, swappable so tests can observe the hand-off (#516).
+var _change_scene: Callable
 
 @onready var new_game_button: Button = $VBoxContainer/NewGameButton
 @onready var status_label: Label = $VBoxContainer/StatusLabel
@@ -10,6 +14,7 @@ var api_client: Node
 
 
 func _ready() -> void:
+	_change_scene = get_tree().change_scene_to_file
 	api_client = preload("res://scripts/api_client.gd").new()
 	add_child(api_client)
 	_populate_scenarios()
@@ -48,9 +53,12 @@ func _on_new_game_pressed() -> void:
 
 func _on_game_created(success: bool, data: Dictionary) -> void:
 	new_game_button.disabled = false
-	if success:
-		var game_id = data.get("game_id", "unknown")
-		status_label.text = "Game created: %s — loading farm..." % game_id
-		get_tree().change_scene_to_file("res://scenes/farm_view.tscn")
-	else:
+	var game_id: String = data.get("game_id", "")
+	if not success or game_id.is_empty():
 		status_label.text = "Error: could not reach backend"
+		return
+	# Hand the chosen scenario's game to the farm view, which otherwise starts a
+	# default one (#516).
+	GameState.game_id = game_id
+	status_label.text = "Game created: %s — loading farm..." % game_id
+	_change_scene.call(FARM_SCENE)

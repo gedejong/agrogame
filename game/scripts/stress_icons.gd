@@ -102,26 +102,25 @@ func _process(_delta: float) -> void:
 			lbl.visible = close
 
 
-func update_from_patches(
-	patches: Dictionary, tile_data: Array, tile_meshes: Array, soil_types: Array
-) -> void:
+## Stresses map to tiles by patch_idx, never soil name (#516).
+func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Array) -> void:
 	var active_stresses: Dictionary = {}
 	for field_key: String in patches:
 		var patch_list: Array = patches[field_key]
 		for pi in range(patch_list.size()):
 			var patch: Dictionary = patch_list[pi]
 			var events: Array = patch.get("events", [])
-			var soil: String = soil_types[pi] if pi < soil_types.size() else ""
+			var pkey: String = str(pi)  # stress keys are per patch index (#516)
 			# Event-based stress
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
 				if EVENT_STRESS.has(etype):
-					active_stresses[soil + "_" + etype] = {"soil": soil, "stress_key": etype}
+					active_stresses[pkey + "_" + etype] = {"pkey": pkey, "stress_key": etype}
 				# Threshold-based: water stress
 				if etype == "WaterStressComputed":
 					var stress: float = float(evt.get("data", {}).get("stress", 1.0))
 					if stress < STRESS_THRESHOLD:
-						active_stresses[soil + "_drought"] = {"soil": soil, "stress_key": "drought"}
+						active_stresses[pkey + "_drought"] = {"pkey": pkey, "stress_key": "drought"}
 				# Threshold-based: nutrient stress
 				if etype == "NutrientStressComputed":
 					var data: Dictionary = evt.get("data", {})
@@ -129,38 +128,38 @@ func update_from_patches(
 					var stress: float = float(data.get("stress", 1.0))
 					if stress < STRESS_THRESHOLD:
 						if nutrient == "N":
-							active_stresses[soil + "_n_deficiency"] = {
-								"soil": soil, "stress_key": "n_deficiency"
+							active_stresses[pkey + "_n_deficiency"] = {
+								"pkey": pkey, "stress_key": "n_deficiency"
 							}
 						elif nutrient == "P":
-							active_stresses[soil + "_p_deficiency"] = {
-								"soil": soil, "stress_key": "p_deficiency"
+							active_stresses[pkey + "_p_deficiency"] = {
+								"pkey": pkey, "stress_key": "p_deficiency"
 							}
 						elif nutrient == "Fe":
-							active_stresses[soil + "_fe_deficiency"] = {
-								"soil": soil, "stress_key": "fe_deficiency"
+							active_stresses[pkey + "_fe_deficiency"] = {
+								"pkey": pkey, "stress_key": "fe_deficiency"
 							}
 						elif nutrient == "Zn":
-							active_stresses[soil + "_zn_deficiency"] = {
-								"soil": soil, "stress_key": "zn_deficiency"
+							active_stresses[pkey + "_zn_deficiency"] = {
+								"pkey": pkey, "stress_key": "zn_deficiency"
 							}
 						elif nutrient == "Mn":
-							active_stresses[soil + "_mn_deficiency"] = {
-								"soil": soil, "stress_key": "mn_deficiency"
+							active_stresses[pkey + "_mn_deficiency"] = {
+								"pkey": pkey, "stress_key": "mn_deficiency"
 							}
 				# Redox: anaerobic stress when Eh < -100 mV
 				if etype == "RedoxChanged":
 					var eh: float = float(evt.get("data", {}).get("eh_mv", 400.0))
 					if eh < -100.0:
-						active_stresses[soil + "_anaerobic"] = {
-							"soil": soil, "stress_key": "anaerobic"
+						active_stresses[pkey + "_anaerobic"] = {
+							"pkey": pkey, "stress_key": "anaerobic"
 						}
 	# Map stresses to tile indices
 	var tile_stresses: Dictionary = {}
 	for key: String in active_stresses:
 		var info: Dictionary = active_stresses[key]
 		for i in range(tile_data.size()):
-			if tile_data[i].get("soil_type", "") == info["soil"]:
+			if str(tile_data[i].get("patch_idx", -1)) == info["pkey"]:
 				if not tile_stresses.has(i):
 					tile_stresses[i] = []
 				var sk: String = info["stress_key"]

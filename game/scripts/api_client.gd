@@ -11,6 +11,7 @@ var _action_request: HTTPRequest
 var _preview_request: HTTPRequest
 var _forecast_request: HTTPRequest
 var _report_request: HTTPRequest
+var _game_request: HTTPRequest
 var _callback: Callable
 var _season_callback: Callable
 var _step_callback: Callable
@@ -18,6 +19,7 @@ var _action_callback: Callable
 var _preview_callback: Callable
 var _forecast_callback: Callable
 var _report_callback: Callable
+var _game_callback: Callable
 
 
 func _ready() -> void:
@@ -189,6 +191,27 @@ func _on_report_completed(
 	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
 ) -> void:
 	_dispatch_callback(_report_callback, result, response_code, body)
+
+
+## Game status plus each field's patch layout (#516). A 404 (the backend has
+## lost the game, e.g. after a restart) reports {"not_found": true}, so the
+## caller can tell it apart from an unreachable backend.
+func get_game(game_id: String, callback: Callable) -> void:
+	if not _game_request:
+		_game_request = HTTPRequest.new()
+		add_child(_game_request)
+		_game_request.request_completed.connect(_on_game_completed)
+	_game_callback = callback
+	_game_request.request(BASE_URL + "/games/" + game_id, [], HTTPClient.METHOD_GET, "")
+
+
+func _on_game_completed(
+	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
+) -> void:
+	if result == HTTPRequest.RESULT_SUCCESS and response_code == 404:
+		_game_callback.call(false, {"not_found": true})
+		return
+	_dispatch_callback(_game_callback, result, response_code, body)
 
 
 func _dispatch_callback(

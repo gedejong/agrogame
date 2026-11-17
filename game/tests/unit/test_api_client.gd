@@ -89,3 +89,17 @@ func test_run_season_failed_setup_does_not_step() -> void:
 	assert_eq(api.calls, [["start_season", "g1"]], "no /step after a failed setup")
 	assert_eq(results, [[false, {}]])
 	api.free()
+
+
+func test_get_game_tells_not_found_from_unreachable() -> void:
+	# #516: a 404 means the backend lost the game; the farm view returns to the title.
+	var client = ApiClientScript.new()
+	var got: Array = []
+	client._game_callback = func(ok: bool, data: Dictionary) -> void: got.append([ok, data])
+	var none := PackedByteArray()
+	var body := JSON.stringify({"game_id": "g"}).to_utf8_buffer()
+	client._on_game_completed(HTTPRequest.RESULT_SUCCESS, 404, PackedStringArray(), none)
+	client._on_game_completed(HTTPRequest.RESULT_CANT_CONNECT, 0, PackedStringArray(), none)
+	client._on_game_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), body)
+	assert_eq(got, [[false, {"not_found": true}], [false, {}], [true, {"game_id": "g"}]])
+	client.free()

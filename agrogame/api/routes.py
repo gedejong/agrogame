@@ -30,6 +30,7 @@ from agrogame.api.models import (
     GameStatusResponse,
     HarvestReportResponse,
     PatchDayResponse,
+    PatchLayoutResponse,
     PatchResultResponse,
     PatchYieldReport,
     PauseEventResponse,
@@ -310,6 +311,27 @@ def _reset_pause_state(s: GameSession) -> None:
         s.pause_detector.reset()
 
 
+def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
+    """Every field's patches with their current config, in patch order (#516).
+
+    The client lays out its tiles from this, so a one-patch scenario renders as
+    one band instead of the three hard-coded soil bands.
+    """
+    return {
+        fid: [
+            PatchLayoutResponse(
+                patch_idx=i,
+                soil_profile_key=p.config.soil_profile_key,
+                crop_key=p.config.crop_key,
+                climate_key=p.config.climate_key,
+                area_fraction=p.config.area_fraction,
+            )
+            for i, p in enumerate(field.patches)
+        ]
+        for fid, field in s.field_manager.fields.items()
+    }
+
+
 @router.post("/games", response_model=GameCreatedResponse)
 def create_game(req: CreateGameRequest) -> GameCreatedResponse:
     """Create a new game session."""
@@ -359,6 +381,7 @@ def get_game(game_id: str) -> GameStatusResponse:
         current_day=current_day,
         balance_credits=s.ledger.balance_credits,
         pause_events=_pause_event_responses(s.pause_events),
+        fields=_field_layouts(s),
     )
 
 
@@ -487,6 +510,7 @@ def get_status(game_id: str) -> GameStatusResponse:
         balance_credits=s.ledger.balance_credits,
         pause_events=_pause_event_responses(s.pause_events),
         season_result=season_result,
+        fields=_field_layouts(s),
     )
 
 
@@ -1165,6 +1189,32 @@ def step_days(
     return result
 
 
+def _validated_patch_idx(field: Field, req: ActionRequest) -> int:
+    """The action's ``patch_idx``, validated at the API boundary.
+
+    A malformed value is a clean 422 rather than an unhandled
+    ValueError/TypeError (500). A ``plant`` or ``harvest`` aimed past the
+    field's last patch is a 400, raised before any cost is recorded: plant used
+    to charge seed and plant nothing (#516). A negative index, the default,
+    still means every patch.
+    """
+    raw_patch_idx = req.params.get("patch_idx", -1)
+    try:
+        patch_idx = int(raw_patch_idx)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
+        ) from exc
+    n_patches = len(field.patches)
+    if req.action in ("plant", "harvest") and patch_idx >= n_patches:
+        raise HTTPException(
+            400,
+            f"patch_idx {patch_idx} out of range; field "
+            f"{req.field_id!r} has {n_patches} patch(es)",
+        )
+    return patch_idx
+
+
 @router.post("/games/{game_id}/action", response_model=ActionResponse)
 def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     """Execute an immediate management action on the current day."""
@@ -1177,15 +1227,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     field = s.field_manager.fields[req.field_id]
 
     # Harvest targets a specific patch (or the whole field if no patch_idx).
-    # Validate at the API boundary so a malformed patch_idx yields a clean 422
-    # rather than an unhandled ValueError/TypeError → 500.
-    raw_patch_idx = req.params.get("patch_idx", -1)
-    try:
-        harvest_patch_idx = int(raw_patch_idx)
-    except (TypeError, ValueError) as exc:
-        raise HTTPException(
-            422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
-        ) from exc
+    harvest_patch_idx = _validated_patch_idx(field, req)
 
     # Lime: validate the target layer before charging, and treat a
     # non-positive rate as a free no-op (#465).
@@ -1201,7 +1243,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                 day_number=s.day_index,
             )
 
-    # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
+    # Guard: harvesting a bare target is a no-op — no charge,
     # no result clobber (#341). The frontend gates the UI path, but the backend
     # must be safe too. Scoped to the requested patch so a multi-patch field
     # only no-ops when that patch is bare (#359).

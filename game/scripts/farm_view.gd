@@ -14,25 +14,6 @@ const TILE_HEIGHT := 0.1
 ## Crop heights and soil depths are divided by this to get world units.
 const METERS_PER_TILE := 2.0
 
-const SOIL_TYPES: Array[String] = ["sandy", "organic", "clay"]
-const SOIL_TEXTURES := {
-	"sandy":
-	{
-		"albedo": "res://assets/textures/soil_sandy_albedo.png",
-		"normal": "res://assets/textures/soil_sandy_normal.png",
-	},
-	"organic":
-	{
-		"albedo": "res://assets/textures/soil_loam_albedo.png",
-		"normal": "res://assets/textures/soil_loam_normal.png",
-	},
-	"clay":
-	{
-		"albedo": "res://assets/textures/soil_clay_albedo.png",
-		"normal": "res://assets/textures/soil_clay_normal.png",
-	},
-}
-
 ## Wind: mapped from weather API wind_m_s. Calm=0.05, gale=1.0.
 ## Ref: Beaufort scale — 0-2 m/s calm, 2-5 breeze, 5-10 strong, >10 gale.
 const WIND_SCALE_MAX_MS := 8.0
@@ -97,9 +78,13 @@ var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 var _debug_console: DebugConsole = null
 var _debug := FarmViewDebug.new()
-## Per-patch history: keyed by soil_type, each an Array[Dictionary].
+## Per-patch history: keyed by patch_idx, each an Array[Dictionary].
 ## Capped at FarmViewHistory.MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
+var _layout: Array = []  # field_1's patches as laid out on the tiles (#516)
+## Scene changer and title-return delay, swappable so tests can observe them.
+var _change_scene: Callable
+var _title_delay_s: float = 2.0
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -128,10 +113,12 @@ var _daily_history: Dictionary = {}
 
 
 func _ready() -> void:
-	_api_client = preload("res://scripts/api_client.gd").new()
-	add_child(_api_client)
-	# Force fresh game creation (stale IDs from old server cause empty events)
-	GameState.game_id = ""
+	if _api_client == null:  # tests inject a stub before _ready
+		_api_client = preload("res://scripts/api_client.gd").new()
+		add_child(_api_client)
+	_change_scene = get_tree().change_scene_to_file
+	# Keep the handed-over game (#516); _ensure_game covers debug tools and tests.
+	_game_id = GameState.game_id
 	next_day_btn.pressed.connect(_on_next_day)
 	ff7_btn.pressed.connect(_on_ff7)
 	ff_all_btn.pressed.connect(_on_ff_all)
@@ -147,6 +134,7 @@ func _ready() -> void:
 	_setup_lime_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
+	_apply_layout(ScenarioCatalog.default_patches())
 	_stress_icons = StressIcons.new()
 	add_child(_stress_icons)
 	# Debug console: toggle with backtick (`)
@@ -160,6 +148,8 @@ func _ready() -> void:
 	add_child(debug_layer)
 	debug_layer.add_child(_debug_console)
 	status_label.text = "3D view \u2014 click tile to select"
+	if not _game_id.is_empty():
+		_load_layout()
 	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
 	if debug_auto:
 		_start_debug_driver()
@@ -199,16 +189,8 @@ func _build_tile_grid() -> void:
 	var offset_z: float = (GRID_ROWS - 1) * TILE_SIZE / 2.0
 	for row in range(GRID_ROWS):
 		for col in range(GRID_COLS):
-			var soil_type := _soil_type_for(col)
 			var mat := ShaderMaterial.new()
 			mat.shader = shader
-			var tex_paths: Dictionary = SOIL_TEXTURES[soil_type]
-			var albedo_tex: Texture2D = load(tex_paths["albedo"])
-			var normal_tex: Texture2D = load(tex_paths["normal"])
-			if albedo_tex:
-				mat.set_shader_parameter("albedo_texture", albedo_tex)
-			if normal_tex:
-				mat.set_shader_parameter("normal_texture", normal_tex)
 			mat.set_shader_parameter("som_frac", 0.0)
 			mat.set_shader_parameter("moisture_frac", 0.0)
 			mat.set_shader_parameter("selected", 0.0)
@@ -244,7 +226,6 @@ func _build_tile_grid() -> void:
 					{
 						"col": col,
 						"row": row,
-						"soil_type": soil_type,
 						"crop_key": "",
 						"crop_stage": 0,
 						"lai": 0.0,
@@ -257,12 +238,32 @@ func _build_tile_grid() -> void:
 			)
 
 
-static func _soil_type_for(col: int) -> String:
-	if col < 2:
-		return "sandy"
-	if col >= 4:
-		return "clay"
-	return "organic"
+func _apply_layout(patches: Array) -> void:
+	## Lay field_1's patches out as column bands, textured by soil (#516).
+	_layout = patches
+	FarmLayout.assign_tiles(patches, _tile_data, _tile_materials, GRID_COLS)
+
+
+func _load_layout() -> void:
+	## Actions wait for the layout, so none targets the placeholder bands.
+	_set_buttons_disabled(true)
+	_api_client.get_game(_game_id, _on_game_loaded)
+
+
+func _on_game_loaded(success: bool, data: Dictionary) -> void:
+	var patches: Array = FarmLayout.patches_from_game(data)
+	if data.get("not_found", false):
+		# Backend lost the game (e.g. restarted): never substitute a default (#516).
+		status_label.text = "Game not found, returning to title"
+		_game_id = ""
+		GameState.game_id = ""
+		var title := "res://scenes/main.tscn"
+		get_tree().create_timer(_title_delay_s).timeout.connect(_change_scene.bind(title))
+	elif not success or patches.is_empty():
+		status_label.text = "Error: could not load game %s" % _game_id
+	else:
+		_apply_layout(patches)
+		_set_buttons_disabled(false)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -354,9 +355,8 @@ func _on_quick_status_history() -> void:
 		return
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var data: Dictionary = _tile_data[idx]
-	var soil_type: String = data.get("soil_type", "")
-	var history: Array = _daily_history.get(soil_type, [])
-	_cutaway.show_tile_info(soil_type, data.get("crop_key", ""), history, $UILayer)
+	var history: Array = _daily_history.get(data.get("patch_idx", 0), [])
+	_cutaway.show_tile_info(data.get("soil_type", ""), data.get("crop_key", ""), history, $UILayer)
 
 
 func _update_tile_shader(idx: int) -> void:
@@ -617,7 +617,7 @@ func _apply_day_result(data: Dictionary) -> void:
 	FarmViewDebug.apply_wind_to_all_crops(_crop_sprites, _wind_strength, _wind_dir)
 
 	var snapshots: Array = data.get("daily_snapshots", [])
-	FarmViewHistory.append_snapshots(snapshots, _daily_history, SOIL_TYPES)
+	FarmViewHistory.append_snapshots(snapshots, _daily_history, _layout)
 
 	var patches: Dictionary = data.get("patches", {})
 	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
@@ -630,9 +630,6 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		var patch_list: Array = patches[field_key]
 		for patch_idx in range(patch_list.size()):
 			var patch: Dictionary = patch_list[patch_idx]
-			var patch_soil: String = ""
-			if patch_idx < SOIL_TYPES.size():
-				patch_soil = SOIL_TYPES[patch_idx]
 			var stage_name: String = patch.get("crop_stage", "")
 			var stage: int = _STAGE_MAP.get(stage_name, 0)
 			var lai: float = patch.get("lai", 0.0)
@@ -645,7 +642,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 			var dev_stage: float = float(patch.get("dev_stage", -1.0))
 			# Accumulate per-patch history (skip when daily_snapshots covered it)
 			if not skip_history:
-				FarmViewHistory.append_patch(patch, patch_soil, _daily_history)
+				FarmViewHistory.append_patch(patch, patch_idx, _daily_history)
 			# Extract per-nutrient stress from events (#262)
 			var n_stress: float = 0.0
 			var p_stress: float = 0.0
@@ -680,7 +677,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					)
 					heat_dmg = maxf(heat_dmg, hs)
 			for i in range(_tile_data.size()):
-				if _tile_data[i]["soil_type"] == patch_soil or patch_soil.is_empty():
+				if _tile_data[i]["patch_idx"] == patch_idx:
 					_tile_data[i]["som_total_c_g_m2"] = som
 					_tile_data[i]["theta_surface"] = theta
 					# Season-peak LAI anchors canopy-loss senescence; it resets
@@ -707,11 +704,10 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 					_update_crop_visuals(i)
 	# Update stress icons from patch events
 	if _stress_icons:
-		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes, SOIL_TYPES)
+		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes)
 	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-		var soil_type: String = _tile_data[idx]["soil_type"]
-		var history: Array = _daily_history.get(soil_type, [])
+		var history: Array = _daily_history.get(_tile_data[idx]["patch_idx"], [])
 		_cutaway.update_tile_info(history)
 	# Crop stage may have changed (e.g. reached maturity or was cleared).
 	_update_harvest_button()
@@ -812,11 +808,8 @@ func _on_harvest_pressed() -> void:
 		status_label.text = "Select a patch with a standing crop to harvest"
 		return
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-	var soil_type: String = _tile_data[idx]["soil_type"]
 	var crop_key: String = _tile_data[idx].get("crop_key", "")
-	var patch_idx := SOIL_TYPES.find(soil_type)
-	if patch_idx < 0:
-		patch_idx = 0
+	var patch_idx: int = _tile_data[idx]["patch_idx"]
 	_ensure_game(
 		func() -> void:
 			_set_buttons_disabled(true)
@@ -826,14 +819,14 @@ func _on_harvest_pressed() -> void:
 					_game_id,
 					"harvest",
 					{"patch_idx": patch_idx},
-					_on_harvest_complete.bind(crop_key, soil_type),
+					_on_harvest_complete.bind(crop_key, patch_idx),
 				)
 			)
 	)
 
 
 func _on_harvest_complete(
-	success: bool, data: Dictionary, crop_key: String, soil_type: String
+	success: bool, data: Dictionary, crop_key: String, patch_idx: int
 ) -> void:
 	_set_buttons_disabled(false)
 	if not success:
@@ -843,7 +836,7 @@ func _on_harvest_complete(
 	credits_label.text = "%d" % data.get("balance_credits", 0)
 	# Backend really settled + cleared the crop, so this clear survives /step.
 	for i in range(_tile_data.size()):
-		if _tile_data[i]["soil_type"] == soil_type:
+		if _tile_data[i]["patch_idx"] == patch_idx:
 			_tile_data[i]["crop_key"] = ""
 			_tile_data[i]["crop_stage"] = 0
 			_tile_data[i]["lai"] = 0.0
@@ -897,10 +890,7 @@ func _on_crop_selected(id: int) -> void:
 		return
 	var crop_key: String = AVAILABLE_CROPS[id]
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-	var soil_type: String = _tile_data[idx]["soil_type"]
-	var patch_idx := SOIL_TYPES.find(soil_type)
-	if patch_idx < 0:
-		patch_idx = 0
+	var patch_idx: int = _tile_data[idx]["patch_idx"]
 	_ensure_game(
 		func() -> void:
 			(
@@ -909,22 +899,20 @@ func _on_crop_selected(id: int) -> void:
 					_game_id,
 					"plant",
 					{"crop_key": crop_key, "patch_idx": patch_idx},
-					_on_plant_complete.bind(crop_key, soil_type),
+					_on_plant_complete.bind(crop_key, patch_idx),
 				)
 			)
 	)
 
 
-func _on_plant_complete(
-	success: bool, data: Dictionary, crop_key: String, soil_type: String
-) -> void:
+func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch_idx: int) -> void:
 	if not success:
 		status_label.text = "Plant failed"
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
 	for i in range(_tile_data.size()):
-		if _tile_data[i]["soil_type"] == soil_type:
+		if _tile_data[i]["patch_idx"] == patch_idx:
 			_tile_data[i]["crop_key"] = crop_key
 			_tile_data[i]["crop_stage"] = 1
 			_tile_data[i]["lai"] = 0.0
@@ -968,7 +956,6 @@ func _show_soil_cutaway() -> void:
 		"patches": _last_step_data.get("patches", {}),
 		"grid_cols": GRID_COLS,
 		"grid_rows": GRID_ROWS,
-		"soil_types": SOIL_TYPES,
 		"update_crop_fn": _update_crop_visuals,
 	}
 	if not _cutaway.show_cutaway(ctx, self, $UILayer):

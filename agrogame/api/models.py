@@ -229,6 +229,16 @@ class PauseEventResponse(BaseModel):
     )
 
 
+class PatchLayoutResponse(BaseModel):
+    """One patch's current configuration, so a client can lay out the field (#516)."""
+
+    patch_idx: int
+    soil_profile_key: str
+    crop_key: str = Field(description="Current crop; empty after a per-patch harvest")
+    climate_key: str
+    area_fraction: float
+
+
 class GameStatusResponse(BaseModel):
     game_id: str
     phase: str
@@ -236,6 +246,10 @@ class GameStatusResponse(BaseModel):
     balance_credits: int
     pause_events: list[PauseEventResponse] = Field(default_factory=list)
     season_result: SeasonResultResponse | None = None
+    fields: dict[str, list[PatchLayoutResponse]] = Field(
+        default_factory=dict,
+        description="Each field's patches in patch order, with current config (#516)",
+    )
 
 
 class GameCreatedResponse(BaseModel):
