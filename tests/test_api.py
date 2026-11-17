@@ -2437,58 +2437,279 @@ def test_two_run_season_cycles_carry_soil_over(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# AC (#486): turn managers never accumulate on the first patch's bus
+# AC (#486), restated for #470: nothing in the game layer accumulates on a bus
 # ---------------------------------------------------------------------------
-def _turn_manager_handlers(game_id: str) -> int:
+# #486 fixed a turn manager that re-subscribed every season. Since #470 the
+# manager subscribes nothing and pause detection reads each patch's day record,
+# so the invariant is stronger: no game-layer handler on any patch bus, and the
+# bus handler count stays flat across seasons and repeated setup.
+def _game_layer_handlers(game_id: str) -> int:
     from agrogame.api.state import games
-    from agrogame.game.turn import GameTurnManager
-    from agrogame.plant.events import NutrientStressComputed
+    from agrogame.game.turn import GameTurnManager, PauseDetector
+
+    count = 0
+    for fld in games[game_id].field_manager.fields.values():
+        for patch in fld.patches:
+            for handlers in patch.orch.event_bus._handlers.values():
+                count += sum(
+                    1
+                    for h in handlers
+                    if isinstance(
+                        getattr(h, "__self__", None), GameTurnManager | PauseDetector
+                    )
+                )
+    return count
+
+
+def _bus_handler_total(game_id: str) -> int:
+    from agrogame.api.state import games
 
     bus = games[game_id].field_manager.fields["f1"].patches[0].orch.event_bus
-    return sum(
-        1
-        for h in bus._handlers.get(NutrientStressComputed, [])
-        if isinstance(getattr(h, "__self__", None), GameTurnManager)
-    )
+    return sum(len(h) for h in bus._handlers.values())
 
 
 def test_turn_manager_handlers_constant_across_three_seasons(client) -> None:
-    """AC1 as written (#486): N=3 seasons leave the same count as one.
-
-    Note: this holds even without the fix, because orch.reset_crop clears the
-    bus every season; the stacking test below is the one that detects a leak.
-    """
+    """N=3 seasons leave the bus exactly as one season did (#486, #470)."""
     game_id = _create_game(client)
     _run_season(client, game_id, 60, 42)
-    after_one = _turn_manager_handlers(game_id)
+    after_one = _bus_handler_total(game_id)
     _run_season(client, game_id, 60)
     _run_season(client, game_id, 60)
-    assert after_one == 1
-    assert _turn_manager_handlers(game_id) == after_one
+    assert _bus_handler_total(game_id) == after_one
+    assert _game_layer_handlers(game_id) == 0
 
 
 def test_repeated_setup_within_a_season_does_not_stack_managers(client) -> None:
-    """Re-running /start-season mid-season replaces, not stacks, the manager.
+    """Re-running /start-season mid-season replaces the manager, adds no handler.
 
     Setup-only /start-season (#487) does not reset the crop within a season, so
-    nothing clears the bus between calls; the old manager must unsubscribe.
+    nothing clears the bus between calls (#486).
     """
     from agrogame.api.state import games
 
     game_id = _create_game(client)
     client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
     first = games[game_id].turn_manager
+    after_first = _bus_handler_total(game_id)
     client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
     client.post(f"/api/v1/games/{game_id}/start-season?days=30&seed=42")
-    assert _turn_manager_handlers(game_id) == 1
-    # The replaced manager is deaf to events emitted after replacement.
-    from agrogame.plant.events import NutrientStressComputed
+    assert games[game_id].turn_manager is not first
+    assert _bus_handler_total(game_id) == after_first
+    assert _game_layer_handlers(game_id) == 0
 
-    bus = games[game_id].field_manager.fields["f1"].patches[0].orch.event_bus
-    bus.emit(
-        NutrientStressComputed(
-            nutrient="N", uptake_kg_ha=1.0, demand_kg_ha=2.0, stress=0.2
-        )
+
+# ---------------------------------------------------------------------------
+# AC (#470): in-season pauses on the /step path
+# ---------------------------------------------------------------------------
+def _create_single_patch_game(client, soil: str, crop: str, climate: str) -> str:
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [
+                {
+                    "field_id": "f1",
+                    "patches": [
+                        {
+                            "soil_profile_key": soil,
+                            "crop_key": crop,
+                            "climate_key": climate,
+                            "area_fraction": 1.0,
+                        }
+                    ],
+                }
+            ],
+            "starting_credits": 10000,
+        },
     )
-    assert first._last_n_stress == 1.0
-    assert games[game_id].turn_manager._last_n_stress == pytest.approx(0.2)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["game_id"]
+
+
+def _sahel_game(client) -> str:
+    return _create_single_patch_game(
+        client, "sandy_subsaharan", "sorghum", "sahel_arid"
+    )
+
+
+def _step(client, game_id: str, query: str) -> dict:
+    resp = client.post(f"/api/v1/games/{game_id}/step?{query}")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _drive_with_stops(client, game_id: str, days: int, seed: int) -> list[dict]:
+    """Step a season with stop_on_pause, resuming after every stop."""
+    responses = []
+    remaining = days
+    while remaining:
+        r = _step(client, game_id, f"days={remaining}&seed={seed}&stop_on_pause=true")
+        responses.append(r)
+        remaining = r["days_remaining"]
+    return responses
+
+
+def test_step_without_stop_on_pause_steps_all_days(client) -> None:
+    """Default /step keeps stepping the full N and lists the alerts it raised."""
+    game_id = _sahel_game(client)
+    r = _step(client, game_id, "days=200&seed=42")
+    assert (r["days_stepped"], r["days_remaining"], r["day_number"]) == (200, 0, 200)
+    assert r["stopped_on_pause"] is False
+    interrupts = [e for e in r["pause_events"] if e["interrupt"]]
+    assert interrupts and interrupts[0]["reason"] == "drought"
+    assert {e["field_id"] for e in r["pause_events"]} == {"f1"}
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    assert status["pause_events"] == r["pause_events"]
+    assert status["season_result"]["pause_count"] == len(interrupts)
+
+
+def test_step_stop_on_pause_stops_after_the_first_interrupt(client) -> None:
+    """stop_on_pause stops on the pause day; resuming reproduces the full run."""
+    full = _step(client, _sahel_game(client), "days=200&seed=42")
+    first = next(e for e in full["pause_events"] if e["interrupt"])
+
+    game_id = _sahel_game(client)
+    responses = _drive_with_stops(client, game_id, 200, 42)
+    stop = responses[0]
+    assert stop["stopped_on_pause"] is True
+    assert stop["days_stepped"] == stop["day_number"] == first["day"]
+    assert stop["days_remaining"] == 200 - first["day"]
+    assert stop["pause_events"][-1] == first
+    assert len(stop["daily_snapshots"]) == first["day"]
+    assert sum(r["days_stepped"] for r in responses) == 200
+    assert [e for r in responses for e in r["pause_events"]] == full["pause_events"]
+
+
+def test_frost_notice_never_stops_fast_forward(client) -> None:
+    """Kenya rice raises frost notices; only interrupting pauses stop /step."""
+    game_id = _create_single_patch_game(
+        client, "clay_temperate", "rice", "kenya_highlands"
+    )
+    responses = _drive_with_stops(client, game_id, 200, 42)
+    notices = [e for r in responses for e in r["pause_events"] if not e["interrupt"]]
+    assert notices and {e["reason"] for e in notices} == {"frost_warning"}
+    for r in responses:
+        stop_day = [e for e in r["pause_events"] if e["day"] == r["day_number"]]
+        assert r["stopped_on_pause"] == any(e["interrupt"] for e in stop_day)
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    interrupts = [e for e in status["pause_events"] if e["interrupt"]]
+    assert status["season_result"]["pause_count"] == len(interrupts)
+    # The notice warns of tomorrow: `day` is 1-based, so weather[day] is the
+    # next day's record, and it is the one below the crop's threshold.
+    from agrogame.api.state import games
+
+    s = games[game_id]
+    params = s.field_manager.fields["f1"].patches[0].orch.canopy.params
+    for e in notices:
+        assert s.weather[e["day"]].tmin_c < params.frost_threshold_c, e
+
+
+def test_run_season_twice_starts_each_season_with_a_clean_slate(client) -> None:
+    """Each /start-season clears the alert log, spacing and latches (#470).
+
+    The client's Run Season flow, two seasons: season 2's /status lists only
+    what season 2's /step raised, and pause_count counts only those.
+    """
+    game_id = _sahel_game(client)
+    for _ in range(2):
+        setup = client.post(f"/api/v1/games/{game_id}/start-season?days=150&seed=42")
+        assert setup.status_code == 200, setup.text
+        fired = _step(client, game_id, "days=150")["pause_events"]
+        status = client.get(f"/api/v1/games/{game_id}/status").json()
+        assert fired and status["pause_events"] == fired
+        interrupts = sum(1 for e in fired if e["interrupt"])
+        assert status["season_result"]["pause_count"] == interrupts
+
+
+def test_phase_and_pause_count_through_a_season(client) -> None:
+    """planning → executing → settling, with the real interrupt count (#470)."""
+    game_id = _sahel_game(client)
+    assert client.get(f"/api/v1/games/{game_id}/status").json()["phase"] == "planning"
+    client.post(f"/api/v1/games/{game_id}/start-season?days=200&seed=42")
+    assert client.get(f"/api/v1/games/{game_id}/status").json()["phase"] == "executing"
+    r = _step(client, game_id, "days=200")
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    assert status["phase"] == "settling"
+    interrupts = [e for e in r["pause_events"] if e["interrupt"]]
+    assert status["season_result"]["pause_count"] == len(interrupts) >= 1
+
+
+def test_harvest_result_reports_pauses_so_far(client) -> None:
+    """A mid-season harvest records the interrupts raised up to that day."""
+    game_id = _sahel_game(client)
+    r = _step(client, game_id, "days=200&seed=42&stop_on_pause=true")
+    resp = client.post(
+        f"/api/v1/games/{game_id}/action", json={"field_id": "f1", "action": "harvest"}
+    )
+    assert resp.status_code == 200, resp.text
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    assert status["season_result"]["pause_count"] == 1 == len(r["pause_events"])
+
+
+def test_new_season_starts_with_fresh_alerts(client) -> None:
+    """A season boundary clears the log and re-arms every latch: no carry-over."""
+    from agrogame.api.state import games
+
+    game_id = _sahel_game(client)
+    s1 = _step(client, game_id, "days=200&seed=42")["pause_events"]
+    s2 = _step(client, game_id, "days=200&seed=42")["pause_events"]
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    assert status["pause_events"] == s2
+    for season in (s1, s2):
+        keys = [(e["field_id"], e["reason"], e["day"]) for e in season]
+        assert len(keys) == len(set(keys))
+        assert any(e["reason"] == "drought" for e in season)
+    assert games[game_id].pause_detector is not None
+
+
+def test_pause_latch_survives_save_load_without_duplicate(
+    client, tmp_path, monkeypatch
+) -> None:
+    """Save just after an N alert, load, continue: the alert does not refire."""
+    import agrogame.api.routes as _routes
+    from agrogame.api.state import games
+    from agrogame.game.turn import PauseConfig, PauseReason
+
+    monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)
+    game_id = _create_game(client)  # NL loam maize: N fires mid-vegetative
+    r = _step(client, game_id, "days=200&stop_on_pause=true")
+    assert [e["reason"] for e in r["pause_events"]] == ["nutrient_deficiency"]
+    before = client.get(f"/api/v1/games/{game_id}/status").json()["pause_events"]
+
+    assert client.post(f"/api/v1/games/{game_id}/save").status_code == 200
+    assert client.post(f"/api/v1/games/{game_id}/load").status_code == 200
+    assert client.get(f"/api/v1/games/{game_id}/status").json()["pause_events"] == (
+        before
+    )
+
+    # Step until the N condition has held onset_days in a row after the load:
+    # a latch reloaded fresh (armed, zero counters) would have fired by then.
+    onset = PauseConfig().n_onset_days
+    later: list[dict] = []
+    for _ in range(30):
+        later += _step(client, game_id, "days=1")["pause_events"]
+        detector = games[game_id].pause_detector
+        latch = detector.latch("f1", PauseReason.NUTRIENT_DEFICIENCY)
+        if latch.run_days >= onset:
+            break
+    assert latch.run_days >= onset, "N stress never re-held; test proves nothing"
+    assert not latch.armed
+    assert [e for e in later if e["reason"] == "nutrient_deficiency"] == []
+
+
+def test_save_load_keeps_a_deferred_reason(client, tmp_path, monkeypatch) -> None:
+    """A reason deferred by interrupt spacing is still deferred after load."""
+    import agrogame.api.routes as _routes
+    from agrogame.api.state import games
+    from agrogame.game.turn import PauseReason
+
+    monkeypatch.setattr(_routes, "_SAVE_DIR", tmp_path)
+    game_id = _create_game(client)
+    _step(client, game_id, "days=5")
+    detector = games[game_id].pause_detector
+    latch = detector.latch("f1", PauseReason.NUTRIENT_DEFICIENCY)
+    latch.deferred, latch.run_days = True, 4
+    detector._last_interrupt_day["f1"] = 4
+    expected = detector.to_dict()
+    client.post(f"/api/v1/games/{game_id}/save")
+    client.post(f"/api/v1/games/{game_id}/load")
+    assert games[game_id].pause_detector.to_dict() == expected

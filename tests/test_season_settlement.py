@@ -22,6 +22,7 @@ import agrogame.api.routes as routes  # noqa: E402
 from agrogame.api.app import create_app  # noqa: E402
 from agrogame.api.state import games  # noqa: E402
 from agrogame.game.economy import PriceTable  # noqa: E402
+from agrogame.game.turn import PauseReason  # noqa: E402
 
 NL = "netherlands_temperate"
 
@@ -70,6 +71,12 @@ def _start(client: TestClient, game_id: str, days: int = 150) -> dict:
 
 def _step(client: TestClient, game_id: str, days: int) -> dict:
     resp = client.post(f"/api/v1/games/{game_id}/step?days={days}")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
+def _step_query(client: TestClient, game_id: str, query: str) -> dict:
+    resp = client.post(f"/api/v1/games/{game_id}/step?{query}")
     assert resp.status_code == 200, resp.text
     return resp.json()
 
@@ -255,6 +262,55 @@ def test_completed_season_survives_save_and_load(client, tmp_path, monkeypatch) 
     assert client.post(f"/api/v1/games/{game_id}/load").status_code == 200
     assert _ledger(game_id) == settled
     assert games[game_id].season_completed
+
+    resp = client.post(f"/api/v1/games/{game_id}/action", json=HARVEST_0)
+    assert resp.status_code == 400, resp.text
+    assert _ledger(game_id) == settled
+
+
+def _save_and_load(client: TestClient, game_id: str) -> None:
+    assert client.post(f"/api/v1/games/{game_id}/save").status_code == 200
+    games.clear()
+    assert client.post(f"/api/v1/games/{game_id}/load").status_code == 200
+
+
+def test_alert_latches_and_settlement_survive_save_and_load(
+    client, tmp_path, monkeypatch
+) -> None:
+    """#470's latch keys and #518's completion flag round-trip together.
+
+    NL loam maize raises its N alert mid-season. The game is saved and loaded
+    just after it, with the N latch fired, and again after completion. The
+    alert log survives both loads, the N alert does not fire a second time, and
+    the season is settled exactly once: by the completing /step, not by a load.
+    """
+    monkeypatch.setattr(routes, "_SAVE_DIR", tmp_path)
+    game_id = _create(client, {"f1": [_patch("maize", 1.0)]})
+    _start(client, game_id)
+    first = _step_query(client, game_id, "days=150&stop_on_pause=true")
+    events = first["pause_events"]
+    assert [e["reason"] for e in events] == ["nutrient_deficiency"], events
+
+    _save_and_load(client, game_id)
+    latch = games[game_id].pause_detector.latch("f1", PauseReason.NUTRIENT_DEFICIENCY)
+    assert not latch.armed, "the fired N latch was reloaded re-armed"
+    assert not games[game_id].season_completed
+    last = _step(client, game_id, first["days_remaining"])
+    assert last["season_complete"]
+    events += last["pause_events"]
+    s = games[game_id]
+    settled = _ledger(game_id)
+    once = _settlement(s.field_manager.fields["f1"].patches, "maize", s.current_date)
+    assert settled[1] == once > 0
+
+    _save_and_load(client, game_id)
+    assert games[game_id].season_completed
+    assert _ledger(game_id) == settled
+    status = client.get(f"/api/v1/games/{game_id}/status").json()
+    assert status["pause_events"] == events
+    keys = [(e["field_id"], e["reason"], e["day"]) for e in events]
+    assert len(keys) == len(set(keys)), "an alert fired twice"
+    assert [e["reason"] for e in events].count("nutrient_deficiency") == 1
 
     resp = client.post(f"/api/v1/games/{game_id}/action", json=HARVEST_0)
     assert resp.status_code == 400, resp.text

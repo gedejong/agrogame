@@ -49,7 +49,7 @@ nav:
       - Game State Persistence: adr/ADR-001-game-state-persistence.md
       - Multi-field Architecture: adr/ADR-002-multi-field-architecture.md
       - Economic Model: adr/ADR-003-economic-model.md
-      - Game Loop & Turns: adr/ADR-004-game-loop-turn-system.md
+      - Game Loop & Turns (superseded): adr/ADR-004-game-loop-turn-system.md
       - Frontend Architecture: adr/ADR-005-frontend-architecture.md
       - Performance Strategy: adr/ADR-006-performance-strategy.md
       - 3D Rendering Migration: adr/ADR-007-3d-rendering-migration.md
@@ -62,6 +62,7 @@ nav:
       - Radiation Convention: adr/ADR-014-radiation-convention.md
       - SOM Steady-State Initialisation: adr/ADR-015-som-steady-state-initialisation.md
       - Preferential Flow Retirement: adr/ADR-016-preferential-flow-retirement.md
+      - In-season Alerts: adr/ADR-017-in-season-alerts.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md

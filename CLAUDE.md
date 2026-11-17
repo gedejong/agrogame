@@ -36,7 +36,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-001](docs/adr/ADR-001-game-state-persistence.md) — Game state format and persistence
 - [ADR-002](docs/adr/ADR-002-multi-field-architecture.md) — Multi-field architecture (Field → Patch → Orchestrator)
 - [ADR-003](docs/adr/ADR-003-economic-model.md) — Economic model scope (credits, price table, ledger)
-- [ADR-004](docs/adr/ADR-004-game-loop-turn-system.md) — Game loop and turn system (season phases, pause events)
+- [ADR-004](docs/adr/ADR-004-game-loop-turn-system.md) — Game loop and turn system (Superseded by ADR-017; never accepted)
 - [ADR-005](docs/adr/ADR-005-frontend-architecture.md) — Frontend: Godot 4, GDScript, "Monument Valley meets agricultural textbook"
 - [ADR-006](docs/adr/ADR-006-performance-strategy.md) — Performance: NumPy → Numba → Cython path
 - [ADR-007](docs/adr/ADR-007-3d-rendering-migration.md) — 3D rendering migration
@@ -49,6 +49,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-014](docs/adr/ADR-014-radiation-convention.md) — Canonical shortwave-radiation convention at the day-tick boundary (Accepted — decision A2: physical per-PAR RUE + crop recalibration)
 - [ADR-015](docs/adr/ADR-015-som-steady-state-initialisation.md) — SOM initial pool sizing at the kinetic steady state (depth-attenuated fresh-input shares, pools preserved across crop resets)
 - [ADR-016](docs/adr/ADR-016-preferential-flow-retirement.md) — Preferential flow is structural, not hydrological (dual-porosity water model retired; path back via #485)
+- [ADR-017](docs/adr/ADR-017-in-season-alerts.md) — Act any day, with fast-forward interrupted by in-season alerts (drought/N/frost latch, opt-in `stop_on_pause`; supersedes ADR-004)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 

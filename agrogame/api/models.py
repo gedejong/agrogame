@@ -209,14 +209,24 @@ class SeasonResultResponse(BaseModel):
     start_date: str = Field(description="Simulation start date (ISO format)")
     end_date: str = Field(description="Simulation end date (ISO format)")
     season_number: int = Field(description="1-based season counter")
-    pause_count: int
+    pause_count: int = Field(
+        description="Interrupting pauses this season (frost notices excluded)"
+    )
     field_results: dict[str, list[PatchResultResponse]]
 
 
 class PauseEventResponse(BaseModel):
-    day: int
-    reason: str
+    """An in-season alert raised by ``/step`` (#470, ADR-017)."""
+
+    day: int = Field(description="1-based day number of the step that raised it")
+    reason: str = Field(description="drought, nutrient_deficiency or frost_warning")
     message: str
+    field_id: str = Field(default="", description="Field the alert applies to")
+    interrupt: bool = Field(
+        default=True,
+        description="True if the alert stops fast-forward (stop_on_pause); "
+        "False for a notice that is only recorded",
+    )
 
 
 class PatchLayoutResponse(BaseModel):
@@ -331,6 +341,20 @@ class DayResultResponse(BaseModel):
     daily_snapshots: list[DailySnapshot] = Field(
         default_factory=list,
         description="Per-day snapshots for all stepped days" " (populated when days>1)",
+    )
+    pause_events: list[PauseEventResponse] = Field(
+        default_factory=list,
+        description="Alerts raised on the days stepped by this call (#470)",
+    )
+    days_stepped: int = Field(default=0, description="Days stepped by this call")
+    days_remaining: int = Field(
+        default=0,
+        description="Days of this request left unstepped because stop_on_pause "
+        "stopped on an interrupting pause (0 otherwise)",
+    )
+    stopped_on_pause: bool = Field(
+        default=False,
+        description="True when stop_on_pause ended this call early",
     )
 
 

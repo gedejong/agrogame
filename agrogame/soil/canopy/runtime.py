@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.phenology import PhenologyStage
 from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
@@ -13,6 +14,13 @@ from agrogame.weather.utils import saturation_vapor_pressure_kpa
 
 if TYPE_CHECKING:
     from agrogame.plant.roots.events import RootDepthChanged
+
+# Stages in which a frost day damages the canopy (``_check_frost_damage``).
+# Shared with the game-layer frost notice (#470) so an alert can never claim a
+# vulnerability the damage model does not apply.
+FROST_VULNERABLE_STAGES: frozenset[PhenologyStage] = frozenset(
+    {PhenologyStage.EMERGED, PhenologyStage.VEGETATIVE, PhenologyStage.FLOWERING}
+)
 
 
 @dataclass
@@ -121,14 +129,7 @@ class CanopyRuntime:
         loss = LAI * fraction * clamp((threshold - tmin) / 10, 0, 1)
         Ref: DSSAT CERES frost kill; Hatfield & Prueger 2015.
         """
-        from agrogame.soil.phenology import PhenologyStage
-
-        stage = self.canopy._current_stage
-        if stage not in (
-            PhenologyStage.EMERGED,
-            PhenologyStage.VEGETATIVE,
-            PhenologyStage.FLOWERING,
-        ):
+        if self.canopy._current_stage not in FROST_VULNERABLE_STAGES:
             return
         p = self.canopy.params
         if tmin_c >= p.frost_threshold_c:

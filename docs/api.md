@@ -8,7 +8,7 @@ key_classes: []
 key_events: []
 primary_tests:
   - tests/test_api.py
-related_adrs: [ADR-002, ADR-003, ADR-004, ADR-005]
+related_adrs: [ADR-002, ADR-003, ADR-005, ADR-017]
 ---
 
 # API
@@ -22,6 +22,7 @@ external automation. In-memory game sessions are keyed by `game_id`.
 - `POST /api/v1/games/{game_id}/start-season` — set up a season (crop and
   ledger reset from season 2 on, seeded weather) **without stepping**; see below
 - `POST /api/v1/games/{game_id}/step` — advance N days, returning daily snapshots
+  and in-season alerts; `stop_on_pause=true` stops on an interrupting alert
 - `POST /api/v1/games/{game_id}/action` — apply a management action (plant,
   irrigate, fertilize, harvest, …). `plant` and `harvest` take an optional
   `patch_idx` (default `-1`: every patch). An index at or past the field's
@@ -60,6 +61,25 @@ The `/step` that first reports `season_complete: true` also settles the season
 `balance_credits` already includes the revenue. `/report` is a read with no
 side effects. Until the next season starts, `harvest` on `/action` and
 `/action/preview` returns 400 ("Season settled: start the next season").
+
+## In-season alerts (#470, ADR-017)
+
+Every `/step` response lists the alerts raised on the days it stepped:
+
+```json
+{"pause_events": [{"day": 6, "field_id": "field_1", "reason": "drought",
+  "message": "Drought: water stress Ks 0.33 below 0.40", "interrupt": true}],
+ "days_stepped": 6, "days_remaining": 194, "stopped_on_pause": true}
+```
+
+`reason` is `drought`, `nutrient_deficiency` or `frost_warning`. Frost is a
+notice (`interrupt: false`) and never stops a step. By default `/step` steps
+all N days. With `stop_on_pause=true` it stops after the first day on which an
+interrupting alert fires, and `days_remaining` is the part of the request left
+unstepped, so a client resumes with `/step?days=<days_remaining>`. Stopping and
+resuming gives the same simulation as one uninterrupted call. `GET /status`
+returns this season's alerts, and `season_result.pause_count` counts the
+interrupting ones.
 
 ## Run
 
