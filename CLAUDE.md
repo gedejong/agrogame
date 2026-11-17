@@ -48,6 +48,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-013](docs/adr/ADR-013-plant-nitrogen-stock.md) — Whole-shoot plant-N accounting
 - [ADR-014](docs/adr/ADR-014-radiation-convention.md) — Canonical shortwave-radiation convention at the day-tick boundary (Accepted — decision A2: physical per-PAR RUE + crop recalibration)
 - [ADR-015](docs/adr/ADR-015-som-steady-state-initialisation.md) — SOM initial pool sizing at the kinetic steady state (depth-attenuated fresh-input shares, pools preserved across crop resets)
+- [ADR-016](docs/adr/ADR-016-preferential-flow-retirement.md) — Preferential flow is structural, not hydrological (dual-porosity water model retired; path back via #485)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 

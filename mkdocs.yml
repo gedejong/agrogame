@@ -61,6 +61,7 @@ nav:
       - Whole-shoot Plant-N Accounting: adr/ADR-013-plant-nitrogen-stock.md
       - Radiation Convention: adr/ADR-014-radiation-convention.md
       - SOM Steady-State Initialisation: adr/ADR-015-som-steady-state-initialisation.md
+      - Preferential Flow Retirement: adr/ADR-016-preferential-flow-retirement.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md
