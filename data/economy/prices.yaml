@@ -13,6 +13,10 @@ input_costs:
   fertilizer_urea: 1          # ~0.45 kg N per kg urea
   fertilizer_ammonium_nitrate: 1
   fertilizer_tsp: 2           # triple superphosphate
+  # Soil amendments, per kg product. Ground agricultural limestone is
+  # ~EUR 30-50/t delivered and spread; this table runs ~2x the real world
+  # (urea at 1 cr/kg vs ~EUR 400/t), so 75 cr/t = 0.075 cr/kg (#465).
+  amendment_lime_per_kg: 0.075
   # Irrigation cost per mm applied per ha
   irrigation_per_mm: 2
   # Labor cost per management action

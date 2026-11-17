@@ -18,10 +18,13 @@ const LABELS := {
 	"tsp": "TSP (P)",
 }
 ## Per-kg product cost — mirrors prices.yaml input_costs.fertilizer_*.
+## Floats on purpose: input prices are not guaranteed to be whole credits
+## (lime is 0.075 cr/kg), and an int here would truncate a sub-1 price to
+## zero. See LimePicker and routes._compute_action_cost (#465).
 const PRICE_PER_KG := {
-	"urea": 1,
-	"ammonium_nitrate": 1,
-	"tsp": 2,
+	"urea": 1.0,
+	"ammonium_nitrate": 1.0,
+	"tsp": 2.0,
 }
 ## Application-rate tiers (kg/ha) offered per type.
 const AMOUNTS_KG_HA: Array[float] = [25.0, 50.0, 100.0]
@@ -61,8 +64,8 @@ static func params_for(option_id: int) -> Dictionary:
 
 ## Estimated cost in credits — mirrors routes._compute_action_cost("fertilize").
 static func cost_for(fert_type: String, amount_kg_ha: float) -> int:
-	var per_kg: int = PRICE_PER_KG.get(fert_type, 1)
-	return int(LABOR_PER_ACTION + per_kg * amount_kg_ha)
+	var per_kg: float = PRICE_PER_KG.get(fert_type, 1.0)
+	return int(float(LABOR_PER_ACTION) + per_kg * amount_kg_ha + 0.5)
 
 
 ## Option id of the cheapest tier — the "from" price the Fertilize button

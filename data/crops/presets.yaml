@@ -395,7 +395,16 @@ crops:
       leaf_fraction_vegetative: 0.8
       leaf_fraction_flowering: 0.5
       leaf_fraction_grain_fill: 0.3   # perennial, keeps producing leaves
-      harvest_index: 0.0           # grape: fruit yield modeled separately
+      # Fruit (berries) via the legacy fixed-HI path (#448): during GRAIN_FILL
+      # (berry growth after flowering) this share of the daily increment goes
+      # to the harvested-organ pool. CALIBRATED TO A PUBLISHED BAND, not a
+      # measured constant: Castelan-Estrada, Vivin & Gaudillere 2002, Ann. Bot.
+      # 89:401-408 report fruit at ~50-60% of current-year above-ground dry
+      # biomass at maturity (Merlot). 0.65 gives season-end fruit/biomass ~0.50
+      # (kenya_highlands) and ~0.52 (netherlands_temperate) on the realism
+      # setup, seeds 42-44; hi_max 0.60 caps it at the band's upper end.
+      harvest_index: 0.65
+      hi_max: 0.60
       frost_threshold_c: -5.0      # Dormant vines tolerate cold
       frost_damage_fraction: 0.2
       heat_damage_threshold_c: 38.0
@@ -407,3 +416,15 @@ crops:
       growth_rate_cm_per_day: 0.8
       distribution: exponential
       root_allocation_fraction: 0.30   # perennial vine, high root investment
+    # Sold product (#448): grapes are sold fresh, so settlement converts the
+    # dry fruit pool to fresh mass, kg_sold = dry_kg / dry_matter_fraction.
+    # SOURCE: USDA FoodData Central, SR Legacy FDC 174683 (NDB 09132), "Grapes,
+    # red or green (European type, such as Thompson seedless), raw": water
+    # 80.54 g/100 g, so dry matter = 1 - 0.8054 = 0.1946. A food-composition
+    # database, NOT a primary viticulture source, and a TABLE cultivar
+    # (Thompson seedless, V. vinifera); no wine-grape entry exists there. Ripe
+    # wine grapes carry more sugar (20-24 Brix; Zhang & Keller 2017, J. Exp.
+    # Bot.), so this likely understates their dry matter fraction slightly.
+    harvest_product:
+      name: fruit
+      dry_matter_fraction: 0.1946

@@ -72,6 +72,7 @@ const _PREVIEW_ACTIONS: Array[Dictionary] = [
 	{"action": "irrigate", "label": "Irrigate", "params": {"amount_mm": 20}},
 	{"action": "fertilize", "label": "Fertilize", "params": {}, "variable_cost": true},
 	{"action": "tillage", "label": "Tillage", "params": {"intensity": 0.8}},
+	{"action": "lime", "label": "Lime", "params": {}, "variable_cost": true},
 ]
 
 var _game_id: String = ""
@@ -82,6 +83,7 @@ var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
 var _crop_popup: PopupMenu = null
 var _fertilizer_popup: PopupMenu = null
+var _lime_popup: LimePopup = null
 var _cutaway := SoilCutawayController.new()
 var _quick_status: QuickStatusCard = null
 var _stress_icons: StressIcons = null
@@ -118,6 +120,7 @@ var _daily_history: Dictionary = {}
 @onready var irrigate_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FertilizeButton
 @onready var tillage_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/TillageButton
+@onready var lime_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/LimeButton
 @onready var plant_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/PlantButton
 @onready var harvest_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/HarvestButton
 @onready var soil_view_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/SoilViewButton
@@ -135,11 +138,13 @@ func _ready() -> void:
 	irrigate_btn.pressed.connect(_on_irrigate)
 	fertilize_btn.pressed.connect(_on_fertilize)
 	tillage_btn.pressed.connect(_on_tillage)
+	lime_btn.pressed.connect(_on_lime)
 	plant_btn.pressed.connect(_on_plant_pressed)
 	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
 	_setup_crop_popup()
 	_setup_fertilizer_popup()
+	_setup_lime_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
 	_stress_icons = StressIcons.new()
@@ -418,6 +423,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	irrigate_btn.disabled = disabled
 	fertilize_btn.disabled = disabled
 	tillage_btn.disabled = disabled
+	lime_btn.disabled = disabled
 	plant_btn.disabled = disabled
 	# Harvest stays gated on crop presence even when re-enabling the bar.
 	if disabled:
@@ -511,6 +517,8 @@ func _preview_params_for(spec: Dictionary) -> Dictionary:
 	## the button only blocks when no tier is affordable (#349 review).
 	if spec["action"] == "fertilize":
 		return FertilizerPicker.params_for(FertilizerPicker.cheapest_option_id())
+	if spec["action"] == "lime":
+		return LimePicker.params_for(LimePicker.cheapest_option_id())
 	return spec["params"]
 
 
@@ -544,6 +552,8 @@ func _action_button_for(action: String) -> Button:
 			return fertilize_btn
 		"tillage":
 			return tillage_btn
+		"lime":
+			return lime_btn
 		_:
 			return null
 
@@ -761,6 +771,30 @@ func _on_fertilizer_selected(option_id: int) -> void:
 				"Applying %s %d kg/ha — est. %d credits" % [display_name, int(amount), cost]
 			)
 			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
+	)
+
+
+func _setup_lime_popup() -> void:
+	## Lime gets its own picker: t/ha tiers, not the fertiliser kg/ha tiers (#465).
+	_lime_popup = LimePopup.new()
+	_lime_popup.rate_selected.connect(_on_lime_selected)
+	UiTheme.style_popup_menu(_lime_popup)
+	$UILayer.add_child(_lime_popup)
+
+
+func _on_lime() -> void:
+	_lime_popup.apply_affordability(_balance_credits)
+	_lime_popup.popup_under(lime_btn)
+
+
+func _on_lime_selected(amount_kg_ha: float, cost: int) -> void:
+	var params := {"amount_kg_ha": amount_kg_ha, "layer": LimePicker.TARGET_LAYER}
+	_ensure_game(
+		func() -> void:
+			status_label.text = (
+				"Applying lime %.1f t/ha — est. %d credits" % [amount_kg_ha / 1000.0, cost]
+			)
+			_api_client.execute_action(_game_id, "lime", params, _on_action_complete)
 	)
 
 

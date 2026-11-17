@@ -25,7 +25,17 @@
         "phenology": { "$ref": "#/definitions/phenologyParams" },
         "canopy": { "$ref": "#/definitions/canopyParams" },
         "roots": { "$ref": "#/definitions/rootParams" },
-        "climate_overrides": { "type": "object" }
+        "climate_overrides": { "type": "object" },
+        "harvest_product": { "$ref": "#/definitions/harvestProduct" }
+      }
+    },
+    "harvestProduct": {
+      "type": "object",
+      "required": ["name", "dry_matter_fraction"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "dry_matter_fraction": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
       }
     },
     "phenologyParams": {

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from .events import AcidifyingFertilizerApplied, LimeApplied, SoilPHUpdated
 from .module import SoilChemistryModule
-from .params import ChemistryParams
+from .params import ChemistryParams, LayerBufferProperties
 from .runtime import ChemistryRuntime
 from .state import ChemistryState
 
@@ -13,6 +13,7 @@ __all__ = [
     "ChemistryParams",
     "ChemistryRuntime",
     "ChemistryState",
+    "LayerBufferProperties",
     "LimeApplied",
     "SoilChemistryModule",
     "SoilPHUpdated",

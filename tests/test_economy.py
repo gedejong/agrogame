@@ -267,3 +267,78 @@ def test_accrual_survives_to_dict_from_dict(prices: PriceTable) -> None:
     # Harvesting the remaining patch after reload keeps accruing on top.
     restored.settle_season(300.0, "maize", prices, quarter=3, area_ha=0.333)
     assert restored.season_revenue > mid_revenue
+
+
+# ---------------------------------------------------------------------------
+# Sold-product settlement (#448): revenue per kg sold = dry / dry-matter frac
+# ---------------------------------------------------------------------------
+def _legacy_revenue(
+    grain_g_m2: float, crop_key: str, prices: PriceTable, quarter: int, area: float
+) -> int:
+    """Pre-#448 settlement formula, verbatim."""
+    kg_per_ha = grain_g_m2 * 10.0
+    return int(kg_per_ha * area * prices.get_crop_price(crop_key, quarter))
+
+
+def _grain_crop_keys() -> list[str]:
+    from agrogame.plant.presets import GRAIN_PRODUCT, load_crop_presets
+
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    priced = PriceTable.load(Path("data/economy/prices.yaml")).crop_prices
+    return sorted(
+        k
+        for k in priced
+        if k in crops.crops and crops.crops[k].harvest_product == GRAIN_PRODUCT
+    )
+
+
+@pytest.mark.parametrize("crop_key", _grain_crop_keys())
+def test_grain_crop_settlement_byte_identical(
+    crop_key: str, prices: PriceTable
+) -> None:
+    """Every grain preset settles exactly as before #448 (fraction 1.0)."""
+    from agrogame.plant.presets import load_crop_presets
+
+    dmf = (
+        load_crop_presets(Path("data/crops/presets.yaml"))
+        .crops[crop_key]
+        .harvest_product.dry_matter_fraction
+    )
+    assert dmf == 1.0
+    for grain in (0.0, 0.07, 123.456, 333.3, 987.65):
+        for area in (0.333, 0.5, 1.0):
+            for quarter in (1, 2, 3, 4):
+                ledger = EconomicLedger(balance_credits=0)
+                ledger.settle_season(
+                    grain,
+                    crop_key,
+                    prices,
+                    quarter=quarter,
+                    area_ha=area,
+                    dry_matter_fraction=dmf,
+                )
+                assert ledger.season_revenue == _legacy_revenue(
+                    grain, crop_key, prices, quarter, area
+                )
+
+
+def test_grain_crops_cover_every_priced_cereal() -> None:
+    # Guard: the byte-identity sweep must not silently shrink to nothing.
+    keys = _grain_crop_keys()
+    assert {"maize", "winter_wheat"} <= set(keys)
+    assert "grape" not in keys
+
+
+def test_settlement_divides_by_dry_matter_fraction(prices: PriceTable) -> None:
+    # 50 g/m2 dry fruit = 500 kg/ha dry; / 0.25 = 2000 kg/ha sold.
+    ledger = EconomicLedger(balance_credits=0)
+    ledger.settle_season(50.0, "grape", prices, quarter=3, dry_matter_fraction=0.25)
+    assert ledger.season_revenue == int(2000.0 * prices.get_crop_price("grape", 3))
+
+
+@pytest.mark.parametrize("dmf", [0.0, -0.1, 1.01])
+def test_settlement_rejects_invalid_dry_matter_fraction(
+    dmf: float, prices: PriceTable
+) -> None:
+    with pytest.raises(ValueError, match="dry_matter_fraction"):
+        EconomicLedger().settle_season(10.0, "grape", prices, dry_matter_fraction=dmf)

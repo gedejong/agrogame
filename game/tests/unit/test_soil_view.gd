@@ -111,3 +111,60 @@ func test_refresh_rebuilds_roots() -> void:
 			0.0,
 			"Root strength still active after refresh with deeper roots",
 		)
+
+
+func _sandy_columns() -> Array[Dictionary]:
+	var columns: Array[Dictionary] = [
+		{
+			"pos": Vector3.ZERO,
+			"soil_state": {"water_theta": [0.2, 0.24, 0.22]},
+			"profile": SoilViewScript.get_profile_layers("sandy"),
+			"root_depth_cm": 0.0,
+			"crop_key": "",
+			"show_info": false,
+		}
+	]
+	return columns
+
+
+func _assert_colliders_invertible(view: Node3D) -> void:
+	# The physics server inverts every CollisionObject3D's global transform;
+	# a singular one logs Godot's "det == 0" error (#484).
+	var colliders: Array[Node] = view.find_children("*", "CollisionObject3D", true, false)
+	assert_gt(colliders.size(), 0, "Hover-pick collider present")
+	for c in colliders:
+		var det: float = (c as Node3D).global_transform.basis.determinant()
+		assert_ne(det, 0.0, "Collider %s has invertible global basis" % c.name)
+
+
+func test_show_cutaway_starts_from_invertible_scale() -> void:
+	# Regression #484: the open animation started at scale.y == 0, so each flow
+	# tube's hover Area3D reached the physics server with a singular basis.
+	var view := Node3D.new()
+	view.set_script(SoilViewScript)
+	add_child_autofree(view)
+	view.show_cutaway(_sandy_columns())
+	assert_gt(SoilViewScript.COLLAPSED_SCALE.y, 0.0, "Collapsed scale is non-zero")
+	assert_eq(view.scale, SoilViewScript.COLLAPSED_SCALE, "Animation starts collapsed")
+	var tube := FlowTube.create(
+		{"start": Vector3(0, 0.01, 0), "end": Vector3(0, 0.2, 0), "label_text": "Rain"}
+	)
+	view.add_child(tube)
+	_assert_colliders_invertible(view)
+
+
+func test_hide_view_ends_at_invertible_scale() -> void:
+	var view := Node3D.new()
+	view.set_script(SoilViewScript)
+	add_child_autofree(view)
+	view.show_cutaway(_sandy_columns())
+	view.add_child(
+		FlowTube.create(
+			{"start": Vector3(0, 0.01, 0), "end": Vector3(0, 0.2, 0), "label_text": "Rain"}
+		)
+	)
+	await wait_seconds(0.5)  # let the 0.4 s open tween finish first
+	view.hide_view()
+	await wait_seconds(0.5)
+	assert_eq(view.scale, SoilViewScript.COLLAPSED_SCALE, "Close animation ends collapsed")
+	_assert_colliders_invertible(view)
