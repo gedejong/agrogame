@@ -72,8 +72,9 @@ crop_prices:
   soybean:
     base_credits_per_kg: 0.35
     seasonal_multipliers: [1.0, 1.0, 1.1, 0.9]
-  # DO NOT "fix" grape's price. Grape out-earns the staples roughly 13x, but
-  # that is a missing perennial cost structure (#501) — it is costed as an
+  # DO NOT "fix" grape's price. Grape out-earns the staples several-fold
+  # (scripts/economy_margins.py; current figures on PR #511), but that is a
+  # missing perennial cost structure (#501) — it is costed as an
   # annual, so it pays no establishment, trellis or multi-year maintenance
   # cost. Cutting the price would hide that gap behind a compensating error
   # and nothing would later reveal it. Fix #501, not this number (#508 AC7).
