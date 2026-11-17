@@ -41,6 +41,13 @@ input_costs:
   # Gypsum and elemental sulfur are deliberately UNPRICED — see the foot of
   # this file. Applying either raises a ValueError (HTTP 400) rather than
   # falling back to the old 1 cr/kg default. Tracked in #509.
+  # Soil amendments, per kg product. Ground agricultural limestone is
+  # ~EUR 30-50/t delivered and spread; this table runs ~2x the real world (the
+  # x2 convention recorded under "Fertilizer pricing basis" at the foot of this
+  # file), so 75 cr/t = 0.075 cr/kg (#465). Priced per kg of product while
+  # apply_lime takes kg CaCO3-equivalent/ha; the two coincide for a product of
+  # ~100% calcium carbonate equivalence, and no conversion is applied.
+  amendment_lime_per_kg: 0.075
   # Irrigation cost per mm applied per ha
   irrigation_per_mm: 2
   # Labor cost per management action

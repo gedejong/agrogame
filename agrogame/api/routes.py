@@ -55,7 +55,7 @@ from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
 from agrogame.weather.types import WeatherRecord
 
-from agrogame.plant.presets import load_crop_presets
+from agrogame.plant.presets import GRAIN_PRODUCT, HarvestProduct, load_crop_presets
 
 router = APIRouter(prefix="/api/v1")
 
@@ -532,7 +532,7 @@ def revise_plan(game_id: str, req: ReviseRequest) -> dict:
 # Day-by-day game loop (#125)
 # ---------------------------------------------------------------------------
 
-_VALID_ACTIONS = {"irrigate", "fertilize", "plant", "harvest", "tillage"}
+_VALID_ACTIONS = {"irrigate", "fertilize", "lime", "plant", "harvest", "tillage"}
 
 
 # Nutrient element each fertiliser product supplies, mirroring
@@ -602,6 +602,17 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
         # `amount` is kg of nutrient element per ha, matching the engine.
         amount = params.get("amount_kg_ha", 50)
         return int(labor + prices.input_costs[key] * amount)
+    if action == "lime":
+        # Lime is the first input priced below 1 credit/kg, so the per-kg
+        # price and the product must stay float until the final rounding —
+        # an int cast on ``per_kg`` would silently zero the amendment (#465).
+        amount_lime = float(params.get("amount_kg_ha", 0.0))
+        if amount_lime <= 0.0:
+            return 0
+        labor_lime = float(prices.input_costs.get("labor_per_action", 50))
+        per_kg_lime = float(prices.input_costs.get("amendment_lime_per_kg", 0.075))
+        # Round half up, matching LimePicker.cost_for in the Godot client.
+        return int(labor_lime + per_kg_lime * amount_lime + 0.5)
     if action == "plant":
         crop_key = str(params.get("crop_key", "maize"))
         return int(_seed_cost_per_ha(crop_key, prices))
@@ -610,6 +621,28 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     if action == "tillage":
         return int(prices.input_costs.get("labor_per_action", 50))
     return 0
+
+
+def _validate_lime_params(field: Field, params: dict) -> int:
+    """Validate a lime request's target layer and return it (#465).
+
+    Raises:
+        HTTPException: 422 when ``layer`` is not an integer inside the
+            profile's layer range, naming the valid range.
+    """
+    raw_layer = params.get("layer", 0)
+    try:
+        layer = int(raw_layer)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            422, f"layer must be an integer, got {raw_layer!r}"
+        ) from exc
+    n_layers = min(len(p.orch.profile.layers) for p in field.patches)
+    if not (0 <= layer < n_layers):
+        raise HTTPException(
+            422, f"layer {layer} out of range; valid range is [0, {n_layers})"
+        )
+    return layer
 
 
 def _target_patches(field: Field, patch_idx: int) -> list[Patch]:
@@ -640,9 +673,26 @@ def _field_has_standing_crop(field: Field, patch_idx: int = -1) -> bool:
     return any(patch.config.crop_key for patch in _target_patches(field, patch_idx))
 
 
+def _harvest_product(crop_key: str, climate_key: str) -> HarvestProduct:
+    """Sold product and its dry-matter fraction for ``crop_key`` (#448).
+
+    Looked up by key because harvest clears the orchestrator's current crop
+    before settlement. Grain crops carry the default (grain, 1.0).
+    """
+    if not crop_key:
+        return GRAIN_PRODUCT
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    return crops.get_preset(crop_key, climate_key).harvest_product
+
+
+def _sold_kg_ha(dry_g_m2: float, product: HarvestProduct) -> float:
+    """Sold (fresh) kg/ha from harvested dry g/m² (ADR-003, #448)."""
+    return dry_g_m2 * 10.0 / product.dry_matter_fraction
+
+
 def _harvest_action(
     s: GameSession, field: Field, prices: PriceTable, patch_idx: int = -1
-) -> tuple[float, int, int]:
+) -> tuple[float, int, int, HarvestProduct]:
     """Harvest the targeted patch(es) and settle season economics.
 
     ``patch_idx`` selects a single patch; the default (-1) harvests the whole
@@ -654,7 +704,7 @@ def _harvest_action(
     off the targeted patch(es) so subsequent day responses report a bare patch.
     Non-targeted patches are left standing.
 
-    Returns ``(grain_g_m2, revenue_credits, profit_credits)``.
+    Returns ``(grain_g_m2, revenue_credits, profit_credits, product)``.
     """
     from agrogame.game.turn import SeasonResult
 
@@ -682,6 +732,7 @@ def _harvest_action(
         / area_ha
     )
     crop_key = targets[0].config.crop_key
+    product = _harvest_product(crop_key, targets[0].config.climate_key)
 
     # Finalize each targeted crop in the domain layer (history + N fixation
     # credit + _current_crop reset). Only the requested patch(es) are finalized,
@@ -704,6 +755,7 @@ def _harvest_action(
         prices,
         quarter=_quarter_of(s.current_date),
         area_ha=area_ha,
+        dry_matter_fraction=product.dry_matter_fraction,
     )
     revenue = s.ledger.season_revenue - revenue_before
     s.season_settled = True
@@ -739,7 +791,7 @@ def _harvest_action(
         patch.orch.canopy.state.grain_biomass_g_m2 = 0.0
         patch.orch.canopy.state.lai = 0.0
 
-    return grain_g_m2, revenue, profit
+    return grain_g_m2, revenue, profit, product
 
 
 def _settle_standing_grain(
@@ -765,12 +817,14 @@ def _settle_standing_grain(
         )
         / total_area
     )
+    product = _harvest_product(crop_key, standing[0].config.climate_key)
     s.ledger.settle_season(
         grain_g_m2,
         crop_key,
         prices,
         quarter=_quarter_of(s.current_date),
         area_ha=total_area,
+        dry_matter_fraction=product.dry_matter_fraction,
     )
     s.season_settled = True
     for p in standing:
@@ -1080,6 +1134,20 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
             422, f"patch_idx must be an integer, got {raw_patch_idx!r}"
         ) from exc
 
+    # Lime: validate the target layer before charging, and treat a
+    # non-positive rate as a free no-op (#465).
+    lime_layer: int = 0
+    if req.action == "lime":
+        lime_layer = _validate_lime_params(field, req.params)
+        if float(req.params.get("amount_kg_ha", 0.0)) <= 0.0:
+            return ActionResponse(
+                status="no-op",
+                action=req.action,
+                cost_credits=0,
+                balance_credits=s.ledger.balance_credits,
+                day_number=s.day_index,
+            )
+
     # Guard: harvesting a bare (or out-of-range) target is a no-op — no charge,
     # no result clobber (#341). The frontend gates the UI path, but the backend
     # must be safe too. Scoped to the requested patch so a multi-patch field
@@ -1116,10 +1184,14 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     grain_g_m2 = 0.0
     revenue_credits = 0
     profit_credits = 0
+    harvest_product = ""
+    sold_kg_ha = 0.0
     if req.action == "harvest":
-        grain_g_m2, revenue_credits, profit_credits = _harvest_action(
+        grain_g_m2, revenue_credits, profit_credits, product = _harvest_action(
             s, field, prices, harvest_patch_idx
         )
+        harvest_product = product.name
+        sold_kg_ha = round(_sold_kg_ha(grain_g_m2, product), 1)
     elif req.action == "plant":
         # Plant targets a specific patch (or all if no patch_idx given)
         crop_key = req.params.get("crop_key", "maize")
@@ -1152,6 +1224,10 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
                     req.params.get("type", "urea"),
                     req.params.get("amount_kg_ha", 50.0),
                 )
+            elif req.action == "lime":
+                patch.orch.apply_lime(
+                    float(req.params.get("amount_kg_ha", 0.0)), lime_layer
+                )
             elif req.action == "tillage":
                 intensity = float(req.params.get("intensity", 0.5))
                 if not (0.0 <= intensity <= 1.0):
@@ -1170,6 +1246,8 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         grain_g_m2=round(grain_g_m2, 1),
         revenue_credits=revenue_credits,
         profit_credits=profit_credits,
+        harvest_product=harvest_product,
+        sold_kg_ha=sold_kg_ha,
     )
 
 
@@ -1186,6 +1264,9 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
         raise HTTPException(404, f"Field {req.field_id} not found")
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
+
+    if req.action == "lime":
+        _validate_lime_params(s.field_manager.fields[req.field_id], req.params)
 
     prices = PriceTable.load()
     # An unpriced fertiliser or crop raises rather than silently costing 1
@@ -1422,6 +1503,7 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
             crop_key = p.harvested_crop_key or p.config.crop_key
             grain_t_ha = grain_g_m2 / 100.0
             climate = p.config.climate_key
+            product = _harvest_product(crop_key, climate)
             gyga = _GYGA_YIELDS.get(crop_key, {}).get(climate, 10.0)
             ratio = min(grain_t_ha / gyga, 1.0) if gyga > 0 else 0.0
             snap = p.orch.snapshot_soil()
@@ -1443,6 +1525,8 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
                     theta_surface=round(
                         snap.water_theta[0] if snap.water_theta else 0.0, 4
                     ),
+                    harvest_product=product.name,
+                    sold_kg_ha=round(_sold_kg_ha(grain_g_m2, product), 1),
                 )
             )
 

@@ -111,6 +111,7 @@ class EconomicLedger:
         prices: PriceTable,
         quarter: int = 3,
         area_ha: float = 1.0,
+        dry_matter_fraction: float = 1.0,
     ) -> int:
         """Accrue revenue for a harvest event, recompute profit, update balance.
 
@@ -128,12 +129,21 @@ class EconomicLedger:
             prices: Price table with crop prices.
             quarter: Season quarter (1-4) for seasonal multiplier.
             area_ha: Area harvested in hectares.
+            dry_matter_fraction: Dry-matter fraction of the sold product (#448).
+                Revenue is per kg of sold product: harvested dry mass divided by
+                this fraction (ADR-003). Grain crops use 1.0, which leaves the
+                arithmetic exactly as before (x / 1.0 == x in IEEE 754).
 
         Returns:
             Cumulative season profit (can be negative).
         """
-        # grain_g_m2 * 10 = kg/ha (100 g/m2 = 1 t/ha = 1000 kg/ha)
-        kg_per_ha = grain_g_m2 * 10.0
+        if not 0.0 < dry_matter_fraction <= 1.0:
+            raise ValueError(
+                f"dry_matter_fraction must be in (0, 1], got {dry_matter_fraction}"
+            )
+        # grain_g_m2 * 10 = kg/ha dry (100 g/m2 = 1 t/ha = 1000 kg/ha); dividing
+        # by the dry-matter fraction gives kg/ha of sold (fresh) product.
+        kg_per_ha = grain_g_m2 * 10.0 / dry_matter_fraction
         price_per_kg = prices.get_crop_price(crop_key, quarter)
         revenue = int(kg_per_ha * area_ha * price_per_kg)
 
