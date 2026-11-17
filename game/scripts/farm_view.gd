@@ -770,8 +770,7 @@ func _on_fertilizer_selected(option_id: int) -> void:
 	_ensure_game(
 		func() -> void:
 			status_label.text = (
-				"Applying %s %d %s — est. %d credits"
-				% [display_name, int(amount), unit, cost]
+				"Applying %s %d %s — est. %d credits" % [display_name, int(amount), unit, cost]
 			)
 			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
 	)
