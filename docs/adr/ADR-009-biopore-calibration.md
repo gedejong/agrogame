@@ -4,6 +4,36 @@
 
 Accepted (#290).
 
+### Amendment (#524), 2026-11-17: the calibrated density barely reaches the simulation
+
+- Biopores drive no simulated flux except through the water balance's
+  effective-porosity cap, which donation raises by ≤ 0.0016 m³/m³ at
+  500 /m² and which binds only when a layer saturates. Then θ moves by at
+  most half the donated volume fraction (≤ 7.9e-4 m³/m³ at 500 /m²), about
+  100× less at in-game densities (ADR-010, #524 amendment). Density pinned at 0 and at 500 /m² leaves every simulated
+  output unchanged over two non-saturating maize seasons on loam and clay
+  (`tests/integration/test_biopore_coupling.py`). This calibration therefore
+  targets what is in practice a reported index, the biopore volume donated
+  into the pore-network macropore pool.
+- Superseded rationale: the *Context* claim that players would "see no
+  measurable simulation effect" at the old density, and the *Easier* claim
+  that 50.8 /m² clears "the noise floor that #284 needs". Outside saturated
+  layers players see no simulation effect at any density, and inside them
+  the effect is ≤ 7.9e-4 m³/m³ in θ even at the 500 /m² cap, so there is no
+  noise floor to clear.
+- Corrected references: Pierret et al. 2007 is *Vadose Zone J.* 6:269–281
+  (doi:10.2136/vzj2006.0067), and Kautz 2015 is *Renew. Agric. Food Syst.*
+  30:318–327 (doi:10.1017/S1742170513000549). The figures attributed to them
+  below (50–500 /m², 60–180 d topsoil half-life, 4–8 t/ha/yr, structural
+  fraction 0.1–0.3, 1–3 mm cereal channels) were not re-verified in #524.
+- Creation computes density as `V / (π r²)`, implying 1 m channels, while
+  `density_to_volume_fraction` assumes channels that span the layer, so
+  creation undercounts density by the layer thickness (×2.5–4 on
+  `loam_temperate`). The finding is recorded in #307, closed as not planned
+  on 2026-11-17 because the density barely reaches any flux; it would be
+  reopened as a prerequisite if biopores were ever coupled to one.
+- The decision, parameter table and verification numbers are unchanged.
+
 ## Context
 
 The biopore module landed in #215 with default parameters that produced
@@ -146,12 +176,14 @@ sense in combination with the other changes.
 
 ## References
 
-- Pierret et al. 2007, *Plant and Soil* 286 — structured-soil biopore
-  density (50–500 /m²) and depth profile.
+- Pierret et al. 2007, *Vadose Zone J.* 6:269–281,
+  doi:10.2136/vzj2006.0067 — structured-soil biopore density (50–500 /m²)
+  and depth profile (figures not re-verified, see the #524 amendment).
 - Six et al. 2004, *Plant and Soil* 269 — root-to-pore conversion;
   structural vs fine roots.
-- Kautz 2015, *Soil and Tillage Research* 152 — biopore persistence,
-  decay half-lives, cereal channel diameters.
+- Kautz 2015, *Renew. Agric. Food Syst.* 30:318–327,
+  doi:10.1017/S1742170513000549 — biopore persistence, decay half-lives,
+  cereal channel diameters (figures not re-verified, see the #524 amendment).
 - Bidlack & Buxton 1992 — fine-root tissue density and turnover rates.
 - Jackson et al. 1996, *Oecologia* 108 — global root distribution.
 - Issue #290 — calibration plan and PO sign-off.

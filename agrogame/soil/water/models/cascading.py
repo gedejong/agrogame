@@ -207,8 +207,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
         ksat_factor < 1 retains some excess above FC (waterlogging).
         Cap at 1.0: in a daily bucket model, the base case already drains
         100% of FC-excess per day. kf > 1 (well-aggregated) cannot accelerate
-        beyond instant drainage — benefit manifests as increased
-        porosity/capacity instead. Ref: Dexter 2004.
+        beyond instant drainage, so it has no effect here (#524).
+        Ref: Dexter 2004.
         """
         layer = profile.layers[layer_idx]
         current = state.layer_storage_mm(profile, layer_idx)

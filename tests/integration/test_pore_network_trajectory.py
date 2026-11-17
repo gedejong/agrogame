@@ -37,9 +37,10 @@ Refs:
     Cameron & Buchan 2006, Encyclopedia of Soil Science — air-capacity /
         macroporosity ~0.05-0.15 m3/m3 for medium-textured soil.
     Reynolds et al. 2009, Geoderma — optimal air capacity band.
-    Kautz 2015, Soil Tillage Res. — biopore persistence + decay.
-    Pierret et al. 2007, Plant Soil 286 — structured-soil biopore density
-        50-500 /m2.
+    Kautz 2015, Renew. Agric. Food Syst. 30:318-327 — biopore persistence
+        + decay.
+    Pierret et al. 2007, Vadose Zone J. 6:269-281 — structured-soil
+        biopore density 50-500 /m2.
 """
 
 from __future__ import annotations
