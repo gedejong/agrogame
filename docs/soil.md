@@ -24,7 +24,7 @@ package with the canonical `params/state/module/runtime/events` shape (see
 
 | Package | Purpose | Page |
 |---------|---------|------|
-| `agrogame.soil.water` | Water balance (cascading bucket, dual-porosity) | [water.md](water.md) |
+| `agrogame.soil.water` | Water balance (cascading bucket) | [water.md](water.md) |
 | `agrogame.soil.nitrogen` | N cycling (mineralization, nitrification, leaching) | [nitrogen.md](nitrogen.md) |
 | `agrogame.soil.canopy` | Canopy light interception and biomass | [canopy.md](canopy.md) |
 | `agrogame.soil.phenology` | GDD-driven crop phenology | [phenology.md](phenology.md) |

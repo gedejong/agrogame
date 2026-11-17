@@ -496,7 +496,8 @@ class TestNewModuleSnapshotRoundTrip:
         assert restored.pore_network == {}
         assert restored.biopore == {}
         assert restored.gas_diffusion == {}
-        assert restored.water_theta_macro == []
+        # water_theta_macro was retired in #466 (ADR-016): never re-emitted.
+        assert "water_theta_macro" not in restored.to_dict()
 
         # restore_soil must leave the fresh module state alone (guards on
         # empty snapshot fields), not crash on the empty lists/dicts.
@@ -512,3 +513,85 @@ class TestNewModuleSnapshotRoundTrip:
         assert list(target.gas_state.o2_frac) == before_o2
         assert list(target.pore_state.macro) == before_pore
         assert list(target.micro_state.fe_available) == before_fe
+
+
+class TestRetiredMacroDomainSnapshotField:
+    """Pre-#466 saves carrying ``water_theta_macro`` still load (ADR-001).
+
+    The dual-porosity macropore domain was retired (#466, ADR-016). The
+    snapshot no longer writes ``water_theta_macro``, but saves made before
+    the retirement contain it, so loading must ignore it rather than fail.
+    Production orchestrators never enabled the macro domain, so real saves
+    hold ``[]``; a populated list covers states built by hand in older tests.
+    """
+
+    def test_retired_field_is_no_longer_written(self) -> None:
+        orch = _make_full_orch()
+        assert "water_theta_macro" not in orch.snapshot_soil().to_dict()
+        assert not hasattr(orch.water_state, "theta_macro")
+
+    @pytest.mark.parametrize("legacy_theta_macro", [[], [0.02, 0.01, 0.0]])
+    def test_snapshot_with_water_theta_macro_loads_and_ignores_it(
+        self, legacy_theta_macro: list[float]
+    ) -> None:
+        from agrogame.sim.orchestrator import SoilSnapshot
+
+        orch = _make_full_orch()
+        _step_waterlogged(orch, 5)
+        current = orch.snapshot_soil().to_dict()
+        legacy = {**current, "water_theta_macro": list(legacy_theta_macro)}
+
+        restored = SoilSnapshot.from_dict(legacy)
+        assert restored.to_dict() == current
+
+        target = _make_full_orch()
+        target.restore_soil(restored)
+        assert target.water_state.theta == current["water_theta"]
+        assert target.snapshot_soil().to_dict() == current
+        assert not hasattr(target.water_state, "theta_macro")
+
+    def test_pre_466_save_file_with_water_theta_macro_loads(
+        self, tmp_path: Path
+    ) -> None:
+        from datetime import date
+
+        from agrogame.soil.water.types import DailyDrivers
+
+        fm = FieldManager()
+        fm.add_field(
+            "f1", [PatchConfig("loam_temperate", "maize", "netherlands_temperate", 1.0)]
+        )
+        fm_data = fm.to_dict()
+        patch_data = fm_data["fields"]["f1"]["patches"][0]
+        # What a pre-#466 orchestrator wrote: the key, always as [].
+        patch_data["soil_snapshot"]["water_theta_macro"] = []
+        saved_theta = list(patch_data["soil_snapshot"]["water_theta"])
+        state = GameState(
+            game_id="pre-466",
+            field_manager_data=fm_data,
+            ledger_data=EconomicLedger(balance_credits=8000).to_dict(),
+            weather_data=[],
+            current_date="2024-05-01",
+            base_seed=7,
+            run_count=0,
+            day_index=0,
+            season_days=200,
+        )
+        path = tmp_path / "pre-466.agrosave.json"
+        save_to_file(state, path)
+        raw = json.loads(path.read_text())
+        assert "water_theta_macro" in (
+            raw["field_manager"]["fields"]["f1"]["patches"][0]["soil_snapshot"]
+        )
+
+        loaded = load_from_file(path).to_session_kwargs()["field_manager"]
+        orch = loaded.fields["f1"].patches[0].orch
+        assert orch.water_state.theta == saved_theta
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=5.0),
+            tmin_c=8.0,
+            tmax_c=18.0,
+            shortwave_mj_m2=12.0,
+            sim_date=date(2024, 5, 1),
+        )
+        assert all(0.0 < t < 0.6 for t in orch.water_state.theta)

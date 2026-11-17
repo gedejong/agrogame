@@ -239,13 +239,14 @@ class SoilSnapshot:
     agg_micro: list[float] = field(default_factory=list)
     agg_meso: list[float] = field(default_factory=list)
     agg_macro: list[float] = field(default_factory=list)
-    # Pore-network chain (#284). All four fields default to empty
-    # lists so loading a pre-#284 save initializes them from defaults
-    # without crashing.
+    # Pore-network chain (#284). All three fields default to empty
+    # dicts so loading a pre-#284 save initializes them from defaults
+    # without crashing. The fourth #284 field, ``water_theta_macro``, was
+    # retired with the dual-porosity model (#466, ADR-016): it is no longer
+    # written, and ``from_dict`` ignores it in older saves (ADR-001).
     pore_network: dict[str, Any] = field(default_factory=dict)
     biopore: dict[str, Any] = field(default_factory=dict)
     gas_diffusion: dict[str, Any] = field(default_factory=dict)
-    water_theta_macro: list[float] = field(default_factory=list)
     # Sulfur pools (#515). Empty lists mean a pre-#515 save, which restores
     # the profile's initial pools as before.
     s_available: list[float] = field(default_factory=list)
@@ -287,7 +288,6 @@ class SoilSnapshot:
             "pore_network": dict(self.pore_network),
             "biopore": dict(self.biopore),
             "gas_diffusion": dict(self.gas_diffusion),
-            "water_theta_macro": list(self.water_theta_macro),
             "s_available": list(self.s_available),
             "s_adsorbed": list(self.s_adsorbed),
             "s_organic": list(self.s_organic),
@@ -295,7 +295,13 @@ class SoilSnapshot:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> SoilSnapshot:
-        """Restore from a plain dict."""
+        """Restore from a plain dict.
+
+        Keys are read explicitly, so keys this version no longer knows are
+        ignored rather than rejected. That keeps older saves loadable
+        (ADR-001); in particular pre-#466 saves carry ``water_theta_macro``,
+        the retired dual-porosity macropore domain (ADR-016).
+        """
         return cls(
             water_theta=list(data["water_theta"]),
             n_nh4=list(data["n_nh4"]),
@@ -329,7 +335,6 @@ class SoilSnapshot:
             pore_network=dict(data.get("pore_network") or {}),
             biopore=dict(data.get("biopore") or {}),
             gas_diffusion=dict(data.get("gas_diffusion") or {}),
-            water_theta_macro=list(data.get("water_theta_macro") or []),
             s_available=list(data.get("s_available") or []),
             s_adsorbed=list(data.get("s_adsorbed") or []),
             s_organic=list(data.get("s_organic") or []),
@@ -896,7 +901,6 @@ class FullSimulationOrchestrator:
             pore_network=self.pore_state.to_dict(),
             biopore=self.biopore_state.to_dict(),
             gas_diffusion=self.gas_state.to_dict(),
-            water_theta_macro=list(getattr(self.water_state, "theta_macro", []) or []),
             s_available=list(self.s_state.available_s),
             s_adsorbed=list(self.s_state.adsorbed_s),
             s_organic=list(self.s_state.organic_s),
@@ -976,8 +980,6 @@ class FullSimulationOrchestrator:
             self.gas_module.set_state(
                 GasDiffusionState.from_dict(snapshot.gas_diffusion)
             )
-        if snapshot.water_theta_macro and hasattr(self.water_state, "theta_macro"):
-            self.water_state.theta_macro = list(snapshot.water_theta_macro)
 
     def harvest(self) -> SoilSnapshot:
         """Finalize current crop and return soil state for next season.
