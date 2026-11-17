@@ -8,8 +8,6 @@ references:
   - "Dexter 2004 — aggregation effect on ksat"
 key_classes:
   - CascadingBucketWaterModel
-  - DualPorosityWaterModel
-  - DualPorosityParams
   - SoilWaterBalance
   - SoilWaterState
   - DailyDrivers
@@ -19,12 +17,11 @@ key_events:
   - WaterDrained
   - RunoffGenerated
   - EvaporationTaken
-  - PreferentialFlowOccurred
 primary_tests:
   - tests/test_soil_water.py
   - tests/test_water_root_integration.py
   - tests/integration/test_realism.py::test_water_balance
-related_adrs: [ADR-002, ADR-006]
+related_adrs: [ADR-002, ADR-006, ADR-016]
 ---
 
 Water module summary
@@ -32,6 +29,8 @@ Water module summary
 - EventBus: synchronous in-process pub/sub (`agrogame/events/bus.py`)
 - Events: `WaterInfiltrated`, `WaterDrained`, `RunoffGenerated`, `EvaporationTaken`
 - Purpose: allow nutrients and plants to react to water movement
+- Single-domain: macropore (preferential) flow is not modelled
+  hydrologically; see [ADR-016](adr/ADR-016-preferential-flow-retirement.md)
 
 Key API
 - `EventBus.subscribe(Event, handler)`
