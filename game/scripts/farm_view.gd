@@ -97,6 +97,7 @@ var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 var _debug_console: DebugConsole = null
 var _debug := FarmViewDebug.new()
+var _settlement := SeasonSettlement.new()
 ## Per-patch history: keyed by soil_type, each an Array[Dictionary].
 ## Capped at FarmViewHistory.MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
@@ -446,17 +447,10 @@ func _selected_has_standing_crop() -> bool:
 
 
 func _update_harvest_button() -> void:
-	## Enable Harvest only for a selected patch with a standing crop; otherwise
-	## disable with an explanatory tooltip.
-	if _selected_has_standing_crop():
-		harvest_btn.disabled = false
-		harvest_btn.tooltip_text = "Harvest the standing crop on this patch"
-	else:
-		harvest_btn.disabled = true
-		if _selected_tile.x < 0:
-			harvest_btn.tooltip_text = "Select a patch with a standing crop to harvest"
-		else:
-			harvest_btn.tooltip_text = "No standing crop to harvest on this patch"
+	## Enable Harvest only for a selected standing crop before the season settles.
+	_settlement.apply_harvest_button(
+		harvest_btn, _selected_has_standing_crop(), _selected_tile.x >= 0
+	)
 
 
 func _on_next_day() -> void:
@@ -481,6 +475,7 @@ func _step_days(n: int) -> void:
 
 
 func _on_step_complete(success: bool, data: Dictionary) -> void:
+	var completed: bool = success and _settlement.observe_step(data)
 	_set_buttons_disabled(false)
 	if not success:
 		status_label.text = "Step failed — backend error"
@@ -491,6 +486,12 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_refresh_action_costs()
 	if _cutaway.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
+	if completed:  # the server settled the season in this /step (#518)
+		_api_client.get_report(_game_id, _on_season_report)
+
+
+func _on_season_report(success: bool, data: Dictionary) -> void:
+	status_label.text = SeasonSettlement.report_text(success, data)
 
 
 func _refresh_action_costs() -> void:
@@ -945,8 +946,9 @@ func _on_action_complete(success: bool, data: Dictionary) -> void:
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:
-	_on_step_complete(success, data)  # final /step result: show end-of-season state
-	status_label.text = "Season complete" if success else "Season failed — backend error"
+	_on_step_complete(success, data)  # final /step: settled, report shown (#518)
+	if not success:
+		status_label.text = "Season failed — backend error"
 
 
 func _on_soil_view() -> void:
