@@ -47,6 +47,12 @@ A client runs a whole season with `/start-season` followed by
 (`season_complete: true`), `GET /status` (`season_result`) and `/report`.
 Driven this way, a season is numerically identical to the old embedded loop.
 
+The `/step` that first reports `season_complete: true` also settles the season
+(#518): every standing crop in every field is sold, so that response's
+`balance_credits` already includes the revenue. `/report` is a read with no
+side effects. Until the next season starts, `harvest` on `/action` and
+`/action/preview` returns 400 ("Season settled: start the next season").
+
 ## Run
 
 ```bash
