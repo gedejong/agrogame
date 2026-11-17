@@ -65,7 +65,7 @@ def test_grain_number_accumulates_in_window_then_freezes_with_event() -> None:
     canopy.state.lai = 4.0
     canopy.state.biomass_g_m2 = 500.0
     _enter_grain_fill(canopy, bus, at_gdd=900.0)
-    assert canopy._lag_start_biomass == 500.0
+    assert canopy.state.lag_start_biomass_g_m2 == 500.0
     assert canopy.state.grain_number == 0.0
 
     _step(canopy, bus, total_gdd=950.0)  # in window
@@ -176,8 +176,8 @@ def test_harvest_resets_grain_number_and_window() -> None:
     assert canopy.state.grain_number > 0.0
     bus.emit(Harvested(fraction_remaining=0.0))
     assert canopy.state.grain_number == 0.0
-    assert canopy._grain_number_frozen is False
-    assert canopy._lag_start_biomass == 0.0
+    assert canopy.state.grain_number_frozen is False
+    assert canopy.state.lag_start_biomass_g_m2 == 0.0
 
 
 def test_grain_number_recomputes_across_two_cycles() -> None:
@@ -205,7 +205,7 @@ def test_grain_number_recomputes_across_two_cycles() -> None:
     canopy.state.biomass_g_m2 = 600.0
     _enter_grain_fill(canopy, bus, at_gdd=2000.0)
     assert canopy.state.grain_number == 0.0  # reset on re-entry
-    assert canopy._lag_start_biomass == 600.0
+    assert canopy.state.lag_start_biomass_g_m2 == 600.0
     _step(canopy, bus, total_gdd=2050.0)
     assert canopy.state.grain_number > 0.0
 
