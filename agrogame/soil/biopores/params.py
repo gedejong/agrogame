@@ -46,7 +46,14 @@ class BioporeParams:
 
     Biopores are persistent cylindrical macropores left behind by root
     channels (Kautz 2015) — and, in future #76, by earthworm burrows.
-    They enhance preferential flow, root penetration, and gas exchange.
+    In real soils they carry preferential flow and ease root penetration and
+    gas exchange (Beven & Germann 1982; Kautz 2015). This model does none of
+    that. It moves biopore volume into the pore-network macropore pool
+    (taken from crypto-, then micropores) and raises its connectivity, which
+    the API reports. Gas diffusion reads only total porosity, which the
+    donation conserves, and roots do not read biopores at all. The water
+    balance's effective-porosity cap rises by at most the biopore volume
+    fraction, with no measurable effect on drainage (ADR-016).
 
     Defaults calibrated against Pierret et al. 2007's structured-soil
     biopore density range (50–500 /m²) — see ADR-009 for the calibration
