@@ -119,27 +119,50 @@ class TestSeedCharging:
     def test_seed_charged_in_season_1_and_season_2(
         self, client: TestClient, prices: PriceTable
     ) -> None:
-        """Two full cycles: the automatic replant pays for seed again (#508 AC3).
+        """Every Run Season replant pays for seed again (#508 AC3).
 
-        A charge applied only at game creation would leave season 2 free, and a
-        charge applied before ``reset_season`` would be wiped by it. Both
-        failure modes are invisible in a single-season test.
+        Drives the client's Run Season flow as it stands after #487
+        (``api_client.run_season``): ``/start-season`` only sets a season up,
+        ``/step`` drives it to ``season_complete``, and only then does the next
+        ``/start-season`` reset and replant. Two back-to-back ``/start-season``
+        calls never reach that reset, so they cannot test it.
+
+        A charge applied only at game creation would leave later seasons free,
+        and a charge applied before ``reset_season`` would be wiped by it. The
+        balance is asserted as well as the cost entries, so the test stays
+        honest if the lifecycle moves again. Three seasons, so two rollovers.
         """
+        days = 120
         game_id = _create_game(client, NL_MAIZE_PATCHES)
         ledger = games[game_id].ledger
+        per_patch = [
+            int(round(prices.input_costs["seed_maize"] * p["area_fraction"]))
+            for p in NL_MAIZE_PATCHES
+        ]
 
-        client.post(f"/api/v1/games/{game_id}/start-season?days=120&seed=42")
-        season_1 = _seed_costs(game_id)
-        assert sum(season_1) == pytest.approx(
-            prices.input_costs["seed_maize"], abs=3
-        ), "season 1 seed missing — the catalog pre-planting was free"
+        # Season 1's seed is charged when the pre-planted game is created.
+        assert _seed_costs(game_id) == per_patch, "season 1 seed missing"
 
-        client.post(f"/api/v1/games/{game_id}/start-season?days=120&seed=42")
-        season_2 = _seed_costs(game_id)
-        assert season_2 == season_1, "season 2 replant must cost the same as season 1"
-        assert ledger.season_costs >= sum(
-            season_2
-        ), "the season-2 seed charge must survive EconomicLedger.reset_season"
+        for season in (1, 2, 3):
+            balance_before = ledger.balance_credits
+            started = client.post(
+                f"/api/v1/games/{game_id}/start-season?days={days}&seed=42"
+            )
+            assert started.status_code == 200, started.text
+            if season == 1:
+                # Already paid at creation; starting season 1 must not repeat it.
+                assert ledger.balance_credits == balance_before
+            else:
+                charged = _seed_costs(game_id)
+                assert charged == per_patch, f"season {season} replant was free"
+                assert ledger.balance_credits == balance_before - sum(charged)
+                assert ledger.season_costs >= sum(
+                    charged
+                ), "the seed charge must survive EconomicLedger.reset_season"
+
+            stepped = client.post(f"/api/v1/games/{game_id}/step?days={days}")
+            assert stepped.status_code == 200, stepped.text
+            assert stepped.json()["season_complete"], f"season {season} unfinished"
 
     def test_unpriced_crop_raises(self, prices: PriceTable) -> None:
         """An unpriced crop is a configuration error, not a free input."""
