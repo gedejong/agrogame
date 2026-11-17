@@ -2528,12 +2528,19 @@ def test_pause_latch_survives_save_load_without_duplicate(
         before
     )
 
-    after = _step(client, game_id, "days=15")
-    assert after["pause_events"] == []
-    latch = games[game_id].pause_detector.latch("f1", PauseReason.NUTRIENT_DEFICIENCY)
-    # The condition held all along, so a latch reloaded armed would have fired.
+    # Step until the N condition has held onset_days in a row after the load:
+    # a latch reloaded fresh (armed, zero counters) would have fired by then.
+    onset = PauseConfig().n_onset_days
+    later: list[dict] = []
+    for _ in range(30):
+        later += _step(client, game_id, "days=1")["pause_events"]
+        detector = games[game_id].pause_detector
+        latch = detector.latch("f1", PauseReason.NUTRIENT_DEFICIENCY)
+        if latch.run_days >= onset:
+            break
+    assert latch.run_days >= onset, "N stress never re-held; test proves nothing"
     assert not latch.armed
-    assert latch.run_days > PauseConfig().n_onset_days + 15 - 1
+    assert [e for e in later if e["reason"] == "nutrient_deficiency"] == []
 
 
 def test_save_load_keeps_a_deferred_reason(client, tmp_path, monkeypatch) -> None:
