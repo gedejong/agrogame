@@ -48,6 +48,9 @@ at bb276b4.
   conserve, so neither macropores nor biopores change aeration, O₂ or Eh.
   The only partition-sensitive reader is the effective-porosity cap
   described under Context, which made no measurable difference.
+  That was measured untilled (10 × 40 mm/day). After a moldboard pass,
+  10 × 80 mm at 500 /m² moves θ by ≤ 5.5e-4 m³/m³ and NO₃ leaching by
+  ≤ 0.23 kg/ha, about 100× less at in-game densities (#524, ADR-010).
 - *Hydrological (not modelled).* There is no infiltration bypass, no fast
   drainage path to depth, and no macropore solute transport. Water and nitrate
   move only through the cascading bucket and its `WaterDrained` events.
@@ -178,9 +181,10 @@ it as-is, for the reasons above.
 ### Harder
 
 - Clay presets under-represent rapid drainage and nitrate bypass after heavy
-  storms on structured soil. Biopores have no measurable consequence for
-  water, aeration or rooting; they change only the reported pore-network
-  partition (see Decision). The hydrological gap is tracked in #485.
+  storms on structured soil. Outside saturated layers, biopores have no
+  measurable consequence for water, aeration or rooting; they change only the
+  reported pore-network partition (see Decision). The hydrological gap is
+  tracked in #485.
 - `DailyDrivers.rainfall_intensity_mm_hr` is accepted but read by nothing until
   #485 lands.
 - Saves written before #466 carry an ignored `water_theta_macro` key. It is

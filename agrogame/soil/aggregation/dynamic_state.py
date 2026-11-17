@@ -76,13 +76,14 @@ def effective_porosity(
     reaches the water balance only through ``effective_ksat_factor``, which
     the cascading bucket applies as ``min(1, factor)`` to the daily share of
     above-field-capacity water drained, so a factor above 1 has no effect.
-    The macro/connectivity split feeds no simulated flux (ADR-016, #524).
-    Biopore donation draws on crypto first, so it raises this value by at
-    most the biopore volume fraction (0.0016 at 500 /m²); #524 measured no
-    change in any simulated output from it. The old scalar shift was a
-    crude heuristic with ~zero dynamical effect, so removing it loses no
-    load-bearing physics; see the #289 PR for the measured magnitude of
-    the shift.
+    The aggregation-driven macro/meso split and connectivity feed no
+    simulated flux (ADR-016, #524). Biopore donation draws on crypto first,
+    so it raises this value by at most the biopore volume fraction (0.0016
+    at 500 /m²). That binds only when a layer saturates, moving θ by
+    <= 5.5e-4 m³/m³ at 500 /m² (ADR-010 #524 amendment). The old scalar
+    shift was a crude heuristic with ~zero dynamical effect, so removing it
+    loses no load-bearing physics; see the #289 PR for the measured
+    magnitude of the shift.
 
     **Scalar fallback (backward-compatible, when no ``pore_state``).**
     Approximates porosity by shifting static saturation with the

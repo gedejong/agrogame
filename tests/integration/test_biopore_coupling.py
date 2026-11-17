@@ -1,12 +1,16 @@
-"""Biopores drive no simulated flux: 0 and 500 /m² give identical outputs (#524).
+"""Without saturation, 0 and 500 biopores/m² give identical outputs (#524).
 
 This test pins the **absence** of a coupling, deliberately. Biopores form,
-decay and donate volume into the reported macropore pool (ADR-009, ADR-010),
-but nothing simulated reads that pool: gas diffusion uses total porosity,
-which the donation conserves, and the Ksat factor follows aggregation, not
-the pore network (ADR-016). Any future coupling, such as root penetration
-through biopores or #485's preferential flow, must replace this test with a
-test of that coupling rather than loosen it.
+decay and donate volume into the reported macropore pool (ADR-009, ADR-010).
+Gas diffusion uses total porosity, which the donation conserves, and the Ksat
+factor follows aggregation, not the pore network (ADR-016). The one simulated
+reader is the water balance's effective-porosity cap (total - crypto), which
+the donation raises by <= 0.0016 m³/m³. It binds only when a layer saturates,
+which never happens in this scenario; its bound is in ADR-010's #524
+amendment. So this pins every coupling except that cap: a failure means a new
+coupling was wired, or the scenario began to saturate a layer. Any future
+coupling, such as root penetration through biopores or #485's preferential
+flow, must replace this test with a test of that coupling, not loosen it.
 
 Scenario (#524 refinement): maize x netherlands_temperate on loam_temperate
 and clay_temperate, two 150-day seasons (seeds 42 and 43) joined by

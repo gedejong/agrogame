@@ -53,7 +53,8 @@ class BioporeParams:
     the API reports. Gas diffusion reads only total porosity, which the
     donation conserves, and roots do not read biopores at all. The water
     balance's effective-porosity cap rises by at most the biopore volume
-    fraction, with no measurable effect on drainage (ADR-016).
+    fraction; it binds only when a layer saturates, and then moves θ by
+    <= 5.5e-4 m³/m³ at 500 /m² (ADR-010 #524 amendment, ADR-016).
 
     Defaults calibrated against Pierret et al. 2007's structured-soil
     biopore density range (50–500 /m²) — see ADR-009 for the calibration

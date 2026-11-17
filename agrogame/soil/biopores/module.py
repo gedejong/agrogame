@@ -18,8 +18,10 @@ In the running simulation (wired by #284, persisted in ``SoilSnapshot``)
 the module creates channels from root turnover, decays them daily, loses
 plow-zone channels to tillage, and donates their volume into the reported
 pore-network macropore pool. No simulated flux reads that pool or the
-biopore state; the water balance's effective-porosity cap, which the
-donation raises slightly, moved no output when #524 measured it (ADR-016).
+biopore state except the water balance's effective-porosity cap
+(total - crypto), which the donation raises by <= 0.0016 m³/m³ at 500 /m².
+The cap binds only when a layer saturates, and then moves θ by
+<= 5.5e-4 m³/m³ at 500 /m² (ADR-010 #524 amendment, ADR-016).
 """
 
 from __future__ import annotations

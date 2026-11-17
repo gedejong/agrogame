@@ -111,8 +111,11 @@ class SoilStateResponse(BaseModel):
     pore_macro_frac: list[float] = Field(
         default_factory=list,
         description=(
-            "Macropore fraction per layer (>50 µm). Reported structure that no "
-            "simulated flux reads (ADR-016)."
+            "Macropore fraction per layer (>50 µm). Reported structure: the only "
+            "simulated reader of the partition is the water balance's "
+            "effective-porosity cap, which biopore donation into this pool raises "
+            "(θ shift ≤ 5.5e-4 m³/m³ at 500 /m², only when a layer saturates; "
+            "ADR-010)."
         ),
     )
     pore_meso_frac: list[float] = Field(

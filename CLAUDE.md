@@ -18,8 +18,10 @@ Concretely, the simulation includes:
 - **Soil biogeochemistry**: 3-pool RothC soil organic matter, nitrogen cycling
   (mineralisation, nitrification, denitrification, leaching), gas diffusion.
 - **Soil biology**: microbial decomposer pools, root-channel biopore
-  formation, decay and tillage loss (reported structure that drives no
-  simulated flux, ADR-016), root–microbe interactions.
+  formation, decay and tillage loss (reported structure; its only simulated
+  reader is the effective-porosity cap, which moves θ by ≤ 5.5e-4 m³/m³ at
+  500 /m² and only when a layer saturates, ADR-010/016), root–microbe
+  interactions.
 - **Plant biology**: phenology (GDD-driven), canopy light interception,
   root architecture and uptake, crop-specific physiological parameters.
 

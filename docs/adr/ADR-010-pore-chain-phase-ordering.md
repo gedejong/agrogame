@@ -4,7 +4,7 @@
 
 Accepted (#284).
 
-### Amendment (#524), 2026-11-17: the pore partition and biopores drive no flux
+### Amendment (#524), 2026-11-17: biopores reach the simulation only through the effective-porosity cap
 
 #524 pinned biopore density at 0 and at 500 /m² through two maize seasons on
 `loam_temperate` and `clay_temperate`. θ, NO₃, NH₄, Eh, microsite fraction,
@@ -12,10 +12,22 @@ roots, biomass, grain, drainage, runoff and NO₃ leaching came out identical,
 and O₂ and CO₂ differed only by rounding (≤ 2e-15 relative). Gas diffusion
 reads total porosity, which the partition and the donation conserve
 (ADR-016), so the ordering below still matters for the reported `macro` pool
-but not for aeration. Four sentences are corrected in place: the *Context*
-reason for firing first, the gas-diffusion row of *Why this ordering*, and
-the biopore and aeration claims under *Easier* and *Harder*.
-`tests/integration/test_biopore_coupling.py` pins the absence of a coupling.
+but not for gas diffusion.
+
+The one simulated reader of the partition is the water balance's
+effective-porosity cap (total − crypto, ADR-016). Biopore donation takes from
+crypto first, so it raises the cap by at most the biopore volume fraction
+(≤ 0.0016 m³/m³ at 500 /m²). The cap binds only when a layer fills to it,
+which those seasons never do. After a moldboard pass, 10 days of 80 mm rain
+at 500 /m² moved θ by ≤ 5.5e-4 m³/m³, O₂ by ≤ 3.5e-4, deep drainage by
+≤ 0.16 mm and NO₃ leaching by ≤ 0.23 kg/ha. The effect is linear in density,
+so it is about 100× smaller at in-game densities (3–5 /m²). Untilled,
+100 mm/day irrigation moved only NO₃ leaching (≤ 0.05 kg/ha).
+
+Four sentences are corrected in place: the *Context* reason for firing first,
+the gas-diffusion row of *Why this ordering*, and the biopore and aeration
+claims under *Easier* and *Harder*. `tests/integration/test_biopore_coupling.py`
+pins the absence of every other coupling.
 
 ### Amendment 2026-11-17 — dual-porosity water model retired (ADR-016)
 
@@ -53,7 +65,7 @@ tracked by the realism sweep, see `docs/soil-gas-redox.md`).
 
 #211 (PoreNetworkModule), #213 (dual-porosity water model, since retired by ADR-016), #215 (BioporeModule), #216 (RedoxModule micronutrients), and #217 (GasDiffusionModule) shipped with correct physics and unit tests but were not constructed in `FullSimulationOrchestrator`. The pore chain was mathematically complete but functionally inert — none of the science affected gameplay or simulation outputs.
 
-#284 wires the four daily-step modules into the orchestrator so they actually execute on each `DayTick`. Three of the four (`PoreNetworkModule`, `BioporeModule`, `GasDiffusionModule`) need to fire **before** the existing water/redox/nutrients phases because gas diffusion's O₂ and anaerobic-microsite outputs flow into the redox and nitrogen modules. The pore partition and biopores flow into no simulated flux (ADR-016, #524). The dual-porosity water model was not wired: `WaterRuntime` keeps `CascadingBucketWaterModel`, and #466 later retired the dual-porosity model rather than wiring it in (ADR-016).
+#284 wires the four daily-step modules into the orchestrator so they actually execute on each `DayTick`. Three of the four (`PoreNetworkModule`, `BioporeModule`, `GasDiffusionModule`) need to fire **before** the existing water/redox/nutrients phases because gas diffusion's O₂ and anaerobic-microsite outputs flow into the redox and nitrogen modules. The pore partition and biopores flow into no simulated flux except through the water balance's effective-porosity cap, which moves θ by ≤ 5.5e-4 m³/m³ at 500 /m² and only when a layer saturates (#524 amendment above). The dual-porosity water model was not wired: `WaterRuntime` keeps `CascadingBucketWaterModel`, and #466 later retired the dual-porosity model rather than wiring it in (ADR-016).
 
 ## Decision
 
@@ -135,7 +147,7 @@ The buffer lives on the orchestrator (`self._co2_buffer`) rather than inside `Ga
 ### Easier
 
 - **Pore chain is wired and deterministic**: 365-day full step exercises every daily-step module without crashes, NaN, or pore-conservation violations.
-- **Realism follows physics, not a sigmoid proxy**: Eh and denitrification respond to actual O₂ rather than WFPS, so waterlog → anaerobic surfaces in simulation outputs. Biopore dynamics change only the reported macropore pool (#524). Heavy-rain macropore bypass does not: preferential flow is not modelled hydrologically (ADR-016).
+- **Realism follows physics, not a sigmoid proxy**: Eh and denitrification respond to actual O₂ rather than WFPS, so waterlog → anaerobic surfaces in simulation outputs. Biopore dynamics change the reported macropore pool and, only when a layer saturates, the effective-porosity cap (θ ≤ 5.5e-4 m³/m³ at 500 /m², #524 amendment above). Heavy-rain macropore bypass does not: preferential flow is not modelled hydrologically (ADR-016).
 - **Performance under budget**: median day step < 10 ms on the 3-layer `loam_temperate` profile (`tests/integration/test_realism.py::test_pore_chain_perf_under_10ms_per_day`). ADR-006's NumPy → Numba → Cython escalation is not needed for this chain.
 - **Snapshot persistence covers the new states**: `SoilSnapshot.{pore_network, biopore, gas_diffusion}` round-trip with float-tolerance equality, with backward-compat default-init for pre-#284 saves.
 
@@ -144,7 +156,7 @@ The buffer lives on the orchestrator (`self._co2_buffer`) rather than inside `Ga
 - **Realism-test drift**: with O₂-driven Eh, deeper layers reach lower Eh than they did under the WFPS proxy because the gas-diffusion solver treats per-layer SOM respiration uniformly, while real soils show 5–10× lower respiration at depth (Kapeluck & Van Cleve 1995). One existing test (`tests/test_api.py::test_step_response_includes_redox_state`) was relaxed from "all layers Eh > 0" to "topsoil Eh > 0" with a comment noting the SOM per-layer calibration follow-up.
 - **Phase-ordering fragility**: re-arranging subscription order in `_wire_runtimes` silently breaks the chain. The regression test checks for this, but contributors must not break it.
 - **CO₂ buffer is global per orchestrator**, not per layer of state. Acceptable for single-field simulations; multi-field orchestration would need per-field buffers.
-- **No hydrological preferential flow**: neither the pore partition nor biopores moves aeration, redox, water or solutes, and gas diffusion drives aeration and redox through θ and total porosity alone (#524); the dual-porosity model was retired rather than made opt-in (ADR-016, path back via #485).
+- **No hydrological preferential flow**: the pore partition and biopores move water, solutes and aeration only through the effective-porosity cap when a layer saturates (θ ≤ 5.5e-4 m³/m³ at 500 /m², #524 amendment above), and gas diffusion drives aeration and redox through θ and total porosity alone; the dual-porosity model was retired rather than made opt-in (ADR-016, path back via #485).
 
 ### Follow-ups
 
