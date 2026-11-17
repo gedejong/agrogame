@@ -42,8 +42,12 @@ at bb276b4.
 - *Structural (kept).* The pore network (`PoreNetworkModule`) partitions
   porosity into macro, meso, micro and crypto pools. Biopores (ADR-009) form
   from root turnover, decay over time, are destroyed by tillage, and donate
-  their volume into the macropore pool. Gas diffusion and redox (ADR-010) read that
-  geometry, so macropores affect aeration, O₂, Eh and denitrification.
+  their volume into the macropore pool. This structure is computed, persisted
+  and reported by the API, but no flux reads the partition. Gas diffusion
+  (ADR-010) uses total porosity, which the partition and the donation
+  conserve, so neither macropores nor biopores change aeration, O₂ or Eh.
+  The only partition-sensitive reader is the effective-porosity cap
+  described under Context, which made no measurable difference.
 - *Hydrological (not modelled).* There is no infiltration bypass, no fast
   drainage path to depth, and no macropore solute transport. Water and nitrate
   move only through the cascading bucket and its `WaterDrained` events.
@@ -174,8 +178,9 @@ it as-is, for the reasons above.
 ### Harder
 
 - Clay presets under-represent rapid drainage and nitrate bypass after heavy
-  storms on structured soil. Biopores still have no hydrological consequence,
-  only aeration and redox effects. This is a known gap, tracked in #485.
+  storms on structured soil. Biopores have no measurable consequence for
+  water, aeration or rooting; they change only the reported pore-network
+  partition (see Decision). The hydrological gap is tracked in #485.
 - `DailyDrivers.rainfall_intensity_mm_hr` is accepted but read by nothing until
   #485 lands.
 - Saves written before #466 carry an ignored `water_theta_macro` key. It is
