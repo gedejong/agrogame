@@ -59,8 +59,12 @@ func test_inspector_wires_each_layers_three_carbon_pools() -> void:
 	await get_tree().process_frame
 	var bodies: Array = ctrl._nutrient_panel._layer_bodies
 	assert_eq(bodies.size(), 2)
-	assert_eq(bodies[0].get_node("OrganicCarbonSummary/TotalCarbonValue").text, "100.0 gC/m²")
-	assert_eq(bodies[1].get_node("OrganicCarbonSummary/TotalCarbonValue").text, "10.0 gC/m²")
+	assert_eq(
+		bodies[0].get_node("OrganicCarbonSummary/TotalRow/TotalCarbonValue").text, "100.0 gC/m²"
+	)
+	assert_eq(
+		bodies[1].get_node("OrganicCarbonSummary/TotalRow/TotalCarbonValue").text, "10.0 gC/m²"
+	)
 	var panel: PanelContainer = ctrl._nutrient_panel
 	assert_almost_eq(
 		panel.get_global_rect().end.x, ui.get_viewport().get_visible_rect().end.x - 16.0, 1.0
