@@ -21,6 +21,12 @@ def effective_ksat_factor(macro_frac: float) -> float:
     Ref: Dexter 2004, Geoderma — soil physical quality; ksat correlates
          with macroporosity which scales with macroaggregate content.
 
+    The water balance uses only ``min(1, factor)``: the cascading bucket's
+    daily share of above-field-capacity water drained, so a factor above 1
+    has no effect there, and ``ksat_mm_per_hour`` is not read by the water
+    balance at all. The API's ``ksat_mm_day`` (base Ksat × this factor) is a
+    reported structural index (#524).
+
     Args:
         macro_frac: Macroaggregate fraction (0–1).
 
@@ -66,13 +72,17 @@ def effective_porosity(
     scalar fallback below applied to the water balance. That is a net
     improvement, not a double-counting fix: aggregation and porosity are
     *distinct* real effects, but total porosity being static here means the
-    pore breakdown genuinely carries no aggregation signal — and the
-    structural signal still reaches the water balance the physically
-    grounded way, through ``ksat`` (see ``effective_ksat_factor``), with
-    the macro/connectivity split additionally feeding gas diffusion. The
-    old scalar shift was a crude heuristic with ~zero dynamical effect, so
-    removing it loses no load-bearing physics; see the #289 PR for the
-    measured magnitude of the shift.
+    pore breakdown genuinely carries no aggregation signal. Aggregation
+    reaches the water balance only through ``effective_ksat_factor``, which
+    the cascading bucket applies as ``min(1, factor)`` to the daily share of
+    above-field-capacity water drained, so a factor above 1 has no effect.
+    The macro/connectivity split feeds no simulated flux (ADR-016, #524).
+    Biopore donation draws on crypto first, so it raises this value by at
+    most the biopore volume fraction (0.0016 at 500 /m²); #524 measured no
+    change in any simulated output from it. The old scalar shift was a
+    crude heuristic with ~zero dynamical effect, so removing it loses no
+    load-bearing physics; see the #289 PR for the measured magnitude of
+    the shift.
 
     **Scalar fallback (backward-compatible, when no ``pore_state``).**
     Approximates porosity by shifting static saturation with the

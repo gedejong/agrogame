@@ -109,7 +109,11 @@ class SoilStateResponse(BaseModel):
 
     # Pore-network state (#274) — per-layer volume fractions summing to porosity
     pore_macro_frac: list[float] = Field(
-        default_factory=list, description="Macropore fraction per layer (>50 µm)"
+        default_factory=list,
+        description=(
+            "Macropore fraction per layer (>50 µm). Reported structure that no "
+            "simulated flux reads (ADR-016)."
+        ),
     )
     pore_meso_frac: list[float] = Field(
         default_factory=list, description="Mesopore fraction per layer (10–50 µm)"
@@ -126,13 +130,20 @@ class SoilStateResponse(BaseModel):
             "Pore-network connectivity index per layer (0..1): macropore volume "
             "over total porosity. Higher = better-connected pore space. This is a "
             "connectivity measure, not tortuosity (which is >=1 and inversely related)."
+            " Reported structure that no simulated flux reads (ADR-016)."
         ),
     )
 
     # Dynamic soil properties from aggregation (#253)
     ksat_mm_day: list[float] = Field(
         default_factory=list,
-        description="Dynamic saturated hydraulic conductivity per layer (mm/day)",
+        description=(
+            "Structural Ksat index per layer (mm/day): preset matric Ksat × an "
+            "aggregation factor of 0.5–2.5. The water balance never uses this "
+            "mm/day value; it applies only min(1, factor) to the daily drainage "
+            "of water above field capacity. Neither the pore network nor "
+            "biopores enter it (#524)."
+        ),
     )
     porosity: list[float] = Field(
         default_factory=list,
@@ -321,7 +332,16 @@ class DailySnapshot(BaseModel):
     mn_available_surface: float = 18.0
     agg_mwd_surface: float = 0.55
     pore_macro_frac_surface: float = 0.0
-    ksat_surface: float = 0.0
+    ksat_surface: float = Field(
+        default=0.0,
+        description=(
+            "Top-layer structural Ksat index (mm/day): preset matric Ksat × an "
+            "aggregation factor of 0.5–2.5. The water balance never uses this "
+            "value; it applies only min(1, factor) to the daily drainage of water "
+            "above field capacity. Neither the pore network nor biopores enter it "
+            "(#524)."
+        ),
+    )
     rain_mm: float = 0.0
     events: list[dict] = Field(
         default_factory=list,

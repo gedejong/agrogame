@@ -437,7 +437,7 @@ def test_cover_crop_vs_fallow_density_ratio() -> None:
 def test_cover_crop_steady_state_density_in_pierret_range() -> None:
     """Topsoil density at 3-yr SS lands in Pierret 2007's lower-half band.
 
-    Pierret et al. 2007, Plant Soil 286 — structured agricultural soils
+    Pierret et al. 2007, Vadose Zone J. 6:269-281 — structured agricultural soils
     carry 50–500 biopores/m². Calibration target (#290) is the lower
     half [50, 200] /m² for typical cover-crop turnover, which leaves
     headroom for management practices that intensify channel formation
