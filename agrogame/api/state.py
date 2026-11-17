@@ -7,7 +7,7 @@ from datetime import date
 
 from agrogame.game.economy import EconomicLedger
 from agrogame.game.field import FieldManager
-from agrogame.game.turn import GameTurnManager, PauseEvent
+from agrogame.game.turn import GameTurnManager, PauseDetector, PauseEvent
 from agrogame.weather.types import WeatherRecord
 
 # Default simulation start date (Northern hemisphere spring).
@@ -26,7 +26,11 @@ class GameSession:
     ledger: EconomicLedger
     turn_manager: GameTurnManager | None = None
     weather: list[WeatherRecord] = field(default_factory=list)
+    # This season's alerts, interrupting and not (#470).
     pause_events: list[PauseEvent] = field(default_factory=list)
+    # In-season alert detector run by /step (#470). ``None`` disables detection;
+    # that is a control for tests, not a player setting, and is not saved.
+    pause_detector: PauseDetector | None = field(default_factory=PauseDetector)
     current_date: date = DEFAULT_START_DATE
     base_seed: int = 42
     run_count: int = 0
