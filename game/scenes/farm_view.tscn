@@ -168,7 +168,7 @@ text = "Irrigate (20mm)"
 icon = ExtResource("6")
 
 [node name="FertilizeButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
-text = "Fertilize (50kg)"
+text = "Fertilize"
 icon = ExtResource("7")
 
 [node name="TillageButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
