@@ -263,9 +263,13 @@ def test_deferred_reason_is_dropped_if_condition_clears_in_window() -> None:
 
 def test_same_day_onsets_fire_drought_then_defer_n() -> None:
     det = PauseDetector()
-    both = [_obs(water=0.1, n=0.5)]
-    fired = _run(det, [both] * 3 + [[_obs(water=0.9, n=0.5)]] * 5)
-    assert [(e.day, e.reason) for e in fired] == [(2, DROUGHT), (6, NITROGEN)]
+    # N starts a day early, so both reach onset on day 3 (drought 2 d, N 3 d).
+    head = _run(det, [[_obs(water=0.9, n=0.5)]] + [[_obs(water=0.1, n=0.5)]] * 2)
+    assert [(e.day, e.reason) for e in head] == [(3, DROUGHT)]
+    assert det.latch("f1", NITROGEN).deferred
+    tail = _run(det, [[_obs(water=0.1, n=0.5)]] * 4, start_day=4)
+    fired = head + tail
+    assert [(e.day, e.reason) for e in fired] == [(3, DROUGHT), (7, NITROGEN)]
     gaps = [b.day - a.day for a, b in pairwise(fired)]
     assert all(g > PauseConfig().interrupt_spacing_days for g in gaps)
 

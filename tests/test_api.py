@@ -2465,6 +2465,31 @@ def test_frost_notice_never_stops_fast_forward(client) -> None:
     status = client.get(f"/api/v1/games/{game_id}/status").json()
     interrupts = [e for e in status["pause_events"] if e["interrupt"]]
     assert status["season_result"]["pause_count"] == len(interrupts)
+    # The notice warns of tomorrow: `day` is 1-based, so weather[day] is the
+    # next day's record, and it is the one below the crop's threshold.
+    from agrogame.api.state import games
+
+    s = games[game_id]
+    params = s.field_manager.fields["f1"].patches[0].orch.canopy.params
+    for e in notices:
+        assert s.weather[e["day"]].tmin_c < params.frost_threshold_c, e
+
+
+def test_run_season_twice_starts_each_season_with_a_clean_slate(client) -> None:
+    """Each /start-season clears the alert log, spacing and latches (#470).
+
+    The client's Run Season flow, two seasons: season 2's /status lists only
+    what season 2's /step raised, and pause_count counts only those.
+    """
+    game_id = _sahel_game(client)
+    for _ in range(2):
+        setup = client.post(f"/api/v1/games/{game_id}/start-season?days=150&seed=42")
+        assert setup.status_code == 200, setup.text
+        fired = _step(client, game_id, "days=150")["pause_events"]
+        status = client.get(f"/api/v1/games/{game_id}/status").json()
+        assert fired and status["pause_events"] == fired
+        interrupts = sum(1 for e in fired if e["interrupt"])
+        assert status["season_result"]["pause_count"] == interrupts
 
 
 def test_phase_and_pause_count_through_a_season(client) -> None:
