@@ -2212,6 +2212,58 @@ def test_step_after_completed_season_starts_a_new_one(client) -> None:
     assert s.weather[0].day == end_date
 
 
+def test_forecast_after_run_season_does_not_regenerate_weather(client) -> None:
+    """The client's /forecast after Run Season keeps the season exhausted (#487).
+
+    ``_on_step_complete`` calls ``GET /forecast`` after Run Season's final /step.
+    That read must not refill the used-up series, or the next Next Day consumes
+    a record 150 days ahead of the session date instead of opening season 2.
+    """
+    from agrogame.api.state import games
+
+    gid = _create_game(client)
+    client.post(f"/api/v1/games/{gid}/start-season?days=150&seed=42")
+    client.post(f"/api/v1/games/{gid}/step?days=150")
+    end_date = games[gid].current_date
+    client.get(f"/api/v1/games/{gid}/forecast")  # what _on_step_complete does
+    step = client.post(f"/api/v1/games/{gid}/step?days=1").json()
+    assert step["weather"]["date"] == end_date.isoformat()
+    assert step["day_number"] == 1
+
+
+def test_client_run_season_then_next_day_over_two_cycles(client) -> None:
+    """Run Season, /forecast, Next Day opens a new season, twice over (#487).
+
+    Multi-cycle guard for the forecast regeneration defect: an exhausted season
+    stays exhausted through the read-only /forecast, and only /step opens the
+    next season, with the session date and weather index in agreement.
+    """
+    from agrogame.api.state import games
+
+    gid = _create_game(client)
+    for cycle in (1, 2):
+        _run_season(client, gid, 150, 42)
+        s = games[gid]
+        end_date = s.current_date
+        assert s.day_index == len(s.weather) == 150
+
+        fc = client.get(f"/api/v1/games/{gid}/forecast")
+        assert fc.status_code == 200, fc.text
+        # Nothing is left of this season; the next one does not exist yet.
+        assert fc.json()["forecast"] == [], f"cycle {cycle}"
+        assert s.day_index == len(s.weather) == 150, f"cycle {cycle}"
+
+        run_count_before = s.run_count
+        step = client.post(f"/api/v1/games/{gid}/step?days=1").json()
+        assert step["day_number"] == 1, f"cycle {cycle}"
+        assert step["weather"]["date"] == end_date.isoformat(), f"cycle {cycle}"
+        assert s.run_count == run_count_before + 1, f"cycle {cycle}"
+
+        # The outlook now reads forward from the new season's session date.
+        fc = client.get(f"/api/v1/games/{gid}/forecast").json()["forecast"]
+        assert fc[0]["date"] == s.current_date.isoformat(), f"cycle {cycle}"
+
+
 def test_two_run_season_cycles_carry_soil_over(client) -> None:
     """Two Run Season cycles complete on one session; soil carries across (#487).
 

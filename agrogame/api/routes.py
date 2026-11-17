@@ -690,8 +690,15 @@ def _settle_standing_grain(
 
 
 def _ensure_weather(s: GameSession, seed: int = 42) -> None:
-    """Generate weather for the session if not yet generated."""
-    if s.weather and s.day_index < len(s.weather):
+    """Generate weather for the session if not yet generated.
+
+    An exhausted series is left alone: only ``/step`` may turn a finished season
+    into a new one (``_reset_session_for_new_season`` empties the series first).
+    Refilling it here let the read-only ``/forecast`` leave ``day_index`` deep
+    inside a fresh series whose length differed from the finished one, so the
+    next ``/step`` played a record months ahead of the session date (#487).
+    """
+    if s.weather:
         return
     first_field = next(iter(s.field_manager.fields.values()))
     climate_key = first_field.patches[0].config.climate_key
