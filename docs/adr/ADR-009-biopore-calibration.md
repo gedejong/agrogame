@@ -23,8 +23,9 @@ Accepted (#290).
 - Creation computes density as `V / (π r²)`, implying 1 m channels, while
   `density_to_volume_fraction` assumes channels that span the layer, so
   creation undercounts density by the layer thickness (×2.5–4 on
-  `loam_temperate`). That finding, and any re-derivation of the parameters
-  below, belongs to #307.
+  `loam_temperate`). The finding is recorded in #307, closed as not planned
+  on 2026-11-17 because the density drives no flux; it would be reopened as
+  a prerequisite if biopores were ever coupled to a flux.
 - The decision, parameter table and verification numbers are unchanged.
 
 ## Context
