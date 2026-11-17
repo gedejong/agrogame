@@ -52,12 +52,18 @@ class CanopyModule:
             self.event_bus.subscribe(GddAccumulated, self._on_gdd_accumulated)
 
         self._current_stage: PhenologyStage = PhenologyStage.PLANTED
-        self._grain_fill_start_gdd: float = 0.0
         self._current_gdd: float = 0.0
-        # Sink-source grain model (#321): biomass at anthesis and a freeze
-        # flag for the peri-anthesis grain-number window.
-        self._lag_start_biomass: float = 0.0
-        self._grain_number_frozen: bool = False
+        # Grain-fill progress (grain-fill start GDD, the #321 lag-phase
+        # biomass anchor and the grain-number freeze flag) lives on
+        # CanopyState so it is saved with the canopy (#515).
+
+    @property
+    def _grain_fill_start_gdd(self) -> float:
+        """Read-only alias of ``state.grain_fill_start_gdd`` (#515).
+
+        Kept because ``tests/integration/test_realism.py`` reads it.
+        """
+        return self.state.grain_fill_start_gdd
 
     def _on_gdd_accumulated(self, event: GddAccumulated) -> None:
         self._current_gdd = event.total_gdd
@@ -68,11 +74,11 @@ class CanopyModule:
         if event.to_stage == PhenologyStage.EMERGED and self.state.lai <= 0.0:
             self.state.lai = max(self.state.lai, self.params.initial_lai_at_emergence)
         if event.to_stage == PhenologyStage.GRAIN_FILL:
-            self._grain_fill_start_gdd = event.at_gdd
+            self.state.grain_fill_start_gdd = event.at_gdd
             # Anchor the peri-anthesis grain-number window (#321): grain
             # number will be set from biomass accrued past this point.
-            self._lag_start_biomass = self.state.biomass_g_m2
-            self._grain_number_frozen = False
+            self.state.lag_start_biomass_g_m2 = self.state.biomass_g_m2
+            self.state.grain_number_frozen = False
             self.state.grain_number = 0.0
 
     @property
@@ -94,7 +100,7 @@ class CanopyModule:
             duration = self.params.grain_fill_duration_gdd
             if duration <= 0.0:
                 return self.params.senescence_grain_fill_max
-            progress = (self._current_gdd - self._grain_fill_start_gdd) / duration
+            progress = (self._current_gdd - self.state.grain_fill_start_gdd) / duration
             progress = max(0.0, min(1.0, progress))
             start = self.params.senescence_flowering_fraction
             return start + progress * (self.params.senescence_grain_fill_max - start)
@@ -190,8 +196,8 @@ class CanopyModule:
         self.state.stem_biomass_g_m2 *= frac
         self.state.grain_biomass_g_m2 *= frac
         self.state.grain_number *= frac  # reset grain number for next cycle (#321)
-        self._lag_start_biomass *= frac
-        self._grain_number_frozen = False
+        self.state.lag_start_biomass_g_m2 *= frac
+        self.state.grain_number_frozen = False
         self.state.last_water_stress = 1.0  # Reset to no-stress after harvest
         if self.event_bus is not None and abs(self.state.lai - prev_lai) > 1e-9:
             self.event_bus.emit(
@@ -250,17 +256,16 @@ class CanopyModule:
         filling changes kernel weight, never grain number.
         """
         p = self.params
-        window_end = self._grain_fill_start_gdd + p.grain_set_window_gdd
+        window_end = self.state.grain_fill_start_gdd + p.grain_set_window_gdd
         if self._current_gdd <= window_end:
-            lag_growth = self.state.biomass_g_m2 - self._lag_start_biomass
-            floor = (
-                p.grains_per_g_source * p.grain_set_floor_frac * self._lag_start_biomass
-            )
+            lag_start = self.state.lag_start_biomass_g_m2
+            lag_growth = self.state.biomass_g_m2 - lag_start
+            floor = p.grains_per_g_source * p.grain_set_floor_frac * lag_start
             self.state.grain_number = max(
                 floor, p.grains_per_g_source * max(0.0, lag_growth)
             )
-        elif not self._grain_number_frozen:
-            self._grain_number_frozen = True
+        elif not self.state.grain_number_frozen:
+            self.state.grain_number_frozen = True
             if self.event_bus is not None:
                 self.event_bus.emit(
                     GrainNumberSet(
