@@ -4,27 +4,24 @@ extends RefCounted
 ## panels. Pure data transforms over API step payloads — no scene coupling — so
 ## it lives outside farm_view.gd (keeping it under the gdlint file-length cap).
 ##
-## History is keyed by soil_type, each value an Array[Dictionary] of daily
-## records, capped at MAX_HISTORY_DAYS (oldest dropped first).
+## History is keyed by patch_idx (never soil name, which two patches may share;
+## #516), each value an Array[Dictionary] of daily records, capped at
+## MAX_HISTORY_DAYS (oldest dropped first).
 
 const MAX_HISTORY_DAYS := 365
 
 
-static func append_snapshots(
-	snapshots: Array, daily_history: Dictionary, soil_types: Array
-) -> void:
+static func append_snapshots(snapshots: Array, daily_history: Dictionary, layout: Array) -> void:
 	## Append lightweight per-day snapshots (one per patch) to the history dict.
+	## Snapshots for patches outside `layout` (the game's patch list) are skipped.
 	for snap: Dictionary in snapshots:
 		var patch_idx: int = snap.get("patch_idx", 0)
-		var patch_soil: String = ""
-		if patch_idx < soil_types.size():
-			patch_soil = soil_types[patch_idx]
-		if patch_soil.is_empty():
+		if patch_idx < 0 or patch_idx >= layout.size():
 			continue
-		if not daily_history.has(patch_soil):
-			daily_history[patch_soil] = []
+		if not daily_history.has(patch_idx):
+			daily_history[patch_idx] = []
 		(
-			daily_history[patch_soil]
+			daily_history[patch_idx]
 			. append(
 				{
 					"crop_stage": snap.get("crop_stage", ""),
@@ -41,15 +38,15 @@ static func append_snapshots(
 				}
 			)
 		)
-		_cap(daily_history[patch_soil])
+		_cap(daily_history[patch_idx])
 
 
-static func append_patch(patch: Dictionary, patch_soil: String, daily_history: Dictionary) -> void:
+static func append_patch(patch: Dictionary, patch_idx: int, daily_history: Dictionary) -> void:
 	## Append a full per-patch history record derived from a step payload.
-	if patch_soil.is_empty():
+	if patch_idx < 0:
 		return
-	if not daily_history.has(patch_soil):
-		daily_history[patch_soil] = []
+	if not daily_history.has(patch_idx):
+		daily_history[patch_idx] = []
 	var soil_state: Dictionary = patch.get("soil_state", {})
 	var no3_arr: Array = soil_state.get("n_no3", [])
 	var nh4_arr: Array = soil_state.get("n_nh4", [])
@@ -59,7 +56,7 @@ static func append_patch(patch: Dictionary, patch_soil: String, daily_history: D
 	for v: float in nh4_arr:
 		n_total += v
 	(
-		daily_history[patch_soil]
+		daily_history[patch_idx]
 		. append(
 			{
 				"crop_stage": patch.get("crop_stage", ""),
@@ -78,7 +75,7 @@ static func append_patch(patch: Dictionary, patch_soil: String, daily_history: D
 			}
 		)
 	)
-	_cap(daily_history[patch_soil])
+	_cap(daily_history[patch_idx])
 
 
 static func _cap(records: Array) -> void:

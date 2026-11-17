@@ -8,36 +8,22 @@ func test_grid_dimensions() -> void:
 	assert_eq(FarmView.GRID_ROWS, 6, "Grid should be 6 rows")
 
 
-func test_soil_types_defined() -> void:
-	assert_eq(FarmView.SOIL_TYPES.size(), 3, "3 soil types")
-	assert_has(FarmView.SOIL_TYPES, "sandy")
-	assert_has(FarmView.SOIL_TYPES, "organic")
-	assert_has(FarmView.SOIL_TYPES, "clay")
-
-
-func test_soil_type_for_columns() -> void:
-	assert_eq(FarmView._soil_type_for(0), "sandy", "Col 0 = sandy")
-	assert_eq(FarmView._soil_type_for(1), "sandy", "Col 1 = sandy")
-	assert_eq(FarmView._soil_type_for(2), "organic", "Col 2 = organic")
-	assert_eq(FarmView._soil_type_for(3), "organic", "Col 3 = organic")
-	assert_eq(FarmView._soil_type_for(4), "clay", "Col 4 = clay")
-	assert_eq(FarmView._soil_type_for(5), "clay", "Col 5 = clay")
-
-
 func test_soil_textures_defined() -> void:
-	for soil_type: String in FarmView.SOIL_TYPES:
+	# Texture classes moved to FarmLayout with the patch layout (#516).
+	assert_eq(FarmLayout.SOIL_TEXTURES.size(), 3, "3 soil textures")
+	for soil_type: String in ["sandy", "organic", "clay"]:
 		assert_true(
-			FarmView.SOIL_TEXTURES.has(soil_type),
+			FarmLayout.SOIL_TEXTURES.has(soil_type),
 			"Textures defined for %s" % soil_type,
 		)
-		var paths: Dictionary = FarmView.SOIL_TEXTURES[soil_type]
+		var paths: Dictionary = FarmLayout.SOIL_TEXTURES[soil_type]
 		assert_true(paths.has("albedo"), "%s has albedo path" % soil_type)
 		assert_true(paths.has("normal"), "%s has normal path" % soil_type)
 
 
 func test_texture_files_exist() -> void:
-	for soil_type: String in FarmView.SOIL_TYPES:
-		var paths: Dictionary = FarmView.SOIL_TEXTURES[soil_type]
+	for soil_type: String in FarmLayout.SOIL_TEXTURES:
+		var paths: Dictionary = FarmLayout.SOIL_TEXTURES[soil_type]
 		for key: String in paths:
 			var path: String = paths[key]
 			assert_true(

@@ -146,6 +146,63 @@ def test_get_game(client) -> None:
     assert resp.json()["phase"] == "planning"
 
 
+def _layout(client, game_id: str) -> list[dict]:
+    resp = client.get(f"/api/v1/games/{game_id}")
+    assert resp.status_code == 200
+    return resp.json()["fields"]["field_1"]
+
+
+def test_get_game_reports_one_patch_layout(client) -> None:
+    """A one-patch scenario reports exactly that patch (#516)."""
+    patch = {
+        "soil_profile_key": "sandy_subsaharan",
+        "crop_key": "sorghum",
+        "climate_key": "sahel_arid",
+        "area_fraction": 1.0,
+    }
+    resp = client.post(
+        "/api/v1/games",
+        json={"fields": [{"field_id": "field_1", "patches": [patch]}]},
+    )
+    assert resp.status_code == 200
+    assert _layout(client, resp.json()["game_id"]) == [{"patch_idx": 0, **patch}]
+
+
+def test_get_game_reports_three_patches_in_order(client) -> None:
+    """The default scenario's patches come back in request order, and a
+    per-patch harvest clears only that patch's crop_key (#516)."""
+    soils = ["sandy_temperate", "loam_temperate", "clay_temperate"]
+    fractions = [0.333, 0.334, 0.333]
+    patches = [
+        {
+            "soil_profile_key": soil,
+            "crop_key": "maize",
+            "climate_key": "netherlands_temperate",
+            "area_fraction": frac,
+        }
+        for soil, frac in zip(soils, fractions, strict=True)
+    ]
+    resp = client.post(
+        "/api/v1/games",
+        json={"fields": [{"field_id": "field_1", "patches": patches}]},
+    )
+    game_id = resp.json()["game_id"]
+    layout = _layout(client, game_id)
+    assert [p["patch_idx"] for p in layout] == [0, 1, 2]
+    assert [p["soil_profile_key"] for p in layout] == soils
+    assert [p["area_fraction"] for p in layout] == fractions
+    assert {p["crop_key"] for p in layout} == {"maize"}
+    assert {p["climate_key"] for p in layout} == {"netherlands_temperate"}
+
+    harvest = client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "field_1", "action": "harvest", "params": {"patch_idx": 1}},
+    )
+    assert harvest.status_code == 200, harvest.text
+    crops = [p["crop_key"] for p in _layout(client, game_id)]
+    assert crops == ["maize", "", "maize"]
+
+
 # ---------------------------------------------------------------------------
 # AC: 404 for nonexistent game
 # ---------------------------------------------------------------------------
@@ -1185,16 +1242,38 @@ def test_harvest_on_bare_target_is_noop_even_if_other_patches_stand(client) -> N
     assert sj["cost_credits"] == 0
 
 
-def test_harvest_out_of_range_patch_idx_is_noop(client) -> None:
-    """Out-of-range patch_idx harvests nothing (no-op), never the wrong patch (#359)."""
+@pytest.mark.parametrize(
+    ("action", "params"),
+    [
+        # One past the end is the index a stale three-band client would send.
+        ("harvest", {"patch_idx": 1}),
+        ("plant", {"crop_key": "maize", "patch_idx": 1}),
+        ("harvest", {"patch_idx": 5}),
+        ("plant", {"crop_key": "maize", "patch_idx": 2}),
+    ],
+)
+def test_out_of_range_patch_idx_is_400_and_costs_nothing(
+    client, action: str, params: dict
+) -> None:
+    """A patch_idx past the field's last patch is a 400 with no charge (#516).
+
+    Harvest never touches the wrong patch (#359). Plant used to return 200,
+    charge seed and plant nothing.
+    """
     game_id = _create_game(client)
     client.post(f"/api/v1/games/{game_id}/step?days=110&seed=42")
+    sess = _session(game_id)
+    balance_before = sess.ledger.balance_credits
+    n_costs_before = len(sess.ledger.costs)
 
     resp = client.post(
         f"/api/v1/games/{game_id}/action",
-        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 5}},
+        json={"field_id": "f1", "action": action, "params": params},
     )
-    assert resp.json()["status"] == "no-op"
+    assert resp.status_code == 400, resp.text
+    assert "out of range" in resp.json()["detail"]
+    assert sess.ledger.balance_credits == balance_before
+    assert len(sess.ledger.costs) == n_costs_before
     # The still-standing crop is untouched.
     step = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
     assert step.json()["patches"]["f1"][0]["crop_key"] == "maize"
