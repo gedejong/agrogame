@@ -29,10 +29,11 @@ import pytest
 
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator as Orch
+from agrogame.soil.aggregation.dynamic_state import effective_porosity
 from agrogame.soil.biopores.params import BioporeParams
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.nitrogen.events import NutrientLeached
-from agrogame.soil.water.events import RunoffGenerated, WaterDrained
+from agrogame.soil.water.events import RunoffGenerated, WaterDrained, WaterInfiltrated
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import ClimatePreset, load_climate_presets
@@ -45,6 +46,7 @@ _PINNED = (0.0, BioporeParams().max_density_per_m2)
 _ABS_TOL = 1e-9
 _REL_TOL_GAS = 1e-12
 _MIN_MACRO_SHIFT = 1e-3  # 500 /m² x π (1 mm)² = 0.00157 m³/m³ donated
+_MAX_CAP_RATIO = 0.95  # θ stays this far below the effective-porosity cap
 _EXACT = (
     "theta no3 nh4 eh microsite root_depth root_biomass biomass grain "
     "drainage runoff no3_leached"
@@ -75,6 +77,16 @@ def _record_day(orch: Orch, trace: Trace) -> None:
     trace["macro0"].append(orch.pore_state.macro[0])
 
 
+def _theta_over_cap(orch: Orch) -> float:
+    """Highest θ / effective-porosity cap over layers, as WaterRuntime sets the cap."""
+    macro, layers = orch.agg_state.macro, orch.profile.layers
+    caps = [
+        effective_porosity(ly.saturation, macro[i], pore_state=orch.pore_state, layer=i)
+        for i, ly in enumerate(layers)
+    ]
+    return max(t / c for t, c in zip(orch.water_state.theta, caps, strict=True))
+
+
 @cache
 def _climate() -> ClimatePreset:
     return load_climate_presets(Path("data/climate/presets.yaml")).climates[_CLIMATE]
@@ -83,7 +95,12 @@ def _climate() -> ClimatePreset:
 def _run_season(orch: Orch, seed: int, year: int, density: float, trace: Trace) -> None:
     totals = {"drainage": 0.0, "runoff": 0.0, "no3_leached": 0.0}
 
+    def _peak(_: object) -> None:
+        # Water just landed in a layer: θ is at that layer's intra-day peak.
+        trace["cap_ratio"].append(_theta_over_cap(orch))
+
     def _drained(ev: WaterDrained) -> None:
+        _peak(ev)
         if ev.to_layer == -1:
             totals["drainage"] += ev.amount_mm
 
@@ -98,6 +115,7 @@ def _run_season(orch: Orch, seed: int, year: int, density: float, trace: Trace) 
     orch.event_bus.subscribe(WaterDrained, _drained)
     orch.event_bus.subscribe(RunoffGenerated, _runoff)
     orch.event_bus.subscribe(NutrientLeached, _leached)
+    orch.event_bus.subscribe(WaterInfiltrated, _peak)
     orch.apply_fertilizer("ammonium_nitrate", _N_KG_HA)
     weather = SyntheticWeatherGenerator(_climate(), seed=seed)
     for rec in weather.generate(_SEASON_DAYS, date(year, 4, 1)).records:
@@ -121,7 +139,7 @@ def _two_seasons(soil_key: str, density: float) -> Trace:
     )
     profile = load_soil_presets(Path("data/soils/presets.yaml")).soils[soil_key]
     orch = Orch(profile, crop=crop, latitude_deg=_climate().latitude_deg)
-    trace: Trace = {k: [] for k in [*_EXACT, "o2", "co2", "macro0"]}
+    trace: Trace = {k: [] for k in [*_EXACT, "o2", "co2", "macro0", "cap_ratio"]}
     for i, (seed, year) in enumerate(_SEASONS):
         if i:
             orch.reset_crop(crop)
@@ -146,6 +164,11 @@ def test_biopore_density_leaves_simulated_outputs_unchanged(soil_key: str) -> No
     """Every simulated output is identical at 0 and 500 /m² across two seasons."""
     bare, dense = (_two_seasons(soil_key, d) for d in _PINNED)
     assert bare["root_depth"][-1] > 0.0 and sum(bare["drainage"]) > 0.0
+    peak = max(bare["cap_ratio"] + dense["cap_ratio"])
+    assert peak <= _MAX_CAP_RATIO, (
+        f"a layer reached {peak:.3f} of its effective-porosity cap, so the cap "
+        "coupling (ADR-016, #532) can bind and this comparison is no longer pure"
+    )
     for key in _EXACT:
         assert dense[key] == pytest.approx(bare[key], rel=0.0, abs=_ABS_TOL), key
     for key in ("o2", "co2"):
