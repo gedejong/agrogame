@@ -63,6 +63,7 @@ nav:
       - SOM Steady-State Initialisation: adr/ADR-015-som-steady-state-initialisation.md
       - Preferential Flow Retirement: adr/ADR-016-preferential-flow-retirement.md
       - In-season Alerts: adr/ADR-017-in-season-alerts.md
+      - Soil pH Proton Budget: adr/ADR-020-soil-ph-proton-budget.md
       - Root Elongation and Aggregate Structure: adr/ADR-021-root-elongation-aggregate-coupling.md
   - Validation: validation.md
   - Research: research-correctness.md

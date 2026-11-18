@@ -1,8 +1,8 @@
 """Immutable soil chemistry parameters.
 
-Holds the base pH, the daily buffering rate and target, the per-event
-pH increments and clamping bounds, and the pH buffer-capacity coefficients
-used by :class:`SoilChemistryModule`. Extracted from hard-coded constants in
+Holds the base pH, the daily buffering rate and target, the clamping
+bounds, and the pH buffer-capacity coefficients used by
+:class:`SoilChemistryModule`. Extracted from hard-coded constants in
 ``module.py`` (#288) so the pH dynamics are declarative and characterised,
 not implied.
 """
@@ -20,6 +20,9 @@ OM_TO_OC_RATIO: float = 1.724
 # Stoichiometric; the buffer-method basis for lime requirement is
 # Shoemaker, McLean & Pratt (1961), SSSAJ 25:274-277.
 CACO3_G_PER_MOL_CHARGE: float = 50.0
+
+# Unit conversion: centimoles per kilomole.
+CMOL_PER_KMOL: float = 1.0e5
 
 
 @dataclass(frozen=True)
@@ -82,18 +85,12 @@ class ChemistryParams:
             no explicit ``target_ph``.
         buffering_rate: Daily fraction of the gap to ``target_ph`` that pH
             relaxes towards (weak buffering tendency).
-        no3_leach_ph_delta: pH drop applied on nitrate (NO3) leaching —
-            nitrate loss tends to acidify slightly.
-        p_fixation_ph_delta: pH drop applied when phosphorus fixation occurs
-            (a small local acidification proxy).
         phbc_clay_max_cmol_kg: Asymptotic clay contribution to pH buffer
             capacity, cmol(H+)/kg per pH unit.
         phbc_clay_half_pct: Clay content (%) at which the clay term reaches
             half of ``phbc_clay_max_cmol_kg``.
         phbc_oc_cmol_per_pct: pH buffer capacity added per % organic carbon,
             cmol(H+)/kg per pH unit.
-        acidifying_ph_delta_per_kg_ha: pH drop per kg/ha of acidifying
-            fertilizer applied.
         ph_floor: Lower clamp on per-layer pH.
         ph_ceiling: Upper clamp on per-layer pH.
     """
@@ -101,8 +98,6 @@ class ChemistryParams:
     base_ph: float = 6.8
     default_target_ph: float = 6.8
     buffering_rate: float = 0.001
-    no3_leach_ph_delta: float = 0.005
-    p_fixation_ph_delta: float = 0.002
     # --- pH buffer capacity (pHBC), cmol(H+)/kg soil per pH unit ----------
     # Measured pHBC of mineral soils rises with both clay and organic carbon:
     # ~1-2 cmol(H+)/kg/pH on sands, ~3-5 on loams and ~5-8 on clays.
@@ -116,6 +111,5 @@ class ChemistryParams:
     phbc_clay_max_cmol_kg: float = 8.5
     phbc_clay_half_pct: float = 25.0
     phbc_oc_cmol_per_pct: float = 0.6
-    acidifying_ph_delta_per_kg_ha: float = 0.0005
     ph_floor: float = 4.0
     ph_ceiling: float = 9.0

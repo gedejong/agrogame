@@ -1,7 +1,4 @@
 {
-  "AcidifyingFertilizerApplied": [
-    "ChemistryRuntime._on_acid_fert"
-  ],
   "BiomassAccumulated": [
     "MicronutrientRuntime._on_biomass",
     "FullSimulationOrchestrator._on_biomass_accumulated"
@@ -51,17 +48,14 @@
     "EnvironmentalCache._on_microbe_fb",
     "AggregationRuntime._on_microbes_updated"
   ],
-  "NutrientLeached": [
-    "ChemistryRuntime._on_nutrient_leached"
-  ],
   "NutrientStressComputed": [
     "CanopyRuntime._on_nutrient_stress"
   ],
-  "PhosphorusFixationOccurred": [
-    "ChemistryRuntime._on_p_fix"
-  ],
   "PlantNUptakeComputed": [
     "PlantNitrogenRuntime._on_uptake"
+  ],
+  "ProtonLoadOccurred": [
+    "ChemistryRuntime._on_proton_load"
   ],
   "RedoxChanged": [
     "NitrogenRuntime._on_redox_changed",

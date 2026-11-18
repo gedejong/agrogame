@@ -59,6 +59,25 @@ class VolatilizationOccurred(BaseEvent):
 
 
 @dataclass(frozen=True)
+class ProtonLoadOccurred(BaseEvent):
+    """Net H+ released into a layer by N transformations (#492, ADR-020).
+
+    The N-cycle proton budget: the signed sum of the stoichiometric H+ terms
+    in ``constants.py`` over the fluxes since the last release. Positive
+    acidifies, negative alkalinises. Emitted once per layer with a non-zero
+    budget at ``DayTick(day_end)``, and at a urea application for its
+    hydrolysis term, so no H+ is ever held across a step boundary.
+
+    Attributes:
+        layer: Zero-based layer index.
+        h_kmol_ha: Net H+ released (kmol/ha); negative means consumed.
+    """
+
+    layer: int
+    h_kmol_ha: float
+
+
+@dataclass(frozen=True)
 class MassFlowNSupplyComputed(BaseEvent):
     """Potential nitrate supply to roots by transpiration mass flow.
 

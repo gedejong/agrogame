@@ -10,6 +10,7 @@ AGRO-17 acceptance criteria:
 - Denitrification under anaerobic (near-saturated) conditions
 - Mass-balance check within a small tolerance
 - Fertilizer additions (urea, ammonium nitrate)
+- Per-layer proton budget of the transformations above (#492, ADR-020)
 """
 
 from __future__ import annotations
@@ -29,13 +30,25 @@ from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView, WaterState
 
 
-from .constants import NH3_PKA, UREA_BAND_REFERENCE_PH
+from .constants import (
+    H_PER_N_AMMONIFICATION,
+    H_PER_N_DENITRIFICATION,
+    H_PER_N_NH4_UPTAKE,
+    H_PER_N_NITRIFICATION,
+    H_PER_N_NO3_UPTAKE,
+    H_PER_N_UREA_HYDROLYSIS,
+    H_PER_N_VOLATILIZATION,
+    N_KG_PER_KMOL,
+    NH3_PKA,
+    UREA_BAND_REFERENCE_PH,
+)
 from .events import (
     DenitrificationOccurred,
     MassFlowNSupplyComputed,
     MineralizationOccurred,
     NitrificationOccurred,
     NutrientLeached,
+    ProtonLoadOccurred,
     VolatilizationOccurred,
 )
 from .params import NitrogenRateParams
@@ -56,12 +69,15 @@ class NitrogenCycle(RuntimeMemory):
     """Nitrogen processes and event integration for the soil profile."""
 
     # Saved with the patch (#577): the cache and the per-layer SOM, O2 and
-    # mass-flow terms carried from one event or day to the next.
+    # mass-flow terms carried from one event or day to the next. The proton
+    # budget (#492) is empty at every step boundary, so it saves as zeros; it
+    # is declared so a save stays exact even if that invariant ever breaks.
     _MEMORY = (
         "_env",
         "_som_mineralized_n",
         "_aerobic_fraction_override",
         "_massflow_supply_by_layer",
+        "_pending_h_kmol_ha",
     )
 
     def __init__(
@@ -108,6 +124,11 @@ class NitrogenCycle(RuntimeMemory):
         # most recent TranspirationByLayer event (diagnostic only).
         self._massflow_supply_by_layer: list[float] = [0.0] * self._n_layers
 
+        # Per-layer signed H+ (kmol/ha) from today's N transformations (#492).
+        # Filled during the nutrients phase, released at DayTick(day_end) by
+        # NitrogenRuntime, so it is empty at every step boundary.
+        self._pending_h_kmol_ha: list[float] = [0.0] * self._n_layers
+
     # --- SOM net-mineralisation flux diagnostic (#365) ---------------------
     @property
     def som_mineralized_n_by_layer(self) -> list[float]:
@@ -131,6 +152,31 @@ class NitrogenCycle(RuntimeMemory):
     def som_mineralized_n_total(self) -> float:
         """Whole-profile net SOM→mineral-N flux from the most recent day (kg/ha)."""
         return sum(self._som_mineralized_n)
+
+    @property
+    def pending_proton_load_kmol_ha(self) -> list[float]:
+        """Per-layer H+ (kmol/ha) accrued but not yet released (#492)."""
+        return list(self._pending_h_kmol_ha)
+
+    def release_proton_budget(self) -> None:
+        """Emit the pending H+ as one ``ProtonLoadOccurred`` per layer, then clear.
+
+        Called at ``DayTick(day_end)``, after SOM ammonification has reached
+        this cycle through ``SOMDecomposed`` in the same nutrients phase, so a
+        day's budget is complete and nothing is carried to the next day.
+        Layers with a zero budget emit nothing.
+        """
+        pending = list(self._pending_h_kmol_ha)
+        self._pending_h_kmol_ha[:] = [0.0] * self._n_layers
+        for layer, h_kmol_ha in enumerate(pending):
+            if h_kmol_ha != 0.0:
+                self.event_bus.emit(
+                    ProtonLoadOccurred(layer=layer, h_kmol_ha=h_kmol_ha)
+                )
+
+    def _accrue_protons(self, layer: int, n_kg_ha: float, h_per_n: float) -> None:
+        """Add ``h_per_n`` mol H+ per mol of ``n_kg_ha`` N to the layer budget."""
+        self._pending_h_kmol_ha[layer] += h_per_n * n_kg_ha / N_KG_PER_KMOL
 
     @property
     def massflow_supply_kg_ha(self) -> float:
@@ -233,6 +279,9 @@ class NitrogenCycle(RuntimeMemory):
         if event.mineralized_n_kg_ha > 0:
             self.state.nh4[event.layer] += event.mineralized_n_kg_ha
             self._som_mineralized_n[event.layer] += event.mineralized_n_kg_ha
+            self._accrue_protons(
+                event.layer, event.mineralized_n_kg_ha, H_PER_N_AMMONIFICATION
+            )
 
     # --- Daily update ---------------------------------------------------
     def daily_step(
@@ -317,11 +366,22 @@ class NitrogenCycle(RuntimeMemory):
         that ``_volatilize_surface`` depletes at the urea-band rate; deeper
         placements are incorporated by definition and volatilize as native
         NH4.
+
+        Hydrolysis consumes one H+ per N (#492). It is released at once as a
+        ``ProtonLoadOccurred``: the application happens between steps, so
+        holding it for the next ``day_end`` would carry H+ across a step
+        boundary, a ``reset_crop`` or a save.
         """
         if 0 <= layer < self._n_layers and amount_kg_ha > 0.0:
             self.state.nh4[layer] += amount_kg_ha
             if layer == 0:
                 self.state.surface_fertilizer_nh4_kg_ha += amount_kg_ha
+            self.event_bus.emit(
+                ProtonLoadOccurred(
+                    layer=layer,
+                    h_kmol_ha=H_PER_N_UREA_HYDROLYSIS * amount_kg_ha / N_KG_PER_KMOL,
+                )
+            )
 
     def apply_ammonium_nitrate(self, layer: int, amount_kg_ha: float) -> None:
         """Add ammonium nitrate split 50/50 to NH4 and NO3 pools.
@@ -329,7 +389,9 @@ class NitrogenCycle(RuntimeMemory):
         An acid-forming salt: its NH4 does not raise the surface pH, so it
         volatilizes as native NH4 (1-3 % of the applied N in the field;
         Bouwman, Boumans & Batjes 2002) and does not join the exposed urea
-        pool. Rapid transformations at application are ignored.
+        pool. Rapid transformations at application are ignored. Dissolving
+        the salt releases no H+; its acidity arises later from nitrification
+        of the NH4 half (#492).
         """
         if 0 <= layer < self._n_layers and amount_kg_ha > 0.0:
             self.state.nh4[layer] += 0.5 * amount_kg_ha
@@ -449,6 +511,10 @@ class NitrogenCycle(RuntimeMemory):
             return 0.0
         self.state.organic_n[idx] -= delta
         self.state.nh4[idx] += delta
+        # Ammonification consumes one H+ per N (#492). Zero in the
+        # orchestrator, where SOM is authoritative and its ammonification
+        # enters through _on_som_decomposed instead (#351).
+        self._accrue_protons(idx, delta, H_PER_N_AMMONIFICATION)
         self.event_bus.emit(MineralizationOccurred(layer=idx, amount_kg_ha=delta))
         return delta
 
@@ -483,6 +549,7 @@ class NitrogenCycle(RuntimeMemory):
             return 0.0
         self._remove_nh4(idx, dn)
         self.state.no3[idx] += dn
+        self._accrue_protons(idx, dn, H_PER_N_NITRIFICATION)
         self.event_bus.emit(NitrificationOccurred(layer=idx, amount_kg_ha=dn))
         return dn
 
@@ -515,6 +582,7 @@ class NitrogenCycle(RuntimeMemory):
         if dd <= 0.0:
             return 0.0
         self.state.no3[idx] -= dd
+        self._accrue_protons(idx, dd, H_PER_N_DENITRIFICATION)
         self.event_bus.emit(DenitrificationOccurred(layer=idx, amount_kg_ha=dd))
         # N2O/N2 partitioning based on Eh
         # Ref: Firestone & Davidson 1989; Weier et al. 1993
@@ -561,6 +629,7 @@ class NitrogenCycle(RuntimeMemory):
         if loss <= 0.0:
             return 0.0
         self.state.nh4[0] -= loss
+        self._accrue_protons(0, loss, H_PER_N_VOLATILIZATION)
         self.event_bus.emit(VolatilizationOccurred(layer=0, amount_kg_ha=loss))
         return loss
 
@@ -599,5 +668,7 @@ class NitrogenCycle(RuntimeMemory):
             take_nh4 = 0.0
             if remaining > 0.0:
                 take_nh4 = self._remove_nh4(i, remaining)
+            self._accrue_protons(i, take_no3, H_PER_N_NO3_UPTAKE)
+            self._accrue_protons(i, take_nh4, H_PER_N_NH4_UPTAKE)
             taken += take_no3 + take_nh4
         return taken
