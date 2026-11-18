@@ -166,39 +166,32 @@ class TestResetCrop:
 
 
 # ---------------------------------------------------------------------------
-# reset_crop resets the per-day CO2 buffer to fresh-init (#352)
+# reset_crop carries the per-day CO2 buffer across (#583, replacing #352's reset)
 # ---------------------------------------------------------------------------
-class TestCo2BufferReset:
-    def test_co2_buffer_resets_on_reset_crop(self) -> None:
-        """Day 1 of a new season must read a fresh-init CO2 buffer, not the
-        prior season's buffered respiration (#352).
+class TestCo2BufferCarriesAcrossResetCrop:
+    def test_co2_buffer_survives_reset_crop(self) -> None:
+        """The day after a crop change reads yesterday's respiration (#583).
 
-        The per-day CO2 buffer (SOM ``CO2Respired`` → gas-diffusion source)
-        is orchestrator-owned and accumulates within a season. Verified
-        across two full reset cycles per the multi-cycle testing convention.
+        The per-day CO2 buffer (SOM ``CO2Respired`` → gas-diffusion source) is
+        the soil's own memory. #352 zeroed it at ``reset_crop`` on the premise
+        of a gap between seasons, and asserted that zero here. There is no
+        gap: the session date runs on and the next season starts the next
+        day, so yesterday's SOM respiration is real and gas diffusion reads it
+        as on any other day. Verified across two full reset cycles per the
+        multi-cycle testing convention.
         """
         crops, climate, profile = _load_presets()
-        fresh_init = [0.0] * len(profile.layers)
         orch = FullSimulationOrchestrator(
             profile, crop=crops.crops["maize"], latitude_deg=climate.latitude_deg
         )
-
-        # Season 1: buffer should carry the last day's respiration (non-zero),
-        # otherwise the test would trivially pass.
-        _run_season(orch, days=100)
-        assert any(
-            v != 0.0 for v in orch._co2_buffer
-        ), "expected non-zero CO2 buffer after a season for a meaningful test"
-
-        # Cycle 1: reset → buffer is fresh-init on day 1 of season 2.
-        orch.reset_crop(crops.crops["spring_wheat"])
-        assert orch._co2_buffer == fresh_init
-
-        # Cycle 2: run another full season, reset again, still fresh-init.
-        _run_season(orch, start=date(2025, 4, 1), days=100, seed=99)
-        assert any(v != 0.0 for v in orch._co2_buffer)
-        orch.reset_crop(crops.crops["maize"])
-        assert orch._co2_buffer == fresh_init
+        seasons = ((None, 42, "spring_wheat"), (date(2025, 4, 1), 99, "maize"))
+        for start, seed, next_crop in seasons:
+            _run_season(orch, start=start, days=100, seed=seed)
+            before = list(orch._co2_buffer)
+            # Non-zero, or the comparison below would pass trivially.
+            assert any(v != 0.0 for v in before)
+            orch.reset_crop(crops.crops[next_crop])
+            assert orch._co2_buffer == before
 
 
 # ---------------------------------------------------------------------------

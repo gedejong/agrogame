@@ -408,7 +408,10 @@ class FullSimulationOrchestrator(RuntimeMemory):
 
     # Cross-day memory outside every *State container (#577); see
     # :meth:`runtime_memory_to_dict` for the runtimes' and cycles' memory.
+    # Yesterday's growth terms reset with the crop; the CO₂ buffer is the
+    # soil's own respiration and survives a crop change (#583).
     _MEMORY = ("_co2_buffer", "_last_biomass_inc_g_m2", "_pending_root_canopy_inc_g_m2")
+    _CROP_MEMORY = ("_last_biomass_inc_g_m2", "_pending_root_canopy_inc_g_m2")
 
     def __init__(
         self,
@@ -440,7 +443,8 @@ class FullSimulationOrchestrator(RuntimeMemory):
         # Soil profile plus crop/atmosphere config that survives a
         # ``reset_crop`` (the ET model is crop-independent and stateless
         # across seasons; the per-day CO₂ buffer is orchestrator-owned per
-        # ADR-010). Everything else is built through the shared factories.
+        # ADR-010 and soil-owned memory, #583). Everything else is built
+        # through the shared factories.
         self.profile = profile
         # ET model (emits transpiration/evaporation related events via water
         # model). Built once; reset_crop reuses it.
@@ -902,14 +906,18 @@ class FullSimulationOrchestrator(RuntimeMemory):
             holders[name] = obj
         return holders
 
-    def runtime_memory_to_dict(self) -> dict[str, dict[str, Any]]:
+    def runtime_memory_to_dict(
+        self, *, soil_only: bool = False
+    ) -> dict[str, dict[str, Any]]:
         """Cross-day memory outside every *State container, by owner class (#577).
 
         Part of the patch save (``Patch.to_dict``, key ``runtime_memory``). A
         fallow patch has no plant runtimes, so it saves no plant memory.
+        ``soil_only`` leaves out the crop-owned names, which is what
+        :meth:`reset_crop` carries across (#583).
         """
         return {
-            name: holder.memory_to_dict()
+            name: holder.memory_to_dict(soil_only=soil_only)
             for name, holder in self._memory_holders().items()
         }
 
@@ -1114,6 +1122,20 @@ class FullSimulationOrchestrator(RuntimeMemory):
         pools (water, N, P, chemistry, microbes, SOM, redox, aggregation and
         the pore chain) carry across the transition exactly as before.
 
+        Runtime memory (``_MEMORY``, #577) follows the soil/crop split (#583).
+        Soil-owned memory carries across: the Ritchie (1972) stage-2 clock,
+        unreleased elemental S and slow-release P, the aggregation cadence,
+        the wet-dry memory, the CO₂ buffer. Crop-owned memory
+        (``_CROP_MEMORY``: root fractions, canopy stress, yesterday's growth)
+        resets with the crop it mirrors. APSIM keeps soil water, N and surface
+        organic matter in simulation-level modules that sowing and harvest
+        never re-initialise (Keating et al. 2003, Eur. J. Agron. 18:267-288;
+        Holzworth et al. 2014, Environ. Model. Softw. 62:327-350), and DSSAT-CSM
+        separates soil from plant modules (Jones et al. 2003, Eur. J. Agron.
+        18:235-265), its ``SOILEV`` seasonal initialisation deriving the
+        Ritchie sums from the topsoil deficit instead of zeroing them. A no-op
+        crop change (fallow to fallow) therefore leaves the run unchanged.
+
         ``new_crop=None`` resets to the generic default plant
         (``_build_plant_modules(None)``), as ``__init__`` builds for
         ``crop=None``. ``new_crop=None, fallow=True`` leaves the patch bare
@@ -1126,13 +1148,12 @@ class FullSimulationOrchestrator(RuntimeMemory):
         self._day_counter = 0
         self._last_biomass_inc_g_m2 = 0.0
         self._pending_root_canopy_inc_g_m2 = 0.0
-        # Reset the per-day CO₂ buffer to its fresh-init state (#352). Without
-        # this, day 1 of the new season would read the prior season's buffered
-        # respiration into the gas-diffusion / SOM chain. Matches the __init__
-        # initialisation: one zeroed entry per soil layer.
-        self._co2_buffer = [0.0] * len(self.profile.layers)
-        # Capture soil state before tearing down subscriptions.
+        # The CO₂ buffer is not reset: yesterday's SOM respiration is real and
+        # the session date runs on, so gas diffusion reads it as on any other
+        # day (#583, reversing #352). Capture soil state and soil-owned memory
+        # before tearing down subscriptions.
         soil = self.snapshot_soil()
+        soil_memory = self.runtime_memory_to_dict(soil_only=True)
 
         # Clear all event subscriptions to avoid stale handlers.
         self.event_bus.clear()
@@ -1149,8 +1170,11 @@ class FullSimulationOrchestrator(RuntimeMemory):
         # preserved state objects.
         self.restore_soil(soil)
 
-        # Re-wire all runtime listeners (identical order to __init__).
+        # Re-wire all runtime listeners (identical order to __init__), then
+        # write the soil-owned memory into the rebuilt runtimes and cycles in
+        # place, as a load does (#577). Crop-owned memory keeps its fresh value.
         self._wire_runtimes()
+        self.restore_runtime_memory(soil_memory)
 
     def _on_biomass_accumulated(self, ev: Any) -> None:
         shoot_inc = float(ev.increment_g_m2)

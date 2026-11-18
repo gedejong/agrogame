@@ -34,6 +34,8 @@ class MicrobesRuntime(RuntimeMemory):
     )
     # Saved with the patch (#577), with the root-fraction smoothing.
     _MEMORY = ("_daily_enzyme_totals", "_root_fractions", "_root_fractions_smoothed")
+    # The root-fraction smoothing resets with the crop; the enzymes stay (#583).
+    _CROP_MEMORY = ("_root_fractions", "_root_fractions_smoothed")
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)

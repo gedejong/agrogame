@@ -38,6 +38,8 @@ class RedoxRuntime(RuntimeMemory):
     _pre_drainage_theta: list[float] | None = None
     # Saved with the patch (#577), with the cached root fractions.
     _MEMORY = ("_root_fractions", "_pre_drainage_theta")
+    # The root fractions reset with the crop; the theta survives it (#583).
+    _CROP_MEMORY = ("_root_fractions",)
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick + RootDistributionUpdated on bus."""
