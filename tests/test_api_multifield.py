@@ -9,7 +9,6 @@ game created from the same body that skips the action under test.
 from __future__ import annotations
 
 import importlib.util
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -487,16 +486,6 @@ def _advance(
     return last
 
 
-def _rel_bounds() -> dict[str, float]:
-    """``_REL_BOUNDS`` of the save-continuation suite (#515), loaded by path."""
-    path = Path(__file__).parent / "integration" / "test_save_continuation.py"
-    spec = importlib.util.spec_from_file_location("_save_continuation", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return dict(module._REL_BOUNDS)
-
-
 @pytest.fixture(scope="module")
 def flow(tmp_path_factory) -> dict[str, Any]:
     """Run ``_FLOW`` once with a save/load at day 60, beside an unsaved control."""
@@ -562,17 +551,10 @@ def test_save_load_round_trips_fields_and_balance(flow: dict[str, Any]) -> None:
     assert flow["loaded"]["balance_credits"] == flow["saved"]["balance_credits"]
 
 
-def test_save_load_continues_within_the_continuation_bounds(
+def test_save_load_continues_the_unsaved_control_exactly(
     flow: dict[str, Any],
 ) -> None:
-    """AC5: 20 days after the load, each field tracks the unsaved control."""
-    bounds = _rel_bounds()
+    """AC5: 20 days after the load, each field is the unsaved control (#577)."""
     for field_id in ("field_1", "field_2"):
         got = flow["continued"][field_id][0]
-        want = flow["control"][field_id][0]
-        assert got["grain_g_m2"] == pytest.approx(
-            want["grain_g_m2"], rel=bounds["grain"]
-        ), field_id
-        assert got["som_total_c_g_m2"] == pytest.approx(
-            want["som_total_c_g_m2"], rel=bounds["som"]
-        ), field_id
+        assert got == flow["control"][field_id][0], field_id

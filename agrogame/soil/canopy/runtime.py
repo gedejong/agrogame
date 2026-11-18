@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.phenology import PhenologyStage
 from .module import CanopyModule
 from .params import cardinal_temp_factor
@@ -24,7 +25,7 @@ FROST_VULNERABLE_STAGES: frozenset[PhenologyStage] = frozenset(
 
 
 @dataclass
-class CanopyRuntime:
+class CanopyRuntime(RuntimeMemory):
     """Wire CanopyModule to the EventBus; subscribes to DayTick + stress events."""
 
     event_bus: EventBus
@@ -48,6 +49,22 @@ class CanopyRuntime:
     # Live rooting depth (cm) tracked from RootDepthChanged; drives the
     # FAO-56 TAW ∝ Zr rate modifier for drought senescence (#373).
     _root_depth_cm: float = field(init=False)
+    # Saved with the patch (#577): yesterday's stresses, the running-mean
+    # window, the wilt/waterlog counters and the live rooting depth.
+    _MEMORY = (
+        "_last_water",
+        "_last_n",
+        "_last_p",
+        "_last_fe",
+        "_last_zn",
+        "_last_mn",
+        "_last_s",
+        "_stress_history",
+        "_consecutive_wilt_days",
+        "_consecutive_waterlog_days",
+        "_waterlogged_today",
+        "_root_depth_cm",
+    )
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)

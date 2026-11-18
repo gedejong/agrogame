@@ -14,6 +14,10 @@ class EtComponents:
 class EtState:
     """Mutable ET state tracking cumulative soil-evap (used by Ritchie stage logic)."""
 
+    # Stage-2 soil evaporation depends on the time since the last wetting
+    # (Ritchie 1972, Water Resour. Res. 8:1204-1213), so the cumulative
+    # evaporation since wetting is state, carried across days and saved with
+    # the patch (ETRuntime memory, #577); it is not a per-day cache.
     cumulative_evap_mm: float = 0.0
 
 

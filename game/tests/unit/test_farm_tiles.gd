@@ -38,23 +38,75 @@ func test_frost_and_heat_severity_default_half_clamp_and_max() -> void:
 	var keys := ["frost_damage", "heat_damage", "n_stress"]
 	var frost := "FrostDamageApplied"
 	var heat := "HeatDamageApplied"
-	# The debug injector's heat event carries no severity (FAKE_STRESS_EVENTS).
+	# Frost reads its severity; heat derives it as 1 - grain_reduction_factor
+	# (#569). A heat event without the factor takes the 0.5 fallback.
 	var defaults: Array = [{"event_type": frost}, {"event_type": heat, "data": {"x": 1}}]
 	assert_eq(_stress(defaults, keys), [500, 500, 0], "default 0.5")
 	# Above 1 clamps to 1. Below 0 reads as 0 either way: the max starts at 0.
 	var high: Array = [
 		{"event_type": frost, "data": {"severity": 3.0}},
-		{"event_type": heat, "data": {"severity": 1.2}},
-		{"event_type": heat, "data": {"severity": -2.0}},
+		{"event_type": heat, "data": {"grain_reduction_factor": -0.2}},  # 1.2
+		{"event_type": heat, "data": {"grain_reduction_factor": 3.0}},  # -2.0
 	]
 	assert_eq(_stress(high, keys), [1000, 1000, 0], "clamped to [0, 1]")
 	var many: Array = [
 		{"event_type": frost, "data": {"severity": 0.2}},
 		{"event_type": frost, "data": {"severity": 0.7}},
-		{"event_type": heat, "data": {"severity": 0.3}},
+		{"event_type": heat, "data": {"grain_reduction_factor": 0.7}},  # 0.3
 		{"event_type": heat},
 	]
 	assert_eq(_stress(many, keys), [700, 500, 0], "max over events")
+
+
+## A HeatDamageApplied as /step sends it: the engine's two fields, no severity.
+func _heat(factor: float, tmax_c: float) -> Dictionary:
+	return {
+		"event_type": "HeatDamageApplied",
+		"module": "agrogame.soil.canopy.events",
+		"data": {"grain_reduction_factor": factor, "tmax_c": tmax_c},
+	}
+
+
+func test_heat_severity_is_one_minus_the_grain_reduction_factor() -> void:
+	# #569: the engine sends factor = 1 - heat_grain_reduction_fraction, so the
+	# severity is that fraction (data/crops/presets.yaml): maize 0.5, wheat 0.6.
+	var keys := ["heat_damage"]
+	assert_eq(_stress([_heat(0.5, 36.0)], keys), [500], "maize, factor 0.5")
+	assert_eq(_stress([_heat(0.4, 34.0)], keys), [600], "wheat, factor 0.4")
+	assert_eq(_stress([_heat(0.7, 39.0)], keys), [300], "sorghum, factor 0.7")
+	# A severity key, which the engine never sends, does not override the factor.
+	var stray := _heat(0.4, 34.0)
+	stray["data"]["severity"] = 0.1
+	assert_eq(_stress([stray], keys), [600], "severity ignored")
+	var missing: Dictionary = {"event_type": "HeatDamageApplied", "data": {"tmax_c": 34.0}}
+	assert_eq(
+		FarmTiles.heat_severity(missing["data"]), FarmTiles.HEAT_SEVERITY_FALLBACK, "fallback"
+	)
+	assert_eq(_stress([missing], keys), [500], "the fallback is 0.5")
+
+
+func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
+	# The debug injector emits the engine's field shape, so the debug path and
+	# the real /step path leave a tile in the same state for the same event.
+	var heat := "HeatDamageApplied"
+	var patches := {"field_1": [{"events": []}]}
+	FarmViewDebug.inject_debug_stress_events(patches)
+	var debug_events: Array = patches["field_1"][0]["events"]
+	var debug_heat: Array = debug_events.filter(
+		func(e: Dictionary) -> bool: return e["event_type"] == heat
+	)
+	assert_eq(debug_heat.size(), 1, "one debug heat event")
+	var fields: Array = (debug_heat[0]["data"] as Dictionary).keys()
+	fields.sort()
+	assert_eq(fields, ["grain_reduction_factor", "tmax_c"], "the engine's fields, no more")
+	var real_events: Array = debug_events.map(
+		func(e: Dictionary) -> Dictionary: return _heat(0.4, 34.0) if e["event_type"] == heat else e
+	)
+	var tiles: Array = [[{"patch_idx": 0}], [{"patch_idx": 0}]]
+	FarmTiles.write_patch({"events": debug_events}, 0, tiles[0])
+	FarmTiles.write_patch({"events": real_events}, 0, tiles[1])
+	assert_eq(tiles[0][0], tiles[1][0], "same tile state")
+	assert_eq(roundi(float(tiles[0][0]["heat_damage"]) * 1000.0), 600, "not the 0.5 fallback")
 
 
 func test_writes_reach_only_tiles_with_matching_patch_idx() -> void:
@@ -130,3 +182,51 @@ func test_builder_yields_36_tiles_at_todays_positions() -> void:
 		assert_eq(
 			[data["col"], data["row"], data["crop_key"], data["crop_stage"]], [col, row, "", 0]
 		)
+
+
+## Six tiles, one per column, of a 1.2-DVS maize crop, laid out as the default
+## scenario's field_1: columns 0-1 are patch 0, 2-3 patch 1 and 4-5 patch 2.
+func _laid_out_maize() -> Array:
+	var tiles: Array = []
+	var mats: Array = []
+	for col in range(6):
+		var tile := {"col": col, "crop_key": "maize", "crop_stage": 3, "lai": 2.5}
+		tile.merge({"lai_peak": 3.0, "dev_stage": 1.2, "grain_g_m2": 40.0})
+		tiles.append(tile)
+		mats.append(ShaderMaterial.new())
+	FarmLayout.assign_tiles(ScenarioCatalog.default_patches(), tiles, mats, 6)
+	return tiles
+
+
+func _column(tiles: Array, key: String) -> Array:
+	return tiles.map(func(t: Dictionary) -> Variant: return t[key])
+
+
+func test_reconcile_crops_matches_tiles_by_field_and_patch() -> void:
+	# #564: after a failed action, GET /games/{id}'s crops are the truth. A tile
+	# is matched by its field_id and patch_idx, so field_2's patch 0 never lands
+	# on field_1's patch 0, and only the tiles whose crop differs are rewritten.
+	var tiles := _laid_out_maize()
+	assert_eq(
+		_column(tiles, "field_id"),
+		["field_1", "field_1", "field_1", "field_1", "field_1", "field_1"]
+	)
+	var fields := {
+		"field_2": [{"crop_key": "rice"}],
+		"field_1": [{"crop_key": "maize"}, {"crop_key": ""}, {"crop_key": "sorghum"}],
+	}
+	assert_eq(FarmTiles.reconcile_crops(fields, tiles), [2, 3, 4, 5], "patches 1 and 2 changed")
+	assert_eq(_column(tiles, "crop_key"), ["maize", "maize", "", "", "sorghum", "sorghum"])
+	# Patch 0 keeps its growth; patch 1 is bare and patch 2 freshly sown, as a
+	# Harvest and a Plant reply leave them, with nothing of the old crop's left.
+	assert_eq(_column(tiles, "crop_stage"), [3, 3, 0, 0, 1, 1])
+	assert_eq(_column(tiles, "lai"), [2.5, 2.5, 0.0, 0.0, 0.0, 0.0])
+	assert_eq(_column(tiles, "lai_peak"), [3.0, 3.0, 0.0, 0.0, 0.0, 0.0])
+	assert_eq(_column(tiles, "dev_stage"), [1.2, 1.2, -1.0, -1.0, -1.0, -1.0])
+	assert_eq(_column(tiles, "grain_g_m2"), [40.0, 40.0, 0.0, 0.0, 0.0, 0.0])
+	# A second pass over the same truth changes nothing.
+	assert_eq(FarmTiles.reconcile_crops(fields, tiles), [], "idempotent")
+	# Tiles of a field the payload lacks, or of a patch past its list, are kept.
+	assert_eq(FarmTiles.reconcile_crops({"field_2": [{"crop_key": ""}]}, tiles), [])
+	assert_eq(FarmTiles.reconcile_crops({"field_1": [{"crop_key": "rice"}]}, tiles), [0, 1])
+	assert_eq(_column(tiles, "crop_key"), ["rice", "rice", "", "", "sorghum", "sorghum"])

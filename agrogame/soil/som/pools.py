@@ -12,9 +12,12 @@ References:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 import math
+from typing import Any
 
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 
 
@@ -213,13 +216,39 @@ def _fresh_input_attenuation(
 # ---------------------------------------------------------------------------
 
 
-class ThreePoolSOM:
+class ThreePoolSOM(RuntimeMemory):
     """Three-pool soil organic matter decomposition module.
 
     Inspired by RothC (Coleman & Jenkinson 1996) and Century (Parton 1987).
     Tracks labile, intermediate, and stable C/N pools per soil layer with
     temperature, moisture, and C:N quality modifiers.
     """
+
+    # Saved with the patch (#577). The pools travel in the soil snapshot; the
+    # disruption countdown and each layer's cumulative CO2 travel here.
+    _MEMORY = ("_disruption_days",)
+
+    def memory_to_dict(self) -> dict[str, Any]:
+        """Return the disruption countdown and per-layer cumulative CO2."""
+        data = super().memory_to_dict()
+        data["cumulative_co2_c_kg_ha"] = [
+            ly.cumulative_co2_c_kg_ha for ly in self.state.layers
+        ]
+        return data
+
+    def restore_memory(self, data: Mapping[str, Any]) -> None:
+        """Restore the countdown and, when saved, each layer's cumulative CO2."""
+        super().restore_memory(data)
+        co2 = data.get("cumulative_co2_c_kg_ha")
+        if co2 is None:
+            return
+        if len(co2) != len(self.state.layers):
+            raise ValueError(
+                f"cumulative_co2_c_kg_ha has {len(co2)} layers, "
+                f"expected {len(self.state.layers)}"
+            )
+        for layer, value in zip(self.state.layers, co2, strict=True):
+            layer.cumulative_co2_c_kg_ha = float(value)
 
     def __init__(self, params: SOMPoolParams, n_layers: int) -> None:
         if n_layers < 1:

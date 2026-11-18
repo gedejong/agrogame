@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.atmosphere.et import Evapotranspiration
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import (
     CanopyView as ETCanopyView,
     RootDistribution as ETRootDistribution,
@@ -23,7 +24,7 @@ _LN2 = math.log(2.0)
 
 
 @dataclass
-class ETRuntime:
+class ETRuntime(RuntimeMemory):
     """Wire Evapotranspiration to the EventBus; partitions ET daily.
 
     Field types are the shared ports in :mod:`agrogame.params.ports`
@@ -45,6 +46,8 @@ class ETRuntime:
     _residue: ResidueState = field(default_factory=ResidueState)
     # False on a bare fallow (#542): no plant, so no WaterStressComputed.
     plant_present: bool = True
+    # Saved with the patch (#577): the stage-2 clock and the residue cover.
+    _MEMORY = ("_evap_state", "_residue")
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
@@ -112,8 +115,9 @@ class ETRuntime:
             residue_cover_fraction=self._residue.cover_fraction,
         )
         # Diagnostic-only (*Computed): surface the day's ET partition so
-        # observers can accumulate seasonal actual crop ET (E+T). et0 is the
-        # model's raw Priestley-Taylor value (not FAO-56-calibrated; #414/#418).
+        # observers can accumulate seasonal actual crop ET (E+T). et0 is
+        # Priestley-Taylor (alpha = 1.26) on Rn = 0.6·Rs (ADR-014), not FAO-56
+        # Penman-Monteith: it has no aerodynamic (wind x VPD) term.
         self.event_bus.emit(
             EvapotranspirationComputed(
                 et0_mm=et0,

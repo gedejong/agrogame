@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.state import SoilWaterState
 
@@ -25,7 +26,7 @@ from agrogame.soil.som.events import SOMDecomposed, CO2Respired
 
 
 @dataclass
-class SOMRuntime:
+class SOMRuntime(RuntimeMemory):
     """Event-driven three-pool SOM runtime.
 
     Subscribes to DayTick (nutrients phase) and root distribution events.
@@ -39,6 +40,9 @@ class SOMRuntime:
     chemistry: SoilChemistryModule
     som: ThreePoolSOM | None = None
     agg_state: SoilAggregationState | None = None
+    # Saved with the patch (#577): root-fraction smoothing, wet-dry memory
+    # and the pool model's own memory (``ThreePoolSOM``).
+    _MEMORY = ("_root_fracs", "_root_fracs_smoothed", "_prev_wfps", "_was_dry", "som")
 
     def __post_init__(self) -> None:
         n_layers = len(self.profile.layers)
