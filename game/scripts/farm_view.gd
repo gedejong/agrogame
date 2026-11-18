@@ -80,6 +80,7 @@ var _title_delay_s: float = 2.0
 ## a /step, or an /action and the step its reply triggers), and cleared only by
 ## the reply that releases it, so nothing landing meanwhile re-enables a button (#534).
 var _bar_held: bool = false
+var _releases: int = 0  # times the bar was released; see _on_reconciled (#564)
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -366,6 +367,8 @@ func _ensure_game(callback: Callable) -> void:
 
 func _set_buttons_disabled(disabled: bool) -> void:
 	_bar_held = disabled
+	if not disabled:
+		_releases += 1
 	next_day_btn.disabled = disabled
 	ff7_btn.disabled = disabled
 	ff_all_btn.disabled = disabled
@@ -705,7 +708,7 @@ func _on_harvest_complete(
 ) -> void:
 	_set_buttons_disabled(false)
 	if not success:
-		status_label.text = "Harvest failed"
+		_reconcile("Harvest failed")
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
@@ -778,7 +781,7 @@ func _on_crop_selected(id: int) -> void:
 func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch_idx: int) -> void:
 	if not success:
 		_set_buttons_disabled(false)
-		status_label.text = "Plant failed"
+		_reconcile("Plant failed")
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
@@ -795,13 +798,33 @@ func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch
 func _on_action_complete(success: bool, data: Dictionary) -> void:
 	if not success:
 		_set_buttons_disabled(false)
-		status_label.text = "Action failed"
+		_reconcile("Action failed")
 		return
 	var action: String = data.get("action", "")
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "Credits: %d" % data.get("balance_credits", 0)
 	status_label.text = "%s — %d credits" % [action, cost]
 	_step_days(1)
+
+
+## Show `failure` and re-read the game, which the server may have changed anyway (#564).
+func _reconcile(failure: String) -> void:
+	status_label.text = failure
+	_api_client.get_game(_game_id, _on_reconciled.bind(failure, _releases))
+
+
+## Take the server's balance and every field's crops as the truth, unless a
+## step or action reply has released the bar since: its state is the newer.
+func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) -> void:
+	if not ok or releases != _releases or not data.has("balance_credits"):
+		return
+	status_label.text = "%s; credits and crops re-read from the server" % failure
+	_balance_credits = data["balance_credits"]
+	credits_label.text = "%d" % _balance_credits
+	for i: int in FarmTiles.reconcile_crops(data.get("fields", {}), _tile_data):
+		_update_crop_visuals(i)
+	_update_harvest_button()
+	_refresh_action_costs()
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:

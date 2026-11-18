@@ -1,9 +1,11 @@
 extends GutTest
 ## The farm view against a backend that never answers (#556): each request times
 ## out, the action bar comes back with the failure shown, and a reply that turns
-## up after its timeout is not applied. Kept apart from test_farm_view.gd, which
-## is at gdlint's public-method cap. The view runs over test_api_client.gd's
-## StubClient: the real client and its queues, every transport stubbed (#534).
+## up after its timeout is not applied. A failed action re-reads the game, which
+## the server may have changed anyway (#564).
+## Kept apart from test_farm_view.gd, which is at gdlint's public-method cap. The
+## view runs over test_api_client.gd's StubClient: the real client and its
+## queues, every transport stubbed (#534).
 
 const FarmView = preload("res://scripts/farm_view.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
@@ -11,6 +13,38 @@ const ApiClientTest = preload("res://tests/unit/test_api_client.gd")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
 
 var _auto_cutaway: bool
+
+
+## StubClient over a server that applies each /action as the backend does and
+## never replies to it (#564), as #559's validation saw live. GET /games/{id} is
+## answered from that server's state by game(). field_2's lone patch is rice, so
+## a match by patch index alone would put rice on field_1's patch 0.
+class ApplyingStub:
+	extends ApiClientTest.StubClient
+	var balance: int = 1000
+	var fields: Dictionary = {
+		"field_1": [{"crop_key": "maize"}, {"crop_key": "maize"}, {"crop_key": "maize"}],
+		"field_2": [{"crop_key": "rice"}],
+	}
+
+	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
+		if endpoint == "action":
+			var req: Dictionary = JSON.parse_string(body)
+			var params: Dictionary = req["params"]
+			var patch: Dictionary = fields[req["field_id"]][int(params.get("patch_idx", 0))]
+			match req["action"]:
+				"harvest":
+					patch["crop_key"] = ""
+					balance += 300
+				"plant":
+					patch["crop_key"] = params["crop_key"]
+					balance -= 67
+				_:
+					balance -= 40
+		return super(endpoint, url, method, body)
+
+	func game() -> Dictionary:
+		return {"game_id": "g", "balance_credits": balance, "fields": fields.duplicate(true)}
 
 
 func before_each() -> void:
@@ -24,11 +58,12 @@ func after_each() -> void:
 	GameState.game_id = ""
 
 
-## A farm view on game "g" over StubClient, with tile (0, 0), patch 0, selected
-## and carrying a standing crop.
-func _stub_view() -> Node3D:
+## A farm view on game "g" over StubClient, or `api` when given, with tile
+## (0, 0), patch 0, selected and carrying a standing crop.
+func _stub_view(api: ApiClientTest.StubClient = null) -> Node3D:
 	GameState.game_id = ""  # no hand-over, so _ready fetches nothing
-	var api: ApiClientTest.StubClient = ApiClientTest.StubClient.new()
+	if api == null:
+		api = ApiClientTest.StubClient.new()
 	add_child_autofree(api)
 	var view: Node3D = FarmViewScene.instantiate()
 	view._api_client = api
@@ -142,3 +177,89 @@ func test_a_timed_out_preview_does_not_stall_the_cost_refresh() -> void:
 	)
 	var chain := ["irrigate", "fertilize", "tillage", "lime"]
 	assert_eq(sent, chain + chain, "each refresh previewed every action once, in order")
+
+
+## Each column's value of `key` on row 0, checked identical on row 5.
+func _band(view: Node3D, key: String) -> Array:
+	var out: Array = []
+	for col in range(6):
+		assert_eq(view._tile_data[30 + col][key], view._tile_data[col][key], "column-wide")
+		out.append(view._tile_data[col][key])
+	return out
+
+
+## Answer the cost refresh's previews, each at the stub server's balance.
+func _answer_previews(api: ApplyingStub) -> void:
+	for i in range(FarmView._PREVIEW_ACTIONS.size()):
+		assert_true(api.awaiting("preview"), "the costs are refreshed")
+		api.reply_ok("preview", {"cost_credits": 5, "balance_credits": api.balance})
+
+
+func test_an_action_the_server_applied_without_replying_is_reconciled() -> void:
+	# #564 AC1: a timed-out /action can still apply on the server. Once the bar
+	# is back, the view re-reads the game and takes its balance and every
+	# field's crops as the truth. Three rounds on one view, on patch 1's band:
+	# Harvest clears its crop, Plant sows sorghum, Irrigate only charges.
+	var api := ApplyingStub.new()
+	var view := _stub_view(api)
+	var growing := {"crop_key": "maize", "crop_stage": "vegetative", "lai": 2.0}
+	view._apply_patch_data({"field_1": [growing, growing, growing]})
+	view._select_tile(2, 0)
+	var sorghum: int = FarmView.AVAILABLE_CROPS.find("sorghum")
+	var rounds: Array = [
+		[view._on_harvest_pressed, "Harvest failed", "", 1300],
+		[view._on_crop_selected.bind(sorghum), "Plant failed", "sorghum", 1233],
+		[view._on_irrigate, "Action failed", "sorghum", 1193],
+	]
+	for r: Array in rounds:
+		var failure: String = r[1]
+		api.timeouts_for["action"] = [0.05]
+		var press: Callable = r[0]
+		press.call()
+		var lifted := func() -> bool: return not view.next_day_btn.disabled
+		assert_true(await wait_until(lifted, 1.0), "%s: the bar is back" % failure)
+		assert_push_warning("action timed out")
+		assert_eq(view.status_label.text, failure, "the failure shows while the game is re-read")
+		assert_true(api.awaiting("game"), "%s: the game is re-read" % failure)
+		api.reply_ok("game", api.game())
+		var crop: String = r[2]
+		assert_eq(view.credits_label.text, str(r[3]), "%s: the server's balance" % failure)
+		assert_eq(view._balance_credits, r[3], "%s: and the pickers' balance" % failure)
+		var crops := ["maize", "maize", crop, crop, "maize", "maize"]
+		assert_eq(_band(view, "crop_key"), crops, "%s: field_1's crops, no rice" % failure)
+		assert_eq(_band(view, "lai"), [2.0, 2.0, 0.0, 0.0, 2.0, 2.0], "the others keep growing")
+		await wait_process_frames(1)  # the replaced plants are queue_free'd
+		var drawn: bool = view._crop_sprites[2][0].get_child_count() > 0
+		assert_eq(drawn, not crop.is_empty(), "%s: patch 1's tiles are redrawn" % failure)
+		var reread := "%s; credits and crops re-read from the server" % failure
+		assert_eq(view.status_label.text, reread)
+		assert_eq(view.harvest_btn.disabled, crop.is_empty(), "%s: Harvest follows" % failure)
+		assert_false(view.next_day_btn.disabled, "%s: the bar stays released" % failure)
+		_answer_previews(api)
+	var actions: Array = api.sends.filter(func(s: Array) -> bool: return s[0] == "action")
+	assert_eq(actions.size(), 3, "each action sent once, none repeated")
+
+
+func test_a_re_read_landing_after_a_newer_reply_changes_nothing() -> void:
+	# #564: the bar is back while the game is re-read (#534 AC8), so a Next Day
+	# can go out meanwhile. Its reply is the newer state, so a re-read landing
+	# after it is dropped; a re-read that fails changes nothing either.
+	var api := ApplyingStub.new()
+	var view := _stub_view(api)
+	view._on_irrigate()
+	api.reply("action", HTTPRequest.RESULT_CONNECTION_ERROR, 0, "")  # applied, then dropped
+	assert_eq(view.status_label.text, "Action failed")
+	view._on_next_day()
+	var step: Dictionary = FarmViewTest._REPLY["step"].duplicate()
+	step["balance_credits"] = 777
+	api.reply_ok("step", step)
+	assert_eq(view.credits_label.text, "777", "the step's balance")
+	var before := _view_snapshot(view, api)
+	assert_true(api.awaiting("game"), "the re-read is still in flight")
+	api.reply_ok("game", api.game())
+	assert_eq(_view_snapshot(view, api), before, "the older re-read is dropped")
+	view._on_tillage()
+	api.reply("action", HTTPRequest.RESULT_SUCCESS, 400, "{}")
+	before = _view_snapshot(view, api)
+	api.reply("game", HTTPRequest.RESULT_CANT_CONNECT, 0, "")
+	assert_eq(_view_snapshot(view, api), before, "a failed re-read changes nothing")
