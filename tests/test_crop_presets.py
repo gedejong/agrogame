@@ -129,13 +129,19 @@ def test_orchestrator_accepts_crop_preset() -> None:
 
 
 def test_grape_harvest_product_is_cited_fruit_and_grain_is_default() -> None:
-    """#448: grape sells fruit at the USDA-cited fraction; grains default."""
+    """#448/#506: grape sells fruit at a wine-grape fraction; grains default.
+
+    García de Cortázar-Atauri et al. 2009 (J. Int. Sci. Vigne Vin 43:83-97),
+    Eq. 3 (p. 89) at the paper's 24 °Brix harvest point (p. 86).
+    """
     from agrogame.plant.presets import GRAIN_PRODUCT, load_crop_presets
 
     lib = load_crop_presets()
     grape = lib.get_preset("grape", "kenya_highlands")  # override keeps product
     assert grape.harvest_product.name == "fruit"
-    assert grape.harvest_product.dry_matter_fraction == 0.1946
+    assert grape.harvest_product.dry_matter_fraction == 0.2528
+    # Eq. 3: Wc = -0.82 Cs + 94.40 (%), DMF = 1 - Wc/100 at Cs = 24 °Brix.
+    assert 0.2528 == pytest.approx(1 - (94.40 - 0.82 * 24) / 100, abs=1e-12)
     assert lib.crops["maize"].harvest_product == GRAIN_PRODUCT
 
 

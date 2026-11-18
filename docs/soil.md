@@ -101,8 +101,15 @@ moves. On `loam_temperate` at 200 kg N/ha layer 0 falls about 0.036 pH per
 150-day season (0.47 mol H+ per mol urea-N, the efficient end of Goulding
 2016, *Soil Use Manage.* 32:390-399); sand falls faster and clay slower. The
 three former proxies (a fixed P-fixation clock, a per-event leaching step and
-an acidifying-fertiliser event nothing emitted) are gone. The weak daily
-relaxation toward 6.8 remains until #481 removes it.
+an acidifying-fertiliser event nothing emitted) are gone.
+
+There is **no relaxation and no weathering term** (#481, ADR-020 (b)). pH has
+no daily pull toward 6.8 or any other value, so acidification accumulates with
+the N applied and a lime dose persists until the proton budget wears it down.
+Mineral weathering (about +0.001 to +0.006 pH/yr for a 25-30 cm topsoil) and
+base-cation removal in harvested product are left out and bounded in the ADR.
+`DayTick.target_ph` and `step_day(target_ph=...)` remain but no longer drive
+soil pH.
 
 ## Notes
 

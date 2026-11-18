@@ -1309,6 +1309,13 @@ class FullSimulationOrchestrator(RuntimeMemory):
         target_ph: float = 6.8,
         par_mj_m2: float | None = None,
     ) -> None:
+        """Advance the simulation by one day through the ``DayTick`` phases.
+
+        ``target_ph`` no longer drives soil pH: the daily relaxation toward it
+        was removed in #481 (ADR-020 (b)). It is passed on as
+        ``DayTick.target_ph``, which only ``MicrobesRuntime`` reads, and only
+        when no chemistry module is wired; this orchestrator always wires one.
+        """
         shortwave_mj_m2 = _resolve_shortwave_kwarg(shortwave_mj_m2, par_mj_m2)
         # Execute scheduled management events for this day
         for ev in self.management_plan.events_for_day(self._day_counter):
