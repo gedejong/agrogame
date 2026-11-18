@@ -105,6 +105,16 @@ def _pending(cycle: SulfurCycle | PhosphorusCycle) -> float:
     return sum(s.remaining_amount_kg_ha for layer in schedules for s in layer)
 
 
+def _sentinels(orch: Orch) -> tuple[float, float, float, int]:
+    """Stage-2 clock, pending S and P, and the aggregation cadence."""
+    return (
+        _runtime(orch, ETRuntime)._evap_state.cumulative_evap_mm,
+        _pending(orch.s_cycle),
+        _pending(orch.p_cycle),
+        _runtime(orch, AggregationRuntime)._day_count,
+    )
+
+
 def _soil_memory(orch: Orch) -> dict[str, Any]:
     """Soil-owned memory of every holder that has any."""
     memory = orch.runtime_memory_to_dict(soil_only=True)
@@ -146,16 +156,15 @@ def test_ac2_soil_untouched_at_the_reset_instant(transition: str) -> None:
     _run(orch, climate, 30, 50)
     if source is not None:
         orch.harvest()
-    # The memory is non-trivial, or equality would prove nothing.
-    assert _runtime(orch, ETRuntime)._evap_state.cumulative_evap_mm > 0.0
-    assert _pending(orch.s_cycle) > 0.0 and _pending(orch.p_cycle) > 0.0
-    assert _runtime(orch, AggregationRuntime)._day_count != 0
-    print(
-        f"{transition}: pending S {_pending(orch.s_cycle):.2f}, "
-        f"P {_pending(orch.p_cycle):.2f} kg/ha"
-    )
+    # The memory is non-trivial, or equality would prove nothing. Read
+    # directly, so a misclassification fails here and not only in the pin.
+    sentinels = _sentinels(orch)
+    clock, pending_s, pending_p, day_count = sentinels
+    assert clock > 0.0 and pending_s > 0.0 and pending_p > 0.0 and day_count != 0
+    print(f"{transition}: clock {clock:.2f} mm, S {pending_s:.2f}, P {pending_p:.2f}")
     memory, snapshot = _soil_memory(orch), orch.snapshot_soil().to_dict()
     _reset(orch, target, climate)
+    assert _sentinels(orch) == sentinels
     assert _soil_memory(orch) == memory
     assert orch.snapshot_soil().to_dict() == snapshot
     assert _crop_memory(orch) == _crop_memory(_orch(soil, climate, target))
@@ -238,17 +247,11 @@ def test_ac4_s_and_p_conserved_across_harvest_fallow_sowing(
             pending_s, _pending_p = reset(crop)
             assert pending_s > 0.0
         _run(orch, climate, day, day + 1)
+        out_s = uptake["SulfurCycle"] + leached["SO4"] - applied["S"]
+        out_p = uptake["PhosphorusCycle"] + leached["P"] - applied["P"]
         residual = {
-            "S": orch.s_cycle._total_s()
-            - s0
-            - applied["S"]
-            + uptake["SulfurCycle"]
-            + leached["SO4"],
-            "P": orch.p_cycle._total_p()
-            - p0
-            - applied["P"]
-            + uptake["PhosphorusCycle"]
-            + leached["P"],
+            "S": orch.s_cycle._total_s() - s0 + out_s,
+            "P": orch.p_cycle._total_p() - p0 + out_p,
         }
         for nutrient, value in residual.items():
             assert abs(value) <= 1e-6, f"{nutrient} ledger off by {value} on day {day}"
