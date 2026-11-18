@@ -19,6 +19,7 @@ const METERS_PER_TILE := 2.0
 const WIND_SCALE_MAX_MS := 8.0
 const WIND_MIN_STRENGTH := 0.05
 
+const LOAD_RETRY_MAX_S := 30.0  # the longest wait between layout-load retries (#564)
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
@@ -81,6 +82,8 @@ var _title_delay_s: float = 2.0
 ## the reply that releases it, so nothing landing meanwhile re-enables a button (#534).
 var _bar_held: bool = false
 var _releases: int = 0  # times the bar was released; see _on_reconciled (#564)
+var _load_failures: int = 0  # failed layout loads in a row (#564)
+var _load_retry_s: float = 1.0  # the first layout-load retry's delay; doubles per failure
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -209,8 +212,13 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 		var title := "res://scenes/main.tscn"
 		get_tree().create_timer(_title_delay_s).timeout.connect(_change_scene.bind(title))
 	elif not success or patches.is_empty():
-		status_label.text = "Error: could not load game %s" % _game_id
+		# The bar stays held (#516), so retry on our own, backing off (#564).
+		var delay: float = minf(_load_retry_s * pow(2.0, _load_failures), LOAD_RETRY_MAX_S)
+		_load_failures += 1
+		status_label.text = "Error: could not load game %s, retrying in %.0f s" % [_game_id, delay]
+		get_tree().create_timer(delay).timeout.connect(_load_layout)
 	else:
+		_load_failures = 0
 		_apply_layout(patches)
 		_set_buttons_disabled(false)
 

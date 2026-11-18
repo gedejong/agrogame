@@ -2,7 +2,7 @@ extends GutTest
 ## The farm view against a backend that never answers (#556): each request times
 ## out, the action bar comes back with the failure shown, and a reply that turns
 ## up after its timeout is not applied. A failed action re-reads the game, which
-## the server may have changed anyway (#564).
+## the server may have changed anyway, and a failed layout load retries (#564).
 ## Kept apart from test_farm_view.gd, which is at gdlint's public-method cap. The
 ## view runs over test_api_client.gd's StubClient: the real client and its
 ## queues, every transport stubbed (#534).
@@ -263,3 +263,42 @@ func test_a_re_read_landing_after_a_newer_reply_changes_nothing() -> void:
 	before = _view_snapshot(view, api)
 	api.reply("game", HTTPRequest.RESULT_CANT_CONNECT, 0, "")
 	assert_eq(_view_snapshot(view, api), before, "a failed re-read changes nothing")
+
+
+func test_a_failed_layout_load_retries_with_backoff_until_it_loads() -> void:
+	# #564 AC3: a failed or timed-out GET /games/{id} left the farm view stuck.
+	# It now retries on its own after 1 s, doubling to 30 s, with the bar held
+	# (#516) until the layout loads; a 404 still returns to the title.
+	GameState.game_id = "g"
+	var api: ApiClientTest.StubClient = ApiClientTest.StubClient.new()
+	add_child_autofree(api)
+	var view: Node3D = FarmViewScene.instantiate()
+	view._api_client = api
+	add_child_autofree(view)
+	view._load_retry_s = 0.05
+	# A transport error, a 500 and a hung request, each followed by a retry.
+	api.reply("game", HTTPRequest.RESULT_CANT_CONNECT, 0, "")
+	assert_true(await wait_until(func() -> bool: return api.sends.size() == 2, 1.0), "retried")
+	api.timeouts_for["game"] = [0.05]  # the send after the next one hangs
+	api.reply("game", HTTPRequest.RESULT_SUCCESS, 500, "{}")
+	assert_true(await wait_until(func() -> bool: return api.sends.size() == 3, 1.0), "again")
+	var hung := func() -> bool: return view._load_failures == 3
+	assert_true(await wait_until(hung, 1.0), "the third load timed out")
+	assert_push_warning("game timed out")
+	assert_string_contains(view.status_label.text, "could not load game g, retrying in")
+	assert_true(_bar_is(view, true), "the bar stays held while the layout is missing")
+	assert_true(await wait_until(func() -> bool: return api.sends.size() == 4, 1.0), "and again")
+	var sandy := {"soil_profile_key": "sandy_subsaharan", "crop_key": "maize"}
+	api.reply_ok("game", {"game_id": "g", "fields": {"field_1": [sandy]}})
+	assert_false(view.next_day_btn.disabled, "the bar is released once the layout loads")
+	assert_eq(view._tile_data[35]["soil_type"], "sandy", "the loaded layout")
+	assert_eq(view._load_failures, 0, "the backoff starts over")
+	var endpoints: Array = api.sends.map(func(s: Array) -> String: return s[0])
+	assert_eq(endpoints, ["game", "game", "game", "game"], "nothing else sent")
+	# The delays double from _load_retry_s and stop at LOAD_RETRY_MAX_S.
+	view._load_retry_s = 1.0
+	var shown: Array = []
+	for i in range(7):
+		view._on_game_loaded(false, {})
+		shown.append(view.status_label.text.get_slice("retrying in ", 1))
+	assert_eq(shown, ["1 s", "2 s", "4 s", "8 s", "16 s", "30 s", "30 s"])
