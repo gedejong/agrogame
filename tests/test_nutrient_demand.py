@@ -52,7 +52,11 @@ def _step_days(
 
 
 def test_demand_baseline_before_emergence() -> None:
-    """Before emergence, biomass increment is 0 → demand = baseline minimum."""
+    """Before emergence there is no shoot DM, so N demand is exactly 0 (#578).
+
+    No N is taken up before emergence and the demand has no floor (CERES-Maize,
+    APSIM PMF; ADR-013 amendment 2026-11-18).
+    """
     orch, bus = _make_orchestrator()
     events: list[NutrientStressComputed] = []
     bus.subscribe(NutrientStressComputed, events.append)
@@ -60,8 +64,7 @@ def test_demand_baseline_before_emergence() -> None:
     _step_days(orch, 1)
     n_events = [e for e in events if e.nutrient == "N"]
     assert len(n_events) >= 1
-    # Demand should be the baseline minimum (0.1 kg/ha), not the old 1.0
-    assert n_events[0].demand_kg_ha <= 0.1 + 1e-9
+    assert n_events[0].demand_kg_ha == 0.0
 
 
 def test_demand_increases_with_growth() -> None:
@@ -78,12 +81,12 @@ def test_demand_increases_with_growth() -> None:
         ),
     )
     _step_days(orch, 30)
-    # After 30 days of growth, demand should have increased from baseline
+    # After 30 days of growth, demand should have increased from zero
     assert len(n_demands) >= 20
-    # Peak demand (during active growth) should exceed baseline (0.1)
+    # Peak demand (during active growth) is well above zero
     peak_n = max(n_demands)
     assert peak_n > 1.0, f"Peak N demand ({peak_n:.4f}) should exceed 1.0 kg/ha"
-    # Late demands (post-emergence) should greatly exceed baseline
+    # Late demands (post-emergence) should be substantial
     late_avg = sum(n_demands[15:25]) / 10
     assert late_avg > 0.5, f"Late demand ({late_avg:.4f}) should exceed 0.5 kg/ha"
     # P demand should also increase above baseline
@@ -187,7 +190,7 @@ def test_demand_trajectory_rise_then_decline() -> None:
     early_avg = sum(early) / len(early)
     mid_avg = sum(mid) / len(mid)
     late_avg = sum(late) / len(late)
-    # Demand rises above the pre-emergence baseline once the crop establishes.
+    # Demand rises from its pre-emergence zero once the crop establishes.
     assert max(n_demands) > 1.0
     # Stock-based critical-N demand (#360): N demand is the deficit between
     # the shoot N stock and the critical-N target. It is largest while the
@@ -215,7 +218,7 @@ def test_demand_trajectory_rise_then_decline() -> None:
 
 
 def test_demand_resets_after_crop_change() -> None:
-    """After reset_crop, demand should reset to baseline."""
+    """After reset_crop the new crop has not emerged, so N demand is 0 (#578)."""
     orch, bus = _make_orchestrator()
     _step_days(orch, 20)
     # Biomass should have accumulated
@@ -229,5 +232,5 @@ def test_demand_resets_after_crop_change() -> None:
     _step_days(orch, 1)
     n_events = [e for e in events if e.nutrient == "N"]
     assert len(n_events) >= 1
-    # Should be baseline (0.1), not carrying over maize's growth
-    assert n_events[0].demand_kg_ha <= 0.1 + 1e-9
+    # Zero, not carrying over maize's growth or stock
+    assert n_events[0].demand_kg_ha == 0.0
