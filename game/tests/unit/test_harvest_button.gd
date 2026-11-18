@@ -20,16 +20,18 @@ class ApiClientSpy:
 	var last_action: String = ""
 	var last_params: Dictionary = {}
 	var last_game_id: String = ""
+	var last_field_id: String = ""
 	var action_calls: int = 0
 	var report_calls: int = 0
 	# When false, get_report reports failure (as a real mid-season 400 would).
 	var report_succeeds: bool = true
 
 	func execute_action(
-		game_id: String, action: String, params: Dictionary, callback: Callable
+		game_id: String, field_id: String, action: String, params: Dictionary, callback: Callable
 	) -> void:
 		action_calls += 1
 		last_game_id = game_id
+		last_field_id = field_id
 		last_action = action
 		last_params = params
 		# Real harvest response: cost charged, crop settled, P&L returned.
@@ -116,6 +118,7 @@ func test_harvest_press_calls_execute_action() -> void:
 	assert_eq(spy.action_calls, 1, "execute_action called once")
 	assert_eq(spy.last_action, "harvest", "Action is 'harvest'")
 	assert_eq(spy.last_game_id, "test-game", "Passes the current game id")
+	assert_eq(spy.last_field_id, "field_1", "Names the field the view renders (#548)")
 	assert_true(spy.last_params.has("patch_idx"), "Sends target patch_idx")
 
 

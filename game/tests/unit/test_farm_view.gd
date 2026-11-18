@@ -46,15 +46,17 @@ class ApiStub:
 	func reply_game(ok: bool, data: Dictionary) -> void:
 		_game_cb.call(ok, data)
 
-	func create_game(callback: Callable, _patches: Array = []) -> void:
+	func create_game(callback: Callable, _fields: Array = []) -> void:
 		calls.append(["create_game"])
 		callback.call(true, {"game_id": "created"})
 
 	func step_day(game_id: String, days: int, _callback: Callable) -> void:
 		calls.append(["step_day", game_id, days])
 
-	func execute_action(_id: String, action: String, params: Dictionary, _cb: Callable) -> void:
-		calls.append(["action", action, params])
+	func execute_action(
+		_id: String, field_id: String, action: String, params: Dictionary, _cb: Callable
+	) -> void:
+		calls.append(["action", field_id, action, params])
 
 
 func before_each() -> void:
@@ -208,14 +210,16 @@ func test_two_patches_sharing_a_soil_map_by_index() -> void:
 	assert_eq(view._daily_history.keys(), [0, 1], "one history per patch")
 	# Plant and Harvest send the tile's own patch: 0 from column 0, 1 from column
 	# 5. A soil-name lookup gives the same index for both bands and fails here.
+	# Both name field_1, the only field the view renders (#548).
 	var api: ApiStub = view._api_client
 	for case: Array in [[0, 0], [5, 1]]:
 		view._select_tile(case[0], 0)
 		view._on_crop_selected(FarmView.AVAILABLE_CROPS.find("sorghum"))
 		var plant := {"crop_key": "sorghum", "patch_idx": case[1]}
-		assert_eq(api.calls[-1], ["action", "plant", plant], "plant from column %d" % case[0])
+		var plant_call := ["action", "field_1", "plant", plant]
+		assert_eq(api.calls[-1], plant_call, "plant from column %d" % case[0])
 		view._on_harvest_pressed()
-		assert_eq(api.calls[-1], ["action", "harvest", {"patch_idx": case[1]}])
+		assert_eq(api.calls[-1], ["action", "field_1", "harvest", {"patch_idx": case[1]}])
 	# Completion touches band 1 only.
 	view._on_plant_complete(true, {}, "sorghum", 1)
 	assert_eq(_band(view, "crop_key"), ["maize", "maize", "maize", "sorghum", "sorghum", "sorghum"])
@@ -405,6 +409,17 @@ func test_bar_stays_held_until_each_step_and_action_is_applied() -> void:
 	var mutating: Array = api.sends.filter(func(s: Array) -> bool: return s[0] in _REPLY)
 	assert_eq(mutating.map(func(s: Array) -> String: return s[0]), expected, "nothing extra sent")
 	assert_eq(api.mutating_overlaps, 0, "never two of /step and /action in flight")
+	# #548: every action, cost preview and forecast those presses sent named field_1.
+	var named: Dictionary = {"action": [], "preview": [], "forecast": []}
+	for s: Array in api.sends:
+		if s[0] == "forecast":
+			named["forecast"].append(s[1].get_slice("?field_id=", 1))
+		elif s[0] in named:
+			named[s[0]].append(JSON.parse_string(s[3])["field_id"])
+	for endpoint: String in named:
+		var ids: Array = named[endpoint]
+		assert_gt(ids.size(), 0, "%s sent" % endpoint)
+		assert_eq(ids.filter(func(f: String) -> bool: return f != "field_1"), [], endpoint)
 	# AC7: once the last day's cost refresh is answered, each priced button
 	# follows its own reply, against the mid-flight pattern, and Harvest the tile.
 	var affordable := [false, true, false, true]

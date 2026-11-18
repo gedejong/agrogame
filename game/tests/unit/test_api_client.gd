@@ -35,15 +35,15 @@ func test_has_preview_action_method() -> void:
 	client.free()
 
 
-func test_create_game_accepts_scenario_patches() -> void:
-	# create_game(callback, patches := []) drives the chosen scenario (#440);
-	# the optional patches arg keeps quick-start backward compatible.
+func test_create_game_accepts_scenario_fields() -> void:
+	# create_game(callback, fields := []) drives the chosen scenario (#440, #548);
+	# the optional fields arg keeps quick-start backward compatible.
 	var client = ApiClientScript.new()
 	var args: Array = []
 	for method in client.get_method_list():
 		if method["name"] == "create_game":
 			args = method["args"]
-	assert_eq(args.size(), 2, "create_game should accept (callback, patches)")
+	assert_eq(args.size(), 2, "create_game should accept (callback, fields)")
 	client.free()
 
 
@@ -155,6 +155,8 @@ class PreviewStubClient:
 	extends StubClient
 	## Every preview sent, in order, as [action, params].
 	var sent: Array = []
+	## Every preview's field_id, in send order (#548).
+	var field_ids: Array = []
 	## Sends made while an earlier one was still awaiting its response.
 	var overlapping_sends: int = 0
 	## Return values for the next sends, consumed in order; OK once exhausted.
@@ -166,6 +168,7 @@ class PreviewStubClient:
 			return super(endpoint, url, method, body)
 		var req: Dictionary = JSON.parse_string(body)
 		sent.append([req["action"], req["params"]])
+		field_ids.append(req["field_id"])
 		if _awaiting:
 			overlapping_sends += 1
 		var err: Error = OK if send_errors.is_empty() else send_errors.pop_front()
@@ -195,7 +198,7 @@ func _recorder(got: Array, tag: String) -> Callable:
 
 func _queue_previews(api: PreviewStubClient, got: Array, actions: Array) -> void:
 	for action: String in actions:
-		api.preview_action("g", action, {}, _recorder(got, action))
+		api.preview_action("g", "field_1", action, {}, _recorder(got, action))
 
 
 func test_back_to_back_previews_reach_their_own_callbacks() -> void:
@@ -298,11 +301,11 @@ func _call_each(api: StubClient, endpoint: String, got: Array, tags: Array) -> v
 			"step":
 				api.step_day("g", 1, callback)
 			"action":
-				api.execute_action("g", "irrigate", {}, callback)
+				api.execute_action("g", "field_1", "irrigate", {}, callback)
 			"preview":
-				api.preview_action("g", "tillage", {}, callback)
+				api.preview_action("g", "field_1", "tillage", {}, callback)
 			"forecast":
-				api.get_forecast("g", callback)
+				api.get_forecast("g", "field_1", callback)
 			"report":
 				api.get_report("g", callback)
 
@@ -370,9 +373,9 @@ func test_each_endpoint_sends_its_request_on_its_own_http_request() -> void:
 	api.create_game(ignore)
 	api.get_game("g", ignore)
 	api.step_day("g", 3, ignore)
-	api.execute_action("g", "irrigate", {"amount_mm": 20}, ignore)
-	api.preview_action("g", "tillage", {"intensity": 0.8}, ignore)
-	api.get_forecast("g", ignore)
+	api.execute_action("g", "field_1", "irrigate", {"amount_mm": 20}, ignore)
+	api.preview_action("g", "field_1", "tillage", {"intensity": 0.8}, ignore)
+	api.get_forecast("g", "field_1", ignore)
 	api.get_report("g", ignore)
 	var games := ApiClientScript.BASE_URL + "/games"
 	var post := HTTPClient.METHOD_POST
@@ -383,7 +386,7 @@ func test_each_endpoint_sends_its_request_on_its_own_http_request() -> void:
 		["step", games + "/g/step?days=3", post],
 		["action", games + "/g/action", post],
 		["preview", games + "/g/action/preview", post],
-		["forecast", games + "/g/forecast", fetch],
+		["forecast", games + "/g/forecast?field_id=field_1", fetch],
 		["report", games + "/g/report", fetch],
 	]
 	assert_eq(api.sends.map(func(s: Array) -> Array: return s.slice(0, 3)), expected)

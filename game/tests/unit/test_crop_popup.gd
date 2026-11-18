@@ -74,6 +74,8 @@ func test_each_crop_shows_its_seed_cost_for_the_selected_patch() -> void:
 		func(c: String) -> Array: return ["plant", c, 1]
 	)
 	assert_eq(_sent(api), expected, "one preview per crop, in order, for patch 1")
+	var on_field_1: Array = expected.map(func(_e: Array) -> String: return "field_1")
+	assert_eq(api.field_ids, on_field_1, "every preview names field_1 (#548)")
 
 
 func test_no_game_yet_previews_nothing() -> void:
