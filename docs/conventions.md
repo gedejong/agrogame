@@ -68,6 +68,18 @@ Rationale: Pydantic carries a validation/serialization tax that's only
 worthwhile at trust boundaries. Internal flow is faster and clearer with
 plain dataclasses.
 
+### Cross-day memory outside `*State`
+
+Memory that a runtime, a cycle or the orchestrator carries from one day to
+the next outside a `*State` container is simulation state, and the patch
+save must include it: a stage-2 evaporation clock, a running-mean window, a
+cadence counter, a pending slow-release schedule. Inherit
+`agrogame.params.memory.RuntimeMemory` and name the attributes in `_MEMORY`.
+They travel in the patch's `runtime_memory` key and are restored in place,
+so aliases survive a load (#577). The full-graph guard in
+`tests/integration/test_save_continuation.py` enforces this: memory that
+is left out shows up as a leaf that differs after a load.
+
 ## 3. Method names
 
 `daily_step(...)` is the canonical name for the once-per-day computation on

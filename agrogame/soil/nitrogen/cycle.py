@@ -26,6 +26,7 @@ from agrogame.soil.water.events import TranspirationByLayer
 from agrogame.soil.redox.module import RedoxModule
 from agrogame.soil.redox.events import N2OEmitted
 from agrogame.soil.nutrients import EnvironmentalCache
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView, WaterState
 
 
@@ -64,8 +65,17 @@ def _nh3_fraction(ph: float) -> float:
     return float(1.0 / (1.0 + 10.0 ** (NH3_PKA - ph)))
 
 
-class NitrogenCycle:
+class NitrogenCycle(RuntimeMemory):
     """Nitrogen processes and event integration for the soil profile."""
+
+    # Saved with the patch (#577): the cache and the per-layer SOM, O2 and
+    # mass-flow terms carried from one event or day to the next.
+    _MEMORY = (
+        "_env",
+        "_som_mineralized_n",
+        "_aerobic_fraction_override",
+        "_massflow_supply_by_layer",
+    )
 
     def __init__(
         self,

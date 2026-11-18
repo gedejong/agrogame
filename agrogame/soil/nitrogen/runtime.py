@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.memory import RuntimeMemory
 from agrogame.plant.events import PlantNUptakeComputed
 from agrogame.soil.gas_diffusion.state import GasDiffusionState
 from agrogame.soil.redox.events import RedoxChanged
@@ -12,7 +13,7 @@ from .cycle import NitrogenCycle
 
 
 @dataclass
-class NitrogenRuntime:
+class NitrogenRuntime(RuntimeMemory):
     """Wire NitrogenCycle to the EventBus; subscribes to DayTick + RedoxChanged.
 
     When ``gas_state`` is provided (#284 orchestrator wiring), the
@@ -36,6 +37,8 @@ class NitrogenRuntime:
     cycle: NitrogenCycle
     gas_state: GasDiffusionState | None = None
     _eh_by_layer: list[float] | None = None
+    # Saved with the patch (#577): the last Eh seen per layer.
+    _MEMORY = ("_eh_by_layer",)
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick + RedoxChanged."""

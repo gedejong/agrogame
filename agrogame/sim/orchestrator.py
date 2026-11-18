@@ -18,6 +18,7 @@ from agrogame.plant.nitrogen import (
 )
 from agrogame.plant.nitrogen.runtime import PlantNitrogenRuntime
 from agrogame.plant.presets import CropPreset
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.water.models.cascading import CascadingBucketWaterModel
@@ -379,8 +380,9 @@ def _default_canopy_params() -> CanopyParams:
 
 
 # A subscription-plan factory: a zero-arg callable that constructs (and thereby
-# subscribes) one runtime, or performs one bookkeeping subscription. The return
-# value is discarded — the side effect is the subscription (#323).
+# subscribes) one runtime, or performs one bookkeeping subscription and returns
+# None. The side effect is the subscription (#323); the runtimes returned are
+# kept so their cross-day memory can be saved (#577).
 _RuntimeFactory = Callable[[], object]
 
 
@@ -391,7 +393,7 @@ def _check_fallow(crop: CropPreset | None, fallow: bool) -> None:
         raise ValueError(f"fallow=True takes no crop preset, got {name!r}")
 
 
-class FullSimulationOrchestrator:
+class FullSimulationOrchestrator(RuntimeMemory):
     """Event-wired orchestrator including water, chemistry, N and P.
 
     Keeps responsibilities light: holds modules and provides a convenience
@@ -403,6 +405,10 @@ class FullSimulationOrchestrator:
     tests). A bare patch is ``fallow=True`` instead: plant state held at zero
     and the plant runtimes not wired (#542, see ``_hold_fallow_plant_state``).
     """
+
+    # Cross-day memory outside every *State container (#577); see
+    # :meth:`runtime_memory_to_dict` for the runtimes' and cycles' memory.
+    _MEMORY = ("_co2_buffer", "_last_biomass_inc_g_m2", "_pending_root_canopy_inc_g_m2")
 
     def __init__(
         self,
@@ -655,9 +661,8 @@ class FullSimulationOrchestrator:
         """
         plan = self._subscription_plan()
         self._assert_pore_chain_registered_first(plan)
-        for _group_name, factories in plan:
-            for factory in factories:
-                factory()
+        built = [factory() for _group, factories in plan for factory in factories]
+        self._runtimes = [rt for rt in built if rt is not None]
 
     def _subscription_plan(self) -> list[tuple[str, list[_RuntimeFactory]]]:
         """Return the ordered runtime-subscription plan (#323, ADR-010).
@@ -883,6 +888,41 @@ class FullSimulationOrchestrator:
         Derived from yesterday's SOM decomposition; see ADR-010.
         """
         self.event_bus.subscribe(CO2Respired, self._on_co2_respired)
+
+    def _memory_holders(self) -> dict[str, RuntimeMemory]:
+        """The orchestrator, its wired runtimes and its cycles, by class name."""
+        cycles = (self.n_cycle, self.p_cycle, self.s_cycle, self.micro_cycle)
+        holders: dict[str, RuntimeMemory] = {}
+        for obj in (self, *self._runtimes, *cycles):
+            if not isinstance(obj, RuntimeMemory):
+                continue
+            name = type(obj).__name__
+            if name in holders:
+                raise ValueError(f"two memory holders of class {name}")
+            holders[name] = obj
+        return holders
+
+    def runtime_memory_to_dict(self) -> dict[str, dict[str, Any]]:
+        """Cross-day memory outside every *State container, by owner class (#577).
+
+        Part of the patch save (``Patch.to_dict``, key ``runtime_memory``). A
+        fallow patch has no plant runtimes, so it saves no plant memory.
+        """
+        return {
+            name: holder.memory_to_dict()
+            for name, holder in self._memory_holders().items()
+        }
+
+    def restore_runtime_memory(self, data: dict[str, Any]) -> None:
+        """Write memory saved by :meth:`runtime_memory_to_dict` in place.
+
+        Apply after the soil and plant state. An owner absent from ``data``
+        keeps its fresh memory (an older save); an owner this build does not
+        have is ignored, as unknown save keys are within schema v1.
+        """
+        for name, holder in self._memory_holders().items():
+            if name in data:
+                holder.restore_memory(data[name])
 
     def _som_pool_lists(self, attr: str) -> list[float]:
         """Extract per-layer SOM pool attribute as list."""

@@ -8,13 +8,14 @@ from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.plant.roots.events import RootDistributionUpdated
 from agrogame.soil.gas_diffusion.state import GasDiffusionState
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.redox.module import RedoxModule
 from agrogame.soil.water.state import SoilWaterState
 
 
 @dataclass
-class RedoxRuntime:
+class RedoxRuntime(RuntimeMemory):
     """Bind RedoxModule to the event bus for the 'redox' phase.
 
     Captures pre-drainage theta (at start of water phase) to compute
@@ -35,6 +36,8 @@ class RedoxRuntime:
     gas_state: GasDiffusionState | None = None
     _root_fractions: list[float] | None = None
     _pre_drainage_theta: list[float] | None = None
+    # Saved with the patch (#577), with the cached root fractions.
+    _MEMORY = ("_root_fractions", "_pre_drainage_theta")
 
     def __post_init__(self) -> None:
         """Subscribe to DayTick + RootDistributionUpdated on bus."""
