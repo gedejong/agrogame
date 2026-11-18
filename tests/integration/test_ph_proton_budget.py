@@ -358,11 +358,19 @@ def _calendar_years(seed: int, years: int = 3) -> Iterator[float]:
 def test_three_year_trajectory_follows_n_management() -> None:
     """AC10: pH falls year on year and carries across reset_crop.
 
-    Bounds from the 2026-11-18 refinement prototype (6.770 / 6.741 / 6.722;
-    seed 43: 6.767 / 6.743 / 6.725). The old clock gave 6.19 / 5.76 / 5.47.
+    Year-1 band from the 2026-11-18 refinement prototype (6.770 / 6.741 /
+    6.722; seed 43: 6.767 / 6.743 / 6.725). The old clock gave 6.19 / 5.76 /
+    5.47.
+
+    Year 3 re-anchored by #481 PR A (ADR-020 (b)). The old band [6.68, 6.75]
+    was anchored on that prototype while the 0.001/day relaxation toward 6.8
+    was still in, which held year 3 near 6.722. Without it year 3 measures
+    6.659 (seed 43: 6.669). The band keeps its 0.07 width around the new
+    value. The whole shift is the relaxation's: main with ``buffering_rate``
+    set to 0 reproduces this harness bit for bit (6.658914200243213).
     """
     ph = list(_calendar_years(seed=42))
     assert ph[0] > ph[1] > ph[2], ph
     assert 6.74 <= ph[0] <= 6.80, ph
-    assert 6.68 <= ph[2] <= 6.75, ph
+    assert 6.625 <= ph[2] <= 6.695, ph
     assert min(ph) >= 6.5, ph
