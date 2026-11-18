@@ -247,6 +247,53 @@ def test_forecast_unknown_field_is_404_without_side_effects(client) -> None:
             ],
             id="unknown-climate",
         ),
+        # #552 (scope amended): unknown crop and soil keys name the valid keys.
+        # A few are checked rather than the whole list, so a new preset does
+        # not break the test.
+        pytest.param(
+            [{"field_id": "field_1", "patches": [_patch("loam_temperate", "unicorn")]}],
+            ["field_1", "patch 0", "crop_key 'unicorn'", "'maize'", "'winter_wheat'"],
+            id="unknown-crop",
+        ),
+        pytest.param(
+            [{"field_id": "field_1", "patches": [_patch("moon_dust", "maize")]}],
+            [
+                "field_1",
+                "patch 0",
+                "soil_profile_key 'moon_dust'",
+                "'loam_temperate'",
+                "'clay_temperate'",
+            ],
+            id="unknown-soil",
+        ),
+        # #552 (scope amended): each patch area must be in (0, 1], even when
+        # the field still sums to 1.
+        pytest.param(
+            [
+                {
+                    "field_id": "field_1",
+                    "patches": [
+                        {**_patch("loam_temperate", "maize"), "area_fraction": 1.5},
+                        {**_patch("clay_temperate", "maize"), "area_fraction": -0.5},
+                    ],
+                }
+            ],
+            ["field_1", "patch 0", "area_fraction 1.5", "(0, 1]"],
+            id="patch-area-above-one",
+        ),
+        pytest.param(
+            [
+                {
+                    "field_id": "field_1",
+                    "patches": [
+                        {**_patch("loam_temperate", "maize"), "area_fraction": 1.0},
+                        {**_patch("clay_temperate", "maize"), "area_fraction": 0.0},
+                    ],
+                }
+            ],
+            ["field_1", "patch 1", "area_fraction 0.0", "(0, 1]"],
+            id="patch-area-zero",
+        ),
     ],
 )
 def test_create_rejects_an_unholdable_game_with_422(
@@ -308,6 +355,14 @@ def test_create_accepts_the_area_sums_field_manager_accepts(
         assert len(games) == 0
         with pytest.raises(ValueError, match="must sum to 1.0"):
             Field("field_1", configs)
+
+
+def test_create_still_accepts_a_bare_patch(client) -> None:
+    """#552: an empty ``crop_key`` is a fallow patch (#542), not an unknown crop."""
+    body = _create(
+        client, [{"field_id": "field_1", "patches": [_patch("loam_temperate", "")]}]
+    )
+    assert body["field_count"] == 1
 
 
 # ---------------------------------------------------------------------------
