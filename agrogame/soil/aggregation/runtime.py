@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.water.state import SoilWaterState
 from agrogame.soil.aggregation.module import AggregationModule
@@ -14,7 +15,7 @@ from agrogame.plant.roots.events import RootDistributionUpdated
 
 
 @dataclass
-class AggregationRuntime:
+class AggregationRuntime(RuntimeMemory):
     """Event-driven aggregation runtime with weekly cadence.
 
     Runs aggregate formation every 7 days (at day_end phase) and
@@ -29,6 +30,16 @@ class AggregationRuntime:
     _day_count: int = 0
     _root_fractions: list[float] | None = None
     _fungal_fractions: list[float] | None = None
+    # Saved with the patch (#577): the weekly cadence, wet-dry and
+    # freeze-thaw memory and the cached root/fungal fractions.
+    _MEMORY = (
+        "_day_count",
+        "_root_fractions",
+        "_fungal_fractions",
+        "_prev_wfps",
+        "_was_dry",
+        "_was_frozen",
+    )
 
     def __post_init__(self) -> None:
         n = len(self.profile.layers)

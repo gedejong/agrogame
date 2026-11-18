@@ -13,13 +13,14 @@ from .events import (
     EnzymeProduced,
 )
 from agrogame.soil.water.state import SoilWaterState
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView
 from agrogame.soil.chemistry.module import SoilChemistryModule
 from agrogame.plant.roots.events import RootDistributionUpdated
 
 
 @dataclass
-class MicrobesRuntime:
+class MicrobesRuntime(RuntimeMemory):
     """Wire MicrobialBiomassModule to the EventBus (DayTick + SOM/N events)."""
 
     event_bus: EventBus
@@ -31,6 +32,8 @@ class MicrobesRuntime:
     _daily_enzyme_totals: dict[str, float] = field(
         default_factory=dict, init=False, repr=False
     )
+    # Saved with the patch (#577), with the root-fraction smoothing.
+    _MEMORY = ("_daily_enzyme_totals", "_root_fractions", "_root_fractions_smoothed")
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)

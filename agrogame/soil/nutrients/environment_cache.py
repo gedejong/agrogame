@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
+from agrogame.params.memory import RuntimeMemory
 
 if TYPE_CHECKING:
     from agrogame.plant.roots.events import RootDistributionUpdated
@@ -30,7 +31,7 @@ if TYPE_CHECKING:
     )
 
 
-class EnvironmentalCache:
+class EnvironmentalCache(RuntimeMemory):
     """Per-layer environmental signals shared across nutrient cycles.
 
     Owns the pH / root-fraction / microbe-activity / fungal-fraction caches
@@ -62,6 +63,15 @@ class EnvironmentalCache:
         subscribe_roots: Subscribe the root-distribution handler.
         subscribe_microbes: Subscribe the microbe activity + F:B handlers.
     """
+
+    # Saved with the owning cycle (#577); restored in place, so a cycle that
+    # aliases one of these lists keeps the alias.
+    _MEMORY = (
+        "ph_by_layer",
+        "root_fractions",
+        "microbe_activity_by_layer",
+        "fungal_fraction_by_layer",
+    )
 
     def __init__(
         self,

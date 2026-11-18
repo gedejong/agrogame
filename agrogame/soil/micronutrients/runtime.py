@@ -6,13 +6,14 @@ from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
+from agrogame.params.memory import RuntimeMemory
 from agrogame.soil.micronutrients.cycle import MicronutrientCycle
 from agrogame.soil.micronutrients.params import RedoxMicronutrientParams
 from agrogame.soil.redox.events import RedoxChanged
 
 
 @dataclass
-class MicronutrientRuntime:
+class MicronutrientRuntime(RuntimeMemory):
     """Bind MicronutrientCycle to the event bus for the 'nutrients' phase."""
 
     event_bus: EventBus
@@ -25,6 +26,8 @@ class MicronutrientRuntime:
     # False on a bare fallow (#542): pools still equilibrate, but there is no
     # plant demand, so no uptake and no NutrientStressComputed.
     plant_present: bool = True
+    # Saved with the patch (#577): yesterday's growth and root fractions.
+    _MEMORY = ("_last_biomass_inc", "_root_fractions")
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
