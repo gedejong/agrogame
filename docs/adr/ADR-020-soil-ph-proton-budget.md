@@ -224,11 +224,19 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
   scenario. Typical N drifts further: sand 200 kg N reaches 6.31 in year 5,
   against 6.57. The lowest layer-0 pH in any year and treatment is 5.92
   (sand, 300 kg N). The 3 t/ha lime step is about three times what survived
-  the relaxation two years on. At 0 kg N, SOM nitrogen nitrified in layer 0
-  and not taken up there now accumulates instead of being pulled back:
-  year-5 drift is -0.04 in both Kenya scenarios and -0.065 under NL winter
-  wheat, against -0.017 and -0.027 with the relaxation. The temperate maize
-  and Sahel scenarios stay within 0.003 of 6.8.
+  the relaxation two years on.
+- **At 0 kg N, five-year drift is now visible where drainage is.** Year-5
+  drift is -0.04 in both Kenya scenarios and -0.065 under NL winter wheat,
+  against -0.017 and -0.027 with the relaxation. The temperate maize and
+  Sahel scenarios stay within 0.003 of 6.8.
+
+  The mechanism is nitrate leaching of mineralised native N. By the
+  stoichiometry above, layer 0's net H+ equals (NO3-N drained below it +
+  ΔNO3 - ΔNH4) / 14.007, and the seed-42 ledger closes on that exactly. Over
+  five years, layer 0 drains 215 kg NO3-N under winter wheat and 102 and
+  157 kg in the two Kenya scenarios, against 11 kg under NL maize.
+
+  The 0.005 bound of #492 applies per 150-day season and still holds.
 - **Single-season baselines** are unchanged within 0.3% across the catalog,
   and the realism suite is unchanged.
 - **Event contract.** `ProtonLoadOccurred` is new: additive in `/step`
