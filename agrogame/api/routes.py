@@ -25,6 +25,7 @@ from agrogame.api.models import (
     DailySnapshot,
     DayResultResponse,
     DayWeatherResponse,
+    FieldConfigRequest,
     ForecastDayResponse,
     ForecastResponse,
     GameCreatedResponse,
@@ -51,7 +52,13 @@ from agrogame.api.forecast import (
 )
 from agrogame.api.state import GameSession, games
 from agrogame.game.economy import EconomicLedger, PriceTable
-from agrogame.game.field import Field, FieldManager, Patch, PatchConfig
+from agrogame.game.field import (
+    AREA_FRACTION_SUM_TOLERANCE,
+    Field,
+    FieldManager,
+    Patch,
+    PatchConfig,
+)
 from agrogame.game.turn import (
     GameTurnManager,
     PauseEvent,
@@ -332,25 +339,55 @@ def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     }
 
 
-def _validate_create_request(req: CreateGameRequest) -> None:
-    """Reject a ``POST /games`` body the session could not hold (#547).
+def _validate_field_patches(fc: FieldConfigRequest, climate_keys: list[str]) -> None:
+    """Reject one field whose patches ``FieldManager`` could not build (#547, #552).
 
-    A repeated ``field_id`` and a field with no patches used to reach
-    ``FieldManager`` and surface as a 500. Weather is farm-level (ADR-002 note,
-    2026-11-18): one series is generated from the first patch's climate, so a
-    second ``climate_key`` was accepted and then silently ignored.
+    ``climate_keys`` is the sorted list of known climate presets. The area sum
+    is held to ``FieldManager``'s own bound, ``AREA_FRACTION_SUM_TOLERANCE``.
+    """
+    if not fc.patches:
+        raise HTTPException(422, f"Field {fc.field_id!r} has no patches")
+    for i, p in enumerate(fc.patches):
+        if p.climate_key not in climate_keys:
+            raise HTTPException(
+                422,
+                f"Field {fc.field_id!r} patch {i}: unknown climate_key "
+                f"{p.climate_key!r}; valid keys are {climate_keys}",
+            )
+    total = sum(p.area_fraction for p in fc.patches)
+    if abs(total - 1.0) > AREA_FRACTION_SUM_TOLERANCE:
+        raise HTTPException(
+            422,
+            f"Field {fc.field_id!r}: patch area_fraction values sum to "
+            f"{total:.3f}; they must sum to 1.0 ± {AREA_FRACTION_SUM_TOLERANCE}",
+        )
+
+
+def _validate_create_request(req: CreateGameRequest) -> None:
+    """Reject a ``POST /games`` body the session could not hold (#547, #552).
+
+    A repeated ``field_id``, a field with no patches, patch area fractions that
+    do not sum to 1 and an unknown ``climate_key`` used to reach
+    ``FieldManager`` and surface as a 500. An empty ``fields`` list used to
+    create a session that ``/forecast`` then failed on. Weather is farm-level
+    (ADR-002 note, 2026-11-18): one series is generated from the first patch's
+    climate, so a second ``climate_key`` was accepted and then silently ignored.
 
     Raises:
-        HTTPException: 422 naming the offending field id or the climate keys,
-            before any session state is built.
+        HTTPException: 422 naming the offending field id, request member, or
+            the valid keys or range, before any session state is built.
     """
+    if not req.fields:
+        raise HTTPException(422, "fields is empty; a game needs at least one field")
+    climate_keys = sorted(
+        load_climate_presets(Path("data/climate/presets.yaml")).climates
+    )
     seen: set[str] = set()
     for fc in req.fields:
         if fc.field_id in seen:
             raise HTTPException(422, f"Duplicate field_id {fc.field_id!r}")
         seen.add(fc.field_id)
-        if not fc.patches:
-            raise HTTPException(422, f"Field {fc.field_id!r} has no patches")
+        _validate_field_patches(fc, climate_keys)
     climates = sorted({p.climate_key for fc in req.fields for p in fc.patches})
     if len(climates) > 1:
         raise HTTPException(
