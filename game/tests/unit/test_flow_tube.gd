@@ -282,13 +282,29 @@ func test_tween_magnitude_path_tube_creates_no_tween() -> void:
 
 
 func test_tween_magnitude_cylinder_tweens_radius_to_target() -> void:
+	# #565: step the tween by hand. CylinderMesh.set_top_radius drops a write
+	# within CMP_EPSILON (1e-5) of the current radius, so when a frame left the
+	# radius that close to the target, the final write was lost and the radius
+	# stayed short. Fixed steps keep the final write half the change wide.
 	var tube := _make_cylinder_tube(0.5, Vector3(0, -0.2, 0))
+	var start := _get_tube_radius(tube)
+	var target := lerpf(FlowTubeRef.MIN_RADIUS, FlowTubeRef.MAX_RADIUS, sqrt(0.8))
 	var before: Array[Tween] = get_tree().get_processed_tweens()
 	tube.tween_magnitude(0.8, 0.05)
 	var created := _new_tweens(before)
 	assert_eq(created.size(), 1, "Cylinder tube creates exactly one tween")
-	await wait_for_signal(created[0].finished, 1.0)
-	var target := lerpf(FlowTubeRef.MIN_RADIUS, FlowTubeRef.MAX_RADIUS, sqrt(0.8))
+	var tw: Tween = created[0]
+	tw.pause()  # before any frame, so only custom_step advances it
+	watch_signals(tw)
+	tw.custom_step(0.025)
+	# Margins, not bare bounds: the radius is stored as float32, so a snap to the
+	# target reads back just below the float64 target and would pass assert_lt.
+	var mid := _get_tube_radius(tube)
+	assert_gt(mid, start + 1e-6, "Radius has left the build radius at mid-tween")
+	assert_lt(mid, target - 1e-6, "Radius is still short of the target at mid-tween")
+	assert_signal_not_emitted(tw, "finished", "Tween is still running at mid-tween")
+	tw.custom_step(0.05)
+	assert_signal_emitted(tw, "finished", "Tween finishes once its duration has elapsed")
 	assert_almost_eq(_get_tube_radius(tube), target, 1e-6, "Radius reaches the AC1 target")
 
 
