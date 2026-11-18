@@ -26,21 +26,27 @@ expect() {
     fi
 }
 
-expect clean 0 "[FLOW] tubes=13"
-expect plain_error 1 $'[FLOW] tubes=13\nERROR: Condition "det == 0" is true.'
-expect script_error 1 $'[FLOW] tubes=13\nSCRIPT ERROR: Invalid call.'
-expect colour_error 1 "[FLOW] tubes=13
+# Both liveness lines (first build, then the identical refresh) precede every
+# error case, so those cases fail on the error and not on missing liveness.
+LIVE=$'[FLOW] tubes=13\n[FLOW] tubes=13'
+expect clean 0 "$LIVE"
+expect plain_error 1 "$LIVE"$'\nERROR: Condition "det == 0" is true.'
+expect script_error 1 "$LIVE"$'\nSCRIPT ERROR: Invalid call.'
+expect colour_error 1 "$LIVE
 ${ESC}[1;31mERROR:${ESC}[0m Condition \"det == 0\" is true."
-expect colour_script_error 1 "[FLOW] tubes=13
+expect colour_script_error 1 "$LIVE
 ${ESC}[31m${ESC}[1mSCRIPT ERROR:${ESC}[0m Invalid call."
-expect osc_prefixed_error 1 "[FLOW] tubes=13
+expect osc_prefixed_error 1 "$LIVE
 ${ESC}]0;godot${ESC}\\ERROR: Condition \"det == 0\" is true."
 # Colon-separated SGR (ECMA-48 / ITU T.416 true-colour form, #499 review).
-expect colon_sgr_error 1 "[FLOW] tubes=13
+expect colon_sgr_error 1 "$LIVE
 ${ESC}[38:5:196mERROR:${ESC}[0m Condition \"det == 0\" is true."
-expect colour_liveness_clean 0 "${ESC}[32m[FLOW] tubes=13${ESC}[0m"
+expect colour_liveness_clean 0 "${ESC}[32m[FLOW] tubes=13${ESC}[0m
+${ESC}[32m[FLOW] tubes=13${ESC}[0m"
 expect no_liveness 1 "ERROR-free but never reached the cutaway"
-expect error_mid_line_is_not_an_error 0 $'[FLOW] tubes=13\nlabel text mentions ERROR: harmlessly'
+# First build only: the refresh never ran, so the run proves nothing about it (#520).
+expect first_build_only 1 "[FLOW] tubes=13"
+expect error_mid_line_is_not_an_error 0 "$LIVE"$'\nlabel text mentions ERROR: harmlessly'
 
 if [ "$failures" -gt 0 ]; then
     echo "$failures self-test case(s) failed" >&2

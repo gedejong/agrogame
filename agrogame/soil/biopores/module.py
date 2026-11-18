@@ -7,14 +7,22 @@ Pure logic. Driven by:
 - daily ``apply_decay`` (exponential half-life per layer)
 
 Refs:
-    Kautz 2015, Soil Tillage Res. — biopore persistence + decay.
-    Pierret et al. 2007, Plant Soil — biopore density 50-500 /m².
+    Kautz 2015, Renew. Agric. Food Syst. 30:318-327,
+        doi:10.1017/S1742170513000549 — biopore persistence + decay.
+    Pierret et al. 2007, Vadose Zone J. 6:269-281, doi:10.2136/vzj2006.0067
+        — biopore density 50-500 /m² (figures not re-verified, see ADR-009).
     Six et al. 2004, Plant Soil — root-to-aggregate-to-pore conversion.
     Shipitalo & Butt 1999 — tillage destruction.
 
-Orchestrator wiring + ``SoilSnapshot`` persistence are intentionally
-deferred to a follow-up issue, matching the landing order used in
-#211/#213/#217.
+In the running simulation (wired by #284, persisted in ``SoilSnapshot``)
+the module creates channels from root turnover, decays them daily, loses
+plow-zone channels to tillage, and donates their volume into the reported
+pore-network macropore pool. No simulated flux reads that pool or the
+biopore state except the water balance's effective-porosity cap
+(total - crypto), which the donation raises by <= 0.0016 m³/m³ at 500 /m².
+The cap binds only when a layer saturates, and then moves θ by at most half
+the donated volume fraction (<= 7.9e-4 m³/m³ at 500 /m²; ADR-010 #524
+amendment, ADR-016).
 """
 
 from __future__ import annotations

@@ -254,7 +254,7 @@ func _build_particles(
 	if length < 0.001:
 		return
 
-	var p_count: int = clampi(int(magnitude * 60.0), 1, 60)
+	var p_count: int = _particle_count(magnitude)
 	var tube_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(magnitude))
 	_particles = GPUParticles3D.new()
 	_particles.amount = p_count
@@ -415,11 +415,28 @@ func _set_particles_visible(vis: bool) -> void:
 
 
 func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
+	## Animate a surviving cylinder tube to new_mag: radius over `duration`,
+	## particle count at its midpoint. A tween is created only when it gets a
+	## tweener, since an empty one logs "started with no Tweeners" (#520).
+	##
+	## Path tubes stay static. FlowOverlay reuses a tube only when _tube_key
+	## (label text plus rank) is unchanged, and the label carries the displayed
+	## value, so a surviving path tube's magnitude differs from its built one by
+	## display rounding alone. Animating it would rebuild the SurfaceTool mesh,
+	## its shadow duplicate and the particle offsets to change a thickness whose
+	## number stays the same. Revisit this if the key stops carrying the value.
 	new_mag = clampf(new_mag, 0.01, 1.0)
+	var cyl: CylinderMesh = null
+	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
+		cyl = _tube_mesh.mesh
+	var target_count := _particle_count(new_mag)
+	# Setting amount restarts the emitter, so leave an unchanged count alone.
+	var recount: bool = _particles != null and _particles.amount != target_count
+	if cyl == null and not recount:
+		return
 	var tw := create_tween()
 	tw.set_parallel(true)
-	if _tube_mesh and _tube_mesh.mesh is CylinderMesh:
-		var cyl: CylinderMesh = _tube_mesh.mesh
+	if cyl:
 		var target_r := lerpf(MIN_RADIUS, MAX_RADIUS, sqrt(new_mag))
 		tw.tween_method(
 			func(r: float) -> void:
@@ -429,13 +446,17 @@ func tween_magnitude(new_mag: float, duration: float = 0.4) -> void:
 			target_r,
 			duration,
 		)
-	if _particles:
-		var target_count := clampi(int(new_mag * 20.0), 2, 20)
+	if recount:
 		(
 			tw
 			. tween_callback(func() -> void: _particles.amount = target_count)
 			. set_delay(duration * 0.5)
 		)
+
+
+static func _particle_count(magnitude: float) -> int:
+	## Cylinder-tube GPU particle count, shared by build and tween_magnitude.
+	return clampi(int(magnitude * 60.0), 1, 60)
 
 
 func pulse(intensity: float = 2.0, duration: float = 0.5) -> void:
