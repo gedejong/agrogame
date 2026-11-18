@@ -1,9 +1,9 @@
 """Lightweight soil chemistry dynamics to emit pH updates as events.
 
-This module is intentionally simple: it integrates daily pH tendencies from
-fertilizer additions, leaching, and a slow buffering term and emits
-`SoilPHUpdated` per layer. Nutrient modules can subscribe to use per-layer pH
-without tight coupling.
+Per-layer pH moves with the proton budget of the N cycle and with lime, both
+converted through the layer's pH buffer capacity, plus a slow buffering term
+(ADR-020). Each change emits ``SoilPHUpdated`` so nutrient modules can use
+per-layer pH without tight coupling.
 
 Canonical module shape (#288): pure logic over ``ChemistryParams`` +
 ``ChemistryState``. The module subscribes to no events itself — the
@@ -13,6 +13,7 @@ wiring and dispatches to the public ``apply_*`` methods and ``daily_step``.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 
 from agrogame.events import EventBus
@@ -20,6 +21,7 @@ from agrogame.events import EventBus
 from .events import SoilPHUpdated
 from .params import (
     CACO3_G_PER_MOL_CHARGE,
+    CMOL_PER_KMOL,
     ChemistryParams,
     LayerBufferProperties,
 )
@@ -27,7 +29,7 @@ from .state import ChemistryState
 
 
 class SoilChemistryModule:
-    """Per-layer pH state; reacts to lime, fertilizer, and N/P transformations."""
+    """Per-layer pH state; reacts to lime and to the N-cycle proton budget."""
 
     def __init__(
         self,
@@ -59,26 +61,6 @@ class SoilChemistryModule:
     def _emit_all(self) -> None:
         for i, ph in enumerate(self._state.ph):
             self.event_bus.emit(SoilPHUpdated(layer=i, ph=ph))
-
-    # Simplified heuristics: nitrate leaching tends to acidify slightly; fixation
-    # implies reactions with Fe/Al oxides that can reduce availability under low pH.
-    def apply_nutrient_leaching(self, nutrient: str, layer: int) -> None:
-        """Acidify a layer slightly on nitrate (NO3) leaching."""
-        if nutrient.upper() != "NO3":
-            return
-        p = self._params
-        self._state.ph[layer] = max(
-            p.ph_floor, self._state.ph[layer] - p.no3_leach_ph_delta
-        )
-        self._emit_all()
-
-    def apply_phosphorus_fixation(self, layer: int) -> None:
-        """Tiny local acidification proxy when P fixation occurs."""
-        p = self._params
-        self._state.ph[layer] = max(
-            p.ph_floor, self._state.ph[layer] - p.p_fixation_ph_delta
-        )
-        self._emit_all()
 
     # --- Lime requirement (pH buffer capacity) ---------------------------
     def ph_buffer_capacity_cmol_kg(self, layer: int) -> float:
@@ -136,6 +118,43 @@ class SoilChemistryModule:
         self._state.ph[layer] = min(p.ph_ceiling, self._state.ph[layer] + delta_ph)
         self._emit_all()
 
+    def proton_buffer_kmol_ha_per_ph(self, layer: int) -> float:
+        """H+ that shifts this layer by one pH unit (kmol/ha per pH unit).
+
+        ``pHBC [cmol/kg/pH] x soil mass [kg/ha] / 1e5 [cmol per kmol]``: the
+        same buffer capacity that sets the lime requirement (Curtin & Rostad
+        1997; Aitken & Moody 1994), so lime and acid loads share one scale.
+
+        Raises:
+            ValueError: If no soil properties are configured for ``layer``.
+        """
+        props = self._layer_props(layer)
+        return (
+            self.ph_buffer_capacity_cmol_kg(layer)
+            * props.soil_mass_kg_ha
+            / CMOL_PER_KMOL
+        )
+
+    def apply_proton_load(self, layer: int, h_kmol_ha: float) -> None:
+        """Shift a layer's pH by a net H+ load from the N cycle (#492, ADR-020).
+
+        ``dpH = -H+ [kmol/ha] / proton_buffer_kmol_ha_per_ph(layer)``:
+        positive loads acidify, negative loads alkalinise. The result is
+        clamped to ``[ph_floor, ph_ceiling]``. Only the changed layer's
+        ``SoilPHUpdated`` is emitted.
+
+        Raises:
+            ValueError: If ``h_kmol_ha`` is not finite, or ``layer`` has no
+                configured soil properties.
+        """
+        if not math.isfinite(h_kmol_ha):
+            raise ValueError(f"h_kmol_ha must be finite, got {h_kmol_ha!r}")
+        delta_ph = -h_kmol_ha / self.proton_buffer_kmol_ha_per_ph(layer)
+        p = self._params
+        ph = self._state.ph[layer] + delta_ph
+        self._state.ph[layer] = min(p.ph_ceiling, max(p.ph_floor, ph))
+        self.event_bus.emit(SoilPHUpdated(layer=layer, ph=self._state.ph[layer]))
+
     def _layer_props(self, layer: int) -> LayerBufferProperties:
         if not (0 <= layer < len(self._layer_properties)):
             raise ValueError(
@@ -143,15 +162,6 @@ class SoilChemistryModule:
                 f"{len(self._layer_properties)} layer(s) configured"
             )
         return self._layer_properties[layer]
-
-    def apply_acidifying_fertilizer(self, layer: int, rate_kg_ha: float) -> None:
-        """Lower pH proportionally to the acidifying-fertilizer rate (floored)."""
-        p = self._params
-        self._state.ph[layer] = max(
-            p.ph_floor,
-            self._state.ph[layer] - p.acidifying_ph_delta_per_kg_ha * rate_kg_ha,
-        )
-        self._emit_all()
 
     def daily_step(self, target_ph: float | None = None) -> None:
         """Apply a weak buffering tendency towards ``target_ph`` each day.
