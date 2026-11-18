@@ -218,6 +218,8 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 		status_label.text = "Error: could not load game %s, retrying in %.0f s" % [_game_id, delay]
 		get_tree().create_timer(delay).timeout.connect(_load_layout)
 	else:
+		if _load_failures > 0:  # replace the retry notice
+			status_label.text = "Game %s loaded" % _game_id
 		_load_failures = 0
 		_apply_layout(patches)
 		_set_buttons_disabled(false)
@@ -375,8 +377,6 @@ func _ensure_game(callback: Callable) -> void:
 
 func _set_buttons_disabled(disabled: bool) -> void:
 	_bar_held = disabled
-	if not disabled:
-		_releases += 1
 	next_day_btn.disabled = disabled
 	ff7_btn.disabled = disabled
 	ff_all_btn.disabled = disabled
@@ -389,6 +389,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	if disabled:
 		harvest_btn.disabled = true
 	else:
+		_releases += 1
 		_update_harvest_button()
 
 
@@ -821,8 +822,7 @@ func _reconcile(failure: String) -> void:
 	_api_client.get_game(_game_id, _on_reconciled.bind(failure, _releases))
 
 
-## Take the server's balance and every field's crops as the truth, unless a
-## step or action reply has released the bar since: its state is the newer.
+## Take the server's balance and crops as the truth, unless a newer reply has released the bar.
 func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) -> void:
 	if not ok or releases != _releases or not data.has("balance_credits"):
 		return

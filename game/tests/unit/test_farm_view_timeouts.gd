@@ -293,6 +293,7 @@ func test_a_failed_layout_load_retries_with_backoff_until_it_loads() -> void:
 	assert_false(view.next_day_btn.disabled, "the bar is released once the layout loads")
 	assert_eq(view._tile_data[35]["soil_type"], "sandy", "the loaded layout")
 	assert_eq(view._load_failures, 0, "the backoff starts over")
+	assert_eq(view.status_label.text, "Game g loaded", "the retry notice is replaced")
 	var endpoints: Array = api.sends.map(func(s: Array) -> String: return s[0])
 	assert_eq(endpoints, ["game", "game", "game", "game"], "nothing else sent")
 	# The delays double from _load_retry_s and stop at LOAD_RETRY_MAX_S.
