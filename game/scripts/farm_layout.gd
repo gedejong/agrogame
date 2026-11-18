@@ -48,14 +48,16 @@ static func texture_for_soil_key(soil_profile_key: String) -> String:
 	return "organic"
 
 
-## Give each tile its column band's patch_idx, and its material that patch's
-## soil textures. An empty patch list leaves the tiles as they are.
+## Give each tile FIELD_ID, whose patches these are, its column band's
+## patch_idx, and its material that patch's soil textures. An empty patch list
+## leaves the tiles as they are.
 static func assign_tiles(patches: Array, tile_data: Array, materials: Array, cols: int) -> void:
 	if patches.is_empty():
 		return
 	for i in range(tile_data.size()):
 		var patch_idx := patch_for_column(tile_data[i]["col"], patches.size(), cols)
 		var soil_type := texture_for_soil_key(patches[patch_idx].get("soil_profile_key", ""))
+		tile_data[i]["field_id"] = FIELD_ID
 		tile_data[i]["patch_idx"] = patch_idx
 		tile_data[i]["soil_type"] = soil_type
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]

@@ -199,3 +199,32 @@ static func write_patch(patch: Dictionary, patch_idx: int, tile_data: Array) -> 
 		tile["heat_damage"] = stress["heat_damage"]
 		written.append(i)
 	return written
+
+
+## Take each field's crops in a GET /games/{id} payload's `fields` as the truth,
+## for a failed action the server may have applied anyway (#564). Each tile is
+## matched by its own field_id and patch_idx, for every field in `fields`. A
+## tile whose crop differs from its patch's becomes that crop freshly sown, as
+## a Plant reply writes it, or bare, as a Harvest reply does, with no growth
+## carried over from the crop it replaces. Tiles whose crop already agrees keep
+## their growth. Returns the changed tiles' indices, ascending, for the caller
+## to refresh.
+static func reconcile_crops(fields: Dictionary, tile_data: Array) -> Array[int]:
+	var changed: Array[int] = []
+	for i in range(tile_data.size()):
+		var tile: Dictionary = tile_data[i]
+		var patches: Array = fields.get(tile.get("field_id", ""), [])
+		var patch_idx: int = tile.get("patch_idx", -1)
+		if patch_idx < 0 or patch_idx >= patches.size():
+			continue
+		var crop_key: String = patches[patch_idx].get("crop_key", "")
+		if crop_key == tile["crop_key"]:
+			continue
+		tile["crop_key"] = crop_key
+		tile["crop_stage"] = 0 if crop_key.is_empty() else 1
+		tile["lai"] = 0.0
+		tile["lai_peak"] = 0.0
+		tile["dev_stage"] = -1.0  # no DVS yet: the visuals take the stage's nominal one
+		tile["grain_g_m2"] = 0.0
+		changed.append(i)
+	return changed
