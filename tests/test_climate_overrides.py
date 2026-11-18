@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
 
+from agrogame.params.canopy import CanopyParams
 from agrogame.plant.presets import (
     _apply_canopy_overrides,
     _apply_phenology_overrides,
@@ -107,3 +109,35 @@ class TestYamlParsing:
         assert kenya.canopy.harvest_index == base.canopy.harvest_index
         # name preserved
         assert kenya.name == base.name
+
+
+class TestKenyaKernelWeightOverride:
+    """#432: the highland kernel-weight potential is Kenya-only (Cooper 1979)."""
+
+    def test_kenya_maize_carries_highland_kernel_weight(self) -> None:
+        lib = load_crop_presets(Path("data/crops/presets.yaml"))
+        kenya = lib.get_preset("maize", "kenya_highlands")
+        assert kenya.canopy.potential_kernel_weight_mg == 403.0
+
+    @pytest.mark.parametrize("climate", [None, "netherlands_temperate", "sahel_arid"])
+    def test_other_maize_keeps_base_kernel_weight(self, climate: str | None) -> None:
+        lib = load_crop_presets(Path("data/crops/presets.yaml"))
+        maize = lib.get_preset("maize", climate)
+        assert maize.canopy.potential_kernel_weight_mg == 290.0
+
+    def test_kenya_canopy_differs_from_base_only_in_pinned_fields(self) -> None:
+        lib = load_crop_presets(Path("data/crops/presets.yaml"))
+        kenya = lib.get_preset("maize", "kenya_highlands").canopy
+        base = lib.get_preset("maize").canopy
+        differing = {
+            f.name
+            for f in fields(CanopyParams)
+            if getattr(kenya, f.name) != getattr(base, f.name)
+        }
+        assert differing == {
+            "radiation_use_efficiency_g_per_mj",
+            "extinction_coefficient_k",
+            "temp_opt_c",
+            "specific_leaf_area_m2_per_g",
+            "potential_kernel_weight_mg",
+        }

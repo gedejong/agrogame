@@ -94,8 +94,9 @@ class CanopyParams:
     # Fischer 1985. grain_number >= grains_per_g_source *
     # grain_set_floor_frac * window-start biomass.
     grain_set_floor_frac: float = 0.02
-    # Potential final single-kernel weight (CERES G2). Total grain sink =
-    # grain_number x potential_kernel_weight. Typical: wheat ~40-45 mg,
+    # Potential final single-kernel weight (CERES: G3 x fill duration; G2 is
+    # kernels per plant). Total grain sink = grain_number x
+    # potential_kernel_weight. Typical: wheat ~40-45 mg,
     # maize ~250-300 mg, rice ~25 mg, sorghum ~28 mg (Hay & Porter 2006).
     potential_kernel_weight_mg: float = 40.0
     # Potential single-kernel daily fill rate from current assimilate. Caps
