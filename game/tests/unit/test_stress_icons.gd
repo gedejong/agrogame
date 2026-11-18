@@ -174,3 +174,31 @@ func test_icons_map_to_tiles_by_patch_index() -> void:
 	]
 	icons.update_from_patches(patches, tiles, [_make_mesh(), _make_mesh(Vector3.RIGHT)])
 	assert_eq(icons._icons.keys(), ["1"], "icon on patch 1's tile only")
+
+
+func test_harvested_bare_tile_shows_no_icon() -> void:
+	# The day payload the API serves for a harvested patch since #542: no stage,
+	# and only soil-side events (no frost, heat, water or nutrient stress).
+	var icons := StressIconsRef.new()
+	add_child_autofree(icons)
+	var bare := {
+		"crop_key": "",
+		"crop_stage": "",
+		"events":
+		[
+			{"event_type": "RedoxChanged", "module": "t", "data": {"eh_mv": 450.0}},
+			{
+				"event_type": "EvapotranspirationComputed",
+				"module": "t",
+				"data": {"evaporation_mm": 3.5, "transpiration_mm": 0.0}
+			},
+			{
+				"event_type": "PlantNUptakeComputed",
+				"module": "t",
+				"data": {"uptake_kg_ha": 0.0, "demand_kg_ha": 0.0}
+			},
+			{"event_type": "NutrientLeached", "module": "t", "data": {"nutrient": "NO3"}},
+		]
+	}
+	icons.update_from_patches({"f": [bare]}, [{"patch_idx": 0}], [_make_mesh()])
+	assert_eq(icons._icons.size(), 0, "a bare tile draws no stress icon")
