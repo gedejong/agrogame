@@ -793,17 +793,11 @@ def _harvest_action(
     # reset the plant graph crop-free through the engine's canonical path, as
     # the season reset does for a bare patch (#392): zeroing grain and LAI left
     # the harvested crop's roots, phenology and uptake running (#538).
-    # Patch.reset_crop re-wires the recorder to the rebuilt bus (#402). The
-    # crop-free graph still runs a default plant until #542 makes it dormant.
+    # Patch.reset_crop re-wires the recorder to the rebuilt bus (#402), and
+    # with None leaves the patch fallow with crop_key "" (#542).
     for patch in targets:
         patch.harvested_grain_g_m2 = patch.orch.canopy.state.grain_biomass_g_m2
         patch.harvested_crop_key = patch.config.crop_key
-        patch.config = PatchConfig(
-            soil_profile_key=patch.config.soil_profile_key,
-            crop_key="",
-            climate_key=patch.config.climate_key,
-            area_fraction=patch.config.area_fraction,
-        )
         patch.reset_crop(None)
 
     return grain_g_m2, revenue, profit, product
@@ -919,13 +913,12 @@ def _maybe_inject_stress_weather(s: GameSession) -> None:
 
 
 def _reported_stage(p: Patch) -> tuple[str, float]:
-    """Phenology stage name and DVS reported to the client for ``p`` (#538).
+    """Phenology stage name and DVS reported to the client for ``p``.
 
-    A bare patch (``crop_key == ""``) reports no stage: ``""`` and DVS 0.0. Its
-    crop-free orchestrator still runs a default phenology (#542), so its stage
-    would be a phantom. The client maps an unknown stage to 0 (bare).
+    A bare patch has no plant, so no stage: ``""`` and DVS 0.0, read from the
+    engine's ``is_fallow`` (#542). The client maps an unknown stage to 0 (bare).
     """
-    if not p.config.crop_key:
+    if p.orch.is_fallow:
         return "", 0.0
     phen = p.orch.phenology
     return phen.state.stage.value, round(phen.development_stage(), 3)
@@ -1469,7 +1462,10 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         n_nh4_by_layer=n_nh4,
         layer_depths_cm=depths,
         root_depth_cm=root_depth,
-        root_growth_rate_cm_per_day=root_params.growth_rate_cm_per_day,
+        # A fallow anchor has no roots to deepen (#542).
+        root_growth_rate_cm_per_day=(
+            0.0 if orch.is_fallow else root_params.growth_rate_cm_per_day
+        ),
         root_max_depth_cm=root_params.max_depth_cm,
         root_stage_multiplier=stage_depth_multiplier(
             orch.phenology.state.stage, root_params.stage_multipliers
