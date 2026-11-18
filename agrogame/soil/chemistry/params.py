@@ -1,7 +1,7 @@
 """Immutable soil chemistry parameters.
 
-Holds the base pH, the daily buffering rate and target, the clamping
-bounds, and the pH buffer-capacity coefficients used by
+Holds the base pH, the clamping bounds, and the pH buffer-capacity
+coefficients used by
 :class:`SoilChemistryModule`. Extracted from hard-coded constants in
 ``module.py`` (#288) so the pH dynamics are declarative and characterised,
 not implied.
@@ -81,10 +81,6 @@ class ChemistryParams:
 
     Attributes:
         base_ph: Initial per-layer pH when state is built from defaults.
-        default_target_ph: Buffering target used when a ``DayTick`` carries
-            no explicit ``target_ph``.
-        buffering_rate: Daily fraction of the gap to ``target_ph`` that pH
-            relaxes towards (weak buffering tendency).
         phbc_clay_max_cmol_kg: Asymptotic clay contribution to pH buffer
             capacity, cmol(H+)/kg per pH unit.
         phbc_clay_half_pct: Clay content (%) at which the clay term reaches
@@ -96,8 +92,8 @@ class ChemistryParams:
     """
 
     base_ph: float = 6.8
-    default_target_ph: float = 6.8
-    buffering_rate: float = 0.001
+    # No relaxation rate or target: pH has no daily pull toward any value
+    # (ADR-020 (b), #481).
     # --- pH buffer capacity (pHBC), cmol(H+)/kg soil per pH unit ----------
     # Measured pHBC of mineral soils rises with both clay and organic carbon:
     # ~1-2 cmol(H+)/kg/pH on sands, ~3-5 on loams and ~5-8 on clays.

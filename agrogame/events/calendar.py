@@ -41,6 +41,9 @@ class DayTick(BaseEvent):
     phase: Phase
     # Forward reference — see module docstring for why we don't import.
     drivers: Any | None = None
+    # No longer drives soil pH: the relaxation toward it was removed in #481
+    # (ADR-020 (b)). Read only by ``MicrobesRuntime._compute_ph_by_layer``,
+    # as the pH of every layer when no chemistry module is wired.
     target_ph: float | None = None
     tmin_c: float | None = None
     tmax_c: float | None = None

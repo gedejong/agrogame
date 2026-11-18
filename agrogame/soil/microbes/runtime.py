@@ -85,6 +85,12 @@ class MicrobesRuntime(RuntimeMemory):
         return vals
 
     def _compute_ph_by_layer(self, ev: DayTick) -> list[float]:
+        """Per-layer pH from the chemistry module when wired.
+
+        Without one, every layer takes ``ev.target_ph`` (6.8 if unset). This
+        is the only remaining reader of ``DayTick.target_ph``, which no longer
+        drives soil pH (#481, ADR-020 (b)).
+        """
         if self.chemistry is not None:
             return list(self.chemistry.ph_by_layer)
         base_ph = float(ev.target_ph) if ev.target_ph is not None else 6.8
