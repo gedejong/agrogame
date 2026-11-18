@@ -38,16 +38,20 @@ _FIELD_2 = {"field_id": "field_2", "patches": [_patch("clay_temperate", "rice")]
 # The fixed two-field flow behind the ledger and save/load tests (AC4, AC5):
 # ``(day, field_id, action, params)``, each taken before that day is stepped.
 # Day 70 falls after the day-60 save, so the ledger is exercised across a load.
+# The maize is harvested on day 168, before it matures (day 172 on seed 42), so
+# the flow stays inside one season and no season-end settlement enters the
+# ledger: every credit is a harvest the test made. ``_advance`` asserts that.
 _FLOW = (
     (0, "field_1", "fertilize", {"type": "urea", "amount_kg_ha": 50.0}),
     (0, "field_2", "irrigate", {"amount_mm": 20.0}),
     (30, "field_1", "irrigate", {"amount_mm": 15.0}),
     (70, "field_2", "fertilize", {"type": "urea", "amount_kg_ha": 30.0}),
     (165, "field_2", "harvest", {"patch_idx": 0}),
-    (175, "field_1", "harvest", {"patch_idx": 0}),
+    (168, "field_1", "harvest", {"patch_idx": 0}),
 )
 _SAVE_DAY = 60
 _CONTINUE_DAYS = 20
+_FLOW_END = 169
 
 
 @pytest.fixture()
@@ -343,10 +347,12 @@ def _advance(
             continue
         if at > day:
             last = _step(client, game_id, at - day)
+            assert not last["season_complete"], last["day_number"]
             day = at
         actions.append(_act(client, game_id, field_id, action, params))
     if end > day:
         last = _step(client, game_id, end - day)
+        assert not last["season_complete"], last["day_number"]
     return last
 
 
@@ -388,7 +394,7 @@ def flow(tmp_path_factory) -> dict[str, Any]:
         assert client.post(f"/api/v1/games/{game_id}/load").status_code == 200
         loaded = client.get(f"/api/v1/games/{game_id}").json()
         continued = _advance(client, game_id, _SAVE_DAY, end, actions)["patches"]
-        _advance(client, game_id, end, 176, actions)
+        _advance(client, game_id, end, _FLOW_END, actions)
         final_balance = _balance(client, game_id)
     games.clear()
     return {
