@@ -54,16 +54,6 @@ func test_create_game_accepts_scenario_patches() -> void:
 ## drives the farm view through it as well.
 class StubClient:
 	extends "res://scripts/api_client.gd"
-	## main's per-endpoint reply handlers, which #534 replaces with one.
-	const _HANDLERS := {
-		"create": "_on_request_completed",
-		"game": "_on_game_completed",
-		"step": "_on_step_completed",
-		"action": "_on_action_completed",
-		"preview": "_on_preview_completed",
-		"forecast": "_on_forecast_completed",
-		"report": "_on_report_completed",
-	}
 	## Every send, in order, as [endpoint, url, method, body].
 	var sends: Array = []
 	## Sends to an endpoint made while its previous send still awaited a reply.
@@ -88,13 +78,6 @@ class StubClient:
 			_awaiting_on[endpoint] = true
 		return err
 
-	# main's step and preview seams, which _send replaces (#534).
-	func _send_step(url: String) -> void:
-		_send("step", url, HTTPClient.METHOD_POST, "")
-
-	func _send_preview(url: String, body: String) -> Error:
-		return _send("preview", url, HTTPClient.METHOD_POST, body)
-
 	## Whether `endpoint` has a send awaiting its reply.
 	func awaiting(endpoint: String) -> bool:
 		return _awaiting_on.has(endpoint)
@@ -106,22 +89,23 @@ class StubClient:
 	## Answer `endpoint`'s send in flight with any result, status and body.
 	func reply(endpoint: String, result: int, response_code: int, body: String) -> void:
 		_awaiting_on.erase(endpoint)
-		var handler: String = _HANDLERS[endpoint]
-		call(handler, result, response_code, PackedStringArray(), body.to_utf8_buffer())
+		_on_completed(result, response_code, PackedStringArray(), body.to_utf8_buffer(), endpoint)
 
 
-## ApiClient with the step transport stubbed (#537). `_send_step` records each
-## URL instead of sending it, and `respond` answers it by calling
-## `_on_step_completed`, as the HTTPRequest's request_completed signal would.
+## ApiClient with the step transport stubbed (#537). `_send` records each step
+## URL instead of sending it, and `respond` answers it through `_on_completed`,
+## as the HTTPRequest's request_completed signal would.
 class StepStubClient:
-	extends "res://scripts/api_client.gd"
+	extends StubClient
 	var sent: Array = []
 
-	func _send_step(url: String) -> void:
-		sent.append(url)
+	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
+		if endpoint == "step":
+			sent.append(url)
+		return super(endpoint, url, method, body)
 
 	func respond(result: int, response_code: int, body: String) -> void:
-		_on_step_completed(result, response_code, PackedStringArray(), body.to_utf8_buffer())
+		reply("step", result, response_code, body)
 
 
 func test_run_season_sends_only_one_step_for_the_window() -> void:
@@ -147,13 +131,13 @@ func test_run_season_sends_only_one_step_for_the_window() -> void:
 	assert_false("_season_request" in api, "_season_request is gone")
 
 
-## ApiClient with the cost-preview transport stubbed (#523). `_send_preview`
-## records each request instead of sending it, and `respond` delivers the
-## response by calling `_on_preview_completed`, as the HTTPRequest's
-## request_completed signal would. Everything between the two is the real client.
-## test_farm_view.gd drives the farm view through it as well.
+## ApiClient with the cost-preview transport stubbed (#523). `_send` records
+## each preview instead of sending it, and `respond` delivers the response
+## through `_on_completed`, as the HTTPRequest's request_completed signal would.
+## Everything between the two is the real client; other endpoints are stubbed
+## as in StubClient. test_farm_view.gd drives the farm view through it as well.
 class PreviewStubClient:
-	extends "res://scripts/api_client.gd"
+	extends StubClient
 	## Every preview sent, in order, as [action, params].
 	var sent: Array = []
 	## Sends made while an earlier one was still awaiting its response.
@@ -162,7 +146,9 @@ class PreviewStubClient:
 	var send_errors: Array = []
 	var _awaiting: bool = false
 
-	func _send_preview(_url: String, body: String) -> Error:
+	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
+		if endpoint != "preview":
+			return super(endpoint, url, method, body)
 		var req: Dictionary = JSON.parse_string(body)
 		sent.append([req["action"], req["params"]])
 		if _awaiting:
@@ -178,7 +164,7 @@ class PreviewStubClient:
 	## Answer the preview in flight with an arbitrary result, status and body.
 	func respond(result: int, response_code: int, body: String) -> void:
 		_awaiting = false
-		_on_preview_completed(result, response_code, PackedStringArray(), body.to_utf8_buffer())
+		_on_completed(result, response_code, PackedStringArray(), body.to_utf8_buffer(), "preview")
 
 
 func _preview_client() -> PreviewStubClient:
@@ -268,16 +254,15 @@ func test_preview_reply_with_nothing_in_flight_is_reported() -> void:
 
 func test_get_game_tells_not_found_from_unreachable() -> void:
 	# #516: a 404 means the backend lost the game; the farm view returns to the title.
-	var client = ApiClientScript.new()
+	var client := _stub_client()
 	var got: Array = []
-	client._game_callback = func(ok: bool, data: Dictionary) -> void: got.append([ok, data])
-	var none := PackedByteArray()
-	var body := JSON.stringify({"game_id": "g"}).to_utf8_buffer()
-	client._on_game_completed(HTTPRequest.RESULT_SUCCESS, 404, PackedStringArray(), none)
-	client._on_game_completed(HTTPRequest.RESULT_CANT_CONNECT, 0, PackedStringArray(), none)
-	client._on_game_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), body)
+	for _i in range(3):
+		client.get_game("g", func(ok: bool, data: Dictionary) -> void: got.append([ok, data]))
+	var body := JSON.stringify({"game_id": "g"})
+	client.reply("game", HTTPRequest.RESULT_SUCCESS, 404, "")
+	client.reply("game", HTTPRequest.RESULT_CANT_CONNECT, 0, "")
+	client.reply("game", HTTPRequest.RESULT_SUCCESS, 200, body)
 	assert_eq(got, [[false, {"not_found": true}], [false, {}], [true, {"game_id": "g"}]])
-	client.free()
 
 
 func _stub_client() -> StubClient:
@@ -358,3 +343,39 @@ func test_a_failed_reply_fails_only_its_own_call() -> void:
 			api.reply_ok(endpoint, {"n": "2"})
 			var want := [["first", false, {}], ["second", true, {"n": "2"}]]
 			assert_eq(got, want, "%s, failure %s" % [endpoint, failure])
+
+
+func test_each_endpoint_sends_its_request_on_its_own_http_request() -> void:
+	# #534 AC1: one HTTPRequest per endpoint, so a call in flight on one never
+	# holds up another, and each call sends the request it sent before the queue.
+	var api := _stub_client()
+	var ignore := func(_ok: bool, _data: Dictionary) -> void: pass
+	api.create_game(ignore)
+	api.get_game("g", ignore)
+	api.step_day("g", 3, ignore)
+	api.execute_action("g", "irrigate", {"amount_mm": 20}, ignore)
+	api.preview_action("g", "tillage", {"intensity": 0.8}, ignore)
+	api.get_forecast("g", ignore)
+	api.get_report("g", ignore)
+	var games := ApiClientScript.BASE_URL + "/games"
+	var post := HTTPClient.METHOD_POST
+	var fetch := HTTPClient.METHOD_GET
+	var expected := [
+		["create", games, post],
+		["game", games + "/g", fetch],
+		["step", games + "/g/step?days=3", post],
+		["action", games + "/g/action", post],
+		["preview", games + "/g/action/preview", post],
+		["forecast", games + "/g/forecast", fetch],
+		["report", games + "/g/report", fetch],
+	]
+	assert_eq(api.sends.map(func(s: Array) -> Array: return s.slice(0, 3)), expected)
+	var bodies: Array = api.sends.map(func(s: Array) -> String: return s[3])
+	var create: Dictionary = JSON.parse_string(bodies[0])
+	assert_eq(create["fields"][0]["field_id"], "field_1", "the default scenario's field")
+	assert_eq(create["fields"][0]["patches"].size(), ScenarioCatalog.default_patches().size())
+	var action := {"field_id": "field_1", "action": "irrigate", "params": {"amount_mm": 20}}
+	var preview := {"field_id": "field_1", "action": "tillage", "params": {"intensity": 0.8}}
+	assert_eq(bodies.slice(3, 5), [JSON.stringify(action), JSON.stringify(preview)])
+	assert_eq([bodies[1], bodies[2], bodies[5], bodies[6]], ["", "", "", ""], "no body")
+	assert_eq(api.get_children().size(), 7, "one HTTPRequest per endpoint")
