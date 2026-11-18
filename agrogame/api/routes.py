@@ -31,6 +31,7 @@ from agrogame.api.models import (
     GameCreatedResponse,
     GameStatusResponse,
     HarvestReportResponse,
+    PatchConfigRequest,
     PatchDayResponse,
     PatchLayoutResponse,
     PatchResultResponse,
@@ -66,6 +67,7 @@ from agrogame.game.turn import (
     interrupt_count,
 )
 from agrogame.sim.management import ManagementEvent, ManagementPlan
+from agrogame.soil.loader import load_soil_presets
 from agrogame.weather.generator import SyntheticWeatherGenerator
 from agrogame.weather.presets import load_climate_presets
 from agrogame.weather.types import WeatherRecord
@@ -339,21 +341,59 @@ def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     }
 
 
-def _validate_field_patches(fc: FieldConfigRequest, climate_keys: list[str]) -> None:
+@dataclass(frozen=True)
+class _PresetKeys:
+    """The preset keys a create request may name, each sorted for the 422 detail.
+
+    Loaded from the same files ``Patch`` builds from (#552), so a key passes
+    here exactly when ``Patch`` can look it up.
+    """
+
+    climate: list[str]
+    crop: list[str]
+    soil: list[str]
+
+    @classmethod
+    def load(cls) -> _PresetKeys:
+        return cls(
+            climate=sorted(
+                load_climate_presets(Path("data/climate/presets.yaml")).climates
+            ),
+            crop=sorted(load_crop_presets(Path("data/crops/presets.yaml")).crops),
+            soil=sorted(load_soil_presets(Path("soils/presets.yaml")).soils),
+        )
+
+
+def _require_preset(where: str, member: str, value: str, valid: list[str]) -> None:
+    if value not in valid:
+        raise HTTPException(
+            422, f"{where}: unknown {member} {value!r}; valid keys are {valid}"
+        )
+
+
+def _validate_patch(where: str, p: PatchConfigRequest, keys: _PresetKeys) -> None:
+    """Reject one patch ``Patch`` could not build, or an out-of-range area (#552)."""
+    _require_preset(where, "climate_key", p.climate_key, keys.climate)
+    _require_preset(where, "soil_profile_key", p.soil_profile_key, keys.soil)
+    # An empty crop_key is a bare (fallow) patch (#542), not a lookup.
+    if p.crop_key:
+        _require_preset(where, "crop_key", p.crop_key, keys.crop)
+    if not 0.0 < p.area_fraction <= 1.0:
+        raise HTTPException(
+            422, f"{where}: area_fraction {p.area_fraction} is outside (0, 1]"
+        )
+
+
+def _validate_field_patches(fc: FieldConfigRequest, keys: _PresetKeys) -> None:
     """Reject one field whose patches ``FieldManager`` could not build (#547, #552).
 
-    ``climate_keys`` is the sorted list of known climate presets. The area sum
-    is held to ``FieldManager``'s own bound, ``AREA_FRACTION_SUM_TOLERANCE``.
+    The area sum is held to ``FieldManager``'s own bound,
+    ``AREA_FRACTION_SUM_TOLERANCE``.
     """
     if not fc.patches:
         raise HTTPException(422, f"Field {fc.field_id!r} has no patches")
     for i, p in enumerate(fc.patches):
-        if p.climate_key not in climate_keys:
-            raise HTTPException(
-                422,
-                f"Field {fc.field_id!r} patch {i}: unknown climate_key "
-                f"{p.climate_key!r}; valid keys are {climate_keys}",
-            )
+        _validate_patch(f"Field {fc.field_id!r} patch {i}", p, keys)
     total = sum(p.area_fraction for p in fc.patches)
     if abs(total - 1.0) > AREA_FRACTION_SUM_TOLERANCE:
         raise HTTPException(
@@ -367,11 +407,13 @@ def _validate_create_request(req: CreateGameRequest) -> None:
     """Reject a ``POST /games`` body the session could not hold (#547, #552).
 
     A repeated ``field_id``, a field with no patches, patch area fractions that
-    do not sum to 1 and an unknown ``climate_key`` used to reach
-    ``FieldManager`` and surface as a 500. An empty ``fields`` list used to
-    create a session that ``/forecast`` then failed on. Weather is farm-level
-    (ADR-002 note, 2026-11-18): one series is generated from the first patch's
-    climate, so a second ``climate_key`` was accepted and then silently ignored.
+    do not sum to 1, and an unknown ``climate_key``, ``crop_key`` or
+    ``soil_profile_key`` used to reach ``FieldManager`` and surface as a 500.
+    An empty ``fields`` list used to create a session that ``/forecast`` then
+    failed on, and a patch area outside (0, 1] was accepted whenever the field
+    still summed to 1. Weather is farm-level (ADR-002 note, 2026-11-18): one
+    series is generated from the first patch's climate, so a second
+    ``climate_key`` was accepted and then silently ignored.
 
     Raises:
         HTTPException: 422 naming the offending field id, request member, or
@@ -379,15 +421,13 @@ def _validate_create_request(req: CreateGameRequest) -> None:
     """
     if not req.fields:
         raise HTTPException(422, "fields is empty; a game needs at least one field")
-    climate_keys = sorted(
-        load_climate_presets(Path("data/climate/presets.yaml")).climates
-    )
+    keys = _PresetKeys.load()
     seen: set[str] = set()
     for fc in req.fields:
         if fc.field_id in seen:
             raise HTTPException(422, f"Duplicate field_id {fc.field_id!r}")
         seen.add(fc.field_id)
-        _validate_field_patches(fc, climate_keys)
+        _validate_field_patches(fc, keys)
     climates = sorted({p.climate_key for fc in req.fields for p in fc.patches})
     if len(climates) > 1:
         raise HTTPException(
