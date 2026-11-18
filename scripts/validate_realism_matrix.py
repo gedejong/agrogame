@@ -614,7 +614,7 @@ class RunResult:
     grade: str = ""
 
 
-def run_one(spec: RunSpec, libs: Libraries, *, debug_bus: bool = True) -> RunResult:
+def run_one(spec: RunSpec, libs: Libraries) -> RunResult:
     t0 = time.perf_counter()
     crop = libs.crops.get_preset(spec.crop, spec.climate)
     climate = libs.climates.climates[spec.climate]
@@ -623,7 +623,7 @@ def run_one(spec: RunSpec, libs: Libraries, *, debug_bus: bool = True) -> RunRes
     series = SyntheticWeatherGenerator(climate, seed=spec.seed).generate(
         spec.days, spec.sowing_date, scenario=spec.scenario
     )
-    bus = EventBus(debug_mode=debug_bus)
+    bus = EventBus()
     collector = FluxCollector()
     orch = FullSimulationOrchestrator(
         profile, event_bus=bus, crop=crop, latitude_deg=climate.latitude_deg
@@ -4698,27 +4698,13 @@ def _print_specs(specs: Sequence[RunSpec]) -> None:
 def run_matrix(
     specs: Sequence[RunSpec], libs: Libraries
 ) -> tuple[list[RunResult], list[str]]:
-    """Run every spec. A handler exception under the strict event bus is retried
-    with the lenient bus once; if that succeeds the rest of the matrix runs
-    leniently and the report says so."""
+    """Run every spec. A handler exception always propagates out of the event
+    bus (#606), so ``run_one`` records it as that run's error and the matrix
+    moves on. There is no lenient bus to retry with, so ``notes`` stays empty."""
     notes: list[str] = []
-    debug_bus = True
     results: list[RunResult] = []
     for i, spec in enumerate(specs, 1):
-        result = run_one(spec, libs, debug_bus=debug_bus)
-        if result.status == "error" and debug_bus:
-            retry = run_one(spec, libs, debug_bus=False)
-            if retry.status == "ok":
-                notes.append(
-                    f"{spec.run_id} raised inside an event handler under "
-                    "EventBus(debug_mode=True) "
-                    f"({result.error}); the matrix continued with debug_mode=False, "
-                    "which logs and "
-                    "swallows handler exceptions."
-                )
-                debug_bus = False
-                result = retry
-        results.append(result)
+        results.append(run_one(spec, libs))
         if i % 20 == 0 or i == len(specs):
             print(f"  {i}/{len(specs)} runs", file=sys.stderr, flush=True)
     return results, notes
