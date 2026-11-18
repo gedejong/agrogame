@@ -79,6 +79,9 @@ class NitrogenCycle(RuntimeMemory):
         "_massflow_supply_by_layer",
         "_pending_h_kmol_ha",
     )
+    # The mass-flow figure is a transpiration diagnostic and resets with the
+    # crop (a fallow would show it stale forever); the rest is soil-owned (#583).
+    _CROP_MEMORY = ("_massflow_supply_by_layer",)
 
     def __init__(
         self,
