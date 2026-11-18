@@ -14,6 +14,7 @@ ends with N still in the soil.
 from __future__ import annotations
 
 import importlib.util
+import json
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from datetime import date
@@ -21,6 +22,7 @@ from pathlib import Path
 
 import pytest
 
+from agrogame.game.field import FieldManager, PatchConfig
 from agrogame.plant.presets import CropPreset, load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.chemistry.module import SoilChemistryModule
@@ -264,6 +266,54 @@ def test_urea_hydrolysis_reaches_chemistry_once_across_reset_crop(
         [h for _, h in control_calls], abs=1e-12
     )
     assert reset_ph == pytest.approx(control_ph, abs=1e-12)
+
+
+def _patch_manager() -> FieldManager:
+    fm = FieldManager()
+    fm.add_field(
+        "f1", [PatchConfig("loam_temperate", "maize", "netherlands_temperate", 1.0)]
+    )
+    return fm
+
+
+def _fm_days(fm: FieldManager, days: range) -> None:
+    for day in days:
+        fm.step_day(
+            drivers=DailyDrivers(rainfall_mm=3.0 if day % 4 == 0 else 0.0),
+            tmin_c=9.0,
+            tmax_c=21.0,
+            shortwave_mj_m2=16.0,
+            sim_date=date(2024, 4, 1),
+        )
+
+
+def test_save_between_urea_and_step_continues_exactly() -> None:
+    """#577 exact continuation, at the point the release timing protects.
+
+    Urea's hydrolysis H+ is released at application, so a save taken before
+    the next step carries it in the saved pH, and the declared budget memory
+    (``NitrogenCycle._pending_h_kmol_ha``) is empty at every save point.
+    """
+    reference = _patch_manager()
+    _fm_days(reference, range(20))
+    reference.fields["f1"].apply_fertilizer("urea", 80.0)
+    saved = json.loads(json.dumps(reference.to_dict()))
+    memory = saved["fields"]["f1"]["patches"][0]["runtime_memory"]
+    n_layers = len(reference.fields["f1"].patches[0].orch.profile.layers)
+    assert memory["NitrogenCycle"]["_pending_h_kmol_ha"] == [0.0] * n_layers
+    loaded = FieldManager.from_dict(saved)
+    for fm in (reference, loaded):
+        _fm_days(fm, range(20, 60))
+    ref_orch = reference.fields["f1"].patches[0].orch
+    got_orch = loaded.fields["f1"].patches[0].orch
+    assert got_orch.chem.ph_by_layer == ref_orch.chem.ph_by_layer
+    assert got_orch.n_state.no3 == ref_orch.n_state.no3
+    assert (
+        got_orch.canopy.state.grain_biomass_g_m2
+        == ref_orch.canopy.state.grain_biomass_g_m2
+    )
+    # The budget moved pH (hydrolysis alkalinises first, nitrification follows).
+    assert abs(ref_orch.chem.ph_by_layer[0] - 6.8) > 1e-3
 
 
 def _calendar_years(seed: int, years: int = 3) -> Iterator[float]:

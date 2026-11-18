@@ -69,12 +69,15 @@ class NitrogenCycle(RuntimeMemory):
     """Nitrogen processes and event integration for the soil profile."""
 
     # Saved with the patch (#577): the cache and the per-layer SOM, O2 and
-    # mass-flow terms carried from one event or day to the next.
+    # mass-flow terms carried from one event or day to the next. The proton
+    # budget (#492) is empty at every step boundary, so it saves as zeros; it
+    # is declared so a save stays exact even if that invariant ever breaks.
     _MEMORY = (
         "_env",
         "_som_mineralized_n",
         "_aerobic_fraction_override",
         "_massflow_supply_by_layer",
+        "_pending_h_kmol_ha",
     )
 
     def __init__(
@@ -163,8 +166,8 @@ class NitrogenCycle(RuntimeMemory):
         day's budget is complete and nothing is carried to the next day.
         Layers with a zero budget emit nothing.
         """
-        pending = self._pending_h_kmol_ha
-        self._pending_h_kmol_ha = [0.0] * self._n_layers
+        pending = list(self._pending_h_kmol_ha)
+        self._pending_h_kmol_ha[:] = [0.0] * self._n_layers
         for layer, h_kmol_ha in enumerate(pending):
             if h_kmol_ha != 0.0:
                 self.event_bus.emit(
