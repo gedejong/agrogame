@@ -68,6 +68,15 @@ crops:
           extinction_coefficient_k: 0.68  # maize vs-PAR k 0.6-0.7 (Lindquist 2005)
           temp_opt_c: 24.2        # Kenya posterior (AGRO-102)
           sla_m2_per_g: 0.013     # Kenya posterior (AGRO-102)
+          # #432: highland-hybrid kernel-weight potential, 290 x 96/69. Cooper
+          # (1979) J. Agric. Sci. 93:635-649: in Kenya at 1268-2250 m the kernel
+          # growth rate was constant and fill ran 69 -> 96 d after tasselling,
+          # so kernel weight rises with altitude. Cross-check: DSSAT CERES-Maize
+          # MZCER048.CUL KY0011 H614 (G3 10.15 mg/kernel/d, P5 623.6 degC d;
+          # DSGFT 170 degC d) gives ~470 mg at a 17 degC fill. Kenya-only:
+          # temperate hybrids show no cool-fill gain (Tollenaar & Bruulsema
+          # 1988, Can. J. Plant Sci. 68:935-940).
+          potential_kernel_weight_mg: 403.0
         phenology:
           flowering_gdd: 777.0    # Kenya posterior (AGRO-102)
           maturity_gdd: 1801.0    # Kenya posterior (AGRO-102)
