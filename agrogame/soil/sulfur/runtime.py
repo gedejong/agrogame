@@ -25,10 +25,12 @@ class SulfurRuntime:
     event_bus: EventBus
     cycle: SulfurCycle
     _stress: StressCalculator | None = None
+    # False on a bare fallow (#542): no plant, so no S NutrientStressComputed.
+    plant_present: bool = True
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
-        self._stress = StressCalculator("liebig")
+        self._stress = StressCalculator("liebig") if self.plant_present else None
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":
