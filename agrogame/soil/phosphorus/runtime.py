@@ -19,10 +19,12 @@ class PhosphorusRuntime:
     cycle: PhosphorusCycle
     _stress: StressCalculator | None = None
     _redox_params: RedoxParams = field(default_factory=RedoxParams)
+    # False on a bare fallow (#542): no plant, so no P NutrientStressComputed.
+    plant_present: bool = True
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
-        self._stress = StressCalculator("liebig")
+        self._stress = StressCalculator("liebig") if self.plant_present else None
         self.event_bus.subscribe(RedoxChanged, self._on_redox_changed)
 
     def _on_redox_changed(self, ev: RedoxChanged) -> None:

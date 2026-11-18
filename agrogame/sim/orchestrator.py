@@ -384,6 +384,13 @@ def _default_canopy_params() -> CanopyParams:
 _RuntimeFactory = Callable[[], object]
 
 
+def _check_fallow(crop: CropPreset | None, fallow: bool) -> None:
+    """Reject a fallow patch that is also given a crop preset (#542)."""
+    if fallow and crop is not None:
+        name = crop.key or crop.name
+        raise ValueError(f"fallow=True takes no crop preset, got {name!r}")
+
+
 class FullSimulationOrchestrator:
     """Event-wired orchestrator including water, chemistry, N and P.
 
@@ -391,6 +398,10 @@ class FullSimulationOrchestrator:
     `step_day` to advance water/N/P using a shared EventBus.
 
     Supports multi-season simulation via `reset_crop()` and `harvest()`.
+
+    ``crop=None`` runs a generic default plant (dashboard, ``SimulationEngine``,
+    tests). A bare patch is ``fallow=True`` instead: plant state held at zero
+    and the plant runtimes not wired (#542, see ``_hold_fallow_plant_state``).
     """
 
     def __init__(
@@ -401,7 +412,11 @@ class FullSimulationOrchestrator:
         latitude_deg: float = 52.0,
         crop: CropPreset | None = None,
         management_plan: ManagementPlan | None = None,
+        *,
+        fallow: bool = False,
     ) -> None:
+        _check_fallow(crop, fallow)
+        self._fallow = fallow
         self.event_bus = event_bus or EventBus()
         self.latitude_deg = latitude_deg
         self._current_crop = crop
@@ -452,10 +467,10 @@ class FullSimulationOrchestrator:
     def _build_plant_modules(self, crop: CropPreset | None) -> None:
         """Construct the plant modules (phenology, canopy, roots).
 
-        Falls back to defaults when no crop preset is supplied — a bare
-        ``__init__`` with ``crop=None`` or a season reset of a harvested
-        (bare) patch via ``reset_crop(None)`` (#392). Shared so all paths
-        build an identical plant graph.
+        Falls back to the generic default plant when no crop preset is
+        supplied (``crop=None``). A fallow patch builds the same modules but
+        holds them dormant (:meth:`_hold_fallow_plant_state`, #542). Shared so
+        all paths build an identical plant graph.
         """
         phen_params = crop.phenology if crop else _default_phen_params()
         canopy_params = crop.canopy if crop else _default_canopy_params()
@@ -469,6 +484,28 @@ class FullSimulationOrchestrator:
         # save carries it with the plant state (FieldManager.to_dict, #515).
         self.plant_n_module = PlantNitrogenModule(_plant_n_params(crop))
         self.plant_n_state = PlantNitrogenState()
+        if self._fallow:
+            self._hold_fallow_plant_state()
+
+    def _hold_fallow_plant_state(self) -> None:
+        """Zero the root system of a fallow patch (#542).
+
+        A bare fallow is a null plant, as in DSSAT-CSM ``Plant/plant.for``:
+        with ``CROP = 'FA'`` the rate step sets ``RLV = 0`` and ``XLAI = 0`` and
+        returns before any crop model is called (Jones et al. 2003, Eur. J.
+        Agron. 18:235-265). APSIM likewise runs its soil water and N modules
+        with no crop module in a fallow (Probert et al. 1998, Agric. Syst.
+        56:1-28). The fresh canopy, phenology and shoot-N states are already
+        zero (LAI 0, PLANTED at 0 GDD, no stock); the four plant runtimes are
+        left unwired (:meth:`_subscription_plan`) so they stay so. With LAI 0
+        the canopy cover is 0 and potential transpiration is 0, so ET is soil
+        evaporation through the existing Ritchie (1972, Water Resour. Res.
+        8:1204-1213) two-stage path: FAO-56 Eq. 69 (Allen et al. 1998) with no
+        transpiring cover.
+        """
+        self.root_state.current_depth_cm = 0.0
+        self.root_state.biomass_g_m2 = 0.0
+        self.root_state.layer_fractions = [0.0] * len(self.profile.layers)
 
     def _build_soil_state(self) -> None:
         """Create fresh mutable soil-state containers.
@@ -629,13 +666,45 @@ class FullSimulationOrchestrator:
         list order and factories within a group in list order. The
         ``pore_chain`` group is first, encoding the ADR-010 day_start
         invariant structurally instead of by comment. Each factory is a
-        zero-arg callable whose side effect is one subscription.
+        zero-arg callable whose side effect is one subscription. A fallow
+        patch omits the four plant runtimes, matched by identity (#542).
         """
         # The migrated soil/plant runtimes take the structural
         # SoilProfileView port (#310, ADR-008). The concrete Pydantic
         # SoilProfile structurally satisfies that port (covariant `layers`
         # property), so it flows in directly — no cast needed.
         pv: SoilProfileView = self.profile
+        plant_present = not self._fallow
+        plant_runtimes: tuple[_RuntimeFactory, ...] = (
+            lambda: PhenologyRuntime(
+                self.event_bus, self.phenology, latitude_deg=self.latitude_deg
+            ),
+            lambda: RootsRuntime(
+                self.event_bus,
+                self.roots,
+                self.root_state,
+                pv,
+                self.phenology,
+                agg_state=self.agg_state,
+                canopy_increment_provider=self._consume_root_canopy_increment,
+            ),
+            # Consumes NitrogenRuntime's PlantNUptakeComputed and emits the
+            # graded NNI-based N stress the canopy reads (#360). Registered
+            # right after NitrogenRuntime so the stock is updated the same
+            # nutrients-phase tick the uptake is resolved.
+            lambda: PlantNitrogenRuntime(
+                self.event_bus,
+                self.plant_n_module,
+                self.plant_n_state,
+                shoot_biomass_provider=lambda: self.canopy.state.biomass_g_m2,
+            ),
+            lambda: CanopyRuntime(
+                self.event_bus,
+                self.canopy,
+                root_allocation_fraction=self.roots.params.root_allocation_fraction,
+            ),
+        )
+        phenology_rt, roots_rt, plant_n_rt, canopy_rt = plant_runtimes
         # Pore-chain runtimes — subscribe in this order on day_start:
         # pore-network compute → biopore donation → gas diffusion (ADR-010).
         pore_chain: list[_RuntimeFactory] = [
@@ -676,18 +745,8 @@ class FullSimulationOrchestrator:
                 # when the pore chain is active (#289).
                 pore_state=self.pore_state,
             ),
-            lambda: PhenologyRuntime(
-                self.event_bus, self.phenology, latitude_deg=self.latitude_deg
-            ),
-            lambda: RootsRuntime(
-                self.event_bus,
-                self.roots,
-                self.root_state,
-                pv,
-                self.phenology,
-                agg_state=self.agg_state,
-                canopy_increment_provider=self._consume_root_canopy_increment,
-            ),
+            phenology_rt,
+            roots_rt,
             self._make_et_runtime,
             lambda: RedoxRuntime(
                 self.event_bus,
@@ -699,19 +758,18 @@ class FullSimulationOrchestrator:
             lambda: NitrogenRuntime(
                 self.event_bus, self.n_cycle, gas_state=self.gas_state
             ),
-            # Consumes NitrogenRuntime's PlantNUptakeComputed and emits the
-            # graded NNI-based N stress the canopy reads (#360). Registered
-            # right after NitrogenRuntime so the stock is updated the same
-            # nutrients-phase tick the uptake is resolved.
-            lambda: PlantNitrogenRuntime(
-                self.event_bus,
-                self.plant_n_module,
-                self.plant_n_state,
-                shoot_biomass_provider=lambda: self.canopy.state.biomass_g_m2,
+            plant_n_rt,
+            # With no plant, the soil-side runtimes emit no plant-stress
+            # diagnostic and take up no micronutrients (#542).
+            lambda: MicronutrientRuntime(
+                self.event_bus, self.micro_cycle, plant_present=plant_present
             ),
-            lambda: MicronutrientRuntime(self.event_bus, self.micro_cycle),
-            lambda: PhosphorusRuntime(self.event_bus, self.p_cycle),
-            lambda: SulfurRuntime(self.event_bus, self.s_cycle),
+            lambda: PhosphorusRuntime(
+                self.event_bus, self.p_cycle, plant_present=plant_present
+            ),
+            lambda: SulfurRuntime(
+                self.event_bus, self.s_cycle, plant_present=plant_present
+            ),
             lambda: self._make_som_runtime(pv),
             lambda: MicrobesRuntime(
                 self.event_bus,
@@ -723,12 +781,10 @@ class FullSimulationOrchestrator:
             lambda: AggregationRuntime(
                 self.event_bus, self.agg_module, pv, self.water_state
             ),
-            lambda: CanopyRuntime(
-                self.event_bus,
-                self.canopy,
-                root_allocation_fraction=self.roots.params.root_allocation_fraction,
-            ),
+            canopy_rt,
         ]
+        if self._fallow:
+            core = [f for f in core if f not in plant_runtimes]
         bookkeeping: list[_RuntimeFactory] = [
             self._subscribe_biomass_bookkeeping,
             self._subscribe_co2_bookkeeping,
@@ -792,6 +848,7 @@ class FullSimulationOrchestrator:
             canopy=_cast(_ETCanopy, self.canopy),
             _evap_state=EtState(),
             _residue=ResidueState(cover_fraction=self.et.params.residue_cover_fraction),
+            plant_present=not self._fallow,
         )
 
     def _make_som_runtime(self, profile_view: SoilProfileView) -> SOMRuntime:
@@ -841,6 +898,11 @@ class FullSimulationOrchestrator:
     def som(self) -> Any:
         """Public access to the SOM module (ThreePoolSOM or None)."""
         return self._som_runtime.som
+
+    @property
+    def is_fallow(self) -> bool:
+        """True for a bare patch with no plant (#542); see ``reset_crop``."""
+        return self._fallow
 
     @property
     def plant_n_nni(self) -> float:
@@ -1001,7 +1063,7 @@ class FullSimulationOrchestrator:
             self._current_crop = None
         return self.snapshot_soil()
 
-    def reset_crop(self, new_crop: CropPreset | None) -> None:
+    def reset_crop(self, new_crop: CropPreset | None, *, fallow: bool = False) -> None:
         """Reset plant state for a new crop, preserving soil state.
 
         Clears all event subscriptions and rebuilds the plant, soil and
@@ -1012,12 +1074,14 @@ class FullSimulationOrchestrator:
         pools (water, N, P, chemistry, microbes, SOM, redox, aggregation and
         the pore chain) carry across the transition exactly as before.
 
-        ``new_crop=None`` resets the patch crop-free, reusing the same
-        crop-free plant graph ``__init__`` builds for a bare patch
-        (``_build_plant_modules(None)``). The season-reset path passes ``None``
-        for patches left bare by a per-patch harvest (``crop_key=""``),
-        mirroring the load-path fix in #371.
+        ``new_crop=None`` resets to the generic default plant
+        (``_build_plant_modules(None)``), as ``__init__`` builds for
+        ``crop=None``. ``new_crop=None, fallow=True`` leaves the patch bare
+        (#542): the game layer passes it for a harvested patch
+        (``crop_key=""``), as on the load path (#371).
         """
+        _check_fallow(new_crop, fallow)
+        self._fallow = fallow
         self._current_crop = new_crop
         self._day_counter = 0
         self._last_biomass_inc_g_m2 = 0.0
@@ -1143,7 +1207,10 @@ class FullSimulationOrchestrator:
         N-rich soil lets the stock track the critical curve (NNI -> 1) while a
         poor soil holds it below. P demand keeps its own formula
         (``_compute_plant_p_demand``). Uptake stays soil-supply limited.
+        A fallow patch has no plant and so no demand (#542).
         """
+        if self._fallow:
+            return 0.0
         if self._current_crop is None:
             return 0.1
         demand = self.plant_n_module.demand_to_critical(

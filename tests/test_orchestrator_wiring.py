@@ -96,6 +96,51 @@ def test_reset_crop_twice_stable(golden: dict[str, list[str]]) -> None:
     assert _subscription_order(orch) == golden
 
 
+# The four runtimes a fallow patch leaves unwired (#542). CanopyModule's own
+# handlers stay: the module is built, held dormant, and never fed an event.
+_PLANT_RUNTIMES = (
+    "PhenologyRuntime",
+    "RootsRuntime",
+    "PlantNitrogenRuntime",
+    "CanopyRuntime",
+)
+
+
+def _without_plant_runtimes(order: dict[str, list[str]]) -> dict[str, list[str]]:
+    out: dict[str, list[str]] = {}
+    for etype, ids in order.items():
+        kept = [i for i in ids if i.split(".")[0] not in _PLANT_RUNTIMES]
+        if kept:
+            out[etype] = kept
+    return out
+
+
+def test_fallow_wiring_is_golden_without_the_plant_runtimes(
+    golden: dict[str, list[str]],
+) -> None:
+    """AC2(d) of #542: exactly the four plant runtimes' handlers are dropped."""
+    fallow = _without_plant_runtimes(golden)
+    assert fallow != golden
+    orch = FullSimulationOrchestrator(_build_orchestrator().profile, fallow=True)
+    assert _subscription_order(orch) == fallow
+    assert "CanopyModule._on_stage_changed" in fallow["StageChanged"]
+
+
+def test_reset_crop_between_fallow_and_planted_wiring(
+    golden: dict[str, list[str]],
+) -> None:
+    """Fallow and planted plans alternate cleanly over two cycles (#542)."""
+    orch = _build_orchestrator()
+    maize = load_crop_presets(Path("data/crops/presets.yaml")).get_preset("maize")
+    for _ in range(2):
+        orch.reset_crop(None, fallow=True)
+        assert _subscription_order(orch) == _without_plant_runtimes(golden)
+        orch.reset_crop(maize)
+        assert _subscription_order(orch) == golden
+    orch.reset_crop(None)  # the generic default plant wires the full plan
+    assert _subscription_order(orch) == golden
+
+
 def test_pore_chain_dispatches_before_consumers() -> None:
     """On ``DayTick``, pore-chain handlers precede water/redox/N (ADR-010)."""
     orch = _build_orchestrator()

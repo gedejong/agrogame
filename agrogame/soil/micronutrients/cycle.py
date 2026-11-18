@@ -74,6 +74,16 @@ class MicronutrientCycle:
         """Update SOM carbon for complexation calculation."""
         self._som_c_by_layer = list(som_c_by_layer)
 
+    def equilibrate(self) -> None:
+        """Move available pools toward the pH/OM equilibrium; no plant uptake.
+
+        The soil half of :meth:`daily_step`, run alone on a bare fallow (#542).
+        """
+        for i in range(self._n_layers):
+            ph = self._ph_by_layer[i]
+            som_c = self._som_c_by_layer[i] if i < len(self._som_c_by_layer) else 0.0
+            self._update_availability(i, ph, som_c)
+
     def daily_step(
         self,
         biomass_inc_g_m2: float = 0.0,
@@ -89,11 +99,7 @@ class MicronutrientCycle:
         if root_fractions is None:
             root_fractions = [1.0 / self._n_layers] * self._n_layers
 
-        # Update availability based on pH and OM complexation
-        for i in range(self._n_layers):
-            ph = self._ph_by_layer[i]
-            som_c = self._som_c_by_layer[i] if i < len(self._som_c_by_layer) else 0.0
-            self._update_availability(i, ph, som_c)
+        self.equilibrate()
 
         # Daily demand = season demand / season_days, scaled by growth rate
         growth_scale = max(0.01, biomass_inc_g_m2 / 30.0)  # ~30 g/m2 peak
