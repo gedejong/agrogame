@@ -1248,16 +1248,28 @@ class FullSimulationOrchestrator(RuntimeMemory):
         poor soil holds it below. P demand keeps its own formula
         (``_compute_plant_p_demand``). Uptake stays soil-supply limited.
         A fallow patch has no plant and so no demand (#542).
+
+        There is no demand floor (#578, ADR-013 amendment 2026-11-18): the
+        demand is exactly the deficit to critical, which is 0 while shoot DM
+        is at or below 1 kg/ha (before emergence) and 0 whenever the stock is
+        at or above critical.
         """
         if self._fallow:
             return 0.0
         if self._current_crop is None:
             return 0.1
-        demand = self.plant_n_module.demand_to_critical(
+        # No soil N uptake before emergence and no minimum demand (#578).
+        # CERES-Maize (DSSAT-CSM ``MZ_CERES.for``) calls growth and N uptake
+        # only for ISTAGE 1-6, emergence to maturity (Jones et al. 2003,
+        # Eur. J. Agron. 18:235-265). APSIM Next Generation PMF
+        # ``OrganArbitrator`` estimates and sets N uptake only when
+        # ``plant.IsEmerged`` (Brown et al. 2014, Environ. Model. Softw.
+        # 62:385-398). The former 0.1 kg N/ha/day floor banked 2-3 kg N/ha
+        # behind the NNI sentinel and spiked first-seedling-day NNI to 9.7-39.
+        return self.plant_n_module.demand_to_critical(
             self.canopy.state.biomass_g_m2,
             self.plant_n_state.n_stock_kg_ha,
         )
-        return max(0.1, demand)
 
     def step_day(
         self,

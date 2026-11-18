@@ -16,6 +16,26 @@ pool nor credits the plant stock. Debiting it removed nitrate that no plant
 stock ever received (of the order of 100 kg N/ha per season under a full maize
 canopy), and crediting it would double-count the demand-driven uptake.
 
+### Amendment 2026-11-18 — no N uptake before emergence; no demand floor ([#578](https://github.com/gedejong/agrogame/issues/578))
+
+Decision point 4 makes the N demand the deficit to critical, and the
+Persistence section has a new crop start with ~0 shoot N. The orchestrator
+nonetheless returned `max(0.1, deficit)`, an uncited floor that took
+0.1 kg N/ha/day from the soil from the sowing day. The stock banked 2-3 kg N/ha
+behind the 1.0 NNI sentinel before emergence, and on the first seedling day it
+divided by a near-zero shoot DM: NNI 9.7 under the legacy Netherlands weather
+and up to 39 under De Bilt station normals.
+
+The demand for a planted crop is now exactly the deficit to critical, with no
+floor. It is 0 while shoot DM is at or below 1 kg/ha (before emergence) and 0
+whenever the stock is at or above critical, so no soil N is taken up before
+emergence. This follows CERES-Maize, where DSSAT-CSM `MZ_CERES.for` runs growth
+and N uptake only for ISTAGE 1-6, emergence to maturity (Jones et al. 2003,
+*Eur. J. Agron.* 18:235-265), and APSIM Next Generation PMF, whose
+`OrganArbitrator` estimates and sets N uptake only when `plant.IsEmerged`
+(Brown et al. 2014, *Environ. Model. Softw.* 62:385-398). Neither model has a
+demand floor.
+
 ## Context
 
 Before this change the crop's N-stress signal was **flow-based**: the

@@ -1851,28 +1851,14 @@ def test_step_response_includes_microbial_biology(client) -> None:
 def test_step_response_includes_plant_n_nni(client) -> None:
     """Soil state + daily snapshots expose plant-N NNI and shoot-N stock (#367).
 
-    NNI is bounded below by 0 but *not* above by 1 — raw NNI exceeds 1 under
-    luxury uptake (only the derived N-stress mapping caps at 1.0). The settled
-    end-of-window value sits near/at critical N (~1.0); the per-day trajectory
-    additionally shows a transient luxury spike the day shoot DM first appears
-    (observed ~9.7 at emergence under ADR-014, decaying to ~1.0 within ~4 days),
-    because the critical-N dilution curve reads high %N against near-zero
-    biomass. This spike is a *diagnostic-only* artifact with no effect on
-    growth: ``PlantNitrogenModule.stress_from_nni`` caps luxury (NNI > 1) at
-    stress = 1.0, so a reported NNI of 1 or 9.7 drives identical growth. Its
-    root cause is the token pre-emergence baseline N uptake (~0.1 kg/ha/day)
-    that banks into the whole-shoot N stock while shoot biomass is held at the
-    ``_MIN_SHOOT_DM_KG_HA`` floor; the day biomass first crosses that floor the
-    banked stock divides by a near-threshold seedling DM. Under ADR-014 the
-    corrected (halved) early-season PAR basis makes the crossing-day seedling
-    smaller, so the ratio — and thus the transient — is larger than the pre-fix
-    ~4.6 (peak measured 9.67 on the emergence day, seed 42). The critical-N% is
-    correctly capped flat at ``a`` below the reference biomass (no low-W blow-up)
-    and stock/biomass are both whole-shoot (no AGB-vs-shoot mismatch), so this
-    is the physical transient, not a mis-computed basis. We therefore band the
-    settled state tightly (0..2.5) and the per-day series loosely (0..12.0) —
-    enough to catch unit/sign errors without flagging the real emergence
-    transient.
+    Raw NNI is bounded below by 0 and in general not above by 1: it exceeds 1
+    under luxury uptake, and only the derived N-stress mapping caps at 1.0. In
+    this 40-day window it stays at or below 1 because the N demand is exactly
+    the deficit to critical N (#578, ADR-013 amendment 2026-11-18). No N is
+    taken up before emergence and there is no demand floor, so the shoot stock
+    never runs ahead of the critical target. The settled band (0..2.5) and the
+    per-day band (0..12.0) stay as unit/sign guards; the 12.0 band is not
+    widened (#560 T1).
     """
     game_id = _create_game(client)
     resp = client.post(f"/api/v1/games/{game_id}/step?days=40&seed=42")
@@ -1897,10 +1883,11 @@ def test_step_response_includes_plant_n_nni(client) -> None:
         assert "plant_n_nni" in s
         assert "plant_n_stock_kg_ha" in s
         assert s["plant_n_stock_kg_ha"] >= 0.0
-        # Loose upper band absorbs the emergence luxury transient (measured peak
-        # 9.67 on the emergence day under ADR-014's halved early-season PAR;
-        # decays to ~1.0 within ~4 days). Diagnostic-only — see docstring.
+        # Unit/sign guard; not widened (#560 T1).
         assert 0.0 <= s["plant_n_nni"] <= 12.0
+    # Demand is the deficit to critical (#578), so no day in the window runs
+    # above critical N. Snapshot NNI is rounded to 2 decimals.
+    assert max(s["plant_n_nni"] for s in snaps) <= 1.0
 
 
 def test_plant_n_pre_emergence_sentinel(client) -> None:
@@ -1908,10 +1895,9 @@ def test_plant_n_pre_emergence_sentinel(client) -> None:
     stock to 0.0, so an older client and a not-yet-rooted patch both read a
     sensible value with no divide-by-zero on near-zero shoot DM (#367 / #364).
 
-    The sentinel proper (``stock == 0.0``) is the field default / reset value;
-    once a live sim runs a day a trivial baseline uptake (~0.1 kg/ha) appears,
-    so the running pre-emergence check bounds stock as negligible rather than
-    exactly zero, while NNI holds the 1.0 sentinel.
+    ``stock == 0.0`` is the field default and reset value, and a live sim keeps
+    it exactly through a pre-emergence day: no N is taken up before emergence
+    (#578), while NNI holds the 1.0 sentinel.
     """
     from agrogame.api.models import DailySnapshot, SoilStateResponse
 
@@ -1919,7 +1905,7 @@ def test_plant_n_pre_emergence_sentinel(client) -> None:
         assert model.model_fields["plant_n_nni"].default == 1.0
         assert model.model_fields["plant_n_stock_kg_ha"].default == 0.0
 
-    # Live pre-emergence day: NNI holds the sentinel, stock is negligible.
+    # Live pre-emergence day: NNI holds the sentinel, stock is exactly zero.
     game_id = _create_game(client)
     resp = client.post(f"/api/v1/games/{game_id}/step?days=1&seed=42")
     assert resp.status_code == 200
@@ -1927,7 +1913,7 @@ def test_plant_n_pre_emergence_sentinel(client) -> None:
     assert snaps, "expected at least one daily snapshot"
     day1 = snaps[0]
     assert day1["plant_n_nni"] == 1.0
-    assert 0.0 <= day1["plant_n_stock_kg_ha"] < 1.0
+    assert day1["plant_n_stock_kg_ha"] == 0.0
 
 
 def test_step_response_includes_pore_network(client) -> None:
