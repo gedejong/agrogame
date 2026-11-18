@@ -20,6 +20,15 @@ const STAGE_MAP := {
 	"maturity": 4,
 }
 
+## Heat-damage severity for a HeatDamageApplied event lacking its
+## grain_reduction_factor (#569). The engine always sends the factor, so this
+## only covers a malformed event, which still says heat damage happened: rather
+## than show none, read it as the engine's default heat_grain_reduction_fraction,
+## 0.5 (CanopyParams in agrogame/params/canopy.py, and the preset loader's own
+## default in agrogame/plant/presets.py; maize's value, after DSSAT CERES heat
+## stress on grain set as cited there, Hatfield & Prueger 2015).
+const HEAT_SEVERITY_FALLBACK: float = 0.5
+
 
 ## Build a grid.x by grid.y tile grid: a soil-shaded plane per tile under
 ## `tile_root`, each with a StaticBody3D carrying tile_col and tile_row metas for
@@ -124,8 +133,7 @@ static func stress_from_events(events: Array) -> Dictionary:
 			var fs: float = clampf(float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0)
 			frost_dmg = maxf(frost_dmg, fs)
 		elif et == "HeatDamageApplied":
-			var hs: float = clampf(float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0)
-			heat_dmg = maxf(heat_dmg, hs)
+			heat_dmg = maxf(heat_dmg, heat_severity(evt.get("data", {})))
 	return {
 		"n_stress": n_stress,
 		"p_stress": p_stress,
@@ -134,6 +142,18 @@ static func stress_from_events(events: Array) -> Dictionary:
 		"frost_damage": frost_dmg,
 		"heat_damage": heat_dmg,
 	}
+
+
+## Severity in [0, 1] of one HeatDamageApplied event's `data`. The engine sends
+## grain_reduction_factor = 1 - heat_grain_reduction_fraction, the multiplier on
+## that day's grain growth (CanopyRuntime._check_heat_damage), and no severity
+## field, so the severity is the fraction of grain growth lost: 1 - factor. That
+## is 0.5 for maize and 0.6 for wheat (data/crops/presets.yaml).
+static func heat_severity(data: Dictionary) -> float:
+	if not data.has("grain_reduction_factor"):
+		push_warning("HeatDamageApplied without grain_reduction_factor: %s" % data)
+		return HEAT_SEVERITY_FALLBACK
+	return clampf(1.0 - float(data["grain_reduction_factor"]), 0.0, 1.0)
 
 
 ## Write one patch of a /step payload into every tile whose patch_idx matches,
