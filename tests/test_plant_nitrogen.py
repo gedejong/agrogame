@@ -2,16 +2,20 @@
 
 Covers the critical-N curve, actual-N% / NNI, the documented NNI->stress
 mapping, the stock-based demand, per-day accumulation, params validation, the
-event runtime, and preset loading of the dilution coefficients.
+event runtime, preset loading of the dilution coefficients, and the absence of
+N uptake before emergence (#578).
 """
 
 from __future__ import annotations
 
 import math
+from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 
 from agrogame.events import EventBus
+from agrogame.params.phenology import PhenologyStage
 from agrogame.plant.events import NutrientStressComputed, PlantNUptakeComputed
 from agrogame.plant.nitrogen import (
     PlantNitrogenModule,
@@ -19,6 +23,10 @@ from agrogame.plant.nitrogen import (
     PlantNitrogenRuntime,
     PlantNitrogenState,
 )
+from agrogame.plant.presets import load_crop_presets
+from agrogame.sim.orchestrator import FullSimulationOrchestrator
+from agrogame.soil.loader import load_soil_presets
+from agrogame.soil.water.types import DailyDrivers
 
 # Literature coefficients (see params.py for citations).
 _MAIZE = PlantNitrogenParams(n_crit_a=3.40, n_crit_b=0.37)
@@ -183,3 +191,102 @@ def test_presets_load_dilution_coefficients() -> None:
     assert crops.crops["spring_wheat"].n_crit_b == 0.442
     # A crop without a fitted curve uses the documented fallback (None here).
     assert crops.crops["sorghum"].n_crit_a is None
+
+
+# --- #578: no N uptake before emergence, no demand floor ---------------------
+
+# De Bilt (KNMI station 260) April 1991-2020 means from etmgeg_260, tabulated in
+# the #578 refinement: TN 4.52 °C, TX 14.84 °C, Q 14.14 MJ/m²/d (rounded to 14.0
+# here). Rain is a constant 2.0 mm/day that keeps the seedbed moist.
+_DE_BILT_APRIL_TMIN_C = 4.52
+_DE_BILT_APRIL_TMAX_C = 14.84
+_DE_BILT_APRIL_SHORTWAVE_MJ_M2 = 14.0
+_DE_BILT_APRIL_RAIN_MM = 2.0
+_DAYS_AFTER_EMERGENCE = 20
+_MAX_DAYS = 60
+
+
+def _nl_maize_orchestrator() -> FullSimulationOrchestrator:
+    soils = load_soil_presets(Path("data/soils/presets.yaml"))
+    crop = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
+        "maize", "netherlands_temperate"
+    )
+    return FullSimulationOrchestrator(
+        soils.soils["loam_temperate"], crop=crop, latitude_deg=52.0
+    )
+
+
+def test_orchestrator_n_demand_has_no_floor() -> None:
+    """Planted-crop N demand is exactly the deficit to critical (#578).
+
+    2.0 g/m² of shoot DM is 20 kg/ha, below maize's 1 t/ha reference biomass,
+    so critical N is the flat 3.40% (Plénet & Lemaire 1999): a 0.68 kg/ha
+    target. A 0.6 kg/ha stock leaves a deficit of 0.08; a 0.7 kg/ha stock is
+    above critical and demands nothing. The former ``max(0.1, ...)`` floor
+    returned 0.1 for both.
+    """
+    orch = _nl_maize_orchestrator()
+    orch.canopy.state.biomass_g_m2 = 2.0
+    orch.plant_n_state.n_stock_kg_ha = 0.6
+    assert math.isclose(orch._compute_plant_n_demand(), 0.08, rel_tol=1e-9)
+    orch.plant_n_state.n_stock_kg_ha = 0.7
+    assert orch._compute_plant_n_demand() == 0.0
+
+
+def _run_de_bilt_april_cycle(
+    orch: FullSimulationOrchestrator, start: date
+) -> tuple[int, list[float]]:
+    """Step to emergence + 20 days; return the emergence day and daily NNI.
+
+    Asserts on the way that the shoot N stock is exactly 0.0 after every day up
+    to and including the emergence day (AC3 b).
+    """
+    emergence_day: int | None = None
+    nni: list[float] = []
+    for day in range(1, _MAX_DAYS + 1):
+        orch.step_day(
+            drivers=DailyDrivers(rainfall_mm=_DE_BILT_APRIL_RAIN_MM),
+            tmin_c=_DE_BILT_APRIL_TMIN_C,
+            tmax_c=_DE_BILT_APRIL_TMAX_C,
+            shortwave_mj_m2=_DE_BILT_APRIL_SHORTWAVE_MJ_M2,
+            sim_date=start + timedelta(days=day - 1),
+        )
+        nni.append(orch.plant_n_nni)
+        if emergence_day is None:
+            assert (
+                orch.plant_n_stock_kg_ha == 0.0
+            ), f"day {day}: {orch.plant_n_stock_kg_ha} kg N/ha banked pre-emergence"
+            if orch.phenology.state.stage is not PhenologyStage.PLANTED:
+                emergence_day = day
+        elif day == emergence_day + _DAYS_AFTER_EMERGENCE:
+            break
+    assert emergence_day is not None, f"no emergence within {_MAX_DAYS} days"
+    assert len(nni) == emergence_day + _DAYS_AFTER_EMERGENCE
+    return emergence_day, nni
+
+
+def test_no_n_banked_before_slow_emergence_across_two_cycles() -> None:
+    """A slow, cool-spring emergence banks no N and spikes no NNI (#578).
+
+    NL maize on ``loam_temperate`` under constant De Bilt April weather (KNMI
+    station 260, 1991-2020 means; see the constants above) emerges on day 30.
+    With the former 0.1 kg N/ha/day demand floor the stock reached 3.0 kg/ha by
+    emergence and the first seedling day read NNI 29.26. No N is taken up
+    before emergence in CERES-Maize or APSIM PMF, so the stock must be 0.0 then
+    and NNI must not exceed 1 while the seedling's demand is the deficit to
+    critical. A second season after ``reset_crop`` checks that the rebuilt
+    plant-N state banks nothing either.
+    """
+    orch = _nl_maize_orchestrator()
+    crop = orch._current_crop
+    for season, start in enumerate((date(2024, 4, 1), date(2025, 4, 1))):
+        if season:
+            orch.reset_crop(crop)
+        emergence_day, nni = _run_de_bilt_april_cycle(orch, start)
+        assert 25 <= emergence_day <= 35, f"season {season}: day {emergence_day}"
+        assert all(
+            0.0 <= v <= 1.0 + 1e-9 for v in nni
+        ), f"season {season}: max NNI {max(nni):.2f} (day {nni.index(max(nni)) + 1})"
+        # The crop still takes N up after emergence and tracks critical.
+        assert nni[-1] >= 0.9
+        assert orch.plant_n_stock_kg_ha > 0.0
