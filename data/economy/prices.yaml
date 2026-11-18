@@ -81,7 +81,7 @@ crop_prices:
   # = 2.14/kg (ton = 2,000 lb = 907.185 kg). 0.80 sits below both, on the
   # wine side; how far below is a #438 question, not this note's.
   # DO NOT "fix" grape's price. Grape out-earns the staples several-fold
-  # (scripts/economy_margins.py; current figures on PR #511), but that is a
+  # (scripts/economy_margins.py; current figures on PR #613), but that is a
   # missing perennial cost structure (#501) — it is costed as an
   # annual, so it pays no establishment, trellis or multi-year maintenance
   # cost. Cutting the price would hide that gap behind a compensating error
