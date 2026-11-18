@@ -13,9 +13,11 @@ class StubApi:
 	var step_calls: Array = []
 	var step_should_fail: bool = false
 
-	func execute_action(game_id: String, action: String, params: Dictionary, cb: Callable) -> void:
+	func execute_action(
+		game_id: String, field_id: String, action: String, params: Dictionary, cb: Callable
+	) -> void:
 		if action == "plant":
-			plant_calls.append({"game_id": game_id, "params": params})
+			plant_calls.append({"game_id": game_id, "field_id": field_id, "params": params})
 		cb.call(true, {})
 
 	func step_day(game_id: String, days: int, cb: Callable) -> void:
@@ -99,6 +101,8 @@ func test_start_runs_plant_then_step_then_show_sequence() -> void:
 	# StubApi resolves callbacks synchronously, so the demo runs to completion.
 	assert_eq(api.plant_calls.size(), 3, "auto-plants three demo crops")
 	assert_eq(api.plant_calls[0]["params"]["crop_key"], "maize")
+	var fields: Array = api.plant_calls.map(func(c: Dictionary) -> String: return c["field_id"])
+	assert_eq(fields, ["field_1", "field_1", "field_1"], "plants on field_1 (#548)")
 	assert_eq(api.step_calls.size(), 1, "fast-forwards once")
 	assert_eq(api.step_calls[0]["days"], 21, "steps 21 days")
 	assert_eq(applied.size(), 1, "applies the stepped result")

@@ -7,11 +7,11 @@ var _scene: PackedScene
 ## Records create_game and answers at once, so the hand-off needs no backend.
 class CreateStub:
 	extends Node
-	var patches: Array = []
+	var fields: Array = []
 	var ok: bool = true
 
-	func create_game(callback: Callable, patches_arg: Array = []) -> void:
-		patches = patches_arg
+	func create_game(callback: Callable, fields_arg: Array = []) -> void:
+		fields = fields_arg
 		callback.call(ok, {"game_id": "g-sahel"} if ok else {})
 
 
@@ -50,7 +50,7 @@ func test_main_exposes_scenario_helpers() -> void:
 	# main.gd wires the picker selection into create_game via these helpers.
 	var instance = _scene.instantiate()
 	assert_true(instance.has_method("_populate_scenarios"), "main should populate scenarios")
-	assert_true(instance.has_method("_selected_patches"), "main should resolve selected patches")
+	assert_true(instance.has_method("_selected_fields"), "main should resolve selected fields")
 	instance.free()
 
 
@@ -74,7 +74,7 @@ func test_new_game_hands_scenario_game_to_farm_view() -> void:
 	var main := _ready_main(stub, changes)
 	main.scenario_picker.selected = 2  # Sahel sorghum
 	main._on_new_game_pressed()
-	assert_eq(stub.patches, ScenarioCatalog.patches_for(2), "Sahel patches sent")
+	assert_eq(stub.fields, ScenarioCatalog.fields_for(2), "Sahel fields sent (#548)")
 	assert_eq(changes, [["res://scenes/farm_view.tscn", "g-sahel"]], "id stored before the change")
 	GameState.game_id = ""
 

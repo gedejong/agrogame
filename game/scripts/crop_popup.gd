@@ -20,16 +20,17 @@ func _init(crop_keys: Array[String]) -> void:
 
 
 ## Reset every item to its bare, selectable label, then queue one plant preview
-## per crop, in order, with params `params_for.call(crop_key)`. Previews share
-## ApiClient's FIFO queue (#523); with no game yet the items stay bare.
-func refresh_costs(api: Node, game_id: String, params_for: Callable) -> void:
+## per crop on `field_id`, in order, with params `params_for.call(crop_key)`.
+## Previews share ApiClient's FIFO queue (#523); with no game yet the items
+## stay bare.
+func refresh_costs(api: Node, game_id: String, field_id: String, params_for: Callable) -> void:
 	_generation += 1
 	for i in range(crops.size()):
 		set_item_text(i, crops[i].capitalize())
 		set_item_disabled(i, false)
 		if not game_id.is_empty():
 			var reply := _on_cost.bind(_generation, i)
-			api.preview_action(game_id, "plant", params_for.call(crops[i]), reply)
+			api.preview_action(game_id, field_id, "plant", params_for.call(crops[i]), reply)
 
 
 ## Label item `i` with a reply's cost, greyed out if unaffordable. A failed or

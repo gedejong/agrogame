@@ -436,7 +436,7 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 		return
 	_last_step_data = data
 	_apply_day_result(data)
-	_api_client.get_forecast(_game_id, _on_forecast_received)
+	_api_client.get_forecast(_game_id, FarmLayout.FIELD_ID, _on_forecast_received)
 	_refresh_action_costs()
 	if _cutaway.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
@@ -455,6 +455,7 @@ func _preview_action_at(i: int) -> void:
 	var spec: Dictionary = _PREVIEW_ACTIONS[i]
 	_api_client.preview_action(
 		_game_id,
+		FarmLayout.FIELD_ID,
 		spec["action"],
 		_preview_params_for(spec),
 		func(success: bool, data: Dictionary) -> void: _on_preview_cost(success, data, i)
@@ -601,7 +602,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 ## but Harvest the step that reply triggers, has been applied (#534).
 func _send_action(action: String, params: Dictionary, on_reply: Callable) -> void:
 	_set_buttons_disabled(true)
-	_api_client.execute_action(_game_id, action, params, on_reply)
+	_api_client.execute_action(_game_id, FarmLayout.FIELD_ID, action, params, on_reply)
 
 
 func _on_irrigate() -> void:
@@ -751,7 +752,7 @@ func _on_plant_pressed() -> void:
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to plant"
 		return
-	_crop_popup.refresh_costs(_api_client, _game_id, _plant_params)
+	_crop_popup.refresh_costs(_api_client, _game_id, FarmLayout.FIELD_ID, _plant_params)
 	var btn_rect := plant_btn.get_global_rect()
 	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
 	_crop_popup.popup()

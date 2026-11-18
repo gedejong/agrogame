@@ -36,19 +36,19 @@ func _populate_scenarios() -> void:
 	scenario_picker.selected = ScenarioCatalog.DEFAULT_ID
 
 
-## Patch configs for the currently selected scenario, falling back to the
+## Fields of the currently selected scenario (#548), falling back to the
 ## default when the selection is somehow out of range.
-func _selected_patches() -> Array:
+func _selected_fields() -> Array:
 	var option_id: int = scenario_picker.selected
 	if not ScenarioCatalog.is_valid(option_id):
-		return ScenarioCatalog.default_patches()
-	return ScenarioCatalog.patches_for(option_id)
+		return ScenarioCatalog.default_fields()
+	return ScenarioCatalog.fields_for(option_id)
 
 
 func _on_new_game_pressed() -> void:
 	status_label.text = "Creating game..."
 	new_game_button.disabled = true
-	api_client.create_game(_on_game_created, _selected_patches())
+	api_client.create_game(_on_game_created, _selected_fields())
 
 
 func _on_game_created(success: bool, data: Dictionary) -> void:

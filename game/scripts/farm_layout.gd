@@ -7,7 +7,8 @@ extends RefCounted
 ## results and per-patch actions map by index, never by soil name (two patches
 ## may share a soil).
 
-## The field the farm view renders. Other fields are #472's.
+## The field the farm view renders, and names on every field-scoped call (#548).
+## Other fields are #472's.
 const FIELD_ID := "field_1"
 ## Albedo and normal maps per texture class (moved from farm_view.gd).
 const SOIL_TEXTURES := {

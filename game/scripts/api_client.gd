@@ -51,22 +51,14 @@ func _ready() -> void:
 		_queues[endpoint] = []
 
 
-func create_game(callback: Callable, patches: Array = []) -> void:
-	## Create a game from a scenario's patch configs (issue #440). An empty
-	## `patches` falls back to the curated default scenario, so quick-start /
-	## skip_menu behaviour is unchanged.
-	var game_patches: Array = patches
-	if game_patches.is_empty():
-		game_patches = ScenarioCatalog.default_patches()
-	var body := (
-		JSON
-		. stringify(
-			{
-				"fields": [{"field_id": "field_1", "patches": game_patches}],
-				"starting_credits": 10000,
-			}
-		)
-	)
+func create_game(callback: Callable, fields: Array = []) -> void:
+	## Create a game from a scenario's fields, each {field_id, patches} (#440,
+	## #548). An empty `fields` falls back to the curated default scenario, so
+	## quick-start / skip_menu behaviour is unchanged.
+	var game_fields: Array = fields
+	if game_fields.is_empty():
+		game_fields = ScenarioCatalog.default_fields()
+	var body := JSON.stringify({"fields": game_fields, "starting_credits": 10000})
 	_enqueue("create", BASE_URL + "/games", HTTPClient.METHOD_POST, body, callback)
 
 
@@ -83,25 +75,28 @@ func step_day(game_id: String, days: int, callback: Callable) -> void:
 	_enqueue("step", url, HTTPClient.METHOD_POST, "", callback)
 
 
+## The field-scoped calls name their field, with no default, so a caller can
+## never act on, price or forecast a field it did not choose (#548).
 func execute_action(
-	game_id: String, action: String, params: Dictionary, callback: Callable
+	game_id: String, field_id: String, action: String, params: Dictionary, callback: Callable
 ) -> void:
-	var req := {"field_id": "field_1", "action": action, "params": params}
+	var req := {"field_id": field_id, "action": action, "params": params}
 	var url := BASE_URL + "/games/" + game_id + "/action"
 	_enqueue("action", url, HTTPClient.METHOD_POST, JSON.stringify(req), callback)
 
 
 func preview_action(
-	game_id: String, action: String, params: Dictionary, callback: Callable
+	game_id: String, field_id: String, action: String, params: Dictionary, callback: Callable
 ) -> void:
 	## Fetch an action's estimated cost + affordability without executing it (#318).
-	var req := {"field_id": "field_1", "action": action, "params": params}
+	var req := {"field_id": field_id, "action": action, "params": params}
 	var url := BASE_URL + "/games/" + game_id + "/action/preview"
 	_enqueue("preview", url, HTTPClient.METHOD_POST, JSON.stringify(req), callback)
 
 
-func get_forecast(game_id: String, callback: Callable) -> void:
-	var url := BASE_URL + "/games/" + game_id + "/forecast"
+## The forecast, anchored on `field_id`'s first patch (#551).
+func get_forecast(game_id: String, field_id: String, callback: Callable) -> void:
+	var url := BASE_URL + "/games/" + game_id + "/forecast?field_id=" + field_id.uri_encode()
 	_enqueue("forecast", url, HTTPClient.METHOD_GET, "", callback)
 
 
