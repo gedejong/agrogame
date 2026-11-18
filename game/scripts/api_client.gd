@@ -3,9 +3,13 @@ extends Node
 ## Configured for local development at localhost:8000.
 
 const BASE_URL := "http://localhost:8000/api/v1"
+## Days one Run Season asks /step for: the backend's weather window
+## (DEFAULT_SEASON_DAYS, agrogame/api/state.py), so a Run ends at the window's
+## end from any day (#537). /step returns a snapshot per day, so this also caps
+## the response size (#531).
+const RUN_SEASON_DAYS := 200
 
 var _http_request: HTTPRequest
-var _season_request: HTTPRequest
 var _step_request: HTTPRequest
 var _action_request: HTTPRequest
 var _preview_request: HTTPRequest
@@ -13,7 +17,6 @@ var _forecast_request: HTTPRequest
 var _report_request: HTTPRequest
 var _game_request: HTTPRequest
 var _callback: Callable
-var _season_callback: Callable
 var _step_callback: Callable
 var _action_callback: Callable
 var _forecast_callback: Callable
@@ -31,9 +34,6 @@ func _ready() -> void:
 	_http_request = HTTPRequest.new()
 	add_child(_http_request)
 	_http_request.request_completed.connect(_on_request_completed)
-	_season_request = HTTPRequest.new()
-	add_child(_season_request)
-	_season_request.request_completed.connect(_on_season_completed)
 	_step_request = HTTPRequest.new()
 	_step_request.download_chunk_size = 65536
 	add_child(_step_request)
@@ -76,43 +76,21 @@ func _on_request_completed(
 	_dispatch_callback(_callback, result, response_code, body)
 
 
-func start_season(game_id: String, callback: Callable) -> void:
-	_season_callback = callback
-	(
-		_season_request
-		. request(
-			BASE_URL + "/games/" + game_id + "/start-season?days=150&seed=42",
-			["Content-Type: application/json"],
-			HTTPClient.METHOD_POST,
-			"",
-		)
-	)
-
-
-## Run Season (#487): /start-season only sets the season up, so every day of
-## the generated series is stepped through /step, the single day loop.
-## callback receives the final /step result (season_complete at its end).
+## Run Season (#537): one /step for RUN_SEASON_DAYS, and nothing else. The
+## backend clamps it to the days left in the weather window, and rolls a
+## finished window over exactly as Next Day does. callback receives the /step
+## result, as Next Day's does.
 func run_season(game_id: String, callback: Callable) -> void:
-	start_season(
-		game_id,
-		func(success: bool, data: Dictionary) -> void:
-			var days: int = int(data.get("season_days", 0))
-			if not success or days <= 0:
-				callback.call(false, {})
-				return
-			step_day(game_id, days, callback)
-	)
-
-
-func _on_season_completed(
-	result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray
-) -> void:
-	_dispatch_callback(_season_callback, result, response_code, body)
+	step_day(game_id, RUN_SEASON_DAYS, callback)
 
 
 func step_day(game_id: String, days: int, callback: Callable) -> void:
 	_step_callback = callback
-	var url := BASE_URL + "/games/" + game_id + "/step?days=" + str(days)
+	_send_step(BASE_URL + "/games/" + game_id + "/step?days=" + str(days))
+
+
+## The step path's only network call; tests override it to stub the transport.
+func _send_step(url: String) -> void:
 	_step_request.request(url, ["Content-Type: application/json"], HTTPClient.METHOD_POST, "")
 
 
