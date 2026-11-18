@@ -214,6 +214,39 @@ def test_forecast_unknown_field_is_404_without_side_effects(client) -> None:
             ["kenya_highlands", "sahel_arid"],
             id="two-climates-in-one-field",
         ),
+        # #552: an empty ``fields`` list used to create a session that
+        # ``/forecast`` then failed on with a 500.
+        pytest.param([], ["fields", "at least one field"], id="no-fields"),
+        # #552: 0.5 + 0.3 = 0.8, outside FieldManager's 1.0 ± 0.01.
+        pytest.param(
+            [
+                {
+                    "field_id": "field_1",
+                    "patches": [
+                        {**_patch("loam_temperate", "maize"), "area_fraction": 0.5},
+                        {**_patch("clay_temperate", "maize"), "area_fraction": 0.3},
+                    ],
+                }
+            ],
+            ["field_1", "0.800", "1.0 ± 0.01"],
+            id="area-fractions-off-sum",
+        ),
+        # #552: the detail names the field, the bad key and every valid key.
+        pytest.param(
+            [
+                {
+                    "field_id": "field_1",
+                    "patches": [_patch("loam_temperate", "maize", "atlantis")],
+                }
+            ],
+            [
+                "field_1",
+                "patch 0",
+                "'atlantis'",
+                "['kenya_highlands', 'netherlands_temperate', 'sahel_arid']",
+            ],
+            id="unknown-climate",
+        ),
     ],
 )
 def test_create_rejects_an_unholdable_game_with_422(
@@ -232,6 +265,49 @@ def test_create_rejects_an_unholdable_game_with_422(
     detail = resp.json()["detail"]
     for name in named:
         assert name in detail
+
+
+@pytest.mark.parametrize(
+    ("second_fraction", "accepted"),
+    [
+        pytest.param(0.485, False, id="sum-0.985"),
+        pytest.param(0.495, True, id="sum-0.995"),
+        pytest.param(0.505, True, id="sum-1.005"),
+        pytest.param(0.515, False, id="sum-1.015"),
+    ],
+)
+def test_create_accepts_the_area_sums_field_manager_accepts(
+    client, second_fraction: float, accepted: bool
+) -> None:
+    """#552: the API's area-sum bound is FieldManager's, |sum - 1| <= 0.01.
+
+    Each split is put to both the API and ``Field`` directly, so a sum inside
+    the tolerance still creates a game and one outside it is a 422, not a 500.
+    """
+    from agrogame.api.state import games
+    from agrogame.game.field import Field, PatchConfig
+
+    patches = [
+        {**_patch("loam_temperate", "maize"), "area_fraction": 0.5},
+        {**_patch("clay_temperate", "maize"), "area_fraction": second_fraction},
+    ]
+    configs = [PatchConfig(**p) for p in patches]
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [{"field_id": "field_1", "patches": patches}],
+            "starting_credits": _START_CREDITS,
+        },
+    )
+    if accepted:
+        assert resp.status_code == 200, resp.text
+        assert len(games) == 1
+        Field("field_1", configs)
+    else:
+        assert resp.status_code == 422, resp.text
+        assert len(games) == 0
+        with pytest.raises(ValueError, match="must sum to 1.0"):
+            Field("field_1", configs)
 
 
 # ---------------------------------------------------------------------------
