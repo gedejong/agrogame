@@ -19,6 +19,7 @@ const METERS_PER_TILE := 2.0
 const WIND_SCALE_MAX_MS := 8.0
 const WIND_MIN_STRENGTH := 0.05
 
+const LOAD_RETRY_MAX_S := 30.0  # the longest wait between layout-load retries (#564)
 const SOM_MAX_C_G_M2 := 5000.0
 const THETA_SATURATED := 0.45
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
@@ -80,6 +81,9 @@ var _title_delay_s: float = 2.0
 ## a /step, or an /action and the step its reply triggers), and cleared only by
 ## the reply that releases it, so nothing landing meanwhile re-enables a button (#534).
 var _bar_held: bool = false
+var _releases: int = 0  # times the bar was released; see _on_reconciled (#564)
+var _load_failures: int = 0  # failed layout loads in a row (#564)
+var _load_retry_s: float = 1.0  # the first layout-load retry's delay; doubles per failure
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -208,8 +212,15 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 		var title := "res://scenes/main.tscn"
 		get_tree().create_timer(_title_delay_s).timeout.connect(_change_scene.bind(title))
 	elif not success or patches.is_empty():
-		status_label.text = "Error: could not load game %s" % _game_id
+		# The bar stays held (#516), so retry on our own, backing off (#564).
+		var delay: float = minf(_load_retry_s * pow(2.0, _load_failures), LOAD_RETRY_MAX_S)
+		_load_failures += 1
+		status_label.text = "Error: could not load game %s, retrying in %.0f s" % [_game_id, delay]
+		get_tree().create_timer(delay).timeout.connect(_load_layout)
 	else:
+		if _load_failures > 0:  # replace the retry notice
+			status_label.text = "Game %s loaded" % _game_id
+		_load_failures = 0
 		_apply_layout(patches)
 		_set_buttons_disabled(false)
 
@@ -378,6 +389,7 @@ func _set_buttons_disabled(disabled: bool) -> void:
 	if disabled:
 		harvest_btn.disabled = true
 	else:
+		_releases += 1
 		_update_harvest_button()
 
 
@@ -705,7 +717,7 @@ func _on_harvest_complete(
 ) -> void:
 	_set_buttons_disabled(false)
 	if not success:
-		status_label.text = "Harvest failed"
+		_reconcile("Harvest failed")
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
@@ -778,7 +790,7 @@ func _on_crop_selected(id: int) -> void:
 func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch_idx: int) -> void:
 	if not success:
 		_set_buttons_disabled(false)
-		status_label.text = "Plant failed"
+		_reconcile("Plant failed")
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
@@ -795,13 +807,32 @@ func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch
 func _on_action_complete(success: bool, data: Dictionary) -> void:
 	if not success:
 		_set_buttons_disabled(false)
-		status_label.text = "Action failed"
+		_reconcile("Action failed")
 		return
 	var action: String = data.get("action", "")
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "Credits: %d" % data.get("balance_credits", 0)
 	status_label.text = "%s — %d credits" % [action, cost]
 	_step_days(1)
+
+
+## Show `failure` and re-read the game, which the server may have changed anyway (#564).
+func _reconcile(failure: String) -> void:
+	status_label.text = failure
+	_api_client.get_game(_game_id, _on_reconciled.bind(failure, _releases))
+
+
+## Take the server's balance and crops as the truth, unless a newer reply has released the bar.
+func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) -> void:
+	if not ok or releases != _releases or not data.has("balance_credits"):
+		return
+	status_label.text = "%s; credits and crops re-read from the server" % failure
+	_balance_credits = data["balance_credits"]
+	credits_label.text = "%d" % _balance_credits
+	for i: int in FarmTiles.reconcile_crops(data.get("fields", {}), _tile_data):
+		_update_crop_visuals(i)
+	_update_harvest_button()
+	_refresh_action_costs()
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:

@@ -130,3 +130,51 @@ func test_builder_yields_36_tiles_at_todays_positions() -> void:
 		assert_eq(
 			[data["col"], data["row"], data["crop_key"], data["crop_stage"]], [col, row, "", 0]
 		)
+
+
+## Six tiles, one per column, of a 1.2-DVS maize crop, laid out as the default
+## scenario's field_1: columns 0-1 are patch 0, 2-3 patch 1 and 4-5 patch 2.
+func _laid_out_maize() -> Array:
+	var tiles: Array = []
+	var mats: Array = []
+	for col in range(6):
+		var tile := {"col": col, "crop_key": "maize", "crop_stage": 3, "lai": 2.5}
+		tile.merge({"lai_peak": 3.0, "dev_stage": 1.2, "grain_g_m2": 40.0})
+		tiles.append(tile)
+		mats.append(ShaderMaterial.new())
+	FarmLayout.assign_tiles(ScenarioCatalog.default_patches(), tiles, mats, 6)
+	return tiles
+
+
+func _column(tiles: Array, key: String) -> Array:
+	return tiles.map(func(t: Dictionary) -> Variant: return t[key])
+
+
+func test_reconcile_crops_matches_tiles_by_field_and_patch() -> void:
+	# #564: after a failed action, GET /games/{id}'s crops are the truth. A tile
+	# is matched by its field_id and patch_idx, so field_2's patch 0 never lands
+	# on field_1's patch 0, and only the tiles whose crop differs are rewritten.
+	var tiles := _laid_out_maize()
+	assert_eq(
+		_column(tiles, "field_id"),
+		["field_1", "field_1", "field_1", "field_1", "field_1", "field_1"]
+	)
+	var fields := {
+		"field_2": [{"crop_key": "rice"}],
+		"field_1": [{"crop_key": "maize"}, {"crop_key": ""}, {"crop_key": "sorghum"}],
+	}
+	assert_eq(FarmTiles.reconcile_crops(fields, tiles), [2, 3, 4, 5], "patches 1 and 2 changed")
+	assert_eq(_column(tiles, "crop_key"), ["maize", "maize", "", "", "sorghum", "sorghum"])
+	# Patch 0 keeps its growth; patch 1 is bare and patch 2 freshly sown, as a
+	# Harvest and a Plant reply leave them, with nothing of the old crop's left.
+	assert_eq(_column(tiles, "crop_stage"), [3, 3, 0, 0, 1, 1])
+	assert_eq(_column(tiles, "lai"), [2.5, 2.5, 0.0, 0.0, 0.0, 0.0])
+	assert_eq(_column(tiles, "lai_peak"), [3.0, 3.0, 0.0, 0.0, 0.0, 0.0])
+	assert_eq(_column(tiles, "dev_stage"), [1.2, 1.2, -1.0, -1.0, -1.0, -1.0])
+	assert_eq(_column(tiles, "grain_g_m2"), [40.0, 40.0, 0.0, 0.0, 0.0, 0.0])
+	# A second pass over the same truth changes nothing.
+	assert_eq(FarmTiles.reconcile_crops(fields, tiles), [], "idempotent")
+	# Tiles of a field the payload lacks, or of a patch past its list, are kept.
+	assert_eq(FarmTiles.reconcile_crops({"field_2": [{"crop_key": ""}]}, tiles), [])
+	assert_eq(FarmTiles.reconcile_crops({"field_1": [{"crop_key": "rice"}]}, tiles), [0, 1])
+	assert_eq(_column(tiles, "crop_key"), ["rice", "rice", "", "", "sorghum", "sorghum"])
