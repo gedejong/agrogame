@@ -28,6 +28,13 @@ external automation. In-memory game sessions are keyed by `game_id`.
   - a patch's `climate_key` is not a climate preset (the detail names the
     field, the patch index and the valid keys, currently `kenya_highlands`,
     `netherlands_temperate` and `sahel_arid`);
+  - a patch's `crop_key` is not a crop preset, or its `soil_profile_key` is
+    not a soil preset (the detail names the field, the patch index and the
+    valid keys). An empty `crop_key` is a bare, fallow patch (#542) and is
+    accepted;
+  - a patch's `area_fraction` lies outside (0, 1] (the detail names the field,
+    the patch index and the value), even when the field still sums to 1, so a
+    1.5 / -0.5 split or a zero-area patch is rejected;
   - a field's patch `area_fraction`s do not sum to 1.0 within ±0.01, so the
     sum must lie in [0.99, 1.01] (the detail names the field, the sum and the
     tolerance). This is the bound `FieldManager` enforces
@@ -36,11 +43,12 @@ external automation. In-memory game sessions are keyed by `game_id`.
   - the patches carry more than one distinct `climate_key` (the detail lists
     them). Weather is farm-level, so a game has one climate (ADR-002).
 
-  A duplicate `field_id`, an empty `patches` list, an unknown climate and an
-  off-sum area split used to fail with a 500. An empty `fields` list used to
-  create a session whose `/forecast` then failed with a 500. A second climate
-  used to be accepted and then ignored, because weather follows the first
-  patch's climate.
+  A duplicate `field_id`, an empty `patches` list, an unknown climate, crop or
+  soil key and an off-sum area split used to fail with a 500. An empty
+  `fields` list used to create a session whose `/forecast` then failed with a
+  500, and an out-of-range patch area used to be accepted whenever the field
+  summed to 1. A second climate used to be accepted and then ignored, because
+  weather follows the first patch's climate.
 - `POST /api/v1/games/{game_id}/start-season` — set up a season (crop and
   ledger reset from season 2 on, seeded weather) **without stepping**; see below
 - `POST /api/v1/games/{game_id}/step` — advance N days, returning daily snapshots
