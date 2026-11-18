@@ -80,8 +80,7 @@ seed 42, day 40, 2024-05-10); values are sent unrounded:
 evapotranspiration, the model's counterpart of FAO-56's
 ETc adj = (Ks·Kcb + Ke)·ET0 (Eq. 80). The engine partitions ET0 by canopy
 cover rather than by crop coefficients, so no Kc or Kcb appears in the
-payload. (The class docstring still describes the ET0 of before #414 as 2–4×
-FAO-56; #570 corrects it.)
+payload.
 
 ### Nitrogen Cycle
 

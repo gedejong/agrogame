@@ -18,10 +18,10 @@ class EvapotranspirationComputed(BaseEvent):
     without reaching into runtime internals.
 
     Attributes:
-        et0_mm: Reference evapotranspiration for the day (mm). NOTE: the model's
-            Priestley-Taylor ET0 is *not* FAO-56-calibrated — it treats full
-            shortwave as net radiation, so it runs ~2-4× the FAO-56 range
-            (tracked separately, #414/#418). Do not bound this against FAO-56.
+        et0_mm: Reference evapotranspiration for the day (mm). Priestley-Taylor
+            (Priestley & Taylor 1972; alpha = 1.26) on net radiation
+            Rn = 0.6·Rs (ADR-014; FAO-56 Eqs. 38-40), not the FAO-56
+            Penman-Monteith ET0: it has no aerodynamic (wind x VPD) term.
         evaporation_mm: Actual soil evaporation supplied this day (mm).
         transpiration_mm: Actual crop transpiration supplied this day (mm).
     """
