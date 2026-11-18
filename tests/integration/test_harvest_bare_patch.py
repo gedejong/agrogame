@@ -104,8 +104,8 @@ def test_harvested_patch_evolves_as_the_reset_control() -> None:
     run.step(150)
     assert all(run.state(i) == run.state(i, no_harvest) for i in range(3))
     run.act("harvest")
-    # AC2: the harvested crop's roots are gone; the patch restarts at seedling depth.
-    assert run.patch(0).orch.root_state.current_depth_cm == 5.0
+    # AC2: the harvested crop's roots are gone. A bare patch has none (#542).
+    assert run.patch(0).orch.root_state.current_depth_cm == 0.0
     for days in (1, 9, 40, 50):
         run.step(days)
         assert run.state(0) == run.state(0, reset_ctl), f"day {run.day}"  # AC1
@@ -167,3 +167,37 @@ def test_two_cycles_harvest_fallow_plant_harvest(tmp_path, monkeypatch) -> None:
     run.step(40)
     for i in range(3):
         _within_a1(run.patch(i), run.patch(i, run.ctl[0]))
+
+
+# #542: the plant events, and the plant-stress events the client draws as a
+# crop icon (stress_icons.gd, farm_view.gd). A bare patch emits neither.
+PLANT_EVENTS = frozenset(
+    "StageChanged GddAccumulated RootDepthChanged RootDistributionUpdated "
+    "RootBiomassUpdated RootTurnoverOccurred BiomassAccumulated LAIUpdated "
+    "LightIntercepted FrostDamageApplied HeatDamageApplied WaterStressComputed "
+    "NutrientStressComputed".split()
+)
+
+
+def test_bare_patch_reports_no_plant() -> None:
+    """#542 AC7: stage, roots, LAI, events and forecast of a harvested patch."""
+    from agrogame.api.routes import _projection_inputs
+
+    run = Run(season_days=150)
+    run.step(110)
+    run.act("harvest")
+    for _ in range(30):
+        resp = run.step(1)
+        bare = [d for d in resp["daily_snapshots"] if d["patch_idx"] == 0]
+        p0 = resp["patches"]["f1"][0]
+        assert len(bare) == 1 and p0["root_depth_cm"] == 0.0
+        for rec in (*bare, p0):
+            assert (rec["crop_stage"], rec["dev_stage"], rec["lai"]) == ("", 0.0, 0.0)
+            assert rec["events"]
+            assert not {e["event_type"] for e in rec["events"]} & PLANT_EVENTS
+        assert resp["patches"]["f1"][1]["crop_stage"] != ""
+        inputs = _projection_inputs(run.patch(0))
+        assert (inputs.root_depth_cm, inputs.root_growth_rate_cm_per_day) == (0, 0)
+        forecast = run.client.get(f"/api/v1/games/{run.gid}/forecast").json()
+        days = forecast["forecast"]
+        assert {(d["mineral_n_kg_ha"], d["water_stress"]) for d in days} == {(0, 1)}

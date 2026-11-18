@@ -22,6 +22,9 @@ class MicronutrientRuntime:
     )
     _last_biomass_inc: float = 0.0
     _root_fractions: list[float] | None = None
+    # False on a bare fallow (#542): pools still equilibrate, but there is no
+    # plant demand, so no uptake and no NutrientStressComputed.
+    plant_present: bool = True
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
@@ -59,6 +62,9 @@ class MicronutrientRuntime:
 
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":
+            return
+        if not self.plant_present:
+            self.cycle.equilibrate()
             return
         self.cycle.daily_step(
             biomass_inc_g_m2=self._last_biomass_inc,

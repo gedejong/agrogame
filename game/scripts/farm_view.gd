@@ -62,7 +62,7 @@ var _tile_meshes: Array[MeshInstance3D] = []
 var _tile_data: Array[Dictionary] = []
 var _tile_materials: Array[ShaderMaterial] = []
 var _crop_sprites: Array[Array] = []
-var _crop_popup: PopupMenu = null
+var _crop_popup: CropPopup = null
 var _fertilizer_popup: PopupMenu = null
 var _lime_popup: LimePopup = null
 var _cutaway := SoilCutawayController.new()
@@ -867,10 +867,7 @@ func _on_harvest_report_received(success: bool, _data: Dictionary) -> void:
 
 
 func _setup_crop_popup() -> void:
-	_crop_popup = PopupMenu.new()
-	for i in range(AVAILABLE_CROPS.size()):
-		var crop_key: String = AVAILABLE_CROPS[i]
-		_crop_popup.add_item(crop_key.capitalize(), i)
+	_crop_popup = CropPopup.new(AVAILABLE_CROPS)
 	_crop_popup.id_pressed.connect(_on_crop_selected)
 	UiTheme.style_popup_menu(_crop_popup)
 	$UILayer.add_child(_crop_popup)
@@ -880,27 +877,29 @@ func _on_plant_pressed() -> void:
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to plant"
 		return
+	_crop_popup.refresh_costs(_api_client, _game_id, _plant_params)
 	var btn_rect := plant_btn.get_global_rect()
 	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
 	_crop_popup.popup()
+
+
+func _plant_params(crop_key: String) -> Dictionary:
+	## What planting `crop_key` on the selected tile sends; the crop popup
+	## previews the same params, so each item's cost is the charge (#525).
+	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
+	return {"crop_key": crop_key, "patch_idx": _tile_data[idx]["patch_idx"]}
 
 
 func _on_crop_selected(id: int) -> void:
 	if id < 0 or id >= AVAILABLE_CROPS.size():
 		return
 	var crop_key: String = AVAILABLE_CROPS[id]
-	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-	var patch_idx: int = _tile_data[idx]["patch_idx"]
+	var params := _plant_params(crop_key)
+	var patch_idx: int = params["patch_idx"]
 	_ensure_game(
 		func() -> void:
-			(
-				_api_client
-				. execute_action(
-					_game_id,
-					"plant",
-					{"crop_key": crop_key, "patch_idx": patch_idx},
-					_on_plant_complete.bind(crop_key, patch_idx),
-				)
+			_api_client.execute_action(
+				_game_id, "plant", params, _on_plant_complete.bind(crop_key, patch_idx)
 			)
 	)
 
