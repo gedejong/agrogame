@@ -15,6 +15,12 @@ on:
       # Presets the engine reads at runtime (data/crops, climate, soils,
       # economy): a data-only recalibration must run the realism suite (#573).
       - 'data/**'
+      # This job collects every test module, and Python tests read docs/
+      # (#573). pytest reads its config from pyproject.toml, and the job
+      # installs from poetry.lock.
+      - 'docs/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
       - '.github/workflows/benchmarks.yml'
 
 jobs:
