@@ -22,6 +22,7 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -31,7 +32,6 @@ pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
-from httpx import Response  # noqa: E402
 
 from agrogame.api.app import create_app  # noqa: E402
 from agrogame.api.routes import (  # noqa: E402
@@ -471,7 +471,7 @@ PLANT_CHARGES = {
 
 def _act(
     client: TestClient, game_id: str, action: str, params: dict, preview: bool = False
-) -> Response:
+) -> Any:  # an httpx.Response
     path = "action/preview" if preview else "action"
     body = {"field_id": "field_1", "action": action, "params": params}
     return client.post(f"/api/v1/games/{game_id}/{path}", json=body)
