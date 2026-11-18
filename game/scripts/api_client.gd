@@ -17,10 +17,27 @@ const RUN_SEASON_DAYS := 200
 const _ENDPOINTS: Array[String] = [
 	"create", "game", "step", "action", "preview", "forecast", "report"
 ]
+## Seconds a sent call may await its reply before the client gives up on it
+## (#556); without one, a backend that hangs holds the bar #534 keeps disabled
+## until a reply is applied. Measured on an M1 Pro: Run Season's 200-day /step
+## (16.3 MB, 1.9 s on the backend) took 6.2 s client-side at 60 fps and 14.7 s
+## at 20 fps, since HTTPRequest reads one download_chunk_size chunk per frame;
+## 120 s leaves 8x at 20 fps. Every other endpoint answered in under 0.1 s, so
+## 10 s leaves 100x.
+const TIMEOUT_S: Dictionary = {
+	"create": 10.0,
+	"game": 10.0,
+	"step": 120.0,
+	"action": 10.0,
+	"preview": 10.0,
+	"forecast": 10.0,
+	"report": 10.0,
+}
 
 var _requests: Dictionary = {}  # endpoint -> its HTTPRequest
 var _queues: Dictionary = {}  # endpoint -> Array of waiting entries
 var _in_flight: Dictionary = {}  # endpoint -> the entry sent; no key when idle
+var _sends: int = 0  # successful sends so far; numbers each entry in flight
 
 
 func _ready() -> void:
@@ -108,26 +125,57 @@ func _enqueue(
 	_send_next(endpoint)
 
 
-## Send the endpoint's oldest waiting call unless one is in flight. A send
-## request() rejects fails its own call only, and the queue moves on (#523).
+## Send the endpoint's oldest waiting call unless one is in flight, and give it
+## the endpoint's timeout to be answered in (#556). A send request() rejects
+## fails its own call only, and the queue moves on (#523).
 func _send_next(endpoint: String) -> void:
 	var queue: Array = _queues[endpoint]
 	while not _in_flight.has(endpoint) and not queue.is_empty():
 		var entry: Dictionary = queue.pop_front()
 		if _send(endpoint, entry["url"], entry["method"], entry["body"]) == OK:
 			_in_flight[endpoint] = entry
+			_sends += 1
+			entry["send"] = _sends
+			var timer := get_tree().create_timer(_timeout_s(endpoint))
+			timer.timeout.connect(_on_timed_out.bind(endpoint, _sends))
 			return
 		var callback: Callable = entry["callback"]
 		callback.call(false, {})
 
 
-## The client's only network call; tests override it to stub the transport.
+## The client's network calls, _send and _cancel; tests override both to stub
+## the transport.
 func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
 	var headers: PackedStringArray = []
 	if method == HTTPClient.METHOD_POST:
 		headers.append("Content-Type: application/json")
 	var http: HTTPRequest = _requests[endpoint]
 	return http.request(url, headers, method, body)
+
+
+func _cancel(endpoint: String) -> void:
+	var http: HTTPRequest = _requests[endpoint]
+	http.cancel_request()
+
+
+## How long `endpoint`'s calls may await a reply; tests override it to wait less.
+func _timeout_s(endpoint: String) -> float:
+	return TIMEOUT_S[endpoint]
+
+
+## Send number `send` on `endpoint` has gone unanswered for its whole timeout,
+## unless it has been answered since, when this does nothing. HTTPRequest emits
+## a reply from a deferred call, which SceneTree flushes before it runs timers,
+## so a reply completed this frame has already landed; cancelling closes the
+## connection, so none can land later (#556). The call then fails like any
+## transport error: its caller hears back once, and the endpoint's queue moves on.
+func _on_timed_out(endpoint: String, send: int) -> void:
+	var entry: Dictionary = _in_flight.get(endpoint, {})
+	if entry.get("send", 0) != send:
+		return
+	push_warning("[API] %s timed out; cancelled" % endpoint)
+	_cancel(endpoint)
+	_on_completed(HTTPRequest.RESULT_TIMEOUT, 0, PackedStringArray(), PackedByteArray(), endpoint)
 
 
 ## An endpoint's reply. The call leaves the queue before its callback runs, so
