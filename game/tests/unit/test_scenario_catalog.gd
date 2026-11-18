@@ -51,10 +51,13 @@ func test_label_out_of_range_is_empty() -> void:
 
 func test_all_scenario_keys_are_real_presets() -> void:
 	for i in range(ScenarioCatalogScript.option_count()):
-		for patch in ScenarioCatalogScript.patches_for(i):
-			assert_has(VALID_CROPS, patch["crop_key"], "crop_key must be a real preset")
-			assert_has(VALID_CLIMATES, patch["climate_key"], "climate_key must be a real preset")
-			assert_has(VALID_SOILS, patch["soil_profile_key"], "soil key must be a real preset")
+		for field: Dictionary in ScenarioCatalogScript.fields_for(i):
+			for patch in field["patches"]:
+				assert_has(VALID_CROPS, patch["crop_key"], "crop_key must be a real preset")
+				assert_has(
+					VALID_CLIMATES, patch["climate_key"], "climate_key must be a real preset"
+				)
+				assert_has(VALID_SOILS, patch["soil_profile_key"], "soil key must be a real preset")
 
 
 func test_area_fractions_sum_to_one() -> void:
@@ -114,3 +117,74 @@ func test_accessors_match_first_patch() -> void:
 	assert_gt(kenya_rice_idx, -1, "Catalog should include a rice scenario")
 	assert_eq(ScenarioCatalogScript.climate_for(kenya_rice_idx), "kenya_highlands")
 	assert_eq(ScenarioCatalogScript.soil_for(kenya_rice_idx), "clay_temperate")
+
+
+func test_every_scenario_is_a_list_of_fields() -> void:
+	# #548 AC3: {label, fields: [{field_id, patches}]}, at least one field, unique
+	# ids, each field at least one patch with areas summing to 1, and one climate
+	# per scenario (the backend runs one weather series per game, #551).
+	for i in range(ScenarioCatalogScript.option_count()):
+		assert_eq(ScenarioCatalogScript.SCENARIOS[i].keys(), ["label", "fields"], "scenario %d" % i)
+		var fields: Array = ScenarioCatalogScript.fields_for(i)
+		assert_gt(fields.size(), 0, "scenario %d has a field" % i)
+		var ids: Array = []
+		var climates: Dictionary = {}
+		for field: Dictionary in fields:
+			assert_eq(field.keys(), ["field_id", "patches"], "scenario %d field" % i)
+			assert_does_not_have(ids, field["field_id"], "scenario %d: unique field ids" % i)
+			ids.append(field["field_id"])
+			var patches: Array = field["patches"]
+			assert_gt(patches.size(), 0, "scenario %d %s has a patch" % [i, field["field_id"]])
+			var total: float = 0.0
+			for patch: Dictionary in patches:
+				total += patch["area_fraction"]
+				climates[patch["climate_key"]] = true
+			assert_almost_eq(total, 1.0, 0.01, "scenario %d %s areas" % [i, field["field_id"]])
+		assert_eq(climates.size(), 1, "scenario %d has one climate" % i)
+		assert_eq(fields[0]["patches"], ScenarioCatalogScript.patches_for(i), "first field's")
+
+
+func test_default_fields_are_the_historical_one_field_nl_maize() -> void:
+	# #548 AC3: quick-start's create body, pinned literally.
+	var nl := "netherlands_temperate"
+	var expected := [
+		{
+			"field_id": "field_1",
+			"patches":
+			[
+				{
+					"soil_profile_key": "sandy_temperate",
+					"crop_key": "maize",
+					"climate_key": nl,
+					"area_fraction": 0.333,
+				},
+				{
+					"soil_profile_key": "loam_temperate",
+					"crop_key": "maize",
+					"climate_key": nl,
+					"area_fraction": 0.334,
+				},
+				{
+					"soil_profile_key": "clay_temperate",
+					"crop_key": "maize",
+					"climate_key": nl,
+					"area_fraction": 0.333,
+				},
+			],
+		},
+	]
+	assert_eq(ScenarioCatalogScript.default_fields(), expected)
+	assert_eq(ScenarioCatalogScript.fields_for(ScenarioCatalogScript.DEFAULT_ID), expected)
+	assert_eq(ScenarioCatalogScript.default_patches(), expected[0]["patches"])
+
+
+func test_fields_for_out_of_range_is_empty_and_in_range_a_copy() -> void:
+	assert_eq(ScenarioCatalogScript.fields_for(-1), [], "below range")
+	var n: int = ScenarioCatalogScript.option_count()
+	assert_eq(ScenarioCatalogScript.fields_for(n), [], "above range")
+	var first: Array = ScenarioCatalogScript.default_fields()
+	first[0]["field_id"] = "mutated"
+	first[0]["patches"][0]["crop_key"] = "mutated"
+	var second: Array = ScenarioCatalogScript.default_fields()
+	assert_eq(second[0]["field_id"], "field_1", "catalog field ids are immutable to callers")
+	assert_eq(second[0]["patches"][0]["crop_key"], "maize", "and so are its patches")
