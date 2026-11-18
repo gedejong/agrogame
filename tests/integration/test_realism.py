@@ -512,18 +512,29 @@ def test_irrigated_beats_rainfed_in_arid_sahel() -> None:
     the water constraint. Measured seed=42: rainfed ~1212 -> irrigated ~1792
     g/m², a 1.48x lift, clearing the >1.3x FAO-56 threshold with margin. The
     >1.3x threshold and the arid water-response semantics are unchanged.
+
+    #560 ruling R4 (ADR-019): both arms sow on 2024-11-01, in the dry season.
+    On the Niamey station normals a 1 June sowing grows through the monsoon
+    (July-August Tmax 33-34 C, not the legacy sinusoid's ~41 C), where a
+    fertilised crop is barely water-limited: with nutrients supplied, Sahelian
+    production above about 300 mm of rain is nutrient-, not water-limited
+    (Breman & de Wit 1983, Science 221:1341-1347). The June lift fell to 1.04x
+    (0.96-1.10x, seeds 42-46). Dry-season irrigated maize is where the
+    water-response invariant applies. Measured seed=42: rainfed ~90 ->
+    irrigated ~1088 g/m², 12.0x (10.5-23.5x, seeds 42-46). The >1.3x threshold
+    is unchanged.
     """
     rainfed = _run_managed_scenario(
         "maize",
         "sahel_arid",
-        date(2024, 6, 1),
+        date(2024, 11, 1),
         s_fertilizer_kg_ha=60.0,
         fertilizer_kg_ha=200.0,
     )
     irrigated = _run_managed_scenario(
         "maize",
         "sahel_arid",
-        date(2024, 6, 1),
+        date(2024, 11, 1),
         daily_irrigation_mm=6.0,
         s_fertilizer_kg_ha=60.0,
         fertilizer_kg_ha=200.0,

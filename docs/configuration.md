@@ -281,7 +281,7 @@ synthesise a `weather.json` series. A file is
 | `longitude_deg` | number | ° | −180–180 | *(required)* | Longitude. |
 | `annual_mean_tmin_c` | number | °C | guidance: −20–30 | *(required)* | Annual mean daily minimum temperature. |
 | `annual_mean_tmax_c` | number | °C | guidance: −10–45 | *(required)* | Annual mean daily maximum temperature. |
-| `annual_temp_amplitude_c` | number | °C | ≥ 0 (guidance: 0–25) | *(required)* | Seasonal (summer–winter) temperature amplitude. |
+| `annual_temp_amplitude_c` | number | °C | ≥ 0 (guidance: 0–25) | *(required)* | Seasonal (summer–winter) temperature amplitude. Informational when the monthly temperature arrays are present. |
 | `annual_mean_precip_mm_day` | number | mm/day | ≥ 0 (guidance: 0–15) | *(required)* | Annual mean daily precipitation. |
 | `annual_mean_rh_pct` | number | % | 0–100 | *(required)* | Annual mean relative humidity. |
 | `annual_mean_wind_m_s` | number | m/s | ≥ 0 (guidance: 0–10) | *(required)* | Annual mean wind speed. |
@@ -293,6 +293,9 @@ synthesise a `weather.json` series. A file is
 | `heatwave_intensity_c` | number | °C | ≥ 0 | 8.0 | Temperature anomaly added during a heatwave. |
 | `frost_intensity_c` | number | °C | guidance: −15–0 | −5.0 | Temperature applied during a frost event. |
 | `heavy_rain_intensity_mm` | number | mm | ≥ 0 | 40.0 | Rainfall added during a heavy-rain event. |
+| `monthly_mean_tmin_c` | array[number] | °C | exactly 12 items (Jan→Dec); only with `monthly_mean_tmax_c`; mean within 0.05 of `annual_mean_tmin_c` | *(none → sinusoid)* | Station monthly mean daily minimum temperature. When present, the day's base Tmin is its calendar month's entry instead of the annual sinusoid (ADR-019). |
+| `monthly_mean_tmax_c` | array[number] | °C | exactly 12 items; only with `monthly_mean_tmin_c`; each month above its Tmin; mean within 0.05 of `annual_mean_tmax_c` | *(none → sinusoid)* | Station monthly mean daily maximum temperature, used as for Tmin. |
+| `monthly_mean_shortwave_mj_m2` | array[number] | MJ/m²/day | exactly 12 items, each ≥ 0; mean within 0.05 of `annual_mean_shortwave_mj_m2` | *(none → sinusoid)* | Monthly mean incoming shortwave. When present it replaces `annual_mean · (1 + 0.3 · seasonal)`. |
 
 ---
 

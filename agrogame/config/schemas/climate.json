@@ -47,7 +47,25 @@
         "heavy_rain_probability": { "type": "number", "minimum": 0, "maximum": 1 },
         "heatwave_intensity_c": { "type": "number", "minimum": 0 },
         "frost_intensity_c": { "type": "number" },
-        "heavy_rain_intensity_mm": { "type": "number", "minimum": 0 }
+        "heavy_rain_intensity_mm": { "type": "number", "minimum": 0 },
+        "monthly_mean_tmin_c": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 12,
+          "maxItems": 12
+        },
+        "monthly_mean_tmax_c": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 12,
+          "maxItems": 12
+        },
+        "monthly_mean_shortwave_mj_m2": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 12,
+          "maxItems": 12
+        }
       }
     }
   }

@@ -41,17 +41,38 @@ climates:
     frost_intensity_c: -2.0
     heavy_rain_intensity_mm: 50.0
 
+  # Station monthly normals (ADR-019, #560/#586). Coordinates, rainfall, RH,
+  # wind and the extremes fields are unchanged; the station (13.48 N, 2.17 E)
+  # lies about 60 km from the preset point.
+  # Tmin/Tmax: Direction de la Meteorologie Nationale du Niger (DMN), Niamey,
+  #   via WMO World Weather Information Service (cityId 327), 1961-1990,
+  #   accessed 2026-11-18.
+  # Shortwave: NASA POWER Climatology API v2.10.1, ALLSKY_SFC_SW_DWN
+  #   (source SYN1DEG), community AG, point (13.48, 2.17), 2001-2020,
+  #   accessed 2026-11-18.
+  # Not used: the WMO 1991-2020 normals for Niamey Aero (WMO 61052; NOAA NCEI
+  #   accession 0253808). Their Tmean runs on average 0.6 C above WWIS's
+  #   (Tmin+Tmax)/2 (0-1.2 C by month), but their Tmin/Tmax columns differ from
+  #   WWIS by about -3 C and +4 C, implying a ~16 C diurnal range in August
+  #   against WWIS's 9.8 C. That discrepancy is unresolved, so WWIS anchors.
+  # annual_mean_* are the means of the arrays (loader check, tolerance 0.05);
+  # annual_temp_amplitude_c is half the range of monthly Tav and is
+  # informational only once the arrays are present.
   sahel_arid:
     name: "Sahel - Semi-Arid"
     latitude_deg: 14.0
     longitude_deg: 2.0
-    annual_mean_tmin_c: 20.0
-    annual_mean_tmax_c: 36.0
-    annual_temp_amplitude_c: 6.0
+    annual_mean_tmin_c: 22.43
+    annual_mean_tmax_c: 36.19
+    annual_temp_amplitude_c: 4.83
     annual_mean_precip_mm_day: 1.2
     annual_mean_rh_pct: 30.0
     annual_mean_wind_m_s: 3.0
-    annual_mean_shortwave_mj_m2: 24.0
+    annual_mean_shortwave_mj_m2: 21.85
+    # Jan   Feb   Mar   Apr   May   Jun   Jul   Aug   Sep   Oct   Nov   Dec
+    monthly_mean_tmin_c: [16.1, 19.0, 22.9, 26.5, 27.7, 25.7, 24.1, 23.2, 23.6, 24.2, 19.5, 16.7]
+    monthly_mean_tmax_c: [32.5, 35.7, 39.1, 40.9, 40.2, 37.2, 34.0, 33.0, 34.4, 37.8, 36.2, 33.3]
+    monthly_mean_shortwave_mj_m2: [20.47, 22.34, 23.52, 23.73, 23.25, 22.17, 21.28, 20.42, 21.85, 21.99, 21.15, 20.08]
     # Single rainy season Jun-Sep, dry rest of year (Niamey data)
     # Jan  Feb  Mar  Apr  May  Jun  Jul  Aug  Sep  Oct  Nov  Dec
     rainfall_monthly_weights: [0.0, 0.0, 0.1, 0.2, 0.5, 1.5, 3.0, 3.5, 2.0, 0.5, 0.1, 0.0]

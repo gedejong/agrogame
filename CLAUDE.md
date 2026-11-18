@@ -53,6 +53,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-015](docs/adr/ADR-015-som-steady-state-initialisation.md) — SOM initial pool sizing at the kinetic steady state (depth-attenuated fresh-input shares, pools preserved across crop resets)
 - [ADR-016](docs/adr/ADR-016-preferential-flow-retirement.md) — Preferential flow is structural, not hydrological (dual-porosity water model retired; path back via #485)
 - [ADR-017](docs/adr/ADR-017-in-season-alerts.md) — Act any day, with fast-forward interrupted by in-season alerts (drought/N/frost latch, opt-in `stop_on_pause`; supersedes ADR-004)
+- [ADR-019](docs/adr/ADR-019-climate-station-normals.md) — Shipped climate presets carry cited station monthly normals (Tmin/Tmax/shortwave; legacy sinusoid kept only for presets without arrays) (Proposed)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 
