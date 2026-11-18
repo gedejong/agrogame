@@ -15,6 +15,7 @@ must change nothing.
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
 from dataclasses import dataclass, field
 from itertools import pairwise
@@ -28,7 +29,7 @@ pytestmark = pytest.mark.skipif(
     reason="fastapi or httpx not installed",
 )
 
-CATALOG = Path("game/scripts/scenario_catalog.gd")
+CATALOG = Path(__file__).resolve().parents[2] / "game/scripts/scenario_catalog.gd"
 SEEDS = (42, 43)
 SEASONS = 2
 MAX_INTERRUPTS_PER_SEASON = 4  # (a): judgement, anchored on ADR-004's ~5 min season
@@ -38,27 +39,25 @@ N_GATE = {"emerged", "vegetative", "flowering"}  # (d)
 DROUGHT_KS = 0.4  # PauseConfig.drought_ks_threshold
 
 
-def _catalog() -> list[tuple[str, list[dict[str, Any]]]]:
-    """Scenario labels and patch configs parsed from the Godot catalog."""
+def _catalog_literal() -> str:
+    """The Godot catalog's ``SCENARIOS`` array literal, comment lines dropped."""
     text = CATALOG.read_text(encoding="utf-8")
-    body = text.split("const SCENARIOS", 1)[1]
-    scenarios = []
-    for chunk in re.split(r'"label":\s*', body)[1:]:
-        label = re.match(r'"([^"]+)"', chunk)
-        assert label is not None
-        patches = []
-        for block in re.findall(r"\{[^{}]*\}", chunk):
-            pairs = dict(re.findall(r'"(\w+)":\s*("[^"]*"|[\d.]+)', block))
-            patches.append(
-                {
-                    "soil_profile_key": pairs["soil_profile_key"].strip('"'),
-                    "crop_key": pairs["crop_key"].strip('"'),
-                    "climate_key": pairs["climate_key"].strip('"'),
-                    "area_fraction": float(pairs["area_fraction"]),
-                }
-            )
-        scenarios.append((label.group(1), patches))
-    return scenarios
+    match = re.search(r"^const SCENARIOS: Array = (\[.*?^\])", text, re.S | re.M)
+    if match is None:
+        raise ValueError(f"no `const SCENARIOS: Array = [...]` in {CATALOG}")
+    return re.sub(r"^\s*#.*$", "", match.group(1), flags=re.M)
+
+
+def _catalog() -> list[tuple[str, list[dict[str, Any]]]]:
+    """Each scenario's label and fields, read whole from the Godot catalog.
+
+    The literal is JSON once its trailing commas are dropped, so fields and
+    patches come out as nested in the catalog (#548) and go to ``POST /games``
+    as the client sends them. Any other GDScript syntax makes ``json.loads``
+    raise rather than drop a scenario.
+    """
+    literal = re.sub(r",(\s*[\]}])", r"\1", _catalog_literal())
+    return [(s["label"], s["fields"]) for s in json.loads(literal)]
 
 
 SCENARIOS = _catalog()
@@ -96,11 +95,8 @@ def _final_state(game_id: str) -> dict[str, Any]:
     return state
 
 
-def _new_game(client, patches: list[dict[str, Any]]) -> str:
-    resp = client.post(
-        "/api/v1/games",
-        json={"fields": [{"field_id": "field_1", "patches": patches}]},
-    )
+def _new_game(client, fields: list[dict[str, Any]]) -> str:
+    resp = client.post("/api/v1/games", json={"fields": fields})
     assert resp.status_code == 200, resp.text
     return resp.json()["game_id"]
 
@@ -135,10 +131,10 @@ def _play_season(client, game_id: str, seed: int, stop: bool) -> Season:
     return season
 
 
-def _play(client, patches, seed: int, detect: bool) -> list[Season]:
+def _play(client, fields, seed: int, detect: bool) -> list[Season]:
     from agrogame.api.state import games
 
-    game_id = _new_game(client, patches)
+    game_id = _new_game(client, fields)
     if not detect:
         games[game_id].pause_detector = None
     return [_play_season(client, game_id, seed, stop=detect) for _ in range(SEASONS)]
@@ -158,9 +154,9 @@ def runs(client) -> dict[tuple[str, int], list[Season]]:
     from agrogame.api.state import games
 
     played = {}
-    for label, patches in SCENARIOS:
+    for label, fields in SCENARIOS:
         for seed in SEEDS:
-            played[(label, seed)] = _play(client, patches, seed, detect=True)
+            played[(label, seed)] = _play(client, fields, seed, detect=True)
             games.clear()
     return played
 
@@ -181,9 +177,34 @@ def _interrupts_by_field(season: Season) -> dict[str, list[int]]:
 
 
 def test_catalog_is_parsed() -> None:
+    # Counted on the source text, independently of the parse: every catalog
+    # scenario is played, never a silent subset (#573).
+    assert len(SCENARIOS) == _catalog_literal().count('"label":')
     assert len(SCENARIOS) >= 6
-    assert all(patches for _, patches in SCENARIOS)
+    assert all(fields for _, fields in SCENARIOS)
+    assert all(f["patches"] for _, fields in SCENARIOS for f in fields)
     assert any("Sahel" in label for label in LABELS)
+
+
+def test_catalog_keys_are_presets() -> None:
+    """Every catalog preset key exists in ``data/``, looked up as ``POST /games`` does.
+
+    The keys come from ``_PresetKeys``, the files ``Patch`` builds from (#552),
+    so a renamed or removed preset fails here rather than at a player's pick
+    (#573). This is the backend-side check of the GUT catalog test's
+    hard-coded key lists.
+    """
+    from agrogame.api.routes import _PresetKeys
+
+    keys = _PresetKeys.load()
+    for label, fields in SCENARIOS:
+        for f in fields:
+            for p in f["patches"]:
+                where = (label, f["field_id"], p)
+                assert p["climate_key"] in keys.climate, where
+                assert p["soil_profile_key"] in keys.soil, where
+                # An empty crop_key is a bare (fallow) patch (#542), not a lookup.
+                assert not p["crop_key"] or p["crop_key"] in keys.crop, where
 
 
 def test_a_interrupts_per_season_per_field_are_rare(runs) -> None:
@@ -250,8 +271,8 @@ def test_detection_changes_no_simulation_value(client, runs, label) -> None:
     """Detection on with stops, versus off with plain steps: identical to 1e-9."""
     from agrogame.api.state import games
 
-    patches = dict(SCENARIOS)[label]
-    control = _play(client, patches, SEEDS[0], detect=False)
+    fields = dict(SCENARIOS)[label]
+    control = _play(client, fields, SEEDS[0], detect=False)
     games.clear()
     for observed, plain in zip(runs[(label, SEEDS[0])], control, strict=True):
         assert plain.events == []
