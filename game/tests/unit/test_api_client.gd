@@ -2,6 +2,8 @@ extends GutTest
 ## Unit tests for ApiClient — verifies construction and configuration.
 
 const ApiClientScript = preload("res://scripts/api_client.gd")
+## The six endpoints #534 puts on the queue besides the previews.
+const _ENDPOINTS: Array[String] = ["create", "game", "step", "action", "forecast", "report"]
 
 
 func test_base_url_points_to_localhost() -> void:
@@ -43,6 +45,69 @@ func test_create_game_accepts_scenario_patches() -> void:
 			args = method["args"]
 	assert_eq(args.size(), 2, "create_game should accept (callback, patches)")
 	client.free()
+
+
+## ApiClient with every endpoint's transport stubbed (#534). `_send` records
+## each send instead of making it, and `reply` answers an endpoint's send in
+## flight as its HTTPRequest's request_completed signal would. Everything
+## between the two is the real client, queues included. test_farm_view.gd
+## drives the farm view through it as well.
+class StubClient:
+	extends "res://scripts/api_client.gd"
+	## main's per-endpoint reply handlers, which #534 replaces with one.
+	const _HANDLERS := {
+		"create": "_on_request_completed",
+		"game": "_on_game_completed",
+		"step": "_on_step_completed",
+		"action": "_on_action_completed",
+		"preview": "_on_preview_completed",
+		"forecast": "_on_forecast_completed",
+		"report": "_on_report_completed",
+	}
+	## Every send, in order, as [endpoint, url, method, body].
+	var sends: Array = []
+	## Sends to an endpoint made while its previous send still awaited a reply.
+	var busy_sends: int = 0
+	## /step or /action sends made while a /step or /action awaited a reply.
+	var mutating_overlaps: int = 0
+	## Per endpoint, return values for its next sends, consumed in order; OK
+	## once exhausted.
+	var send_errors_for: Dictionary = {}
+	var _awaiting_on: Dictionary = {}
+
+	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
+		sends.append([endpoint, url, method, body])
+		if _awaiting_on.has(endpoint):
+			busy_sends += 1
+		var mutating_awaited: bool = _awaiting_on.has("step") or _awaiting_on.has("action")
+		if endpoint in ["step", "action"] and mutating_awaited:
+			mutating_overlaps += 1
+		var errors: Array = send_errors_for.get(endpoint, [])
+		var err: Error = OK if errors.is_empty() else errors.pop_front()
+		if err == OK:
+			_awaiting_on[endpoint] = true
+		return err
+
+	# main's step and preview seams, which _send replaces (#534).
+	func _send_step(url: String) -> void:
+		_send("step", url, HTTPClient.METHOD_POST, "")
+
+	func _send_preview(url: String, body: String) -> Error:
+		return _send("preview", url, HTTPClient.METHOD_POST, body)
+
+	## Whether `endpoint` has a send awaiting its reply.
+	func awaiting(endpoint: String) -> bool:
+		return _awaiting_on.has(endpoint)
+
+	## Answer `endpoint`'s send in flight with an HTTP 200 carrying `data`.
+	func reply_ok(endpoint: String, data: Dictionary) -> void:
+		reply(endpoint, HTTPRequest.RESULT_SUCCESS, 200, JSON.stringify(data))
+
+	## Answer `endpoint`'s send in flight with any result, status and body.
+	func reply(endpoint: String, result: int, response_code: int, body: String) -> void:
+		_awaiting_on.erase(endpoint)
+		var handler: String = _HANDLERS[endpoint]
+		call(handler, result, response_code, PackedStringArray(), body.to_utf8_buffer())
 
 
 ## ApiClient with the step transport stubbed (#537). `_send_step` records each
@@ -213,3 +278,83 @@ func test_get_game_tells_not_found_from_unreachable() -> void:
 	client._on_game_completed(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), body)
 	assert_eq(got, [[false, {"not_found": true}], [false, {}], [true, {"game_id": "g"}]])
 	client.free()
+
+
+func _stub_client() -> StubClient:
+	var api: StubClient = StubClient.new()
+	add_child_autofree(api)
+	return api
+
+
+## Call `endpoint` once per tag, in order, each with a recorder for its tag.
+func _call_each(api: StubClient, endpoint: String, got: Array, tags: Array) -> void:
+	for tag: String in tags:
+		var callback := _recorder(got, tag)
+		match endpoint:
+			"create":
+				api.create_game(callback)
+			"game":
+				api.get_game("g", callback)
+			"step":
+				api.step_day("g", 1, callback)
+			"action":
+				api.execute_action("g", "irrigate", {}, callback)
+			"forecast":
+				api.get_forecast("g", callback)
+			"report":
+				api.get_report("g", callback)
+
+
+func test_each_call_gets_its_own_reply_once_in_call_order() -> void:
+	# #534 AC2: a second call made before the first reply took over the stored
+	# callback and was never sent (ERR_BUSY), so the first reply reached the
+	# second caller and the first caller never heard back.
+	for endpoint: String in _ENDPOINTS:
+		var api := _stub_client()
+		var got: Array = []
+		_call_each(api, endpoint, got, ["first", "second"])
+		assert_eq(api.sends.size(), 1, "%s: the second call waits for the first" % endpoint)
+		api.reply_ok(endpoint, {"n": "1"})
+		assert_eq(got, [["first", true, {"n": "1"}]], "%s: first reply, first caller" % endpoint)
+		api.reply_ok(endpoint, {"n": "2"})
+		var both := [["first", true, {"n": "1"}], ["second", true, {"n": "2"}]]
+		assert_eq(got, both, "%s: each its own reply, once, in order" % endpoint)
+		assert_eq(api.sends.size(), 2, "%s: both sent" % endpoint)
+		assert_eq(api.busy_sends, 0, "%s: no send while one is in flight" % endpoint)
+
+
+func test_a_rejected_send_fails_only_its_own_call() -> void:
+	# #534 AC2: a send request() rejects fails its own call at once, and the
+	# next call is still sent and answered.
+	for endpoint: String in _ENDPOINTS:
+		var api := _stub_client()
+		api.send_errors_for[endpoint] = [OK, ERR_CANT_CONNECT]
+		var got: Array = []
+		_call_each(api, endpoint, got, ["first", "second", "third"])
+		api.reply_ok(endpoint, {"n": "1"})
+		var two := [["first", true, {"n": "1"}], ["second", false, {}]]
+		assert_eq(got, two, "%s: the second failed on send" % endpoint)
+		api.reply_ok(endpoint, {"n": "3"})
+		assert_eq(
+			got.slice(2), [["third", true, {"n": "3"}]], "%s: the third still sent" % endpoint
+		)
+		assert_eq(api.sends.size(), 3, "%s: three sends" % endpoint)
+
+
+func test_a_failed_reply_fails_only_its_own_call() -> void:
+	# #534 AC2: a transport error, a non-200 and an unparsable body each fail
+	# their own call, and the next call is still sent and answered.
+	var failures: Array = [
+		[HTTPRequest.RESULT_CANT_CONNECT, 0, ""],
+		[HTTPRequest.RESULT_SUCCESS, 500, "{}"],
+		[HTTPRequest.RESULT_SUCCESS, 200, "not json"],
+	]
+	for endpoint: String in _ENDPOINTS:
+		for failure: Array in failures:
+			var api := _stub_client()
+			var got: Array = []
+			_call_each(api, endpoint, got, ["first", "second"])
+			api.reply(endpoint, failure[0], failure[1], failure[2])
+			api.reply_ok(endpoint, {"n": "2"})
+			var want := [["first", false, {}], ["second", true, {"n": "2"}]]
+			assert_eq(got, want, "%s, failure %s" % [endpoint, failure])

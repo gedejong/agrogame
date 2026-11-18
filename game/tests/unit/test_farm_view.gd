@@ -3,6 +3,27 @@ extends GutTest
 const FarmView = preload("res://scripts/farm_view.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const ApiClientTest = preload("res://tests/unit/test_api_client.gd")
+## The nine action-bar buttons a /step or /action in flight holds (#534 AC5).
+const _BAR: Array[String] = [
+	"next_day_btn",
+	"ff7_btn",
+	"ff_all_btn",
+	"irrigate_btn",
+	"fertilize_btn",
+	"tillage_btn",
+	"lime_btn",
+	"plant_btn",
+	"harvest_btn",
+]
+## The bar buttons whose press sends at once rather than opening a picker.
+const _SENDING: Array[String] = [
+	"next_day_btn", "ff7_btn", "ff_all_btn", "irrigate_btn", "tillage_btn", "harvest_btn"
+]
+## A 200 reply per mutating endpoint, enough for every farm-view handler.
+const _REPLY := {
+	"step": {"day_number": 2, "date": "2026-05-02", "weather": {}, "patches": {}},
+	"action": {"action": "irrigate", "cost_credits": 5, "balance_credits": 900},
+}
 
 var _auto_cutaway: bool
 
@@ -295,3 +316,136 @@ func test_unreachable_backend_stays_without_new_game() -> void:
 	assert_true(view.next_day_btn.disabled, "no actions without a layout")
 	var api: ApiStub = view._api_client
 	assert_eq(api.calls, [["get_game", "g"]])
+
+
+## A farm view on game "g" over StubClient: the real client and its queues,
+## every transport stubbed (#534).
+func _stub_view() -> Node3D:
+	GameState.game_id = ""  # no hand-over, so _ready fetches nothing
+	var api: ApiClientTest.StubClient = ApiClientTest.StubClient.new()
+	add_child_autofree(api)
+	var view: Node3D = FarmViewScene.instantiate()
+	view._api_client = api
+	add_child_autofree(view)
+	view._game_id = "g"
+	return view
+
+
+## Select tile (0, 0), patch 0, with a standing crop on it.
+func _select_crop(view: Node3D) -> void:
+	view._tile_data[0]["crop_key"] = "maize"
+	view._tile_data[0]["crop_stage"] = 2
+	view._select_tile(0, 0)
+
+
+## All nine bar buttons are disabled; then press each one that sends at once
+## if it is enabled after all, as a player clicking it would.
+func _assert_held(view: Node3D, after: String) -> void:
+	for btn: String in _BAR:
+		assert_true(view.get(btn).disabled, "%s disabled after %s" % [btn, after])
+	for btn: String in _SENDING:
+		var button: Button = view.get(btn)
+		if not button.disabled:
+			button.pressed.emit()
+
+
+## Land everything that can arrive while a /step or /action is in flight, and
+## check the bar after each: the previews and forecast left from the last day
+## (affordable and not), a report reply, and a tile deselection and selection.
+func _land_mid_flight(view: Node3D, api: ApiClientTest.StubClient, when: String) -> void:
+	_assert_held(view, when)
+	var n := 0
+	while api.awaiting("preview") and n < 8:
+		var reply := {"cost_credits": 5, "balance_credits": 900, "affordable": n % 2 == 0}
+		api.reply_ok("preview", reply)
+		n += 1
+		_assert_held(view, "%s, preview reply %d" % [when, n])
+	for endpoint: String in ["forecast", "report"]:
+		if api.awaiting(endpoint):
+			api.reply_ok(endpoint, {})
+			_assert_held(view, "%s, %s reply" % [when, endpoint])
+	view._deselect()
+	_assert_held(view, "%s, deselect" % when)
+	_select_crop(view)
+	_assert_held(view, "%s, select" % when)
+
+
+func test_bar_stays_held_until_each_step_and_action_is_applied() -> void:
+	# #534 AC5/AC6: a preview reply landing mid-step re-enabled Irrigate,
+	# Fertilize, Tillage and Lime, and a tile selection Harvest; an action held
+	# no button at all, so a second action or step could overlap it.
+	var view := _stub_view()
+	var api: ApiClientTest.StubClient = view._api_client
+	_select_crop(view)
+	# Each send path as [label, its button, the press, the replies it awaits].
+	var paths: Array = [
+		["Next Day", view.next_day_btn, view._on_next_day, ["step"]],
+		["FF7", view.ff7_btn, view._on_ff7, ["step"]],
+		["Run", view.ff_all_btn, view._on_ff_all, ["step"]],
+		["Irrigate", view.irrigate_btn, view._on_irrigate, ["action", "step"]],
+		["Fertilize", view.fertilize_btn, view._on_fertilizer_selected.bind(0), ["action", "step"]],
+		["Tillage", view.tillage_btn, view._on_tillage, ["action", "step"]],
+		["Lime", view.lime_btn, view._on_lime_selected.bind(2000.0, 10), ["action", "step"]],
+		["Plant", view.plant_btn, view._on_crop_selected.bind(0), ["action", "step"]],
+		["Harvest", view.harvest_btn, view._on_harvest_pressed, ["action"]],
+		["Next Day after Harvest", view.next_day_btn, view._on_next_day, ["step"]],
+	]
+	var expected: Array = []
+	for path: Array in paths:
+		var label: String = path[0]
+		var button: Button = path[1]
+		assert_false(button.disabled, "%s can be pressed" % label)
+		var press: Callable = path[2]
+		press.call()
+		for endpoint: String in path[3]:
+			_land_mid_flight(view, api, "%s, awaiting its %s" % [label, endpoint])
+			api.reply_ok(endpoint, _REPLY[endpoint])
+			expected.append(endpoint)
+		assert_false(view.next_day_btn.disabled, "%s: the bar lifts once applied" % label)
+	var mutating: Array = api.sends.filter(func(s: Array) -> bool: return s[0] in _REPLY)
+	assert_eq(mutating.map(func(s: Array) -> String: return s[0]), expected, "nothing extra sent")
+	assert_eq(api.mutating_overlaps, 0, "never two of /step and /action in flight")
+	# AC7: once the last day's cost refresh is answered, each priced button
+	# follows its own reply, against the mid-flight pattern, and Harvest the tile.
+	var affordable := [false, true, false, true]
+	for ok: bool in affordable:
+		api.reply_ok("preview", {"cost_credits": 5, "balance_credits": 900, "affordable": ok})
+	for i in range(affordable.size()):
+		var btn: Button = view._action_button_for(FarmView._PREVIEW_ACTIONS[i]["action"])
+		assert_eq(btn.disabled, not affordable[i], "%s follows its latest reply" % btn.name)
+	assert_false(view.harvest_btn.disabled, "Harvest follows the standing crop")
+	view._deselect()
+	assert_true(view.harvest_btn.disabled, "and the empty selection")
+
+
+func test_a_failed_step_or_action_lifts_the_bar() -> void:
+	# #534 AC8: a transport error, a non-200 or a rejected send lifts the bar
+	# and shows the failure; nothing stays locked.
+	var presses: Array = [
+		["_on_next_day", "step", "Step failed — backend error"],
+		["_on_ff_all", "step", "Season failed — backend error"],
+		["_on_irrigate", "action", "Action failed"],
+		["_on_crop_selected", "action", "Plant failed"],
+		["_on_harvest_pressed", "action", "Harvest failed"],
+	]
+	for failure: String in ["transport", "non-200", "rejected send"]:
+		for press: Array in presses:
+			var view := _stub_view()
+			var api: ApiClientTest.StubClient = view._api_client
+			_select_crop(view)
+			var endpoint: String = press[1]
+			if failure == "rejected send":
+				api.send_errors_for[endpoint] = [ERR_CANT_CONNECT]
+			var method: String = press[0]
+			if method == "_on_crop_selected":
+				view.call(method, 0)
+			else:
+				view.call(method)
+			if failure == "transport":
+				api.reply(endpoint, HTTPRequest.RESULT_CANT_CONNECT, 0, "")
+			elif failure == "non-200":
+				api.reply(endpoint, HTTPRequest.RESULT_SUCCESS, 500, "{}")
+			var case := "%s, %s" % [method, failure]
+			assert_eq(view.status_label.text, press[2], case)
+			for btn: String in _BAR:
+				assert_false(view.get(btn).disabled, "%s enabled again after %s" % [btn, case])
