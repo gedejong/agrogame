@@ -8,6 +8,19 @@ on:
       - 'agrogame/**'
       - 'tests/**'
       - 'scripts/**'
+      # Client files Python tests read; this job collects the whole suite, so a
+      # client-only PR must still run it (#573).
+      - 'game/scripts/scenario_catalog.gd'   # tests/integration/test_pause_dynamics.py
+      - 'game/scripts/fertilizer_picker.gd'  # tests/test_economy_phase_a.py
+      # Presets the engine reads at runtime (data/crops, climate, soils,
+      # economy): a data-only recalibration must run the realism suite (#573).
+      - 'data/**'
+      # This job collects every test module, and Python tests read docs/
+      # (#573). pytest reads its config from pyproject.toml, and the job
+      # installs from poetry.lock.
+      - 'docs/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
       - '.github/workflows/benchmarks.yml'
 
 jobs:
