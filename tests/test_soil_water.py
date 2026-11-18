@@ -56,7 +56,7 @@ def test_permeability_ordering() -> None:
 
 def test_event_emission() -> None:
     profile, state = _make_state("sandy_arid")
-    bus = EventBus(debug_mode=True)
+    bus = EventBus()
     seen = {"runoff": 0.0, "evap": 0.0, "infil_calls": 0, "drain_calls": 0}
 
     from agrogame.soil.water import (
@@ -103,7 +103,7 @@ def test_water_balance_closure() -> None:
 def test_day_mass_balance_with_interception_events() -> None:
     lib = _load(Path("soils/presets.yaml"))
     profile = lib.soils["loam_temperate"]
-    bus = EventBus(debug_mode=True)
+    bus = EventBus()
     seen = {"int": 0.0, "cevap": 0.0}
     bus.subscribe(CanopyIntercepted, lambda e: seen.__setitem__("int", e.amount_mm))
     bus.subscribe(CanopyEvaporated, lambda e: seen.__setitem__("cevap", e.amount_mm))
