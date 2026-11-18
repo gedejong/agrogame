@@ -35,15 +35,6 @@ const CROP_GRID := {
 	"grape": Vector2i(2, 2),
 }
 
-const _STAGE_MAP := {
-	"planted": 1,
-	"emerged": 1,
-	"vegetative": 2,
-	"flowering": 3,
-	"grain_fill": 4,
-	"maturity": 4,
-}
-
 ## Action buttons and the exact params their handlers send, so the previewed
 ## cost label matches the eventual ledger deduction (#318). Fertilize spans
 ## several priced tiers (#349), so it carries no fixed params: the preview
@@ -186,60 +177,13 @@ func _apply_ui_theme() -> void:
 
 
 func _build_tile_grid() -> void:
-	var shader: Shader = load("res://shaders/soil_tile.gdshader")
-	var box := PlaneMesh.new()
-	box.size = Vector2(TILE_SIZE, TILE_SIZE)
-	var offset_x: float = (GRID_COLS - 1) * TILE_SIZE / 2.0
-	var offset_z: float = (GRID_ROWS - 1) * TILE_SIZE / 2.0
-	for row in range(GRID_ROWS):
-		for col in range(GRID_COLS):
-			var mat := ShaderMaterial.new()
-			mat.shader = shader
-			mat.set_shader_parameter("som_frac", 0.0)
-			mat.set_shader_parameter("moisture_frac", 0.0)
-			mat.set_shader_parameter("selected", 0.0)
-			var mesh_inst := MeshInstance3D.new()
-			mesh_inst.mesh = box
-			mesh_inst.material_override = mat
-			mesh_inst.position = Vector3(
-				col * TILE_SIZE - offset_x,
-				0.0,
-				row * TILE_SIZE - offset_z,
-			)
-			# StaticBody3D for raycast hit detection
-			var body := StaticBody3D.new()
-			var shape := CollisionShape3D.new()
-			var box_shape := BoxShape3D.new()
-			box_shape.size = Vector3(TILE_SIZE, 0.01, TILE_SIZE)
-			shape.shape = box_shape
-			body.add_child(shape)
-			body.set_meta("tile_col", col)
-			body.set_meta("tile_row", row)
-			mesh_inst.add_child(body)
-			tile_root.add_child(mesh_inst)
-			_tile_meshes.append(mesh_inst)
-			_tile_materials.append(mat)
-			# 3D crop container — plants rebuilt per crop type
-			var crop_container := Node3D.new()
-			crop_container.position = mesh_inst.position
-			crop_root.add_child(crop_container)
-			_crop_sprites.append([crop_container])
-			(
-				_tile_data
-				. append(
-					{
-						"col": col,
-						"row": row,
-						"crop_key": "",
-						"crop_stage": 0,
-						"lai": 0.0,
-						"water_stress": 1.0,
-						"grain_g_m2": 0.0,
-						"som_total_c_g_m2": 0.0,
-						"theta_surface": 0.0,
-					}
-				)
-			)
+	## Tile nodes and per-tile data, built by FarmTiles (#546).
+	var dims := Vector2i(GRID_COLS, GRID_ROWS)
+	var grid := FarmTiles.build_grid(tile_root, crop_root, dims, TILE_SIZE)
+	_tile_meshes.append_array(grid["meshes"])
+	_tile_materials.append_array(grid["materials"])
+	_crop_sprites.append_array(grid["crop_sprites"])
+	_tile_data.append_array(grid["tile_data"])
 
 
 func _apply_layout(patches: Array) -> void:
@@ -635,78 +579,13 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		var patch_list: Array = patches[field_key]
 		for patch_idx in range(patch_list.size()):
 			var patch: Dictionary = patch_list[patch_idx]
-			var stage_name: String = patch.get("crop_stage", "")
-			var stage: int = _STAGE_MAP.get(stage_name, 0)
-			var lai: float = patch.get("lai", 0.0)
-			var crop_key: String = patch.get("crop_key", "")
-			var theta: float = patch.get("soil_theta_surface", 0.0)
-			var grain: float = patch.get("grain_g_m2", 0.0)
-			var som: float = patch.get("som_total_c_g_m2", 0.0)
-			# Continuous development stage (WOFOST DVS); -1 when the API omits
-			# it, in which case the visuals fall back to a per-stage nominal value.
-			var dev_stage: float = float(patch.get("dev_stage", -1.0))
 			# Accumulate per-patch history (skip when daily_snapshots covered it)
 			if not skip_history:
 				FarmViewHistory.append_patch(patch, patch_idx, _daily_history)
-			# Extract per-nutrient stress from events (#262)
-			var n_stress: float = 0.0
-			var p_stress: float = 0.0
-			var fe_stress: float = 0.0
-			var zn_stress: float = 0.0
-			# Transient morphological damage (#259).
-			var frost_dmg: float = 0.0
-			var heat_dmg: float = 0.0
-			for evt: Dictionary in patch.get("events", []):
-				var et: String = evt.get("event_type", "")
-				if et == "NutrientStressComputed":
-					var d: Dictionary = evt.get("data", {})
-					# API: stress=1 healthy, 0=severe. Invert for display.
-					var s: float = clampf(1.0 - d.get("stress", 1.0), 0.0, 1.0)
-					match d.get("nutrient", ""):
-						"N":
-							n_stress = maxf(n_stress, s)
-						"P":
-							p_stress = maxf(p_stress, s)
-						"Fe":
-							fe_stress = maxf(fe_stress, s)
-						"Zn":
-							zn_stress = maxf(zn_stress, s)
-				elif et == "FrostDamageApplied":
-					var fs: float = clampf(
-						float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0
-					)
-					frost_dmg = maxf(frost_dmg, fs)
-				elif et == "HeatDamageApplied":
-					var hs: float = clampf(
-						float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0
-					)
-					heat_dmg = maxf(heat_dmg, hs)
-			for i in range(_tile_data.size()):
-				if _tile_data[i]["patch_idx"] == patch_idx:
-					_tile_data[i]["som_total_c_g_m2"] = som
-					_tile_data[i]["theta_surface"] = theta
-					# Season-peak LAI anchors canopy-loss senescence; it resets
-					# when a new crop is sown or the season restarts.
-					var prev_crop: String = _tile_data[i].get("crop_key", "")
-					var prev_peak: float = float(_tile_data[i].get("lai_peak", 0.0))
-					var lai_peak: float = lai
-					if stage > 1 and crop_key == prev_crop:
-						lai_peak = maxf(prev_peak, lai)
-					_tile_data[i]["crop_key"] = crop_key
-					_tile_data[i]["crop_stage"] = stage
-					_tile_data[i]["lai"] = lai
-					_tile_data[i]["dev_stage"] = dev_stage
-					_tile_data[i]["lai_peak"] = lai_peak
-					_tile_data[i]["water_stress"] = patch.get("water_stress", 1.0)
-					_tile_data[i]["grain_g_m2"] = grain
-					_tile_data[i]["n_stress"] = n_stress
-					_tile_data[i]["p_stress"] = p_stress
-					_tile_data[i]["fe_stress"] = fe_stress
-					_tile_data[i]["zn_stress"] = zn_stress
-					_tile_data[i]["frost_damage"] = frost_dmg
-					_tile_data[i]["heat_damage"] = heat_dmg
-					_update_tile_shader(i)
-					_update_crop_visuals(i)
+			# Tile writes live in FarmTiles (#546); refreshes stay here, tile order.
+			for i: int in FarmTiles.write_patch(patch, patch_idx, _tile_data):
+				_update_tile_shader(i)
+				_update_crop_visuals(i)
 	# Update stress icons from patch events
 	if _stress_icons:
 		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes)
