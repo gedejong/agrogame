@@ -9,7 +9,7 @@ including this ADR and the season-2 baseline move measured at the refinement
 base (−16.6 % on NL loam, −17.2 % on NL clay; table below). Implemented by
 #526.
 
-The larger move on main as of `dcc8926` (−18.6 % on NL loam, −16.7 % on NL
+The larger move on main as of `477a578` (−18.6 % on NL loam, −16.7 % on NL
 clay), which comes from engine changes merged after the ruling (#553, #605),
 was sent to Edwin for re-confirmation on 2026-11-18. That re-confirmation is
 pending and is to be recorded here when given.
@@ -89,7 +89,7 @@ season 1 (MWD 0.55 → 1.01 mm over two seasons) no longer speeds the untilled
 crop's roots. Lampurlanés & Cantero-Martínez (2003) do not support that
 speed-up either.
 
-| scenario | S1, refinement base `5599030` | S2, refinement base `5599030` | S1, main as of `dcc8926` | S2, main as of `dcc8926` |
+| scenario | S1, refinement base `5599030` | S2, refinement base `5599030` | S1, main as of `477a578` | S2, main as of `477a578` |
 |---|---|---|---|---|
 | NL × loam | 470.1 → 481.0 (+2.3 %) | 356.7 → 297.5 (−16.6 %) | 470.1 → 481.0 (+2.3 %) | 401.3 → 326.7 (−18.6 %) |
 | NL × clay | 586.4 → 574.6 (−2.0 %) | 351.9 → 291.2 (−17.2 %) | 586.4 → 574.6 (−2.0 %) | 402.0 → 334.9 (−16.7 %) |
@@ -100,19 +100,21 @@ The refinement base `5599030` is where the #526 prototype was measured and the
 ruling was given. The implementation reproduces the prototype there to
 0.0 g/m², and that column is the stable reference for this decision.
 
-The main column is a snapshot as of `dcc8926`. Later engine merges will move
-it again, and only the refinement-base column is fixed. Two merges after the
-ruling moved season-2 grain without changing root depth, so the column departs
-from the prototype. Each was bisected by first-parent merge:
+The main column is a snapshot as of `477a578`. Later engine merges will move
+it again, and only the refinement-base column is fixed. Two engine merges after
+the ruling moved season-2 grain without changing root depth, so the column
+departs from the prototype. Bisecting by first-parent merge found them, and a
+third, #578, was checked and moves nothing:
 
 | change (merge) | season-2 NL-loam grain, coupled | season-2 NL-loam grain, this decision |
 |---|---|---|
 | #553 (`6ad5a0e`, microbial pH response) | +35.6 g/m² | +13.1 g/m² |
 | #605 (`dcc8926`, soil pH proton budget) | +9.1 g/m² | +16.0 g/m² |
+| #578 (`477a578`, no N uptake before emergence) | 0.0 g/m² | 0.0 g/m² (≤ 0.01 in every scenario) |
 
 On NL loam, #553 widened the relative season-2 move from −16.6 % to −20.8 %,
 and #605 narrowed it to −18.6 %. On NL clay the move is −17.2 % at the
-refinement base and −16.7 % as of `dcc8926`. Day-60 root depth is identical
+refinement base and −16.7 % as of `477a578`. Day-60 root depth is identical
 before and after each merge.
 
 No realism bound covers season 2, and `tests/integration/test_realism.py` is
@@ -123,8 +125,8 @@ unchanged and passes.
 A pass now leaves root depth identical to the untilled crop's on every day
 of both seasons, in every scenario above. On the refinement base it moves grain
 by at most 0.2 % on NL loam and clay, and by −1.8 % in Sahel season 2. As of
-`dcc8926` the figures are at most 2.2 % on NL (loam, season 2, a pass in each
-season) and −5.0 % in Sahel season 2. Lockstep knockouts as of `dcc8926`
+`477a578` the figures are at most 2.2 % on NL (loam, season 2, a pass in each
+season) and −5.0 % in Sahel season 2. Lockstep knockouts as of `477a578`
 attribute the residual to the Ksat factor, a channel this decision keeps.
 Handing the tilled run's `WaterRuntime` the untilled aggregate state takes NL
 loam season 2 from −2.22 % to −0.01 %, and the Sahel from −5.00 % to 0.00 %.
