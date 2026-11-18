@@ -332,9 +332,36 @@ def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     }
 
 
+def _validate_create_request(req: CreateGameRequest) -> None:
+    """Reject a ``POST /games`` body the session could not hold (#547).
+
+    A repeated ``field_id`` and a field with no patches used to reach
+    ``FieldManager`` and surface as a 500. Weather is farm-level (ADR-002 note,
+    2026-11-18): one series is generated from the first patch's climate, so a
+    second ``climate_key`` was accepted and then silently ignored.
+
+    Raises:
+        HTTPException: 422 naming the offending field id or the climate keys,
+            before any session state is built.
+    """
+    seen: set[str] = set()
+    for fc in req.fields:
+        if fc.field_id in seen:
+            raise HTTPException(422, f"Duplicate field_id {fc.field_id!r}")
+        seen.add(fc.field_id)
+        if not fc.patches:
+            raise HTTPException(422, f"Field {fc.field_id!r} has no patches")
+    climates = sorted({p.climate_key for fc in req.fields for p in fc.patches})
+    if len(climates) > 1:
+        raise HTTPException(
+            422, f"Weather is farm-level, so a game has one climate_key; got {climates}"
+        )
+
+
 @router.post("/games", response_model=GameCreatedResponse)
 def create_game(req: CreateGameRequest) -> GameCreatedResponse:
     """Create a new game session."""
+    _validate_create_request(req)
     game_id = str(uuid.uuid4())[:8]
     fm = FieldManager()
     for fc in req.fields:
