@@ -139,6 +139,26 @@ its type, where it used to be sent as its repr. A unit test discovers every
 `BaseEvent` subclass in `agrogame` and serialises one instance of each, so a
 new event type with such a field fails in CI rather than during play.
 
+## Simulation errors (#606)
+
+A simulation handler that raises fails the request with **500** and names the
+failing handler and event type:
+
+```json
+{"detail": "agrogame.atmosphere.et.runtime.ETRuntime._on_day_tick raised AttributeError while handling DayTick",
+ "handler": "agrogame.atmosphere.et.runtime.ETRuntime._on_day_tick",
+ "event_type": "DayTick"}
+```
+
+This is a simulation defect, not a bad request. The server logs it at ERROR
+with the traceback, and the body carries no traceback or exception message.
+The mapping is app-wide, so `/action`, `/start-season` and `/load` answer
+the same way as `/step`. The session is **not rolled back**: its patches may be partly stepped, so the
+client should start a new game. The Godot client treats any non-200 `/step`
+as "Step failed — backend error" and does not read the body. Such a handler
+error used to be swallowed, and `/step` returned 200 with that day's physics
+missing.
+
 ## Run
 
 ```bash
