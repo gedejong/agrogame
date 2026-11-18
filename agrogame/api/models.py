@@ -288,7 +288,9 @@ class DayWeatherResponse(BaseModel):
 class PatchDayResponse(BaseModel):
     patch_idx: int
     crop_key: str
-    crop_stage: str = Field(description="Phenology stage name")
+    crop_stage: str = Field(
+        description='Phenology stage name; "" for a bare patch (#538)'
+    )
     dev_stage: float = Field(
         default=0.0,
         description="Continuous development stage (WOFOST DVS):"
