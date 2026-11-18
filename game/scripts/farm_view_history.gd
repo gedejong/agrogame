@@ -4,24 +4,26 @@ extends RefCounted
 ## panels. Pure data transforms over API step payloads — no scene coupling — so
 ## it lives outside farm_view.gd (keeping it under the gdlint file-length cap).
 ##
-## History is keyed by patch_idx (never soil name, which two patches may share;
-## #516), each value an Array[Dictionary] of daily records, capped at
-## MAX_HISTORY_DAYS (oldest dropped first).
+## History is keyed by (field, patch), as FarmLayout.patch_key gives it: never
+## by soil name, which two patches may share (#516), nor by patch index alone,
+## which every field has (#600). Each value is an Array[Dictionary] of daily
+## records, capped at MAX_HISTORY_DAYS (oldest dropped first).
 
 const MAX_HISTORY_DAYS := 365
 
 
-static func append_snapshots(snapshots: Array, daily_history: Dictionary, layout: Array) -> void:
-	## Append lightweight per-day snapshots (one per patch) to the history dict.
-	## Snapshots for patches outside `layout` (the game's patch list) are skipped.
+static func append_snapshots(snapshots: Array, daily_history: Dictionary, fields: Array) -> void:
+	## Append lightweight per-day snapshots (one per field and patch) to the
+	## history dict. A snapshot whose field or patch is not in `fields` (the
+	## laid-out [{field_id, patches}]) is skipped.
 	for snap: Dictionary in snapshots:
-		var patch_idx: int = snap.get("patch_idx", 0)
-		if patch_idx < 0 or patch_idx >= layout.size():
+		var key := _laid_out_key(fields, snap.get("field_id", ""), snap.get("patch_idx", 0))
+		if key.is_empty():
 			continue
-		if not daily_history.has(patch_idx):
-			daily_history[patch_idx] = []
+		if not daily_history.has(key):
+			daily_history[key] = []
 		(
-			daily_history[patch_idx]
+			daily_history[key]
 			. append(
 				{
 					"crop_stage": snap.get("crop_stage", ""),
@@ -38,15 +40,18 @@ static func append_snapshots(snapshots: Array, daily_history: Dictionary, layout
 				}
 			)
 		)
-		_cap(daily_history[patch_idx])
+		_cap(daily_history[key])
 
 
-static func append_patch(patch: Dictionary, patch_idx: int, daily_history: Dictionary) -> void:
-	## Append a full per-patch history record derived from a step payload.
+static func append_patch(
+	patch: Dictionary, field_id: String, patch_idx: int, daily_history: Dictionary
+) -> void:
+	## Append a full record for `field_id`'s patch `patch_idx` from a step payload.
 	if patch_idx < 0:
 		return
-	if not daily_history.has(patch_idx):
-		daily_history[patch_idx] = []
+	var key := FarmLayout.patch_key(field_id, patch_idx)
+	if not daily_history.has(key):
+		daily_history[key] = []
 	var soil_state: Dictionary = patch.get("soil_state", {})
 	var no3_arr: Array = soil_state.get("n_no3", [])
 	var nh4_arr: Array = soil_state.get("n_nh4", [])
@@ -56,7 +61,7 @@ static func append_patch(patch: Dictionary, patch_idx: int, daily_history: Dicti
 	for v: float in nh4_arr:
 		n_total += v
 	(
-		daily_history[patch_idx]
+		daily_history[key]
 		. append(
 			{
 				"crop_stage": patch.get("crop_stage", ""),
@@ -75,7 +80,17 @@ static func append_patch(patch: Dictionary, patch_idx: int, daily_history: Dicti
 			}
 		)
 	)
-	_cap(daily_history[patch_idx])
+	_cap(daily_history[key])
+
+
+## FarmLayout.patch_key of `field_id`'s patch `patch_idx` when `fields` lays it
+## out, else "".
+static func _laid_out_key(fields: Array, field_id: String, patch_idx: int) -> String:
+	for field: Dictionary in fields:
+		if field["field_id"] == field_id and patch_idx >= 0:
+			if patch_idx < (field["patches"] as Array).size():
+				return FarmLayout.patch_key(field_id, patch_idx)
+	return ""
 
 
 static func _cap(records: Array) -> void:
