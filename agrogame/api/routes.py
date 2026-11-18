@@ -715,9 +715,10 @@ def _harvest_action(
     (``Patch.harvest`` → ``orch.harvest``: appends crop history, applies any
     legume N credit, resets ``_current_crop``), settles revenue against the
     harvested grain (``EconomicLedger.settle_season``), records a
-    ``SeasonResult`` so ``GET /report`` succeeds mid-season, and clears the crop
-    off the targeted patch(es) so subsequent day responses report a bare patch.
-    Non-targeted patches are left standing.
+    ``SeasonResult`` so ``GET /report`` succeeds mid-season, and leaves the
+    targeted patch(es) bare: each is reset crop-free exactly as
+    ``harvest(); Patch.reset_crop(None)`` would (#538). Non-targeted patches are
+    left standing.
 
     Returns ``(grain_g_m2, revenue_credits, profit_credits, product)``.
     """
@@ -787,9 +788,13 @@ def _harvest_action(
         crop_key=crop_key,
     )
 
-    # Clear the standing crop so subsequent responses show a bare patch.
-    # Capture per-patch grain + crop before clearing so GET /report keeps the
-    # per-patch/GYGA breakdown after harvest (#341).
+    # Leave the harvested patch bare. Capture per-patch grain + crop first so
+    # GET /report keeps the per-patch/GYGA breakdown after harvest (#341). Then
+    # reset the plant graph crop-free through the engine's canonical path, as
+    # the season reset does for a bare patch (#392): zeroing grain and LAI left
+    # the harvested crop's roots, phenology and uptake running (#538).
+    # Patch.reset_crop re-wires the recorder to the rebuilt bus (#402). The
+    # crop-free graph still runs a default plant until #542 makes it dormant.
     for patch in targets:
         patch.harvested_grain_g_m2 = patch.orch.canopy.state.grain_biomass_g_m2
         patch.harvested_crop_key = patch.config.crop_key
@@ -799,8 +804,7 @@ def _harvest_action(
             climate_key=patch.config.climate_key,
             area_fraction=patch.config.area_fraction,
         )
-        patch.orch.canopy.state.grain_biomass_g_m2 = 0.0
-        patch.orch.canopy.state.lai = 0.0
+        patch.reset_crop(None)
 
     return grain_g_m2, revenue, profit, product
 
@@ -914,6 +918,19 @@ def _maybe_inject_stress_weather(s: GameSession) -> None:
             s.weather[i] = replace(rec, precip_mm=80.0)
 
 
+def _reported_stage(p: Patch) -> tuple[str, float]:
+    """Phenology stage name and DVS reported to the client for ``p`` (#538).
+
+    A bare patch (``crop_key == ""``) reports no stage: ``""`` and DVS 0.0. Its
+    crop-free orchestrator still runs a default phenology (#542), so its stage
+    would be a phantom. The client maps an unknown stage to 0 (bare).
+    """
+    if not p.config.crop_key:
+        return "", 0.0
+    phen = p.orch.phenology
+    return phen.state.stage.value, round(phen.development_stage(), 3)
+
+
 def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
     """Build the per-day response with weather, crop, and soil state."""
 
@@ -936,12 +953,13 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
             theta_top = snap.water_theta[0] if snap.water_theta else 0.0
             # Actual plant water stress from transpiration supply/demand ratio
             w_stress = p.orch.canopy.state.last_water_stress
+            crop_stage, dev_stage = _reported_stage(p)
             patches[fid].append(
                 PatchDayResponse(
                     patch_idx=i,
                     crop_key=p.config.crop_key,
-                    crop_stage=p.orch.phenology.state.stage.value,
-                    dev_stage=round(p.orch.phenology.development_stage(), 3),
+                    crop_stage=crop_stage,
+                    dev_stage=dev_stage,
                     grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
                     root_depth_cm=round(p.orch.root_state.current_depth_cm, 1),
                     lai=round(p.orch.canopy.state.lai, 2),
@@ -1011,13 +1029,14 @@ def _build_daily_snapshot(
     theta_top = snap.water_theta[0] if snap.water_theta else 0.0
     pore_macro = (snap.pore_network or {}).get("macro", [])
     ksat_day = _dynamic_ksat_mm_day(p)
+    crop_stage, dev_stage = _reported_stage(p)
     return DailySnapshot(
         day_number=day_num,
         date=day_date,
         field_id=fid,
         patch_idx=pi,
-        crop_stage=p.orch.phenology.state.stage.value,
-        dev_stage=round(p.orch.phenology.development_stage(), 3),
+        crop_stage=crop_stage,
+        dev_stage=dev_stage,
         lai=round(p.orch.canopy.state.lai, 2),
         grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
         water_stress=round(p.orch.canopy.state.last_water_stress, 2),
