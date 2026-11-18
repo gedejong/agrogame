@@ -931,7 +931,7 @@ def test_harvest_action_clears_crop_and_settles(client) -> None:
     assert data["grain_g_m2"] > 0.0, "Harvested grain reported"
     assert data["revenue_credits"] > 0, "Harvest produced revenue"
     # profit = revenue - season costs: the 50-credit harvest labor plus the
-    # 200-credit season-start seed charge (#508).
+    # 200-credit creation-time seed charge (#508).
     assert data["profit_credits"] == data["revenue_credits"] - 50 - 200
 
     # Crop is cleared: a subsequent /step reports a bare patch.

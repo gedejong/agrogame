@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -108,8 +109,7 @@ def _charge_seed(s: GameSession, day: int = 0) -> None:
             crop_key = patch.config.crop_key
             if not crop_key:
                 continue
-            per_ha = _seed_cost_per_ha(crop_key, prices)
-            amount = int(round(per_ha * patch.config.area_fraction))
+            amount = _seed_charge(crop_key, patch.config.area_fraction, prices)
             s.ledger.record_cost(day, "seed", f"seed {crop_key}", amount)
 
 
@@ -578,8 +578,27 @@ def _seed_cost_per_ha(crop_key: str, prices: PriceTable) -> float:
     return per_ha
 
 
-def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
+def _seed_charge(crop_key: str, area_fraction: float, prices: PriceTable) -> int:
+    """Seed credits for sowing ``crop_key`` on one patch (#525).
+
+    Seed is priced per ha (ADR-003) and the field is modelled as 1 ha, so a
+    patch sows ``area_fraction`` ha, rounded per patch (``round``, half-even).
+    The creation-time charge and the ``plant`` action share it, so cannot drift.
+    """
+    return int(round(_seed_cost_per_ha(crop_key, prices) * area_fraction))
+
+
+def _compute_action_cost(
+    action: str,
+    params: dict,
+    prices: PriceTable,
+    area_fractions: Sequence[float] = (1.0,),
+) -> int:
     """Compute action cost from PriceTable (data/economy/prices.yaml).
+
+    ``area_fractions`` are the targeted patches' shares of the 1 ha field. Only
+    ``plant`` reads them, charging ``_seed_charge`` per patch sown (#525); the
+    other inputs always act field-wide, so they price per ha × 1 ha.
 
     Raises:
         ValueError: If a fertiliser type or crop has no price entry. There is no
@@ -614,7 +633,7 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
         return int(labor_lime + per_kg_lime * amount_lime + 0.5)
     if action == "plant":
         crop_key = str(params.get("crop_key", "maize"))
-        return int(_seed_cost_per_ha(crop_key, prices))
+        return sum(_seed_charge(crop_key, a, prices) for a in area_fractions)
     if action == "harvest":
         return int(prices.input_costs.get("labor_per_action", 50))
     if action == "tillage":
@@ -622,18 +641,22 @@ def _compute_action_cost(action: str, params: dict, prices: PriceTable) -> int:
     return 0
 
 
-def _action_cost_or_400(action: str, params: dict, prices: PriceTable) -> int:
+def _action_cost_or_400(
+    action: str, params: dict, prices: PriceTable, targets: Sequence[Patch]
+) -> int:
     """``_compute_action_cost`` for an API route, with pricing errors as a 400.
 
     An unpriced fertiliser or crop raises rather than silently costing 1 cr/kg;
     surface it as a 400 rather than a 500 (#508). Shared by ``/action`` and
-    ``/action/preview`` so the two cannot drift.
+    ``/action/preview`` so the two cannot drift; both pass the patches the
+    action targets, which a ``plant`` is priced by (#525).
 
     Raises:
         HTTPException: 400 naming the missing price key.
     """
+    area_fractions = [p.config.area_fraction for p in targets]
     try:
-        return _compute_action_cost(action, params, prices)
+        return _compute_action_cost(action, params, prices, area_fractions)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
 
@@ -661,7 +684,7 @@ def _validate_lime_params(field: Field, params: dict) -> int:
 
 
 def _target_patches(field: Field, patch_idx: int) -> list[Patch]:
-    """Patches a harvest targets (#359).
+    """Patches a plant or harvest targets (#359, #525).
 
     A ``patch_idx >= 0`` that is in range targets that single patch; a negative
     index (the default when the request omits ``patch_idx``) targets every patch
@@ -1238,8 +1261,10 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
 
     field = s.field_manager.fields[req.field_id]
 
-    # Harvest targets a specific patch (or the whole field if no patch_idx).
-    harvest_patch_idx = _validated_patch_idx(field, req)
+    # Plant and harvest target one patch (or the whole field if no patch_idx);
+    # plant is priced by the same targets it sows (#525).
+    patch_idx = _validated_patch_idx(field, req)
+    targets = _target_patches(field, patch_idx)
 
     # Lime: validate the target layer before charging, and treat a
     # non-positive rate as a free no-op (#465).
@@ -1259,9 +1284,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     # no result clobber (#341). The frontend gates the UI path, but the backend
     # must be safe too. Scoped to the requested patch so a multi-patch field
     # only no-ops when that patch is bare (#359).
-    if req.action == "harvest" and not _field_has_standing_crop(
-        field, harvest_patch_idx
-    ):
+    if req.action == "harvest" and not _field_has_standing_crop(field, patch_idx):
         return ActionResponse(
             status="no-op",
             action=req.action,
@@ -1273,7 +1296,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     from agrogame.game.economy import PriceTable
 
     prices = PriceTable.load()
-    cost = _action_cost_or_400(req.action, req.params, prices)
+    cost = _action_cost_or_400(req.action, req.params, prices, targets)
 
     if s.ledger.balance_credits < cost:
         raise HTTPException(
@@ -1290,18 +1313,15 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     sold_kg_ha = 0.0
     if req.action == "harvest":
         grain_g_m2, revenue_credits, profit_credits, product = _harvest_action(
-            s, field, prices, harvest_patch_idx
+            s, field, prices, patch_idx
         )
         harvest_product = product.name
         sold_kg_ha = round(_sold_kg_ha(grain_g_m2, product), 1)
     elif req.action == "plant":
-        # Plant targets a specific patch (or all if no patch_idx given)
+        # Sow exactly the patches the seed charge was priced on (#525).
         crop_key = req.params.get("crop_key", "maize")
-        patch_idx = req.params.get("patch_idx", -1)
         crops = load_crop_presets(Path("data/crops/presets.yaml"))
-        for i, patch in enumerate(field.patches):
-            if patch_idx >= 0 and i != int(patch_idx):
-                continue
+        for patch in targets:
             climate_key = patch.config.climate_key
             preset = crops.get_preset(crop_key, climate_key)
             # reset_crop clears the event bus; Patch.reset_crop re-subscribes
@@ -1359,7 +1379,9 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
 
     Uses the same ``_compute_action_cost`` as ``/action`` so the frontend
     cost preview cannot drift from the ledger deduction (single source of
-    truth). Returns whether the current balance covers the cost.
+    truth). Returns whether the current balance covers the cost. ``patch_idx``
+    is validated and resolved to targets as on ``/action``, so a ``plant``
+    previews the seed for the patches it would sow (#525).
     """
     s = _get_session(game_id)
     if req.field_id not in s.field_manager.fields:
@@ -1367,11 +1389,13 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
     if req.action not in _VALID_ACTIONS:
         raise HTTPException(400, f"Unknown action: {req.action}")
 
+    field = s.field_manager.fields[req.field_id]
+    targets = _target_patches(field, _validated_patch_idx(field, req))
     if req.action == "lime":
-        _validate_lime_params(s.field_manager.fields[req.field_id], req.params)
+        _validate_lime_params(field, req.params)
 
     prices = PriceTable.load()
-    cost = _action_cost_or_400(req.action, req.params, prices)
+    cost = _action_cost_or_400(req.action, req.params, prices, targets)
     return ActionPreviewResponse(
         action=req.action,
         cost_credits=cost,
