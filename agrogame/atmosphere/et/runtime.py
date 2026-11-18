@@ -115,8 +115,9 @@ class ETRuntime(RuntimeMemory):
             residue_cover_fraction=self._residue.cover_fraction,
         )
         # Diagnostic-only (*Computed): surface the day's ET partition so
-        # observers can accumulate seasonal actual crop ET (E+T). et0 is the
-        # model's raw Priestley-Taylor value (not FAO-56-calibrated; #414/#418).
+        # observers can accumulate seasonal actual crop ET (E+T). et0 is
+        # Priestley-Taylor (alpha = 1.26) on Rn = 0.6·Rs (ADR-014), not FAO-56
+        # Penman-Monteith: it has no aerodynamic (wind x VPD) term.
         self.event_bus.emit(
             EvapotranspirationComputed(
                 et0_mm=et0,
