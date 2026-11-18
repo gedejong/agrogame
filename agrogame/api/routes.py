@@ -332,9 +332,36 @@ def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     }
 
 
+def _validate_create_request(req: CreateGameRequest) -> None:
+    """Reject a ``POST /games`` body the session could not hold (#547).
+
+    A repeated ``field_id`` and a field with no patches used to reach
+    ``FieldManager`` and surface as a 500. Weather is farm-level (ADR-002 note,
+    2026-11-18): one series is generated from the first patch's climate, so a
+    second ``climate_key`` was accepted and then silently ignored.
+
+    Raises:
+        HTTPException: 422 naming the offending field id or the climate keys,
+            before any session state is built.
+    """
+    seen: set[str] = set()
+    for fc in req.fields:
+        if fc.field_id in seen:
+            raise HTTPException(422, f"Duplicate field_id {fc.field_id!r}")
+        seen.add(fc.field_id)
+        if not fc.patches:
+            raise HTTPException(422, f"Field {fc.field_id!r} has no patches")
+    climates = sorted({p.climate_key for fc in req.fields for p in fc.patches})
+    if len(climates) > 1:
+        raise HTTPException(
+            422, f"Weather is farm-level, so a game has one climate_key; got {climates}"
+        )
+
+
 @router.post("/games", response_model=GameCreatedResponse)
 def create_game(req: CreateGameRequest) -> GameCreatedResponse:
     """Create a new game session."""
+    _validate_create_request(req)
     game_id = str(uuid.uuid4())[:8]
     fm = FieldManager()
     for fc in req.fields:
@@ -1499,21 +1526,31 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
 
 
 @router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
-def get_forecast(game_id: str, days: int = 5, seed: int = 42) -> ForecastResponse:
+def get_forecast(
+    game_id: str, days: int = 5, seed: int = 42, field_id: str | None = None
+) -> ForecastResponse:
     """Peek ahead: weather plus projected water-stress and mineral-N (#318).
 
     The soil/crop trajectory is a lightweight decision-support projection
-    (see ``agrogame.api.forecast``) anchored on the first field's first
-    patch, advanced day-by-day over the forecast weather.
+    (see ``agrogame.api.forecast``) anchored on patch 0 of ``field_id``, or of
+    the first field when it is omitted (#547), advanced day-by-day over the
+    forecast weather. Weather is farm-level, so the window is the same for
+    every field. An unknown ``field_id`` is a 404, raised before weather is
+    generated so the lookup has no side effect.
     """
     s = _get_session(game_id)
+    if field_id is None:
+        field = next(iter(s.field_manager.fields.values()))
+    elif field_id in s.field_manager.fields:
+        field = s.field_manager.fields[field_id]
+    else:
+        raise HTTPException(404, f"Field {field_id} not found")
     _ensure_weather(s, seed)
 
     end = min(s.day_index + days, len(s.weather))
     window = s.weather[s.day_index : end]
 
-    first_field = next(iter(s.field_manager.fields.values()))
-    pi = _projection_inputs(first_field.patches[0])
+    pi = _projection_inputs(field.patches[0])
     projection = project_soil_forecast(
         available_water_mm=pi.available_water_mm,
         total_available_water_mm=pi.total_available_water_mm,

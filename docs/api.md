@@ -8,6 +8,7 @@ key_classes: []
 key_events: []
 primary_tests:
   - tests/test_api.py
+  - tests/test_api_multifield.py
 related_adrs: [ADR-002, ADR-003, ADR-005, ADR-017]
 ---
 
@@ -18,7 +19,16 @@ external automation. In-memory game sessions are keyed by `game_id`.
 
 ## Endpoints (selected)
 
-- `POST /api/v1/games` — create a game session
+- `POST /api/v1/games` — create a game session from
+  `{"fields": [{"field_id", "patches": [...]}], "starting_credits"}`. The body
+  is rejected with **422**, and no session is created, when (#547):
+  - two fields share a `field_id` (the detail names it);
+  - a field has an empty `patches` list (the detail names the field);
+  - the patches carry more than one distinct `climate_key` (the detail lists
+    them). Weather is farm-level, so a game has one climate (ADR-002).
+
+  The first two used to fail with a 500. A second climate used to be accepted
+  and then ignored, because weather follows the first patch's climate.
 - `POST /api/v1/games/{game_id}/start-season` — set up a season (crop and
   ledger reset from season 2 on, seeded weather) **without stepping**; see below
 - `POST /api/v1/games/{game_id}/step` — advance N days, returning daily snapshots
@@ -37,11 +47,16 @@ external automation. In-memory game sessions are keyed by `game_id`.
 - `GET /api/v1/games/{game_id}` — current session state, including `fields`
   (#516): each `field_id` maps to its patches in order, each
   `{patch_idx, soil_profile_key, crop_key, climate_key, area_fraction}` with the
-  patch's current config (`crop_key` is `""` after a per-patch harvest). The
-  Godot farm view lays out its tile bands from `fields.field_1`. `GET /status`
-  carries the same member. An unknown `game_id` is a 404.
-- `GET /api/v1/games/{game_id}/forecast` — short-range forecast: weather plus a
-  projected water-stress (FAO-56 Ks) and mineral-N trajectory for decision support
+  patch's current config (`crop_key` is `""` after a per-patch harvest).
+  `fields` lists every field in creation order, and the client lays out every
+  field from it. (Until #472's client children land, the Godot farm view still
+  renders only `fields.field_1`.) `GET /status` carries the same member. An
+  unknown `game_id` is a 404.
+- `GET /api/v1/games/{game_id}/forecast?field_id=<id>` — short-range forecast:
+  weather plus a projected water-stress (FAO-56 Ks) and mineral-N trajectory
+  for decision support, anchored on patch 0 of `field_id` (#547). Without
+  `field_id` it projects the first field, exactly as before. An unknown
+  `field_id` is a 404. The weather part is the same for every field.
 - `GET /api/v1/games/{game_id}/report` — end-of-season harvest report
 
 ## One day loop (#487)
