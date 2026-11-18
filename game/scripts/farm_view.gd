@@ -85,6 +85,10 @@ var _layout: Array = []  # field_1's patches as laid out on the tiles (#516)
 ## Scene changer and title-return delay, swappable so tests can observe them.
 var _change_scene: Callable
 var _title_delay_s: float = 2.0
+## Set by _set_buttons_disabled(true) while a request holds the bar (load, create,
+## a /step, or an /action and the step its reply triggers), and cleared only by
+## the reply that releases it, so nothing landing meanwhile re-enables a button (#534).
+var _bar_held: bool = false
 
 @onready var camera_rig: Node3D = $CameraRig
 @onready var camera: Camera3D = $CameraRig/Camera3D
@@ -417,6 +421,7 @@ func _ensure_game(callback: Callable) -> void:
 
 
 func _set_buttons_disabled(disabled: bool) -> void:
+	_bar_held = disabled
 	next_day_btn.disabled = disabled
 	ff7_btn.disabled = disabled
 	ff_all_btn.disabled = disabled
@@ -449,7 +454,7 @@ func _update_harvest_button() -> void:
 	## Enable Harvest only for a selected patch with a standing crop; otherwise
 	## disable with an explanatory tooltip.
 	if _selected_has_standing_crop():
-		harvest_btn.disabled = false
+		harvest_btn.disabled = _bar_held
 		harvest_btn.tooltip_text = "Harvest the standing crop on this patch"
 	else:
 		harvest_btn.disabled = true
@@ -541,7 +546,7 @@ func _apply_cost_to_button(i: int, data: Dictionary) -> void:
 	var variable_cost: bool = spec.get("variable_cost", false)
 	btn.text = ActionCost.format_button_label(spec["label"], cost, variable_cost)
 	btn.tooltip_text = ActionCost.tooltip_text(spec["action"], cost, balance)
-	btn.disabled = not affordable
+	btn.disabled = not affordable or _bar_held
 
 
 func _action_button_for(action: String) -> Button:
@@ -713,11 +718,15 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 	_update_harvest_button()
 
 
+## Every /action goes out here, holding the bar until its reply, and for all
+## but Harvest the step that reply triggers, has been applied (#534).
+func _send_action(action: String, params: Dictionary, on_reply: Callable) -> void:
+	_set_buttons_disabled(true)
+	_api_client.execute_action(_game_id, action, params, on_reply)
+
+
 func _on_irrigate() -> void:
-	_ensure_game(
-		func() -> void:
-			_api_client.execute_action(_game_id, "irrigate", {"amount_mm": 20}, _on_action_complete)
-	)
+	_ensure_game(func() -> void: _send_action("irrigate", {"amount_mm": 20}, _on_action_complete))
 
 
 func _setup_fertilizer_popup() -> void:
@@ -768,7 +777,7 @@ func _on_fertilizer_selected(option_id: int) -> void:
 			status_label.text = (
 				"Applying %s %d %s — est. %d credits" % [display_name, int(amount), unit, cost]
 			)
-			_api_client.execute_action(_game_id, "fertilize", params, _on_action_complete)
+			_send_action("fertilize", params, _on_action_complete)
 	)
 
 
@@ -792,15 +801,12 @@ func _on_lime_selected(amount_kg_ha: float, cost: int) -> void:
 			status_label.text = (
 				"Applying lime %.1f t/ha — est. %d credits" % [amount_kg_ha / 1000.0, cost]
 			)
-			_api_client.execute_action(_game_id, "lime", params, _on_action_complete)
+			_send_action("lime", params, _on_action_complete)
 	)
 
 
 func _on_tillage() -> void:
-	_ensure_game(
-		func() -> void:
-			_api_client.execute_action(_game_id, "tillage", {"intensity": 0.8}, _on_action_complete)
-	)
+	_ensure_game(func() -> void: _send_action("tillage", {"intensity": 0.8}, _on_action_complete))
 
 
 func _on_harvest_pressed() -> void:
@@ -810,19 +816,8 @@ func _on_harvest_pressed() -> void:
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var crop_key: String = _tile_data[idx].get("crop_key", "")
 	var patch_idx: int = _tile_data[idx]["patch_idx"]
-	_ensure_game(
-		func() -> void:
-			_set_buttons_disabled(true)
-			(
-				_api_client
-				. execute_action(
-					_game_id,
-					"harvest",
-					{"patch_idx": patch_idx},
-					_on_harvest_complete.bind(crop_key, patch_idx),
-				)
-			)
-	)
+	var on_reply := _on_harvest_complete.bind(crop_key, patch_idx)
+	_ensure_game(func() -> void: _send_action("harvest", {"patch_idx": patch_idx}, on_reply))
 
 
 func _on_harvest_complete(
@@ -896,16 +891,13 @@ func _on_crop_selected(id: int) -> void:
 	var crop_key: String = AVAILABLE_CROPS[id]
 	var params := _plant_params(crop_key)
 	var patch_idx: int = params["patch_idx"]
-	_ensure_game(
-		func() -> void:
-			_api_client.execute_action(
-				_game_id, "plant", params, _on_plant_complete.bind(crop_key, patch_idx)
-			)
-	)
+	var on_reply := _on_plant_complete.bind(crop_key, patch_idx)
+	_ensure_game(func() -> void: _send_action("plant", params, on_reply))
 
 
 func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch_idx: int) -> void:
 	if not success:
+		_set_buttons_disabled(false)
 		status_label.text = "Plant failed"
 		return
 	var cost: int = data.get("cost_credits", 0)
@@ -922,6 +914,7 @@ func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch
 
 func _on_action_complete(success: bool, data: Dictionary) -> void:
 	if not success:
+		_set_buttons_disabled(false)
 		status_label.text = "Action failed"
 		return
 	var action: String = data.get("action", "")

@@ -4,6 +4,8 @@ extends GutTest
 
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 
+var _auto_cutaway: bool
+
 
 ## Spy that records execute_action calls in place of the real ApiClient.
 ##
@@ -52,6 +54,17 @@ class ApiClientSpy:
 			callback.call(false, {})
 			return
 		callback.call(true, {"revenue_credits": 1200, "profit_credits": 400})
+
+
+func before_each() -> void:
+	# The debug demo driver would create a game from _ready, before the spy is
+	# in, contacting the backend and holding the bar until it answers (#534).
+	_auto_cutaway = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
+	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", false)
+
+
+func after_each() -> void:
+	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", _auto_cutaway)
 
 
 func _make_view() -> Node3D:
