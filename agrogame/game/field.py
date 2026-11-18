@@ -8,7 +8,7 @@ coordinator.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -75,7 +75,7 @@ class Patch:
 
         profile = soil_lib.soils[config.soil_profile_key]
         # A harvested (or never-planted) patch has an empty crop_key; it holds no
-        # standing crop, so the orchestrator is built crop-free (crop=None). This
+        # standing crop, so the orchestrator is built bare (fallow, #542). This
         # lets a mid-stagger save with some patches already harvested round-trip
         # through load without a missing-preset lookup (#371).
         crop = (
@@ -86,7 +86,10 @@ class Patch:
         climate = climates.climates[config.climate_key]
 
         self.orch = FullSimulationOrchestrator(
-            profile, crop=crop, latitude_deg=climate.latitude_deg
+            profile,
+            crop=crop,
+            latitude_deg=climate.latitude_deg,
+            fallow=not config.crop_key,
         )
         self.recorder = EventRecorder(self.orch.event_bus)
 
@@ -102,8 +105,14 @@ class Patch:
         ``/step`` returns empty ``daily_snapshots``/events from season 2 onward
         (#402). Replacing the recorder (rather than re-subscribing the old one)
         guarantees exactly one live subscription and no double-recording.
+
+        ``preset=None`` leaves the patch bare: a fallow orchestrator and
+        ``crop_key == ""``, so a save reloads it bare (#542). A preset sets
+        ``crop_key`` to the preset's key, so a save reloads it planted.
         """
-        self.orch.reset_crop(preset)
+        self.orch.reset_crop(preset, fallow=preset is None)
+        crop_key = "" if preset is None else preset.key or self.config.crop_key
+        self.config = replace(self.config, crop_key=crop_key)
         self.recorder = EventRecorder(self.orch.event_bus)
 
     def to_dict(self) -> dict[str, Any]:
@@ -133,10 +142,24 @@ class Patch:
 
         Plant state is written into the live objects (see ``_copy_fields``).
         Keys added in #515 are optional: a pre-#515 save leaves the shoot-N
-        stock, plan and day counter at their fresh-patch values.
+        stock, plan and day counter at their fresh-patch values. A fallow
+        patch keeps its zero plant state, discarding the phantom plant a
+        pre-#542 save carries.
         """
         orch = self.orch
         orch.restore_soil(SoilSnapshot.from_dict(data["soil_snapshot"]))
+        if not orch.is_fallow:
+            self._restore_plant_state(data)
+        if data.get("management_plan") is not None:
+            orch.management_plan = ManagementPlan.from_dict(data["management_plan"])
+        orch.day_counter = int(data.get("day_counter", 0))
+        grain = data.get("harvested_grain_g_m2")
+        self.harvested_grain_g_m2 = None if grain is None else float(grain)
+        self.harvested_crop_key = data.get("harvested_crop_key")
+
+    def _restore_plant_state(self, data: dict[str, Any]) -> None:
+        """Write saved canopy, phenology, root and shoot-N state (#515)."""
+        orch = self.orch
         if data.get("canopy_state"):
             _copy_fields(orch.canopy.state, CanopyState.from_dict(data["canopy_state"]))
         if data.get("phenology_state"):
@@ -150,12 +173,6 @@ class Patch:
         if data.get("plant_n_state"):
             restored_n = PlantNitrogenState.from_dict(data["plant_n_state"])
             _copy_fields(orch.plant_n_state, restored_n)
-        if data.get("management_plan") is not None:
-            orch.management_plan = ManagementPlan.from_dict(data["management_plan"])
-        orch.day_counter = int(data.get("day_counter", 0))
-        grain = data.get("harvested_grain_g_m2")
-        self.harvested_grain_g_m2 = None if grain is None else float(grain)
-        self.harvested_crop_key = data.get("harvested_crop_key")
 
     def harvest(self) -> PatchResult:
         snap = self.orch.harvest()
