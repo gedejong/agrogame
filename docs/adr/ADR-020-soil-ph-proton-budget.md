@@ -206,6 +206,11 @@ It must be revisited, toward about 0.18 at pH 4.0, before any preset with an
 initial pH below 5 ships. One example is the Kenyan acid Nitisol follow-up,
 at pH 4.07-4.85 (Kisinyo et al. 2013).
 
+Since #558 the floor no longer acts on nitrification. Nitrification reads the
+activity index without its pH modifier and applies its own nitrifier factor,
+0 at pH 4.12 (see Consequences). The floor still acts on N, P and S
+mineralisation and on microbial growth and mortality.
+
 ## Consequences
 
 - **pH follows management.** At 0 kg N layer-0 pH holds within 0.001 over a
@@ -251,13 +256,35 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
   four years. PR A asserts it in `test_precondition_ph_proxies_are_gone`.
 - **#531** (continuous calendar) depends on this ADR. Continuous play under
   the clock collapsed every soil within 3-5 years.
-- **#558: pH enters nitrification twice.** `NitrogenCycle._ph_factor`, an
-  uncited triangle at 0 below pH 4 and 1 at 7, multiplies the nitrification
-  rate. So does microbial activity, which carries the #553 pH response.
-  Under the budget this double count is now a feedback on the drift itself:
-  lower pH, less nitrification, less acidification. The feedback is stronger
-  than either factor alone. It belongs under this ADR and is fixed in #558,
-  not here.
+- **#558: pH entered nitrification twice (fixed in #558).** An uncited
+  triangle, 0 below pH 4 and 1 at 7, multiplied the nitrification rate, and
+  so did microbial activity, which carries the #553 pH response: 0.246 at
+  pH 5, against 0.29-0.33 for either factor alone. Under the budget the
+  double count fed back on the drift itself: lower pH, less nitrification,
+  less acidification.
+  - **The fix.** Nitrification takes one cited factor, DSSAT-CSM v4.8's
+    `PHFACT = min(1, 0.33 pH - 1.36)`, floored at 0
+    (`Soil/Inorganic_N/SOILNI.for`; its source comment attributes the
+    routine to Gilmour 1984). Kyveryga et al. 2004 is the field evidence
+    that nitrification stays pH-sensitive above pH 6, which argues against
+    the CERES/APSIM plateau from 6 to 8.
+  - **The heterotroph (Rousk) pH response no longer applies to
+    nitrification.** Nitrification reads
+    `MicrobialActivityComputed.activity_index_excl_ph`, the activity index
+    without its pH modifier. Rousk et al. measured heterotrophs; nitrifiers
+    are autotrophs. N, P and S mineralisation keep the pH-inclusive index.
+    The drift feedback now runs through the one nitrifier factor.
+  - **Measured effect on drift**, without the relaxation (after PR A), on
+    the 5-year calendar-year harness: all 8 catalog scenarios x {0 N,
+    typical, high, typical + 3 t/ha lime in year 3} x seeds 42-46.
+    - Year-end layer-0 pH moves by -0.0113 to +0.0044 against the
+      double-counted run, and by under 0.005 outside limed soils.
+    - The largest moves are on limed sand in years 3-5, at pH 7.1-7.4. There
+      the deleted triangle had cut nitrification to 0.80-0.95, while the
+      DSSAT-CSM line is at or near its plateau (0.98-1.0), so the soil
+      acidifies slightly faster.
+    - Mean grain moves by at most 1.6 % in any scenario, treatment and year
+      (limed Sahel sorghum, year 5).
 
 ## Alternatives Considered
 
@@ -285,6 +312,9 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
   pp. 61-101.
 - Goulding 2016, *Soil Use Manage.* 32:390-399.
 - Rousk, Brookes & Bååth 2009, *Appl. Environ. Microbiol.* 75:1589-1596.
+- DSSAT-CSM v4.8, `Soil/Inorganic_N/SOILNI.for` (nitrification `PHFACT`);
+  Gilmour 1984, *SSSAJ* 48:1262-1266, per its source comment.
+- Kyveryga, Blackmer, Ellsworth & Isla 2004, *SSSAJ* 68:545-551.
 - Curtin & Rostad 1997, *Can. J. Soil Sci.* 77:621-626; Aitken & Moody 1994,
   *Aust. J. Soil Res.* 32:975-984 (buffer capacity).
 - Lindsay & Norvell 1978, *SSSAJ* 42:421-428 (DTPA soil test).
