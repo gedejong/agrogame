@@ -2,6 +2,18 @@
 
 ## Status: Proposed
 
+### Note (#547), 2026-11-18: weather is farm-level, so a game has one climate
+
+Every field and patch in a game steps under one weather series. The API
+generates it from the first patch's `climate_key` (`_ensure_weather` and
+`/start-season` in `agrogame/api/routes.py`). A game whose patches named a
+second climate was accepted and then silently simulated under the first
+one's weather. `POST /games` now rejects more than one distinct `climate_key`
+with a 422 that lists them, so one climate per game is enforced where a game is
+created. The per-field crop, soil and management stay independent as decided
+below. Weather that differs between fields (a farm spread across climates)
+would need a per-field series and is out of scope.
+
 ## Context
 
 The current architecture ties one `FullSimulationOrchestrator` to one field. It owns a single `SoilProfile`, `SoilWaterState`, `NitrogenCycle`, `PhosphorusCycle`, `MicrobialBiomassModule`, `SoilChemistryModule`, `PhenologyModule`, `CanopyModule`, `RootModule`, `ManagementPlan`, and an `EventBus` -- all representing one physical field.
