@@ -36,6 +36,37 @@ _SCENARIOS: dict[str, _ScenarioModifiers] = {
 _VALID_SCENARIOS = frozenset(_SCENARIOS.keys())
 
 
+def _base_temperatures(
+    p: ClimatePreset, seasonal: float, month: int
+) -> tuple[float, float]:
+    """The day's (tmin, tmax) before scenario offset and noise.
+
+    With station monthly normals (ADR-019) the value steps by calendar month,
+    as ``rainfall_monthly_weights`` does; the lookup keys on the month alone,
+    so a multi-year series has no seam at New Year or 29 February. Without
+    them, the legacy annual sinusoid (peak about 20 June) is kept unchanged.
+    """
+    if p.monthly_mean_tmin_c:
+        return p.monthly_mean_tmin_c[month - 1], p.monthly_mean_tmax_c[month - 1]
+    return (
+        p.annual_mean_tmin_c + p.annual_temp_amplitude_c * seasonal,
+        p.annual_mean_tmax_c + p.annual_temp_amplitude_c * seasonal,
+    )
+
+
+def _base_shortwave(
+    p: ClimatePreset, mods: _ScenarioModifiers, seasonal: float, month: int
+) -> float:
+    """The day's shortwave (MJ/m²/d) with the scenario multiplier, before noise.
+
+    Monthly normals replace the legacy ``annual_mean·(1 + 0.3·seasonal)``; the
+    legacy product keeps its original operand order so it stays bit-identical.
+    """
+    if p.monthly_mean_shortwave_mj_m2:
+        return p.monthly_mean_shortwave_mj_m2[month - 1] * mods.shortwave_mult
+    return p.annual_mean_shortwave_mj_m2 * mods.shortwave_mult * (1.0 + 0.3 * seasonal)
+
+
 class SyntheticWeatherGenerator:
     def __init__(self, preset: ClimatePreset, seed: int | None = None) -> None:
         self.preset = preset
@@ -68,28 +99,16 @@ class SyntheticWeatherGenerator:
             d = start_date + timedelta(days=i)
             doy = d.timetuple().tm_yday
             seasonal = math.sin(2.0 * math.pi / 365.0 * (doy - 80))
-            tmin = (
-                p.annual_mean_tmin_c
-                + p.annual_temp_amplitude_c * seasonal
-                + mods.temp_offset_c
-                + self._rng.gauss(0.0, 1.5)
-            )
-            tmax = (
-                p.annual_mean_tmax_c
-                + p.annual_temp_amplitude_c * seasonal
-                + mods.temp_offset_c
-                + self._rng.gauss(0.0, 1.5)
-            )
+            tmin_base, tmax_base = _base_temperatures(p, seasonal, d.month)
+            tmin = tmin_base + mods.temp_offset_c + self._rng.gauss(0.0, 1.5)
+            tmax = tmax_base + mods.temp_offset_c + self._rng.gauss(0.0, 1.5)
             if tmax <= tmin:
                 tmax = tmin + 1.0
             rh = p.annual_mean_rh_pct + mods.rh_offset_pct + self._rng.gauss(0.0, 5.0)
             wind = max(0.1, p.annual_mean_wind_m_s + self._rng.gauss(0.0, 0.8))
             sw = max(
                 0.0,
-                p.annual_mean_shortwave_mj_m2
-                * mods.shortwave_mult
-                * (1.0 + 0.3 * seasonal)
-                + self._rng.gauss(0.0, 1.5),
+                _base_shortwave(p, mods, seasonal, d.month) + self._rng.gauss(0.0, 1.5),
             )
             precip = self._generate_daily_precip(p, mods, d.month)
             records.append(
