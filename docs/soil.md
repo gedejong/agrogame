@@ -11,7 +11,7 @@ primary_tests:
   - tests/test_soil_water.py
   - tests/test_nitrogen.py
   - tests/integration/test_realism.py
-related_adrs: [ADR-002, ADR-006]
+related_adrs: [ADR-002, ADR-006, ADR-020]
 ---
 
 # Soil
@@ -38,7 +38,7 @@ package with the canonical `params/state/module/runtime/events` shape (see
 | `agrogame.soil.gas_diffusion` | O₂/CO₂ transport through pore network | [soil-gas-redox.md](soil-gas-redox.md) |
 | `agrogame.soil.phosphorus` | Phosphorus pool dynamics | [phosphorus.md](phosphorus.md) |
 | `agrogame.soil.sulfur` | Sulfate, adsorbed and organic S pools | [sulfur.md](sulfur.md) |
-| `agrogame.soil.chemistry` | pH and ion balance | — |
+| `agrogame.soil.chemistry` | Per-layer pH: N-cycle proton budget, lime | [ADR-020](adr/ADR-020-soil-ph-proton-budget.md) |
 
 ## Liming and pH management (#465)
 
@@ -77,6 +77,32 @@ because the model's layer 0 is 25-30 cm while published tables assume a
 Not modelled here: gradual dissolution over weeks (#482 — no citable day⁻¹
 rate constant exists; see Barber 1984) and per-preset initial pH (#481 — every
 preset currently starts at a flat 6.8).
+
+## Soil acidification: the N-cycle proton budget (#492)
+
+Soil pH moves with the H+ that the nitrogen transformations release, not with
+time ([ADR-020](adr/ADR-020-soil-ph-proton-budget.md)). Per mol N (Bolan,
+Hedley & White 1991, *Plant Soil* 134:53-63; Helyar & Porter 1989): urea
+hydrolysis and ammonification -1, nitrification +2, NO3 uptake -1, NH4 uptake
++1, denitrification -1, NH3 volatilisation +1. Leaching needs no term: the
+acidity stays where the nitrate was made. Each layer's net H+ is released once
+a day at `DayTick(day_end)` as `ProtonLoadOccurred`, and urea's hydrolysis
+term at application, so nothing is pending across a step, `reset_crop` or save.
+`SoilChemistryModule.apply_proton_load` converts it with the buffer capacity
+above:
+
+```
+dpH = -H+ [kmol/ha] / (pHBC [cmol/kg/pH] * soil mass [kg/ha] / 1e5)
+```
+
+So urea nitrified and taken up by the crop is pH-neutral, nitrate left in or
+leached from the soil acidifies by one H+ per N, and unfertilised soil barely
+moves. On `loam_temperate` at 200 kg N/ha layer 0 falls about 0.036 pH per
+150-day season (0.47 mol H+ per mol urea-N, the efficient end of Goulding
+2016, *Soil Use Manage.* 32:390-399); sand falls faster and clay slower. The
+three former proxies (a fixed P-fixation clock, a per-event leaching step and
+an acidifying-fertiliser event nothing emitted) are gone. The weak daily
+relaxation toward 6.8 remains until #481 removes it.
 
 ## Notes
 

@@ -56,6 +56,7 @@ byte-identical events (#562; see [API § Event payloads](api.md#event-payloads-5
 | `DenitrificationOccurred` | `layer: int`, `amount_kg_ha: float` | NO3 lost as N2 gas (anaerobic) |
 | `VolatilizationOccurred` | `layer: int`, `amount_kg_ha: float` | NH3 lost to atmosphere |
 | `NutrientLeached` | `nutrient: str`, `amount_kg_ha: float`, `layer: int` | Nutrient lost below root zone |
+| `ProtonLoadOccurred` | `layer: int`, `h_kmol_ha: float` | Net H+ released (+) or consumed (-) by the N transformations; drives soil pH (ADR-020) |
 
 ### Plant Growth
 
@@ -88,7 +89,7 @@ byte-identical events (#562; see [API § Event payloads](api.md#event-payloads-5
 
 | Event | Key Fields | Description |
 |-------|-----------|-------------|
-| `SoilPHUpdated` | `layer: int`, `ph: float` | pH change from buffering |
+| `SoilPHUpdated` | `layer: int`, `ph: float` | pH change from the N-cycle proton load, lime or buffering |
 | `PhosphorusFixationOccurred` | `layer: int`, `amount_fixed_kg_ha: float` | P locked into minerals |
 
 ## Usage in Godot Frontend
