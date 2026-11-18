@@ -23,7 +23,17 @@ Each event is a JSON object with three fields:
 | `module` | string | Python module path where the event is defined |
 | `data` | object | Event-specific payload (varies by type) |
 
+`data` holds plain JSON values only: a nested record is an object of its
+fields, a date an ISO string, an enum its value. Two identical runs give
+byte-identical events (#562; see [API § Event payloads](api.md#event-payloads-562)).
+
 ## Event Types Reference
+
+### Simulation Clock
+
+| Event | Key Fields | Description |
+|-------|-----------|-------------|
+| `DayTick` | `sim_date: str` (ISO date), `phase: str`, `drivers: object \| null`, `target_ph`, `tmin_c`, `tmax_c` (°C), `shortwave_mj_m2` (MJ m⁻² d⁻¹), `plant_n_demand_kg_ha`, `plant_p_demand_kg_ha`, `plant_s_demand_kg_ha`: `float \| null` | The day's clock and drivers, once per phase (`day_start` … `day_end`). `drivers` is set on the `water` and `et` phases only: `{rainfall_mm, irrigation_mm, evaporation_mm: float (mm), rainfall_intensity_mm_hr: float \| null (mm/hr)}`. `/step` sets only `rainfall_mm`, the day's precipitation; irrigation arrives through the `irrigate` action, so the others are 0.0 and `null` |
 
 ### Water Cycle
 
@@ -55,7 +65,7 @@ Each event is a JSON object with three fields:
 | `BiomassAccumulated` | `increment_g_m2: float`, `total_g_m2: float` | Daily biomass production |
 | `LAIUpdated` | `previous_lai: float`, `new_lai: float` | Leaf area change |
 | `GddAccumulated` | `daily_gdd: float`, `total_gdd: float` | Growing degree-day accumulation |
-| `StageChanged` | `from_stage: str`, `to_stage: str`, `at_gdd: float` | Phenology stage transition |
+| `StageChanged` | `from_stage: str`, `to_stage: str`, `at_gdd: float` | Phenology stage transition; stages are `planted`, `emerged`, `vegetative`, `flowering`, `grain_fill`, `maturity`, as in `crop_stage` |
 | `RootDepthChanged` | `previous_cm: float`, `new_cm: float` | Root penetration depth change |
 
 ### Plant Stress
@@ -123,6 +133,6 @@ source, not both, to avoid double-counting the final day.
 ## Notes
 
 - Events are cleared at the start of each day step — each day's events are independent
-- Event `data` always contains a `timestamp` field (ISO datetime string)
+- Event `data` carries no wall-clock `timestamp` (it did until #562); simulated time is in the response's `date` and in `DayTick.sim_date`
 - All numeric values use metric units (mm, g/m2, kg/ha, etc.)
 - Events are emitted in simulation order within each day

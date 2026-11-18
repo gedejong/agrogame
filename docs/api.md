@@ -114,6 +114,29 @@ resuming gives the same simulation as one uninterrupted call. `GET /status`
 returns this season's alerts, and `season_result.pause_count` counts the
 interrupting ones.
 
+## Event payloads (#562)
+
+`/step` lists each day's simulation events in `patches[...].events` and
+`daily_snapshots[].events`; [API events](api-events.md) is the per-type
+reference. Every event `data` value is plain JSON data, and two identical runs
+(same game, same seed) return byte-identical `/step` responses:
+
+- A nested record is an object of its fields. `DayTick.drivers`, set on the
+  `water` and `et` phases and `null` on the others, is
+  `{"rainfall_mm", "irrigation_mm", "evaporation_mm", "rainfall_intensity_mm_hr"}`.
+- A date is an ISO string (`"sim_date": "2024-04-01"`), and an enum is its
+  value (`StageChanged` stages are `"emerged"`, `"flowering"`, … as in
+  `crop_stage`).
+- The emit wall-clock `timestamp` is not sent. Simulated time is the
+  response's `date`.
+
+`DayTick.drivers` used to go out as Python's
+`<agrogame.soil.water.types.DailyDrivers object at 0x…>`, stage changes as
+`PhenologyStage.EMERGED`, and every event carried the server's wall-clock
+`timestamp`, so no two runs matched byte for byte. The client reads none of
+these fields. A payload value with no JSON form is now a server error naming
+its type, where it used to be sent as its repr.
+
 ## Run
 
 ```bash
