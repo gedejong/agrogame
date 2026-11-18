@@ -135,7 +135,9 @@ reference. Every event `data` value is plain JSON data, and two identical runs
 `PhenologyStage.EMERGED`, and every event carried the server's wall-clock
 `timestamp`, so no two runs matched byte for byte. The client reads none of
 these fields. A payload value with no JSON form is now a server error naming
-its type, where it used to be sent as its repr.
+its type, where it used to be sent as its repr. A unit test discovers every
+`BaseEvent` subclass in `agrogame` and serialises one instance of each, so a
+new event type with such a field fails in CI rather than during play.
 
 ## Run
 
