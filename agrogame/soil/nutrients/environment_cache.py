@@ -45,6 +45,9 @@ class EnvironmentalCache(RuntimeMemory):
     - ``root_fractions``: list[float] | None — ``None`` until the first
       ``RootDistributionUpdated`` is seen.
     - ``microbe_activity_by_layer``: list[float] in ``[0, 1]``.
+    - ``microbe_activity_excl_ph_by_layer``: list[float] in ``[0, 1]``, the
+      same index without the microbial pH modifier; nitrification reads it
+      because it applies its own nitrifier pH factor (#558).
     - ``fungal_fraction_by_layer``: list[float] in ``[0, 1]``.
 
     Args:
@@ -52,7 +55,8 @@ class EnvironmentalCache(RuntimeMemory):
         n_layers: Number of soil layers.
         initial_ph: Default pH seeded into every layer (7.0 for N, 6.8 for
             P and micronutrients) — kept configurable so no behaviour change.
-        initial_microbe_activity: Default activity index per layer.
+        initial_microbe_activity: Default activity index per layer, for
+            both activity lists.
         initial_fungal_fraction: Default fungal:bacterial fraction per layer.
         normalize_root_fractions: When ``True`` (nitrogen), incoming root
             fractions are clamped to non-negative, renormalised to sum 1.0
@@ -70,6 +74,7 @@ class EnvironmentalCache(RuntimeMemory):
         "ph_by_layer",
         "root_fractions",
         "microbe_activity_by_layer",
+        "microbe_activity_excl_ph_by_layer",
         "fungal_fraction_by_layer",
     )
 
@@ -103,6 +108,9 @@ class EnvironmentalCache(RuntimeMemory):
         self.ph_by_layer: list[float] = [initial_ph] * n_layers
         self.root_fractions: list[float] | None = None
         self.microbe_activity_by_layer: list[float] = [
+            initial_microbe_activity
+        ] * n_layers
+        self.microbe_activity_excl_ph_by_layer: list[float] = [
             initial_microbe_activity
         ] * n_layers
         self.fungal_fraction_by_layer: list[float] = [
@@ -143,6 +151,9 @@ class EnvironmentalCache(RuntimeMemory):
             # Clamp to [0, 1] so microbes can only dampen rates, not blow them up
             self.microbe_activity_by_layer[event.layer] = max(
                 0.0, min(1.0, float(event.activity_index))
+            )
+            self.microbe_activity_excl_ph_by_layer[event.layer] = max(
+                0.0, min(1.0, float(event.activity_index_excl_ph))
             )
 
     def _on_microbe_fb(self, event: MicrobialFBUpdated) -> None:

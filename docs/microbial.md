@@ -5,7 +5,7 @@ This module simulates microbial biomass dynamics with environmental controls and
 - Events: `MicrobialGrowthOccurred`, `MicrobialMortalityOccurred`, `EnzymeProduced`, `EnzymeGroupTotalsComputed`, `MicrobialActivityComputed`, `MicrobialFBUpdated`, `SubstrateReleased`, `RhizospherePrimingOccurred`.
 - Core: `MicrobialBiomassModule` integrates temperature, WFPS, and pH response modifiers via `EnvironmentalResponses` and computes growth/turnover per soil layer each day.
 - Kinetics: Monod substrate limitation is applied to growth, with an enzyme production cost fraction. A rhizosphere priming multiplier scales activity transiently.
-- Coupling: Nitrogen/Phosphorus cycles subscribe to `MicrobialActivityComputed` and `MicrobialFBUpdated` to modulate mineralization and nitrification/uptake.
+- Coupling: Nitrogen/Phosphorus cycles subscribe to `MicrobialActivityComputed` and `MicrobialFBUpdated` to modulate mineralization and nitrification/uptake. Mineralization (N, P, S) reads `activity_index`, which includes the pH response; nitrification reads the pH-free `activity_index_excl_ph`, because it applies its own nitrifier pH factor (#558, see `docs/nitrogen.md`).
 - Orchestration: `MicrobesRuntime` runs on the `nutrients` phase of the daily calendar and aggregates enzyme totals by group.
 
 #### Visualizations

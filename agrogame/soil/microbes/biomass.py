@@ -94,13 +94,19 @@ class MicrobialBiomassModule:
 
     def _compute_layer_activity(
         self, idx: int, w: float, p: float, temperature_c: float
-    ) -> float:
+    ) -> tuple[float, float]:
+        """Return the activity index with and without the pH modifier (#558).
+
+        The pH-free index is computed directly, not by division, so it stays
+        defined where the pH modifier is 0 (pH <= 4.0).
+        """
         temp_mod = self.responses.temperature_modifier(temperature_c)
         moist_mod = self.responses.moisture_modifier(max(0.0, min(1.0, w)))
         ph_mod = self.responses.ph_modifier(p)
         base_activity = max(0.0, temp_mod * moist_mod * ph_mod)
-        priming = self._priming_multiplier.get(idx, 1.0)
-        return base_activity * max(0.5, min(3.0, priming))
+        priming = max(0.5, min(3.0, self._priming_multiplier.get(idx, 1.0)))
+        base_excl_ph = max(0.0, temp_mod * moist_mod)
+        return base_activity * priming, base_excl_ph * priming
 
     def _adjust_fb_ratio(
         self, idx: int, layer: MicrobialLayerState, w: float, p: float
@@ -211,11 +217,14 @@ class MicrobialBiomassModule:
         for idx, layer in enumerate(self.state.layers):
             w = wfps_by_layer[idx if idx < len(wfps_by_layer) else -1]
             p = ph_by_layer[idx if idx < len(ph_by_layer) else -1]
-            activity = self._compute_layer_activity(idx, w, p, temperature_c)
+            activity, activity_excl_ph = self._compute_layer_activity(
+                idx, w, p, temperature_c
+            )
             self.event_bus.emit(
                 MicrobialActivityComputed(
                     layer=idx,
                     activity_index=activity,
+                    activity_index_excl_ph=activity_excl_ph,
                     wfps=w,
                     ph=p,
                     temperature_c=temperature_c,
