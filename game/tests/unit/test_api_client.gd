@@ -63,7 +63,22 @@ class StubClient:
 	## Per endpoint, return values for its next sends, consumed in order; OK
 	## once exhausted.
 	var send_errors_for: Dictionary = {}
+	## Endpoints whose send in flight the client cancelled, in order (#556).
+	var cancels: Array = []
+	## Per endpoint, timeouts in seconds for its next sends, consumed in order;
+	## the client's own once exhausted (#556).
+	var timeouts_for: Dictionary = {}
 	var _awaiting_on: Dictionary = {}
+
+	func _cancel(endpoint: String) -> void:
+		cancels.append(endpoint)
+		_awaiting_on.erase(endpoint)
+
+	func _timeout_s(endpoint: String) -> float:
+		var timeouts: Array = timeouts_for.get(endpoint, [])
+		if timeouts.is_empty():
+			return super(endpoint)
+		return timeouts.pop_front()
 
 	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
 		sends.append([endpoint, url, method, body])
@@ -284,6 +299,8 @@ func _call_each(api: StubClient, endpoint: String, got: Array, tags: Array) -> v
 				api.step_day("g", 1, callback)
 			"action":
 				api.execute_action("g", "irrigate", {}, callback)
+			"preview":
+				api.preview_action("g", "tillage", {}, callback)
 			"forecast":
 				api.get_forecast("g", callback)
 			"report":
@@ -379,3 +396,124 @@ func test_each_endpoint_sends_its_request_on_its_own_http_request() -> void:
 	assert_eq(bodies.slice(3, 5), [JSON.stringify(action), JSON.stringify(preview)])
 	assert_eq([bodies[1], bodies[2], bodies[5], bodies[6]], ["", "", "", ""], "no body")
 	assert_eq(api.get_children().size(), 7, "one HTTPRequest per endpoint")
+
+
+func test_every_endpoint_times_out_and_step_leaves_room_for_run_season() -> void:
+	# #556 AC1: no call may await its reply for ever. Run Season's 200-day /step
+	# took 14.7 s client-side at 20 fps (M1 Pro), so /step must allow 4x that.
+	for endpoint: String in ApiClientScript._ENDPOINTS:
+		assert_gt(ApiClientScript.TIMEOUT_S.get(endpoint, 0.0), 0.0, "%s times out" % endpoint)
+	assert_eq(ApiClientScript.TIMEOUT_S.size(), ApiClientScript._ENDPOINTS.size(), "no others")
+	assert_gte(ApiClientScript.TIMEOUT_S["step"], 4 * 14.7, "a 200-day /step at 20 fps, 4x")
+
+
+func test_an_unanswered_call_times_out_once_and_the_queue_moves_on() -> void:
+	# #556 AC2/AC3: a send that never completes is cancelled after its endpoint's
+	# timeout and fails as a transport error does, once. The call queued behind
+	# it then goes out and gets its own reply, and a reply for the timed-out call
+	# turning up after that reaches no caller. Every endpoint at once: they time
+	# out independently.
+	var api := _stub_client()
+	var got: Dictionary = {}
+	for endpoint: String in ApiClientScript._ENDPOINTS:
+		api.timeouts_for[endpoint] = [0.05]
+		got[endpoint] = []
+		_call_each(api, endpoint, got[endpoint], ["hung", "next"])
+	var endpoints := ApiClientScript._ENDPOINTS.size()
+	assert_eq(api.sends.size(), endpoints, "one send per endpoint; the next calls wait")
+	assert_true(await wait_until(func() -> bool: return api.cancels.size() == endpoints, 2.0))
+	for endpoint: String in ApiClientScript._ENDPOINTS:
+		assert_eq(
+			got[endpoint], [["hung", false, {}]], "%s: failed once, on its timeout" % endpoint
+		)
+		assert_true(api.awaiting(endpoint), "%s: the next call went out" % endpoint)
+		api.reply_ok(endpoint, {"n": "2"})
+		var both := [["hung", false, {}], ["next", true, {"n": "2"}]]
+		assert_eq(got[endpoint], both, "%s: the next call got its own reply" % endpoint)
+		api.reply_ok(endpoint, {"n": "late"})
+		assert_push_error("no %s in flight" % endpoint)
+		assert_eq(got[endpoint], both, "%s: the late reply reached no caller" % endpoint)
+		assert_push_warning("%s timed out" % endpoint)
+	assert_eq(api.sends.size(), 2 * endpoints, "each next call sent once")
+	assert_eq(api.busy_sends, 0, "each hung send was cancelled before the next went out")
+
+
+func test_a_call_answered_in_time_is_not_timed_out_later() -> void:
+	# #556: a send's timeout is its own. Once the call is answered, its timer
+	# firing later must not fail the call sent after it on the same endpoint.
+	var api := _stub_client()
+	api.timeouts_for["step"] = [0.1, 0.5]
+	var got: Array = []
+	_call_each(api, "step", got, ["first"])
+	api.reply_ok("step", {"n": "1"})
+	_call_each(api, "step", got, ["second"])
+	await wait_seconds(0.25)  # the first send's timer has fired, the second's not
+	assert_eq(got, [["first", true, {"n": "1"}]], "the first send's timer did nothing")
+	assert_true(api.awaiting("step"), "the second is still in flight")
+	assert_eq(api.cancels, [], "nothing cancelled")
+	api.reply_ok("step", {"n": "2"})
+	assert_eq(got, [["first", true, {"n": "1"}], ["second", true, {"n": "2"}]])
+
+
+## ApiClient over its real HTTPRequests, aimed at a local TCPServer that
+## accepts every connection and answers only when a test writes a reply: a
+## backend that hangs without dropping the connection (#556). Its first send
+## times out after 0.3 s, later ones after the client's own timeout.
+class HungBackendClient:
+	extends "res://scripts/api_client.gd"
+	var port: int = 0
+	var _first_timeout: bool = true
+
+	func _send(endpoint: String, url: String, method: HTTPClient.Method, body: String) -> Error:
+		var local := url.replace("http://localhost:8000", "http://127.0.0.1:%d" % port)
+		return super(endpoint, local, method, body)
+
+	func _timeout_s(endpoint: String) -> float:
+		if _first_timeout:
+			_first_timeout = false
+			return 0.3
+		return super(endpoint)
+
+
+## The next connection `server` accepts, waiting up to 2 s for it.
+func _accept(server: TCPServer) -> StreamPeerTCP:
+	await wait_until(func() -> bool: return server.is_connection_available(), 2.0)
+	return server.take_connection()
+
+
+## A complete HTTP/1.1 200 response carrying `data` as JSON.
+func _http_200(data: Dictionary) -> PackedByteArray:
+	var body := JSON.stringify(data).to_utf8_buffer()
+	var head := "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+	head += "Content-Length: %d\r\nConnection: close\r\n\r\n" % body.size()
+	return head.to_utf8_buffer() + body
+
+
+func test_a_hung_backend_times_out_and_its_late_reply_never_lands() -> void:
+	# #556 AC2 over the real transport. The first /step reaches a backend that
+	# never answers; on its timeout the client closes that connection, so its
+	# reply, written only once the second /step is in flight, reaches nobody,
+	# and the second /step gets its own.
+	var server := TCPServer.new()
+	assert_eq(server.listen(0, "127.0.0.1"), OK, "a local port to hang on")
+	var api := HungBackendClient.new()
+	api.port = server.get_local_port()
+	add_child_autofree(api)
+	var got: Array = []
+	api.step_day("g", 1, _recorder(got, "hung"))
+	api.step_day("g", 1, _recorder(got, "next"))
+	var hung: StreamPeerTCP = await _accept(server)
+	assert_not_null(hung, "the first /step connected")
+	assert_true(await wait_until(func() -> bool: return not got.is_empty(), 2.0), "timed out")
+	assert_eq(got, [["hung", false, {}]], "the hung /step failed once, on its timeout")
+	assert_push_warning("step timed out")
+	var step: HTTPRequest = api._requests["step"]
+	var next: StreamPeerTCP = await _accept(server)
+	assert_not_null(next, "the second /step went out on a new connection")
+	hung.put_data(_http_200({"n": "late"}))
+	next.put_data(_http_200({"n": "2"}))
+	assert_true(await wait_until(func() -> bool: return got.size() == 2, 2.0), "answered")
+	await wait_process_frames(10)
+	assert_eq(got, [["hung", false, {}], ["next", true, {"n": "2"}]], "the late reply never landed")
+	assert_eq(step.get_http_client_status(), HTTPClient.STATUS_DISCONNECTED, "nothing in flight")
+	server.stop()
