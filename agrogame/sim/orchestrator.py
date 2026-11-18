@@ -690,7 +690,6 @@ class FullSimulationOrchestrator(RuntimeMemory):
                 self.root_state,
                 pv,
                 self.phenology,
-                agg_state=self.agg_state,
                 canopy_increment_provider=self._consume_root_canopy_increment,
             ),
             # Consumes NitrogenRuntime's PlantNUptakeComputed and emits the

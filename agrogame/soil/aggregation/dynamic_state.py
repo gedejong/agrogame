@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from agrogame.soil.aggregation.state import SoilAggregationState
+
 if TYPE_CHECKING:
     from agrogame.soil.pore_network.state import PoreNetworkState
 
@@ -125,6 +127,10 @@ def root_penetration_factor(mwd_mm: float) -> float:
     Ref: Dexter 2004, Geoderma — S-index and root penetration;
          Bengough et al. 2011, J Exp Bot — root elongation vs strength.
 
+    The simulation no longer reads this against the evolving aggregate
+    state. It is evaluated once, at the default initial structure, to give
+    :data:`CALIBRATED_ROOT_ELONGATION_FACTOR` (ADR-021, #526).
+
     Args:
         mwd_mm: Mean weight diameter (mm).
 
@@ -136,6 +142,27 @@ def root_penetration_factor(mwd_mm: float) -> float:
     # Sigmoid-like: 0.3 at MWD=0, ~0.7 at MWD=0.5, ~0.95 at MWD=1.5, 1.0 at MWD≥2.0
     factor = 0.3 + 0.7 * min(1.0, mwd_mm / 2.0)
     return min(1.0, factor)
+
+
+# Constant multiplier on root elongation (ADR-021, #526). It is
+# ``root_penetration_factor`` at the MWD of the default initial structure
+# (``SoilAggregationState.from_layers``: 0.55125 mm, giving 0.4929375), the
+# value every crop's root front ran under on day 0 when the realism suite was
+# calibrated. It preserves that calibration and is not a soil-strength
+# parameter. Root elongation used to read the topsoil MWD each day, so a
+# moldboard pass, which destroys macroaggregates, slowed rooting by 21-31 %
+# and cost up to 30 % of season-2 grain (#526). Tillage must not tighten
+# rooting: it lowers plough-layer bulk density (Lampurlanés &
+# Cantero-Martínez 2003, Agron. J. 95:526-536, doi:10.2134/agronj2003.5260),
+# and zero tillage raises surface bulk density and penetration resistance
+# (Grant & Lafond 1993, Can. J. Soil Sci. 73:223-232, doi:10.4141/cjss93-024),
+# yet root growth differs little between tillage systems. The CERES-Maize and
+# APSIM root fronts have no aggregate-structure or tillage term either.
+# The engine and the forecast (``agrogame/api/routes.py``) share this one
+# definition. See docs/adr/ADR-021-root-elongation-aggregate-coupling.md.
+CALIBRATED_ROOT_ELONGATION_FACTOR: float = root_penetration_factor(
+    SoilAggregationState.from_layers(1).mwd(0)
+)
 
 
 def som_protection_factor(
