@@ -24,6 +24,11 @@ from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.presets import load_climate_presets
 
+# A field's patch area fractions must sum to 1.0 within this absolute tolerance,
+# which admits fractions rounded to three places (3 x 0.333 = 0.999). The API
+# checks a create request against the same bound (#552).
+AREA_FRACTION_SUM_TOLERANCE = 0.01
+
 
 @dataclass(frozen=True)
 class PatchConfig:
@@ -191,7 +196,7 @@ class Field:
 
     def __init__(self, field_id: str, patches: list[PatchConfig]) -> None:
         total = sum(p.area_fraction for p in patches)
-        if abs(total - 1.0) > 0.01:
+        if abs(total - 1.0) > AREA_FRACTION_SUM_TOLERANCE:
             raise ValueError(f"Patch area fractions must sum to 1.0, got {total:.3f}")
         self.field_id = field_id
         self.patches: list[Patch] = [Patch(cfg) for cfg in patches]
