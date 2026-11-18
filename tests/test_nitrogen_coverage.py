@@ -157,11 +157,14 @@ def test_daily_step_low_ph() -> None:
 
 
 def test_daily_step_high_ph() -> None:
-    """Cover pH factor edge: high pH gives 0 nitrification."""
-    cycle, _ = _make_cycle()
-    n = len(cycle.state.no3)
-    fluxes = cycle.daily_step(temperature_c=20.0, ph_by_layer=[9.5] * n)
-    assert fluxes.nitrified_kg_ha == 0.0
+    """High pH sits on the DSSAT-CSM plateau: pH 9.0 nitrifies as pH 7.5 (#558)."""
+    cycle_high, _ = _make_cycle()
+    cycle_ref, _ = _make_cycle()
+    n = len(cycle_high.state.no3)
+    high = cycle_high.daily_step(temperature_c=20.0, ph_by_layer=[9.0] * n)
+    ref = cycle_ref.daily_step(temperature_c=20.0, ph_by_layer=[7.5] * n)
+    assert high.nitrified_kg_ha > 0.0
+    assert high.nitrified_kg_ha == ref.nitrified_kg_ha
 
 
 def test_daily_step_with_root_fractions_cached() -> None:

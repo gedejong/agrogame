@@ -40,7 +40,12 @@ def test_microbe_handlers_clamp_to_unit_interval() -> None:
     cache = EnvironmentalCache(bus, 2)
     bus.emit(
         MicrobialActivityComputed(
-            layer=0, activity_index=2.0, wfps=0.5, ph=6.0, temperature_c=15.0
+            layer=0,
+            activity_index=2.0,
+            activity_index_excl_ph=2.0,
+            wfps=0.5,
+            ph=6.0,
+            temperature_c=15.0,
         )
     )
     bus.emit(MicrobialFBUpdated(layer=1, fungal_fraction=-0.5))
@@ -79,7 +84,12 @@ def test_selective_subscription_pH_only() -> None:
     bus.emit(RootDistributionUpdated(fractions=(1.0, 1.0)))
     bus.emit(
         MicrobialActivityComputed(
-            layer=0, activity_index=0.2, wfps=0.5, ph=6.0, temperature_c=15.0
+            layer=0,
+            activity_index=0.2,
+            activity_index_excl_ph=0.2,
+            wfps=0.5,
+            ph=6.0,
+            temperature_c=15.0,
         )
     )
     assert cache.ph_by_layer == [8.0, 7.0]

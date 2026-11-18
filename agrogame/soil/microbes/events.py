@@ -45,10 +45,17 @@ class MicrobialFBUpdated(BaseEvent):
 
 @dataclass(frozen=True)
 class MicrobialActivityComputed(BaseEvent):
-    """Activity index computed for a soil layer given environment."""
+    """Activity index computed for a soil layer given environment.
+
+    ``activity_index`` is temperature x moisture x pH x priming;
+    ``activity_index_excl_ph`` is the same product without the (Rousk et al.
+    2009) pH modifier, read by nitrification, which applies its own nitrifier
+    pH factor (#558).
+    """
 
     layer: int
     activity_index: float
+    activity_index_excl_ph: float
     wfps: float
     ph: float
     temperature_c: float
