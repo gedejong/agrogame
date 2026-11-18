@@ -10,6 +10,8 @@ Three bugs, three groups:
 * fertilizer was priced per kg of *product* while the engine applies kg of
   *nutrient element*, and an unpriced type silently fell back to 1 cr/kg.
 
+``TestPlantSeedByArea`` (#525) prices the ``plant`` action by the patches it sows.
+
 The seed group runs two full season cycles: a per-season charge that is applied
 once at game creation and then never again is indistinguishable from a correct
 one over a single season.
@@ -29,6 +31,7 @@ pytest.importorskip("fastapi")
 pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
+from httpx import Response  # noqa: E402
 
 from agrogame.api.app import create_app  # noqa: E402
 from agrogame.api.routes import (  # noqa: E402
@@ -449,3 +452,141 @@ class TestPickerParity:
             _gd_int_const(source, "LABOR_PER_ACTION")
             == prices.input_costs["labor_per_action"]
         )
+
+
+# ---------------------------------------------------------------------------
+# Plant charges seed for the area it sows (#525)
+# ---------------------------------------------------------------------------
+#: Per-patch ``plant`` charge on the default field for each client crop
+#: (``AVAILABLE_CROPS`` in farm_view.gd): seed per ha × ``area_fraction``,
+#: rounded per patch. Grape's 166.5 on 0.333 rounds half-even to 166.
+PLANT_CHARGES = {
+    "maize": [67, 67, 67],
+    "spring_wheat": [50, 50, 50],
+    "sorghum": [40, 40, 40],
+    "rice": [60, 60, 60],
+    "grape": [166, 167, 166],
+}
+
+
+def _act(
+    client: TestClient, game_id: str, action: str, params: dict, preview: bool = False
+) -> Response:
+    path = "action/preview" if preview else "action"
+    body = {"field_id": "field_1", "action": action, "params": params}
+    return client.post(f"/api/v1/games/{game_id}/{path}", json=body)
+
+
+def _harvest_all(client: TestClient, game_id: str) -> None:
+    resp = _act(client, game_id, "harvest", {})
+    assert resp.json()["status"] == "executed", resp.text
+
+
+def _bare_default_field(client: TestClient, crop: str) -> tuple[str, list[int]]:
+    """The default field sown with ``crop``, harvested bare.
+
+    Returns the game id and the creation-time seed charge per patch.
+    """
+    game_id = _create_game(client, [dict(p, crop_key=crop) for p in NL_MAIZE_PATCHES])
+    creation = _seed_costs(game_id)
+    _harvest_all(client, game_id)
+    return game_id, creation
+
+
+class TestPlantSeedByArea:
+    """``plant`` is priced by the patches it sows, like the creation charge.
+
+    Only the creation-time charge and Plant on bare patches: no
+    ``/start-season`` and no rollover, so #531's C6 (no season boundary) and C12
+    (Plant needs a bare patch) leave these valid.
+    """
+
+    @pytest.mark.parametrize("crop", list(PLANT_CHARGES))
+    def test_plant_on_a_patch_charges_its_creation_time_seed(
+        self, client: TestClient, crop: str
+    ) -> None:
+        """AC1, over two plant → grow → harvest cycles."""
+        game_id, creation = _bare_default_field(client, crop)
+        assert creation == PLANT_CHARGES[crop]
+        for cycle in (1, 2):
+            for i, expected in enumerate(creation):
+                before = games[game_id].ledger.balance_credits
+                resp = _act(
+                    client, game_id, "plant", {"crop_key": crop, "patch_idx": i}
+                )
+                assert resp.status_code == 200, resp.text
+                assert resp.json()["cost_credits"] == expected, (cycle, i)
+                assert before - resp.json()["balance_credits"] == expected, (cycle, i)
+            assert client.post(f"/api/v1/games/{game_id}/step?days=10").is_success
+            _harvest_all(client, game_id)
+
+    def test_patch_by_patch_and_whole_field_cost_the_creation_charge(
+        self, client: TestClient
+    ) -> None:
+        """AC2: 67 + 67 + 67 = 201, as is a whole-field plant (no or -1 index)."""
+        game_id, creation = _bare_default_field(client, "maize")
+        ledger = games[game_id].ledger
+        before = ledger.balance_credits
+        for i in range(3):
+            _act(client, game_id, "plant", {"crop_key": "maize", "patch_idx": i})
+        assert before - ledger.balance_credits == sum(creation) == 201
+        for params in ({"crop_key": "maize"}, {"crop_key": "maize", "patch_idx": -1}):
+            _harvest_all(client, game_id)
+            resp = _act(client, game_id, "plant", params)
+            assert resp.json()["cost_credits"] == 201, params
+
+    def test_one_patch_field_pays_the_full_per_ha_price(
+        self, client: TestClient, prices: PriceTable
+    ) -> None:
+        """AC2 and AC4: area 1.0 is the per-ha price, and the 3-argument call."""
+        game_id = _create_game(client, [dict(NL_MAIZE_PATCHES[1], area_fraction=1.0)])
+        _harvest_all(client, game_id)
+        resp = _act(client, game_id, "plant", {"crop_key": "maize", "patch_idx": 0})
+        assert resp.json()["cost_credits"] == _seed_costs(game_id)[0] == 200
+        assert _compute_action_cost("plant", {"crop_key": "maize"}, prices) == 200
+        areas = [p["area_fraction"] for p in NL_MAIZE_PATCHES]
+        grape = _compute_action_cost("plant", {"crop_key": "grape"}, prices, areas)
+        assert grape == sum(PLANT_CHARGES["grape"]) == 499
+
+    @pytest.mark.parametrize("crop", list(PLANT_CHARGES))
+    def test_preview_prices_plant_as_action_does(
+        self, client: TestClient, crop: str
+    ) -> None:
+        """AC3: preview == /action for each target, each pair on bare patches."""
+        game_id, _ = _bare_default_field(client, crop)
+        for patch_idx in (0, 1, 2, -1):
+            params = {"crop_key": crop, "patch_idx": patch_idx}
+            preview = _act(client, game_id, "plant", params, preview=True).json()
+            executed = _act(client, game_id, "plant", params).json()
+            assert preview["cost_credits"] == executed["cost_credits"], patch_idx
+            _harvest_all(client, game_id)
+
+    def test_preview_affordability_uses_the_area_scaled_cost(
+        self, client: TestClient
+    ) -> None:
+        """AC3: 100 credits buy one patch of maize (67) but not all three (201)."""
+        game_id, _ = _bare_default_field(client, "maize")
+        games[game_id].ledger.balance_credits = 100
+        one = _act(
+            client, game_id, "plant", {"crop_key": "maize", "patch_idx": 0}, True
+        )
+        assert (one.json()["cost_credits"], one.json()["affordable"]) == (67, True)
+        whole = _act(client, game_id, "plant", {"crop_key": "maize"}, preview=True)
+        assert (whole.json()["cost_credits"], whole.json()["affordable"]) == (
+            201,
+            False,
+        )
+        assert _act(client, game_id, "plant", {"crop_key": "maize"}).status_code == 400
+
+    @pytest.mark.parametrize("action", ["plant", "harvest"])
+    @pytest.mark.parametrize("patch_idx", [3, 7])
+    def test_out_of_range_preview_is_the_same_400_as_action(
+        self, client: TestClient, action: str, patch_idx: int
+    ) -> None:
+        """AC3: an out-of-range preview used to price at 200 OK (#516)."""
+        game_id = _create_game(client, NL_MAIZE_PATCHES)
+        params = {"crop_key": "maize", "patch_idx": patch_idx}
+        preview = _act(client, game_id, action, params, preview=True)
+        executed = _act(client, game_id, action, params)
+        assert preview.status_code == executed.status_code == 400
+        assert preview.json() == executed.json()
