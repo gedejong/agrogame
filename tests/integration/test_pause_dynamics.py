@@ -186,6 +186,27 @@ def test_catalog_is_parsed() -> None:
     assert any("Sahel" in label for label in LABELS)
 
 
+def test_catalog_keys_are_presets() -> None:
+    """Every catalog preset key exists in ``data/``, looked up as ``POST /games`` does.
+
+    The keys come from ``_PresetKeys``, the files ``Patch`` builds from (#552),
+    so a renamed or removed preset fails here rather than at a player's pick
+    (#573). This is the backend-side check of the GUT catalog test's
+    hard-coded key lists.
+    """
+    from agrogame.api.routes import _PresetKeys
+
+    keys = _PresetKeys.load()
+    for label, fields in SCENARIOS:
+        for f in fields:
+            for p in f["patches"]:
+                where = (label, f["field_id"], p)
+                assert p["climate_key"] in keys.climate, where
+                assert p["soil_profile_key"] in keys.soil, where
+                # An empty crop_key is a bare (fallow) patch (#542), not a lookup.
+                assert not p["crop_key"] or p["crop_key"] in keys.crop, where
+
+
 def test_a_interrupts_per_season_per_field_are_rare(runs) -> None:
     for name, season in _seasons(runs):
         for fid, days in _interrupts_by_field(season).items():
