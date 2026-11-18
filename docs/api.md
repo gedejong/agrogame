@@ -27,9 +27,13 @@ external automation. In-memory game sessions are keyed by `game_id`.
   irrigate, fertilize, harvest, …). `plant` and `harvest` take an optional
   `patch_idx` (default `-1`: every patch). An index at or past the field's
   patch count returns **400** and records no cost (#516); it used to return
-  200, and `plant` charged seed while planting nothing.
+  200, and `plant` charged seed while planting nothing. `plant` charges seed
+  per ha × each targeted patch's `area_fraction`, rounded per patch, exactly
+  as the creation-time seed charge does (#525): on the default field one patch
+  of maize costs 67, all three 201.
 - `POST /api/v1/games/{game_id}/action/preview` — estimate an action's credit
-  cost and affordability without executing it (same cost source as `/action`)
+  cost and affordability without executing it (same cost source as `/action`).
+  `patch_idx` is validated as on `/action`, with the same 422 and 400 (#525)
 - `GET /api/v1/games/{game_id}` — current session state, including `fields`
   (#516): each `field_id` maps to its patches in order, each
   `{patch_idx, soil_profile_key, crop_key, climate_key, area_fraction}` with the
