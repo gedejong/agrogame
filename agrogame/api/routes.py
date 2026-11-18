@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -282,14 +283,34 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
     )
 
 
+def _event_value_json(value: object) -> object:
+    """JSON form of an event payload value ``json`` cannot encode itself (#562).
+
+    Dates become ISO strings and enums their value (``"flowering"``, as in
+    ``crop_stage``). Anything else is an error naming the type: the old
+    ``default=str`` fallback put Python reprs, memory addresses included, on
+    the wire.
+    """
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, date):
+        return value.isoformat()
+    raise TypeError(
+        f"event payload value of type {type(value).__qualname__} has no JSON form"
+    )
+
+
 def _serialize_events(patch: Patch) -> list[dict]:
-    """Serialize recorded events for a patch into JSON-safe dicts."""
+    """Serialize recorded events for a patch into deterministic JSON-safe dicts.
+
+    The wall-clock ``timestamp`` every ``BaseEvent`` carries is left out, so
+    two identical runs give byte-identical ``/step`` responses; simulated time
+    is in the response's ``date`` (#562).
+    """
     out: list[dict] = []
     for e in patch.recorder.events:
-        try:
-            safe = json.loads(json.dumps(e.data, default=str))
-        except (TypeError, ValueError):
-            safe = {"_raw": str(e.data)}
+        payload = {k: v for k, v in e.data.items() if k != "timestamp"}
+        safe = json.loads(json.dumps(payload, default=_event_value_json))
         out.append({"event_type": e.event_type, "module": e.module_name, "data": safe})
     return out
 
