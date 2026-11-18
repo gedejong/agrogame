@@ -29,6 +29,7 @@ poetry run python scripts/plot_full_integration.py --profile loam_temperate --da
 #### Interpretation
 
 - Activity rises with favorable temperature, intermediate WFPS, and near-neutral pH; depth gradients arise from water and chemistry profiles.
+- pH response (#553): 1.0 at pH ≥ 6.8, linear to 2/3 at pH 4.5, linear to 0 at pH 4.0, 0 below. Across the Rothamsted Hoosfield gradient (pH 8.3 to 4.0) basal respiration fell by only about one third down to pH 4.5, and every microbial variable was inhibited below 4.5 (Rousk, Brookes & Bååth 2009, *Appl. Environ. Microbiol.* 75:1589-1596, doi:10.1128/aem.02775-08). The plateau above 6.8 and the zero at 4.0 are modelling choices. It replaced a placeholder triangle that was zero below pH 5.3, which collapsed yields under continuous play once layer 0 acidified to about pH 5.1.
 - Higher substrate availability and quality (via `SubstrateReleased`) increases growth through Monod response; enzyme costs reduce net growth.
 - Rhizosphere priming pulses (`RhizospherePrimingOccurred`) transiently amplify activity and growth near active root layers.
 
