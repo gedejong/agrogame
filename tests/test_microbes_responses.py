@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from itertools import pairwise
+
+import pytest
 
 from agrogame.soil.microbes.responses import EnvironmentalResponses
 
@@ -39,21 +42,35 @@ def test_moisture_modifier_shape_bounds_and_optimum() -> None:
 
 
 def test_ph_modifier_shape_bounds_and_optimum() -> None:
+    """Rousk, Brookes & Bååth 2009 (doi:10.1128/aem.02775-08) response, #553 P0-2.
+
+    1.0 at pH >= 6.8, linear to 2/3 at 4.5, linear to 0 at 4.0, 0 below.
+    """
     resp = EnvironmentalResponses()
-    # bounds
-    for ph in (
-        resp.ph_opt - 5.0,
-        resp.ph_opt - resp.ph_width,
-        resp.ph_opt + resp.ph_width,
-        resp.ph_opt + 5.0,
-    ):
-        v = resp.ph_modifier(ph)
-        assert 0.0 <= v <= 1.0
-        if abs(ph - resp.ph_opt) >= resp.ph_width:
-            assert v == 0.0
-    # peak at ph_opt
-    mid_low = resp.ph_opt - resp.ph_width / 2.0
-    mid_high = resp.ph_opt + resp.ph_width / 2.0
-    peak = resp.ph_modifier(resp.ph_opt)
-    assert resp.ph_modifier(mid_low) < peak
-    assert resp.ph_modifier(mid_high) < peak
+    # P0-2 points
+    assert resp.ph_modifier(8.3) == 1.0
+    assert resp.ph_modifier(6.8) == 1.0
+    assert 0.70 <= resp.ph_modifier(5.0) <= 0.80
+    assert resp.ph_modifier(4.5) == pytest.approx(2.0 / 3.0, abs=1e-9)
+    assert resp.ph_modifier(4.0) == 0.0
+    # Plateau above 6.8, zero below 4.0
+    for ph in (6.9, 7.5, 9.0, 14.0):
+        assert resp.ph_modifier(ph) == 1.0
+    for ph in (3.99, 3.0, 0.0):
+        assert resp.ph_modifier(ph) == 0.0
+    # Linear segments: midpoints sit halfway between the knot values
+    assert resp.ph_modifier(5.65) == pytest.approx(5.0 / 6.0, abs=1e-9)
+    assert resp.ph_modifier(4.25) == pytest.approx(1.0 / 3.0, abs=1e-9)
+    # Continuous, bounded and monotone non-decreasing across 3.0..9.0
+    grid = [3.0 + 0.01 * i for i in range(601)]
+    values = [resp.ph_modifier(ph) for ph in grid]
+    assert all(0.0 <= v <= 1.0 for v in values)
+    assert all(b >= a for a, b in pairwise(values))
+    assert max(b - a for a, b in pairwise(values)) < 0.02
+
+
+@pytest.mark.parametrize("bad_ph", [float("nan"), float("inf"), float("-inf")])
+def test_ph_modifier_rejects_non_finite_ph(bad_ph: float) -> None:
+    """A non-finite pH raises instead of silently zeroing microbial activity."""
+    with pytest.raises(ValueError, match="finite"):
+        EnvironmentalResponses().ph_modifier(bad_ph)
