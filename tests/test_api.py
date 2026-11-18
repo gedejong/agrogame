@@ -2209,8 +2209,9 @@ def _grow_and_harvest(client, crop_key: str, climate_key: str, days: int) -> tup
 
 
 # Pinned independently of the preset so a changed fraction fails the test:
-# USDA FoodData Central FDC 174683, water 80.54 g/100 g -> 1 - 0.8054.
-_GRAPE_DMF_USDA = 0.1946
+# García de Cortázar-Atauri et al. 2009, Eq. 3, Wc = -0.82 Cs + 94.40 (%), at
+# 24 °Brix -> Wc = 74.72 %, DMF = 1 - 0.7472 (#506).
+_GRAPE_DMF = 0.2528
 
 
 def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float, quarter: int) -> int:
@@ -2223,7 +2224,7 @@ def _expected_revenue(dry_g_m2: float, crop_key: str, dmf: float, quarter: int) 
 
 def test_grape_season_earns_fruit_revenue(client) -> None:
     """A Kenya grape season sells fruit and earns money (#448, AC4)."""
-    dmf = _GRAPE_DMF_USDA
+    dmf = _GRAPE_DMF
     data, fruit_g_m2, quarter = _grow_and_harvest(
         client, "grape", "kenya_highlands", 150
     )
