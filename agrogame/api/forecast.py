@@ -283,11 +283,11 @@ def _advance_root_depth(
 
     Mirrors ``RootModule._update_depth``'s core update
     ``depth = min(max_depth, prev + max(0, growth_rate × stage_mult × cf))``.
-    The caller folds the **aggregate-penetration** channel of the engine's
+    The caller folds the **elongation-factor** channel of the engine's
     constraint factor ``cf`` into ``daily_increment_cm`` (#383; see
     ``project_soil_forecast``), so the increment reaching this function already
-    carries agg-penetration. That channel is a single top-layer, depth-independent
-    scalar held constant over the horizon, which *mirrors* the engine exactly.
+    carries it. That channel is a depth-independent constant in the engine
+    (ADR-021, #526), so the fold *mirrors* the engine exactly.
 
     Still intentionally omitted are the engine's two **depth-triggered**
     constraint multipliers (hardpan ×0.2 once ``depth ≥ hardpan_cm``; water-table
@@ -296,7 +296,7 @@ def _advance_root_depth(
     soil-mechanical state into a decision-support heuristic is disproportionate
     (#383). The residual — a projected zone that deepens past a hardpan/water-table
     the engine would have hit — is a documented, rarely-binding divergence,
-    symmetric with how WFPS and per-layer MWD are already held constant.
+    symmetric with how WFPS is already held constant.
     """
     return min(max_depth_cm, root_depth_cm + max(0.0, daily_increment_cm))
 
@@ -357,15 +357,15 @@ def project_soil_forecast(
     term. The water channel does not read any of the deepening inputs and is
     unaffected.
 
-    ``root_penetration_factor`` (#383) is the engine's **aggregate-penetration**
-    constraint — ``root_penetration_factor(agg_state.mwd(0))`` — a single
-    top-layer, depth-independent scalar in ``[0, 1]``. It evolves only via slow
-    aggregation dynamics, so held constant over the horizon it *mirrors* the
-    engine's agg-penetration channel exactly (it is folded once into the daily
-    increment before the loop, like ``root_zone_wfps_frac``). The default ``1.0``
-    reproduces the pre-#383 cf-omitted deepening path. The engine's two
-    depth-triggered constraint multipliers (hardpan, water-table) are
-    deliberately **not** threaded — see ``_advance_root_depth``.
+    ``root_penetration_factor`` (#383) is the engine's **elongation factor**, a
+    single depth-independent scalar in ``[0, 1]``. The engine holds it constant
+    at ``CALIBRATED_ROOT_ELONGATION_FACTOR``: root elongation does not read
+    aggregate structure, because tillage must not slow rooting (ADR-021, #526).
+    Folded once into the daily increment before the loop, like
+    ``root_zone_wfps_frac``, it *mirrors* the engine's channel exactly. The
+    default ``1.0`` reproduces the pre-#383 cf-omitted deepening path. The
+    engine's two depth-triggered constraint multipliers (hardpan, water-table)
+    are deliberately **not** threaded — see ``_advance_root_depth``.
 
     Mineral N gains a **net-mineralisation source** from the labile SOM pool
     (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
@@ -376,12 +376,12 @@ def project_soil_forecast(
     projection is sink-only, preserving the pre-#353 behaviour for callers
     that do not supply an SOM pool.
 
-    Scope and accuracy. With the aggregate-penetration factor now threaded (#383),
-    the deepening term deepens the projected zone at the engine's constrained rate
+    Scope and accuracy. With the elongation factor now threaded (#383), the
+    deepening term deepens the projected zone at the engine's constrained rate
     rather than the old cf-omitted overshoot (~2.1× the engine Δ). Because
-    ``root_penetration_factor`` is folded once and held constant over the
-    horizon, the **depth-side** gap closes exactly: the projected zone deepens
-    at the engine's constrained rate on every realisation. The remaining
+    the engine's factor is a constant (ADR-021), the **depth-side** gap closes
+    exactly: the projected zone deepens at the engine's constrained rate on
+    every realisation. The remaining
     residual is **source-side** and out of scope here: the net-mineralisation
     source reproduces only the labile-pool RothC kinetics, omitting rhizosphere
     priming (up to +50 % on ``k_labile`` in rooted layers, arguably the largest
@@ -418,11 +418,9 @@ def project_soil_forecast(
     ):
         deepen_layers = (n_no3_by_layer, n_nh4_by_layer, layer_depths_cm)
     root_depth = root_depth_cm if root_depth_cm is not None else 0.0
-    # Fold the aggregate-penetration constraint (#383) into the daily increment
-    # once, before the loop. It is a single top-layer, depth-independent scalar
-    # (``root_penetration_factor(agg_state.mwd(0))``) that evolves only via slow
-    # aggregation dynamics, so holding it constant over the ~5-day horizon
-    # *mirrors* the engine's agg-penetration channel exactly (like WFPS above).
+    # Fold the elongation factor (#383) into the daily increment once, before
+    # the loop. The engine holds it constant (CALIBRATED_ROOT_ELONGATION_FACTOR,
+    # ADR-021), so the fold *mirrors* the engine's channel exactly.
     # Clamped to [0, 1]; the 1.0 default reproduces the pre-#383 cf-omitted path.
     cf = max(0.0, min(1.0, root_penetration_factor))
     daily_depth_inc = root_growth_rate_cm_per_day * max(0.0, root_stage_multiplier) * cf
