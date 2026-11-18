@@ -203,8 +203,10 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
   and the realism suite is unchanged.
 - **Event contract.** `ProtonLoadOccurred` is new: additive in `/step`
   payloads, and the client ignores it. `AcidifyingFertilizerApplied` is gone;
-  nothing ever emitted it. Per-day pH event volume falls, because the
-  P-fixation proxy re-published every layer for every layer each day.
+  nothing ever emitted it. Per-day pH event volume falls. Each layer fixes
+  P most days, and on each such event the old proxy re-published the pH of
+  every layer, about n² `SoilPHUpdated` events per day. The budget emits
+  one per layer per day, plus one at each urea application.
 - **Ordering for #481.** PR A must assert that the P-fixation and leaching
   proxies no longer exist before it removes the relaxation. Otherwise the
   -0.30 per season clock runs free: measured 6.07 / 5.34 / 4.61 / 4.00 over
