@@ -425,15 +425,26 @@ crops:
       growth_rate_cm_per_day: 0.8
       distribution: exponential
       root_allocation_fraction: 0.30   # perennial vine, high root investment
-    # Sold product (#448): grapes are sold fresh, so settlement converts the
-    # dry fruit pool to fresh mass, kg_sold = dry_kg / dry_matter_fraction.
-    # SOURCE: USDA FoodData Central, SR Legacy FDC 174683 (NDB 09132), "Grapes,
-    # red or green (European type, such as Thompson seedless), raw": water
-    # 80.54 g/100 g, so dry matter = 1 - 0.8054 = 0.1946. A food-composition
-    # database, NOT a primary viticulture source, and a TABLE cultivar
-    # (Thompson seedless, V. vinifera); no wine-grape entry exists there. Ripe
-    # wine grapes carry more sugar (20-24 Brix; Zhang & Keller 2017, J. Exp.
-    # Bot.), so this likely understates their dry matter fraction slightly.
+    # Sold product (#448, #506): grapes are sold fresh, so settlement converts
+    # the dry fruit pool to fresh mass, kg_sold = dry_kg / dry_matter_fraction.
+    # SOURCE, a wine-grape viticulture study (read pp. 86, 87, 89): García de
+    # Cortázar-Atauri, Brisson, Ollat, Jacquet & Payan 2009, J. Int. Sci. Vigne
+    # Vin 43(2):83-97 (OENO One, doi:10.20870/oeno-one.2009.43.2.801).
+    # Eq. (3), p. 89: Wc = -0.82 Cs + 94.40 (R² = 0.95), where Wc is berry
+    # water content in %, (FW - DW)/FW, and Cs is °Brix. The relation is
+    # independent of variety and year across the wine cultivars Syrah,
+    # Grenache N, Pinot noir and Chardonnay (p < 0.001).
+    # The paper defines harvest at 24 °Brix (p. 86), so
+    #   Wc = 94.40 - 0.82 × 24 = 74.72 %  ⇒  DMF = 1 - 0.7472 = 0.2528.
+    # Corroborated by Table 2, p. 87: maturity class MC8, 24.2 °Brix, 74.1 %
+    # water. APSIM NG implements the same line (ApsimX Grapevine.json,
+    # Berry.Brix after véraison = (0.944 - water fraction) / 0.0082).
+    # The fraction is a constant at commercial harvest, not maturity-linked:
+    # the engine has no berry sugar state, and under a flat per-kg-fresh price
+    # a ripeness-linked fraction would pay the player to pick unripe (#506).
+    # Cross-check only, not the basis: USDA FoodData Central FDC 174683
+    # (Thompson seedless, raw) gives 80.54 % water, which Eq. 3 places at
+    # 16.9 °Brix, a less ripe berry than a wine harvest.
     harvest_product:
       name: fruit
-      dry_matter_fraction: 0.1946
+      dry_matter_fraction: 0.2528

@@ -19,11 +19,6 @@ def event_bus() -> EventBus:
 
 
 @pytest.fixture
-def event_bus_debug() -> EventBus:
-    return EventBus(debug_mode=True)
-
-
-@pytest.fixture
 def soil_profile() -> SoilProfile:
     lib = load_soil_presets(Path("soils/presets.yaml"))
     return lib.soils["loam_temperate"]

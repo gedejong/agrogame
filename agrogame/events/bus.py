@@ -12,15 +12,64 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 
-class EventBus:
-    """Synchronous event dispatcher with debug logging and error isolation."""
+class EventHandlerError(RuntimeError):
+    """A subscribed handler raised while the bus dispatched an event (#606).
 
-    def __init__(self, debug_mode: bool = False):
-        """Create a new bus. Pass debug_mode=True to re-raise handler errors."""
+    ``handler`` is the handler's ``module.qualname`` (its ``repr`` when it has
+    none) and ``event_type`` the event's class name. The handler's own
+    exception is the ``__cause__``. ``str(exc)`` names the handler, the
+    exception class and the event type but not the exception's message, so it
+    is safe to return to an API client; the chained traceback carries the rest.
+    """
+
+    def __init__(self, handler: str, event_type: str, cause: Exception) -> None:
+        """Record which handler failed on which event, and how."""
+        super().__init__(
+            f"{handler} raised {type(cause).__name__} while handling {event_type}"
+        )
+        self.handler = handler
+        self.event_type = event_type
+
+
+def _handler_name(handler: Callable[[Any], None]) -> str:
+    """``module.qualname`` of a function or bound method, else its ``repr``."""
+    module = getattr(handler, "__module__", None)
+    qualname = getattr(handler, "__qualname__", None)
+    if isinstance(module, str) and isinstance(qualname, str):
+        return f"{module}.{qualname}"
+    return repr(handler)
+
+
+def _deliver(handlers: list[Callable[[Any], None]], event: Any) -> None:
+    """Call each handler in order; the first exception stops delivery (#606).
+
+    An ``EventHandlerError`` from a nested ``emit`` passes through unchanged,
+    so the error names the innermost handler that actually raised. Any other
+    exception is wrapped in ``EventHandlerError`` and chained from the original.
+    """
+    for handler in handlers:
+        try:
+            handler(event)
+        except EventHandlerError:
+            raise
+        except Exception as exc:
+            raise EventHandlerError(
+                _handler_name(handler), type(event).__name__, exc
+            ) from exc
+
+
+class EventBus:
+    """Synchronous event dispatcher with debug logging.
+
+    Handler exceptions are not isolated: every one propagates out of `emit` as
+    `EventHandlerError` (#606, docs/events.md "Handler exceptions").
+    """
+
+    def __init__(self) -> None:
+        """Create a new bus with no subscriptions."""
         self._handlers: defaultdict[type, list[Callable[[Any], None]]] = defaultdict(
             list
         )
-        self._debug_mode = debug_mode
 
     def subscribe(self, event_type: type[T], handler: Callable[[T], None]) -> None:
         """Register `handler` to be called every time an `event_type` is emitted."""
@@ -55,31 +104,23 @@ class EventBus:
         self._handlers.clear()
 
     def emit(self, event: Any) -> None:
-        """Dispatch `event` to exact-type subscribers and BaseEvent catch-alls."""
-        # Debug log every emitted event for traceability
+        """Dispatch `event` to exact-type subscribers, then BaseEvent catch-alls.
+
+        Raises:
+            EventHandlerError: a handler raised. Handlers after it, including
+                every catch-all when an exact-type handler failed, are not
+                called.
+        """
+        # Debug log every emitted event for traceability. A payload that cannot
+        # be built is a logging problem, not a handler failure: log its str.
         try:
             payload = getattr(event, "to_dict", lambda: {"event": str(event)})()
         except Exception:
             payload = {"event": str(event)}
         logger.debug("event_bus.emit", extra={"event": payload})
 
-        # Deliver to exact-type subscribers
-        for handler in list(self._handlers[type(event)]):
-            try:
-                handler(event)
-            except Exception as e:  # pragma: no cover
-                if self._debug_mode:
-                    raise
-                # best-effort isolation; log exception at debug level
-                logger.debug("event_handler_exception", exc_info=e)
-        # Also deliver to BaseEvent subscribers (catch-all)
+        _deliver(list(self._handlers[type(event)]), event)
         from .base import BaseEvent  # local import to avoid cycles
 
         if isinstance(event, BaseEvent):
-            for handler in list(self._handlers[BaseEvent]):
-                try:
-                    handler(event)
-                except Exception as e:  # pragma: no cover
-                    if self._debug_mode:
-                        raise
-                    logger.debug("event_handler_exception", exc_info=e)
+            _deliver(list(self._handlers[BaseEvent]), event)
