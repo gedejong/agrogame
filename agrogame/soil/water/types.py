@@ -22,8 +22,14 @@ class WaterFluxes:
     storage_change_mm: float
 
 
+@dataclass(frozen=True)
 class DailyDrivers:
     """Exogenous daily drivers for the water model.
+
+    A frozen dataclass so that ``DayTick.to_dict()`` (``dataclasses.asdict``)
+    renders it as a plain object of its fields. As a plain class it reached the
+    ``/step`` event stream, the emit debug log and ``EventRecorder`` as its
+    repr, memory address included (#562).
 
     Args:
         rainfall_mm: Precipitation input (mm).
@@ -35,19 +41,19 @@ class DailyDrivers:
             preferential flow v2 (#485). ``None`` means no intensity known.
     """
 
-    def __init__(
-        self,
-        rainfall_mm: float,
-        irrigation_mm: float = 0.0,
-        evaporation_mm: float = 0.0,
-        rainfall_intensity_mm_hr: float | None = None,
-    ):
-        """Initialize daily drivers with non-negative values."""
-        self.rainfall_mm = max(0.0, rainfall_mm)
-        self.irrigation_mm = max(0.0, irrigation_mm)
-        self.evaporation_mm = max(0.0, evaporation_mm)
-        self.rainfall_intensity_mm_hr: float | None = (
-            max(0.0, rainfall_intensity_mm_hr)
-            if rainfall_intensity_mm_hr is not None
-            else None
-        )
+    rainfall_mm: float
+    irrigation_mm: float = 0.0
+    evaporation_mm: float = 0.0
+    rainfall_intensity_mm_hr: float | None = None
+
+    def __post_init__(self) -> None:
+        """Clamp every driver to be non-negative, as the constructor always has."""
+        object.__setattr__(self, "rainfall_mm", max(0.0, self.rainfall_mm))
+        object.__setattr__(self, "irrigation_mm", max(0.0, self.irrigation_mm))
+        object.__setattr__(self, "evaporation_mm", max(0.0, self.evaporation_mm))
+        if self.rainfall_intensity_mm_hr is not None:
+            object.__setattr__(
+                self,
+                "rainfall_intensity_mm_hr",
+                max(0.0, self.rainfall_intensity_mm_hr),
+            )
