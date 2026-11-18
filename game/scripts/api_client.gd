@@ -17,17 +17,24 @@ const RUN_SEASON_DAYS := 200
 const _ENDPOINTS: Array[String] = [
 	"create", "game", "step", "action", "preview", "forecast", "report"
 ]
+## A /step's timeout grows with the days it asks for (#564), so a hung 1-day
+## Next Day holds the bar for 10.5 s, not Run Season's allowance.
+const STEP_TIMEOUT_BASE_S := 10.0
+const STEP_TIMEOUT_PER_DAY_S := 0.5
 ## Seconds a sent call may await its reply before the client gives up on it
 ## (#556); without one, a backend that hangs holds the bar #534 keeps disabled
 ## until a reply is applied. Measured on an M1 Pro: Run Season's 200-day /step
 ## (16.3 MB, 1.9 s on the backend) took 6.2 s client-side at 60 fps and 14.7 s
-## at 20 fps, since HTTPRequest reads one download_chunk_size chunk per frame;
-## 120 s leaves 8x at 20 fps. Every other endpoint answered in under 0.1 s, so
+## at 20 fps, since HTTPRequest reads one download_chunk_size chunk per frame.
+## "step" is the ceiling of 10 s + 0.5 s/day, which Run Season's 200 days reach:
+## 110 s leaves 7.5x at 20 fps and 17.7x at 60 fps. No /step steps more, since
+## the backend clamps it to the days left in its weather window, 200 for every
+## game this client creates. Every other endpoint answered in under 0.1 s, so
 ## 10 s leaves 100x.
 const TIMEOUT_S: Dictionary = {
 	"create": 10.0,
 	"game": 10.0,
-	"step": 120.0,
+	"step": STEP_TIMEOUT_BASE_S + STEP_TIMEOUT_PER_DAY_S * RUN_SEASON_DAYS,
 	"action": 10.0,
 	"preview": 10.0,
 	"forecast": 10.0,
@@ -72,7 +79,7 @@ func run_season(game_id: String, callback: Callable) -> void:
 
 func step_day(game_id: String, days: int, callback: Callable) -> void:
 	var url := BASE_URL + "/games/" + game_id + "/step?days=" + str(days)
-	_enqueue("step", url, HTTPClient.METHOD_POST, "", callback)
+	_enqueue("step", url, HTTPClient.METHOD_POST, "", callback, days)
 
 
 ## The field-scoped calls name their field, with no default, so a caller can
@@ -112,11 +119,17 @@ func get_game(game_id: String, callback: Callable) -> void:
 	_enqueue("game", BASE_URL + "/games/" + game_id, HTTPClient.METHOD_GET, "", callback)
 
 
+## `days` is a /step's day count, which sets its timeout; 0 for other calls.
 func _enqueue(
-	endpoint: String, url: String, method: HTTPClient.Method, body: String, callback: Callable
+	endpoint: String,
+	url: String,
+	method: HTTPClient.Method,
+	body: String,
+	callback: Callable,
+	days: int = 0,
 ) -> void:
 	var queue: Array = _queues[endpoint]
-	queue.append({"url": url, "method": method, "body": body, "callback": callback})
+	queue.append({"url": url, "method": method, "body": body, "callback": callback, "days": days})
 	_send_next(endpoint)
 
 
@@ -153,9 +166,13 @@ func _cancel(endpoint: String) -> void:
 	http.cancel_request()
 
 
-## How long `endpoint`'s calls may await a reply; tests override it to wait less.
+## How long `endpoint`'s call in flight may await a reply; tests override it to
+## wait less. A /step gets 10 s + 0.5 s per day it asked for, up to its ceiling.
 func _timeout_s(endpoint: String) -> float:
-	return TIMEOUT_S[endpoint]
+	if endpoint != "step":
+		return TIMEOUT_S[endpoint]
+	var days: int = _in_flight.get(endpoint, {}).get("days", RUN_SEASON_DAYS)
+	return minf(STEP_TIMEOUT_BASE_S + STEP_TIMEOUT_PER_DAY_S * days, TIMEOUT_S["step"])
 
 
 ## Send number `send` on `endpoint` has gone unanswered for its whole timeout,

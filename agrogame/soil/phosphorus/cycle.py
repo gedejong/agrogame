@@ -14,12 +14,14 @@ AGRO-25 acceptance criteria:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 from agrogame.events import EventBus
 from agrogame.soil.water.events import WaterDrained
 from agrogame.soil.nutrients import EnvironmentalCache
 
 from agrogame.soil.nitrogen.events import NutrientLeached
+from agrogame.params.memory import RuntimeMemory
 from agrogame.params.ports import SoilProfileView, WaterState
 
 from .events import PhosphorusFixationOccurred
@@ -33,8 +35,23 @@ from .constants import (
 )
 
 
-class PhosphorusCycle:
+# One pending slow-release application in one layer. Defined before the cycle
+# so its ``_MEMORY_RECORDS`` can name it (#577).
+@dataclass
+class _SlowReleaseSchedule:
+    remaining_days: int
+    daily_release_kg_ha: float
+    remaining_amount_kg_ha: float
+
+
+class PhosphorusCycle(RuntimeMemory):
     """Phosphorus processes and event integration for the soil profile."""
+
+    # Saved with the patch (#577): unreleased slow-release P and the cache.
+    _MEMORY = ("_slow_release_schedules", "_env")
+    _MEMORY_RECORDS: ClassVar[dict[str, type]] = {
+        "_slow_release_schedules": _SlowReleaseSchedule
+    }
 
     def __init__(
         self,
@@ -330,11 +347,3 @@ class PhosphorusCycle:
                         self.state.available_p[layer_idx] += release
                     # Do not append; schedule is completed
             self._slow_release_schedules[layer_idx] = next_schedules
-
-
-# --- Private helper structures -----------------------------------------
-@dataclass
-class _SlowReleaseSchedule:
-    remaining_days: int
-    daily_release_kg_ha: float
-    remaining_amount_kg_ha: float

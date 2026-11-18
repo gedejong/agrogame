@@ -121,7 +121,13 @@ class Patch:
         self.recorder = EventRecorder(self.orch.event_bus)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize this patch's config, soil, plant and management state."""
+        """Serialize this patch's config, soil, plant and management state.
+
+        ``runtime_memory`` (optional within schema v1, #577) carries the
+        cross-day memory the runtimes, cycles and orchestrator hold outside
+        every ``*State`` container (``runtime_memory_to_dict``), so that a load
+        continues the saved run exactly.
+        """
         orch = self.orch
         return {
             "config": {
@@ -140,6 +146,7 @@ class Patch:
             "day_counter": orch.day_counter,
             "harvested_grain_g_m2": self.harvested_grain_g_m2,
             "harvested_crop_key": self.harvested_crop_key,
+            "runtime_memory": orch.runtime_memory_to_dict(),
         }
 
     def restore_state(self, data: dict[str, Any]) -> None:
@@ -149,7 +156,8 @@ class Patch:
         Keys added in #515 are optional: a pre-#515 save leaves the shoot-N
         stock, plan and day counter at their fresh-patch values. A fallow
         patch keeps its zero plant state, discarding the phantom plant a
-        pre-#542 save carries.
+        pre-#542 save carries. ``runtime_memory`` (#577) is applied last, in
+        place; a save without it starts that memory fresh.
         """
         orch = self.orch
         orch.restore_soil(SoilSnapshot.from_dict(data["soil_snapshot"]))
@@ -161,6 +169,8 @@ class Patch:
         grain = data.get("harvested_grain_g_m2")
         self.harvested_grain_g_m2 = None if grain is None else float(grain)
         self.harvested_crop_key = data.get("harvested_crop_key")
+        if data.get("runtime_memory"):
+            orch.restore_runtime_memory(data["runtime_memory"])
 
     def _restore_plant_state(self, data: dict[str, Any]) -> None:
         """Write saved canopy, phenology, root and shoot-N state (#515)."""

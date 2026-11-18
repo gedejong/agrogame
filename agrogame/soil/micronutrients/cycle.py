@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agrogame.events import EventBus
+from agrogame.params.memory import RuntimeMemory
 from agrogame.plant.events import NutrientStressComputed
 from agrogame.soil.nutrients import EnvironmentalCache
 from agrogame.soil.micronutrients.constants import (
@@ -32,12 +33,16 @@ class MicronutrientFluxes:
     mn_stress: float = 1.0
 
 
-class MicronutrientCycle:
+class MicronutrientCycle(RuntimeMemory):
     """Daily micronutrient processes: availability, complexation, uptake.
 
     Ref: Lindsay 1979, Chemical Equilibria in Soils;
          Alloway 2008, Micronutrient Deficiencies in Global Crop Production.
     """
+
+    # Saved with the patch (#577). ``_ph_by_layer`` is ``_env.ph_by_layer``,
+    # restored in place through ``_env``, so it is not listed twice.
+    _MEMORY = ("_env", "_som_c_by_layer", "_last_eh_by_layer")
 
     def __init__(
         self,
