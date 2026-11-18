@@ -31,16 +31,3 @@ class LimeApplied(BaseEvent):
 
     layer: int
     rate_kg_ha: float
-
-
-@dataclass(frozen=True)
-class AcidifyingFertilizerApplied(BaseEvent):
-    """Application of acidifying fertilizer (lowers pH slightly).
-
-    Attributes:
-        layer: Zero-based layer index.
-        rate_kg_ha: Rate (kg/ha) used to scale pH impact.
-    """
-
-    layer: int
-    rate_kg_ha: float

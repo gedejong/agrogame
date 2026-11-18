@@ -14,18 +14,21 @@ key_events:
   - NutrientLeached
   - VolatilizationOccurred
   - MassFlowNSupplyComputed
+  - ProtonLoadOccurred
 primary_tests:
   - tests/test_soil_nitrogen.py
   - tests/test_nitrogen_volatilization_massflow.py
+  - tests/unit/test_proton_budget.py
   - tests/integration/test_realism.py
-related_adrs: [ADR-002, ADR-006, ADR-013]
+related_adrs: [ADR-002, ADR-006, ADR-013, ADR-020]
 ---
 
 Nitrogen module summary
 
 - Core: `NitrogenCycle` processes (mineralization, nitrification, denitrification, uptake)
 - Subscribes to water events to move NO3 with drainage
-- Emits: `MineralizationOccurred`, `NitrificationOccurred`, `DenitrificationOccurred`, `VolatilizationOccurred`, `NutrientLeached`, `MassFlowNSupplyComputed`
+- Emits: `MineralizationOccurred`, `NitrificationOccurred`, `DenitrificationOccurred`, `VolatilizationOccurred`, `NutrientLeached`, `MassFlowNSupplyComputed`, `ProtonLoadOccurred`
+- Proton budget (#492, ADR-020): each transformation adds its stoichiometric H+ per N to a per-layer budget, released at `DayTick(day_end)` as `ProtonLoadOccurred` (urea hydrolysis at application); soil chemistry turns it into pH through the buffer capacity. See `docs/soil.md`.
 
 Daily step inputs
 - temperature, plant demand, root fractions, optional per-layer pH

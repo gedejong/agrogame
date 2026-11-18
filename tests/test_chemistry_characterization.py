@@ -19,7 +19,6 @@ import pytest
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.soil.chemistry import (
-    AcidifyingFertilizerApplied,
     ChemistryParams,
     ChemistryRuntime,
     ChemistryState,
@@ -28,7 +27,7 @@ from agrogame.soil.chemistry import (
     SoilChemistryModule,
     SoilPHUpdated,
 )
-from agrogame.soil.nitrogen.events import NutrientLeached
+from agrogame.soil.nitrogen.events import NutrientLeached, ProtonLoadOccurred
 from agrogame.soil.phosphorus.events import PhosphorusFixationOccurred
 
 _ABS = 1e-12
@@ -60,14 +59,11 @@ def test_default_params_match_legacy_constants() -> None:
     assert p.base_ph == 6.8
     assert p.default_target_ph == 6.8
     assert p.buffering_rate == 0.001
-    assert p.no3_leach_ph_delta == 0.005
-    assert p.p_fixation_ph_delta == 0.002
     # #465: the flat lime_ph_delta_per_kg_ha (0.001) is replaced by a
     # buffer-capacity formulation; see test_lime_requirement_*.
     assert p.phbc_clay_max_cmol_kg == 8.5
     assert p.phbc_clay_half_pct == 25.0
     assert p.phbc_oc_cmol_per_pct == 0.6
-    assert p.acidifying_ph_delta_per_kg_ha == 0.0005
     assert p.ph_floor == 4.0
     assert p.ph_ceiling == 9.0
 
@@ -108,39 +104,6 @@ def test_lime_raises_ph_and_caps_at_ceiling() -> None:
     assert chem.ph_by_layer[0] == pytest.approx(9.0, abs=_ABS)
 
 
-def test_acidifying_fertilizer_lowers_ph_and_floors() -> None:
-    bus = EventBus()
-    chem = _module(bus, base_ph=6.8)
-    chem.apply_acidifying_fertilizer(0, 1000.0)  # -0.0005 * 1000 = -0.5
-    assert chem.ph_by_layer[0] == pytest.approx(6.3, abs=_ABS)
-    chem.apply_acidifying_fertilizer(0, 10000.0)  # 6.3 - 5.0 -> floored at 4.0
-    assert chem.ph_by_layer[0] == pytest.approx(4.0, abs=_ABS)
-
-
-def test_no3_leaching_acidifies_only_for_nitrate() -> None:
-    bus = EventBus()
-    chem = _module(bus, base_ph=6.8)
-    chem.apply_nutrient_leaching("NO3", 0)  # -0.005
-    assert chem.ph_by_layer[0] == pytest.approx(6.795, abs=_ABS)
-    # Non-nitrate leaching leaves pH untouched.
-    chem.apply_nutrient_leaching("NH4", 0)
-    assert chem.ph_by_layer[0] == pytest.approx(6.795, abs=_ABS)
-
-
-def test_no3_leaching_floors_at_ph_floor() -> None:
-    bus = EventBus()
-    chem = _module(bus, base_ph=4.002)
-    chem.apply_nutrient_leaching("NO3", 0)  # 4.002 - 0.005 -> floored 4.0
-    assert chem.ph_by_layer[0] == pytest.approx(4.0, abs=_ABS)
-
-
-def test_phosphorus_fixation_acidifies() -> None:
-    bus = EventBus()
-    chem = _module(bus, base_ph=6.8)
-    chem.apply_phosphorus_fixation(0)  # -0.002
-    assert chem.ph_by_layer[0] == pytest.approx(6.798, abs=_ABS)
-
-
 def test_set_state_restores_in_place() -> None:
     bus = EventBus()
     chem = _module(bus, base_ph=6.8)
@@ -156,7 +119,7 @@ def _tick(phase: str, target_ph: float | None = None) -> DayTick:
 
 
 def test_runtime_dispatches_all_events() -> None:
-    """ChemistryRuntime relocates the 5 subscriptions off the module."""
+    """ChemistryRuntime holds the module's subscriptions (#288, #492)."""
     bus = EventBus()
     chem = _module(bus, base_ph=6.8, n_layers=2)
     ChemistryRuntime(bus, chem)
@@ -179,11 +142,14 @@ def test_runtime_dispatches_all_events() -> None:
     lime_ph = 6.8 + 1000.0 / chem.lime_requirement_kg_ha_per_ph(0)
     assert chem.ph_by_layer[0] == pytest.approx(lime_ph, abs=_ABS)
 
-    bus.emit(AcidifyingFertilizerApplied(layer=1, rate_kg_ha=1000.0))
-    assert chem.ph_by_layer[1] == pytest.approx(6.3, abs=_ABS)
-
+    # #492: nitrate leaching and P fixation no longer move pH.
     bus.emit(NutrientLeached(nutrient="NO3", amount_kg_ha=1.0, layer=0))
-    assert chem.ph_by_layer[0] == pytest.approx(lime_ph - 0.005, abs=_ABS)
+    assert chem.ph_by_layer[0] == pytest.approx(lime_ph, abs=_ABS)
 
     bus.emit(PhosphorusFixationOccurred(layer=1, amount_fixed_kg_ha=1.0))
-    assert chem.ph_by_layer[1] == pytest.approx(6.298, abs=_ABS)
+    assert chem.ph_by_layer[1] == pytest.approx(6.8, abs=_ABS)
+
+    # #492: the N-cycle proton load moves pH through the buffer capacity.
+    bus.emit(ProtonLoadOccurred(layer=1, h_kmol_ha=10.0))
+    acid_ph = 6.8 - 10.0 / chem.proton_buffer_kmol_ha_per_ph(1)
+    assert chem.ph_by_layer[1] == pytest.approx(acid_ph, abs=_ABS)

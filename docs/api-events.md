@@ -91,6 +91,7 @@ payload.
 | `DenitrificationOccurred` | `layer: int`, `amount_kg_ha: float` | NO3 lost as N2 gas (anaerobic) |
 | `VolatilizationOccurred` | `layer: int`, `amount_kg_ha: float` | NH3 lost to atmosphere |
 | `NutrientLeached` | `nutrient: str`, `amount_kg_ha: float`, `layer: int` | Nutrient lost below root zone |
+| `ProtonLoadOccurred` | `layer: int`, `h_kmol_ha: float` | Net H+ released (+) or consumed (-) by the N transformations; drives soil pH (ADR-020) |
 | `MassFlowNSupplyComputed` | `total_kg_ha: float`, `by_layer: float[]` (kg/ha, one per layer) | Diagnostic: potential NO3 supply to roots by transpiration mass flow; neither debited from the soil nor credited to the plant |
 
 ### Plant Growth
@@ -130,7 +131,7 @@ payload.
 
 | Event | Key Fields | Description |
 |-------|-----------|-------------|
-| `SoilPHUpdated` | `layer: int`, `ph: float` | pH change from buffering |
+| `SoilPHUpdated` | `layer: int`, `ph: float` | pH change from the N-cycle proton load, lime or buffering |
 | `PhosphorusFixationOccurred` | `layer: int`, `amount_fixed_kg_ha: float` | P locked into minerals |
 
 ### Soil Gas and Redox

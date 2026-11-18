@@ -2041,7 +2041,7 @@ def _ph_by_layer(game_id: str) -> list[float]:
     """Per-layer pH straight off the session, with no intervening day step.
 
     ``/step`` would also expose it (``SoilStateResponse.ph``), but advancing a
-    day applies the daily buffering and P-fixation drift, which muddies an
+    day applies the daily buffering and the N-cycle proton load, which muddies an
     exact before/after comparison.
     """
     from agrogame.api.state import games

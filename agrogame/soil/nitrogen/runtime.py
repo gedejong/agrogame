@@ -22,6 +22,10 @@ class NitrogenRuntime(RuntimeMemory):
     denitrification rates respond to actual O₂ rather than the WFPS
     proxy.
 
+    On ``DayTick(day_end)`` it releases the cycle's proton budget (#492):
+    SOM ammonification reaches the cycle after its own nutrients-phase step,
+    so ``day_end`` is the first point at which the day's H+ is complete.
+
     N stress is *not* computed here (#360). The mass-flow-limited soil N
     uptake is handed off via :class:`PlantNUptakeComputed` to the
     whole-shoot plant-N accounting, which derives the graded NNI-based
@@ -52,6 +56,9 @@ class NitrogenRuntime(RuntimeMemory):
             self._eh_by_layer[layer] = eh
 
     def _on_day_tick(self, ev: DayTick) -> None:
+        if ev.phase == "day_end":
+            self.cycle.release_proton_budget()
+            return
         if ev.phase != "nutrients":
             return
         demand = 1.0

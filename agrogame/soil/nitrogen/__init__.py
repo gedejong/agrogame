@@ -13,6 +13,7 @@ from .events import (
     MassFlowNSupplyComputed,
     NutrientLeached,
     NitrificationOccurred,
+    ProtonLoadOccurred,
     VolatilizationOccurred,
 )
 from .params import NitrogenRateParams
@@ -24,6 +25,7 @@ __all__ = [
     "MassFlowNSupplyComputed",
     "NutrientLeached",
     "NitrificationOccurred",
+    "ProtonLoadOccurred",
     "VolatilizationOccurred",
     "NitrogenRateParams",
     "SoilNitrogenState",
