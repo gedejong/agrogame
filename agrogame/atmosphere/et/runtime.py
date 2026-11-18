@@ -43,10 +43,12 @@ class ETRuntime:
     _stress: StressCalculator | None = None
     _evap_state: EtState = field(default_factory=EtState)
     _residue: ResidueState = field(default_factory=ResidueState)
+    # False on a bare fallow (#542): no plant, so no WaterStressComputed.
+    plant_present: bool = True
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
-        self._stress = StressCalculator("liebig")
+        self._stress = StressCalculator("liebig") if self.plant_present else None
 
     def _update_wetting_and_residue(self, ev: DayTick) -> None:
         wetting_mm = 0.0

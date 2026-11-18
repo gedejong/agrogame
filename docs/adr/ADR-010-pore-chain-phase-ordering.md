@@ -4,6 +4,21 @@
 
 Accepted (#284).
 
+### Amendment (#542), 2026-11-18: subscription plan of a fallow patch
+
+A bare patch (`FullSimulationOrchestrator(..., fallow=True)` or
+`reset_crop(None, fallow=True)`, which the game layer uses for
+`crop_key == ""`) is a null plant, as DSSAT-CSM treats `CROP = 'FA'`. Its
+subscription plan omits the four plant runtimes, `PhenologyRuntime`,
+`RootsRuntime`, `PlantNitrogenRuntime` and `CanopyRuntime`, which
+`_subscription_plan` matches by identity rather than by list index. Every
+other handler keeps its relative order, and the pore-chain group still
+registers first and is still enforced by `_assert_pore_chain_registered_first`,
+so the invariant below is unchanged. `crop=None` without `fallow=True` still
+runs the generic default plant and wires the full plan pinned by the golden.
+`tests/test_orchestrator_wiring.py` pins the fallow plan as the golden minus
+exactly those four classes' handlers.
+
 ### Amendment (#524), 2026-11-17: biopores reach the simulation only through the effective-porosity cap
 
 #524 pinned biopore density at 0 and at 500 /m² through two maize seasons on
