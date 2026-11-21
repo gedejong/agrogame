@@ -1536,8 +1536,9 @@ class _ProjectionInputs:
     (#318/#353/#366/#383.) Beyond the collapsed root-zone scalars, this carries
     the **per-layer** mineral N arrays, layer depths, current root depth and the
     engine root-growth params so the forecast can project root-zone deepening
-    (#366), plus the aggregate-penetration constraint scalar that throttles that
-    deepening to the engine's constrained rate (#383).
+    (#366), plus the constant elongation factor that throttles that deepening to
+    the engine's rate (#383). The factor no longer reads aggregate structure, so
+    it is the engine's own constant, not a per-patch value (ADR-021, #526).
     """
 
     available_water_mm: float
@@ -1562,9 +1563,10 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
     The labile SOM N and WFPS feed the net-mineralisation source term (#353);
     the per-layer mineral N, layer depths, root depth and root-growth params
     (from ``orch.roots.params`` / ``orch.phenology.state.stage``) feed the
-    root-zone deepening source (#366); the aggregate-penetration factor from
-    ``orch.agg_state.mwd(0)`` throttles that deepening to the engine's
-    constrained rate (#383).
+    root-zone deepening source (#366); the engine's constant elongation factor
+    (``CALIBRATED_ROOT_ELONGATION_FACTOR``) throttles that deepening to the
+    engine's rate (#383). It is constant because root elongation does not read
+    aggregate structure: tillage must not slow rooting (ADR-021, #526).
     """
     orch = patch.orch
     snap = orch.snapshot_soil()
@@ -1593,13 +1595,13 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_depth,
     )
     root_params = orch.roots.params
-    # Aggregate-penetration constraint on root elongation (#383): the engine's
-    # single top-layer, depth-independent channel of RootModule._constraint_factor
-    # (agrogame/plant/roots/runtime.py feeds it agg_state.mwd(0)). agg_state is
-    # always constructed, so no None-guard is needed.
-    from agrogame.soil.aggregation.dynamic_state import root_penetration_factor
+    # The elongation factor of RootModule._constraint_factor (#383). The engine
+    # (agrogame/plant/roots/runtime.py) passes the same constant, which does
+    # not read aggregate structure (ADR-021, #526), so the forecast mirrors it.
+    from agrogame.soil.aggregation.dynamic_state import (
+        CALIBRATED_ROOT_ELONGATION_FACTOR,
+    )
 
-    penetration_factor = root_penetration_factor(orch.agg_state.mwd(0))
     return _ProjectionInputs(
         available_water_mm=available,
         total_available_water_mm=taw,
@@ -1619,7 +1621,7 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_stage_multiplier=stage_depth_multiplier(
             orch.phenology.state.stage, root_params.stage_multipliers
         ),
-        root_penetration_factor=penetration_factor,
+        root_penetration_factor=CALIBRATED_ROOT_ELONGATION_FACTOR,
     )
 
 

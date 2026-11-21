@@ -2,17 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.params.ports import SoilProfileView
+from agrogame.soil.aggregation.dynamic_state import CALIBRATED_ROOT_ELONGATION_FACTOR
 from agrogame.soil.phenology import PhenologyModule
 from .module import RootModule
 from .types import RootState
-
-if TYPE_CHECKING:
-    from agrogame.soil.aggregation.state import SoilAggregationState
 
 
 @dataclass
@@ -34,7 +31,6 @@ class RootsRuntime:
     state: RootState
     profile: SoilProfileView
     phenology: PhenologyModule
-    agg_state: SoilAggregationState | None = None
     canopy_increment_provider: Callable[[], float] | None = None
 
     def __post_init__(self) -> None:
@@ -54,15 +50,16 @@ class RootsRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "plant_structure":
             return
-        constraints: dict | None = None
-        if self.agg_state is not None:
-            from agrogame.soil.aggregation.dynamic_state import (
-                root_penetration_factor,
-            )
-
-            # TODO: per-layer MWD constraint for depth-dependent resistance
-            mwd = self.agg_state.mwd(0)
-            constraints = {"agg_penetration": root_penetration_factor(mwd)}
+        # Root elongation does not read aggregate structure (ADR-021, #526).
+        # The constant preserves the calibration (the realism suite was
+        # calibrated under this value on day 0) and is not a soil-strength
+        # parameter. Tillage must not tighten rooting (Lampurlanés &
+        # Cantero-Martínez 2003, Agron. J. 95:526-536,
+        # doi:10.2134/agronj2003.5260; Grant & Lafond 1993, Can. J. Soil
+        # Sci. 73:223-232, doi:10.4141/cjss93-024), and the CERES-Maize and
+        # APSIM root fronts have no aggregate term. See
+        # docs/adr/ADR-021-root-elongation-aggregate-coupling.md.
+        constraints = {"agg_penetration": CALIBRATED_ROOT_ELONGATION_FACTOR}
         _ = self.module.daily_step(
             state=self.state,
             profile=self.profile,

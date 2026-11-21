@@ -44,9 +44,11 @@ class RootModule:
         """Compute root elongation constraint factor.
 
         Args:
-            agg_penetration: Aggregation-based penetration factor (0.3–1.0).
-                From dynamic_state.root_penetration_factor(mwd).
-                Ref: Bengough et al. 2011, J Exp Bot.
+            agg_penetration: Constant elongation multiplier (0.3–1.0).
+                ``RootsRuntime`` passes
+                ``dynamic_state.CALIBRATED_ROOT_ELONGATION_FACTOR``, a
+                calibration constant that does not read aggregate
+                structure (ADR-021, #526).
         """
         f = 1.0
         if hardpan_cm is not None and depth_cm >= hardpan_cm:

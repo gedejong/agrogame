@@ -1,6 +1,8 @@
 """Tests for aggregation wiring into water, roots, and SOM (#219).
 
-Literature-cited quantitative assertions for each integration point.
+Literature-cited quantitative assertions for each integration point. Root
+elongation no longer reads aggregate structure (ADR-021, #526); only the
+factor's function and its calibration constant are tested here.
 """
 
 from __future__ import annotations
@@ -8,13 +10,17 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
+import pytest
+
 from agrogame.events import EventBus
 from agrogame.soil.aggregation.dynamic_state import (
+    CALIBRATED_ROOT_ELONGATION_FACTOR,
     effective_ksat_factor,
     effective_porosity,
     root_penetration_factor,
     som_protection_factor,
 )
+from agrogame.soil.aggregation.state import SoilAggregationState
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
@@ -70,6 +76,18 @@ def test_root_penetration_factor() -> None:
     assert good >= 0.95, f"Good aggregation factor {good:.2f} should be ~1.0"
     assert poor < 0.55, f"Poor aggregation factor {poor:.2f} should be < 0.55"
     assert poor >= 0.3, f"Poor aggregation factor {poor:.2f} should be >= 0.3"
+
+
+def test_calibrated_root_elongation_factor_is_default_structure_value() -> None:
+    """The constant is the factor at the default structure (ADR-021, #526).
+
+    MWD of 40 % micro, 35 % meso, 25 % macro is 0.55125 mm, so the factor is
+    0.3 + 0.7 × 0.55125 / 2 = 0.4929375, the day-0 value of every calibration.
+    """
+    default_mwd = SoilAggregationState.from_layers(1).mwd(0)
+    assert default_mwd == pytest.approx(0.55125, abs=1e-12)
+    assert CALIBRATED_ROOT_ELONGATION_FACTOR == root_penetration_factor(default_mwd)
+    assert CALIBRATED_ROOT_ELONGATION_FACTOR == pytest.approx(0.4929375, abs=1e-12)
 
 
 # --- 4. SOM protection ---
@@ -153,9 +171,10 @@ def test_infiltration_differs_by_aggregation() -> None:
 
 
 def test_root_aggregation_feedback() -> None:
-    """Active roots should improve aggregation, which improves root growth.
+    """Active roots should improve aggregation.
 
-    Ref: Six et al. 2004 — positive feedback loop.
+    Ref: Six et al. 2004. The return arm of that loop, structure speeding root
+    elongation, is retired (ADR-021, #526).
     """
     soils = load_soil_presets(Path("soils/presets.yaml"))
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
