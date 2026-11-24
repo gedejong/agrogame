@@ -8,6 +8,7 @@ from agrogame.soil.phenology import (
     CropPhenologyParams,
     GrowthStageThresholds,
     PhenologyModule,
+    PhenologyStage,
 )
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.plant.roots import RootModule, RootParams, RootState
@@ -773,7 +774,10 @@ class FullSimulationOrchestrator(RuntimeMemory):
             # With no plant, the soil-side runtimes emit no plant-stress
             # diagnostic and take up no micronutrients (#542).
             lambda: MicronutrientRuntime(
-                self.event_bus, self.micro_cycle, plant_present=plant_present
+                self.event_bus,
+                self.micro_cycle,
+                plant_present=plant_present,
+                uptake_active_provider=self._takes_up_nutrients,
             ),
             lambda: PhosphorusRuntime(
                 self.event_bus, self.p_cycle, plant_present=plant_present
@@ -1222,6 +1226,22 @@ class FullSimulationOrchestrator(RuntimeMemory):
         self._co2_buffer = [0.0] * n
         return out
 
+    def _takes_up_nutrients(self) -> bool:
+        """Whether the crop takes up N, P, S and micronutrients today (#539).
+
+        No nutrient uptake after physiological maturity. CERES-Maize runs
+        growth and uptake only for ISTAGE 1-6, with ``UNO3 = UNH4 = PUptake =
+        0`` otherwise, and ISTAGE 6 itself returns with no N or K uptake
+        (DSSAT-CSM ``MZ_CERES.for:665-740``, ``MZ_GROSUB.for:1621-1623``;
+        Jones et al. 2003, Eur. J. Agron. 18:235-265). WOFOST defines
+        ``DVS_NPK_STOP``, the development stage above which no crop N/P/K
+        uptake occurs (de Wit et al. 2019, Agric. Syst. 168:154-167). Water
+        uptake is not gated: transpiration follows green LAI through the late
+        season (FAO-56 Kc_end; Allen et al. 1998, Table 12). Stateless: reads
+        the saved phenology stage, so no runtime memory is added (#585).
+        """
+        return self.phenology.state.stage is not PhenologyStage.MATURITY
+
     def _compute_plant_p_demand(self) -> float:
         """Compute P demand from previous day's biomass increment.
 
@@ -1237,6 +1257,9 @@ class FullSimulationOrchestrator(RuntimeMemory):
         """
         crop = self._current_crop
         if crop is None:
+            return 0.0
+        # No uptake after maturity, ahead of the floor (#539).
+        if not self._takes_up_nutrients():
             return 0.0
         # 1 g/m² = 10 kg/ha (10,000 m² per ha)
         inc_kg_ha = self._last_biomass_inc_g_m2 * 10.0
@@ -1258,6 +1281,9 @@ class FullSimulationOrchestrator(RuntimeMemory):
         crop = self._current_crop
         if crop is None:
             return 0.0
+        # No uptake after maturity, ahead of the floor (#539).
+        if not self._takes_up_nutrients():
+            return 0.0
         inc_kg_ha = self._last_biomass_inc_g_m2 * 10.0
         soil_fraction = 0.5
         s_demand = inc_kg_ha * crop.tissue_s_conc_kg_kg * soil_fraction
@@ -1278,12 +1304,15 @@ class FullSimulationOrchestrator(RuntimeMemory):
         There is no demand floor (#578, ADR-013 amendment 2026-11-18): the
         demand is exactly the deficit to critical, which is 0 while shoot DM
         is at or below 1 kg/ha (before emergence) and 0 whenever the stock is
-        at or above critical.
+        at or above critical. It is 0 at MATURITY (#539).
         """
         if self._fallow:
             return 0.0
         if self._current_crop is None:
             return 0.1
+        # No N uptake after maturity (#539; ADR-013 amendment 2026-11-24).
+        if not self._takes_up_nutrients():
+            return 0.0
         # No soil N uptake before emergence and no minimum demand (#578).
         # CERES-Maize (DSSAT-CSM ``MZ_CERES.for``) calls growth and N uptake
         # only for ISTAGE 1-6, emergence to maturity (Jones et al. 2003,

@@ -67,6 +67,7 @@ from agrogame.game.turn import (
     SeasonPhase,
     interrupt_count,
 )
+from agrogame.params.phenology import PhenologyStage
 from agrogame.sim.management import ManagementEvent, ManagementPlan
 from agrogame.soil.loader import load_soil_presets
 from agrogame.weather.generator import SyntheticWeatherGenerator
@@ -1565,6 +1566,7 @@ class _ProjectionInputs:
     root_max_depth_cm: float
     root_stage_multiplier: float
     root_penetration_factor: float
+    crop_n_uptake: bool
 
 
 def _projection_inputs(patch: Patch) -> _ProjectionInputs:
@@ -1575,7 +1577,8 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
     (from ``orch.roots.params`` / ``orch.phenology.state.stage``) feed the
     root-zone deepening source (#366); the aggregate-penetration factor from
     ``orch.agg_state.mwd(0)`` throttles that deepening to the engine's
-    constrained rate (#383).
+    constrained rate (#383). A crop at MATURITY takes up no N in the engine,
+    so its projection drops the crop-uptake sink (#539).
     """
     orch = patch.orch
     snap = orch.snapshot_soil()
@@ -1631,6 +1634,7 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
             orch.phenology.state.stage, root_params.stage_multipliers
         ),
         root_penetration_factor=penetration_factor,
+        crop_n_uptake=orch.phenology.state.stage is not PhenologyStage.MATURITY,
     )
 
 
@@ -1683,6 +1687,7 @@ def get_forecast(
         root_max_depth_cm=pi.root_max_depth_cm,
         root_stage_multiplier=pi.root_stage_multiplier,
         root_penetration_factor=pi.root_penetration_factor,
+        crop_n_uptake=pi.crop_n_uptake,
     )
 
     forecast: list[ForecastDayResponse] = []

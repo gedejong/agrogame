@@ -22,3 +22,15 @@ func test_slider_defs_defined() -> void:
 	assert_has(keys, "sen_override")
 	assert_has(keys, "wind")
 	assert_has(keys, "wind_angle")
+
+
+func test_lit_by_the_farm_environment() -> void:
+	var preview: Node3D = CropPreviewRef.new()
+	add_child_autofree(preview)
+	var envs: Array[Node] = preview.find_children("*", "WorldEnvironment", false, false)
+	assert_eq(envs.size(), 1, "One environment")
+	assert_eq(
+		(envs[0] as WorldEnvironment).environment,
+		FarmViewDebug.FARM_ENVIRONMENT,
+		"The preview shows the farm view's environment and tonemap"
+	)

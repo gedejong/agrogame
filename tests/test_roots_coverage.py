@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from agrogame.events import EventBus
 from agrogame.plant.roots import RootModule, RootParams, RootState
+from agrogame.plant.roots.events import RootDepthChanged
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.models import SoilProfile
 from agrogame.soil.phenology import PhenologyStage
@@ -28,7 +31,50 @@ def test_custom_stage_multipliers() -> None:
     assert roots._stage_multiplier(PhenologyStage.VEGETATIVE) == 0.8
     assert roots._stage_multiplier(PhenologyStage.FLOWERING) == 0.3
     # Stage not in dict falls to defaults
-    assert roots._stage_multiplier(PhenologyStage.MATURITY) == 0.3
+    assert roots._stage_multiplier(PhenologyStage.GRAIN_FILL) == 0.3
+    # MATURITY is a hard stop (#539), not the 0.3 fallback
+    assert roots._stage_multiplier(PhenologyStage.MATURITY) == 0.0
+
+
+def test_maturity_stops_root_front_even_when_overridden() -> None:
+    """#539 AC1: MATURITY gives 0.0 even if a crop override maps it positive."""
+    mults = {PhenologyStage.MATURITY: 0.8, PhenologyStage.GRAIN_FILL: 0.5}
+    roots = RootModule(RootParams(stage_multipliers=mults))
+    assert roots._stage_multiplier(PhenologyStage.MATURITY) == 0.0
+    # Overrides keep winning for every other stage.
+    assert roots._stage_multiplier(PhenologyStage.GRAIN_FILL) == 0.5
+    defaults = RootModule(RootParams())
+    expected = {
+        PhenologyStage.PLANTED: 0.3,
+        PhenologyStage.EMERGED: 1.0,
+        PhenologyStage.VEGETATIVE: 1.0,
+        PhenologyStage.FLOWERING: 0.6,
+        PhenologyStage.GRAIN_FILL: 0.3,
+        PhenologyStage.MATURITY: 0.0,
+    }
+    assert {st: defaults._stage_multiplier(st) for st in PhenologyStage} == expected
+
+
+def test_root_depth_frozen_at_maturity_turnover_continues() -> None:
+    """#539 AC1/AC3 at module level: no depth gain, biomass decays geometrically."""
+    bus = EventBus()
+    depth_events: list[RootDepthChanged] = []
+    bus.subscribe(RootDepthChanged, depth_events.append)
+    params = RootParams(stage_multipliers={PhenologyStage.MATURITY: 1.0})
+    roots = RootModule(params, event_bus=bus)
+    state = RootState(current_depth_cm=60.0, biomass_g_m2=200.0)
+    profile = _profile()
+    roots.daily_step(state, profile, PhenologyStage.MATURITY)
+    fracs = list(state.layer_fractions)
+    for _ in range(5):
+        before = state.biomass_g_m2
+        roots.daily_step(state, profile, PhenologyStage.MATURITY)
+        assert state.biomass_g_m2 == pytest.approx(
+            before * (1.0 - params.turnover_rate_per_day), rel=1e-9
+        )
+    assert state.current_depth_cm == 60.0
+    assert state.layer_fractions == fracs
+    assert depth_events == []
 
 
 # ---------------------------------------------------------------------------
