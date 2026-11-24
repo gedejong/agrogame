@@ -1,6 +1,7 @@
 shader_type spatial;
 render_mode cull_disabled;
 // Soil tile — PBR with procedural grain noise, world-space coordinates.
+#include "res://shaders/srgb.gdshaderinc"
 
 uniform sampler2D albedo_texture : source_color;
 uniform sampler2D normal_texture : hint_normal;
@@ -8,6 +9,8 @@ uniform float som_frac : hint_range(0.0, 1.0) = 0.0;
 uniform float moisture_frac : hint_range(0.0, 1.0) = 0.0;
 uniform float selected : hint_range(0.0, 1.0) = 0.0;
 
+// SOM_DARK and MOISTURE_DARK are reflectance ratios, not colours: they scale
+// the linear albedo, so they need no sRGB conversion.
 const vec3 SOM_DARK = vec3(0.4, 0.3, 0.2);
 const float SOM_STRENGTH = 0.7;
 const vec3 MOISTURE_DARK = vec3(0.55, 0.55, 0.6);
@@ -76,7 +79,7 @@ void fragment() {
 	// Selection: narrow gold edge with soft inward gradient
 	float edge = min(min(UV.x, 1.0 - UV.x), min(UV.y, 1.0 - UV.y));
 	float border = 1.0 - smoothstep(0.0, 0.08, edge);
-	vec3 sel_color = vec3(1.0, 0.85, 0.3);
+	vec3 sel_color = SRGB_TO_LINEAR(vec3(1.0, 0.85, 0.3));
 
 	ALBEDO = color;
 	NORMAL_MAP = norm;

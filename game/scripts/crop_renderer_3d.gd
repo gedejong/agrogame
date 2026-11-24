@@ -89,7 +89,9 @@ static func create_leaf_material(
 	var mask: Texture2D = LEAF_MASKS.get(crop_key, LEAF_MASKS["maize"])
 	mat.set_shader_parameter("alpha_mask", mask)
 	var base: Color = LEAF_BASE_COLOR.get(crop_key, LEAF_BASE_COLOR["maize"])
-	mat.set_shader_parameter("base_color", Vector3(base.r, base.g, base.b))
+	# Colour uniforms take a Color: the engine converts it from sRGB to linear,
+	# but would pass a Vector3 through as if it were already linear (#637).
+	mat.set_shader_parameter("base_color", base)
 	mat.set_shader_parameter("midrib", LEAF_MIDRIB.get(crop_key, 0.0))
 	mat.set_shader_parameter("senescence", senescence)
 	mat.set_shader_parameter("leaf_height", leaf_height)
@@ -218,7 +220,7 @@ static func create_stem_material(
 	var mat := ShaderMaterial.new()
 	mat.shader = STEM_SHADER
 	var color: Color = fresh.lerp(dry, clampf(senescence, 0.0, 1.0))
-	mat.set_shader_parameter("stem_color", Vector3(color.r, color.g, color.b))
+	mat.set_shader_parameter("stem_color", color)
 	return mat
 
 
@@ -238,7 +240,7 @@ static func create_organ_material(
 	## free on its peduncle) at the rhythm offset phase.
 	var mat := ShaderMaterial.new()
 	mat.shader = ORGAN_SHADER
-	mat.set_shader_parameter("albedo", Vector3(color.r, color.g, color.b))
+	mat.set_shader_parameter("albedo", color)
 	mat.set_shader_parameter("roughness", roughness)
 	mat.set_shader_parameter("sway", sway)
 	mat.set_shader_parameter("wind_phase", fposmod(phase, TAU))

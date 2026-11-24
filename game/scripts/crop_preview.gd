@@ -73,19 +73,7 @@ func _ready() -> void:
 	ground_mat.albedo_color = Color(0.35, 0.25, 0.15)
 	ground.material_override = ground_mat
 	add_child(ground)
-	# Light
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-45, -30, 0)
-	light.shadow_enabled = true
-	add_child(light)
-	var ambient := WorldEnvironment.new()
-	var env := Environment.new()
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 0.4
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.4, 0.45, 0.55)
-	ambient.environment = env
-	add_child(ambient)
+	FarmViewDebug.add_farm_lighting(self, Vector3(-45, -30, 0))
 	_rebuild()
 
 

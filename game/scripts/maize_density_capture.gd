@@ -90,19 +90,7 @@ func _setup_camera() -> void:
 
 
 func _setup_lighting() -> void:
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-45.0, -35.0, 0.0)
-	light.light_energy = 1.15
-	light.shadow_enabled = true
-	add_child(light)
-	var we := WorldEnvironment.new()
-	var env := Environment.new()
-	env.ambient_light_color = Color(0.80, 0.85, 0.90)
-	env.ambient_light_energy = 0.5
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.78, 0.85, 0.92)
-	we.environment = env
-	add_child(we)
+	FarmViewDebug.add_farm_lighting(self, Vector3(-45.0, -35.0, 0.0))
 
 
 func _process(_delta: float) -> void:
