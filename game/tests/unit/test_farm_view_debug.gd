@@ -129,3 +129,47 @@ func test_start_stops_on_step_failure() -> void:
 	# Planting still happens, but a failed step must not open the cutaway.
 	assert_eq(api.plant_calls.size(), 3, "crops still planted before the step")
 	assert_eq(shown.size(), 0, "cutaway not opened when the step fails")
+
+
+func test_farm_environment_tonemap() -> void:
+	# #637: exposure 1.0 and white 6.0 keep midtones at their authored
+	# brightness and leave headroom before highlights clip.
+	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
+	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_FILMIC, "Filmic tonemap")
+	assert_almost_eq(env.tonemap_exposure, 1.0, 1e-6, "Exposure")
+	assert_almost_eq(env.tonemap_white, 6.0, 1e-6, "White point")
+
+
+func test_add_farm_lighting_lights_as_the_farm_view() -> void:
+	var parent := Node3D.new()
+	add_child_autofree(parent)
+	var sun: DirectionalLight3D = FarmViewDebugRef.add_farm_lighting(parent, Vector3(-40, -20, 0))
+	assert_eq(sun.get_parent(), parent, "Sun added to the parent")
+	assert_true(sun.shadow_enabled, "Sun casts shadows")
+	assert_eq(sun.light_color, FarmViewDebugRef.SUN_COLOR_CLEAR, "Clear-day sun colour")
+	assert_almost_eq(sun.light_energy, FarmViewDebugRef.SUN_ENERGY_CLEAR, 1e-6, "Clear-day energy")
+	assert_almost_eq(sun.rotation_degrees.x, -40.0, 1e-3, "Caller's sun angle")
+	var envs: Array[Node] = parent.find_children("*", "WorldEnvironment", false, false)
+	assert_eq(envs.size(), 1, "One environment")
+	var world_env: WorldEnvironment = envs[0] as WorldEnvironment
+	assert_eq(world_env.environment, FarmViewDebugRef.FARM_ENVIRONMENT, "The farm environment")
+
+
+func test_clear_day_weather_sets_the_clear_sun() -> void:
+	var sun := DirectionalLight3D.new()
+	add_child_autofree(sun)
+	var world_env := WorldEnvironment.new()
+	world_env.environment = Environment.new()
+	add_child_autofree(world_env)
+	var fog: GPUParticles3D = FogClouds.new()
+	add_child_autofree(fog)
+	FarmViewDebugRef.update_weather_lighting({"rain_mm": 0.0}, sun, world_env, fog)
+	assert_eq(sun.light_color, FarmViewDebugRef.SUN_COLOR_CLEAR, "Clear-day colour")
+	assert_almost_eq(sun.light_energy, FarmViewDebugRef.SUN_ENERGY_CLEAR, 1e-6, "Clear-day energy")
+
+
+func test_farm_view_scene_uses_the_farm_environment() -> void:
+	var view: Node3D = (load("res://scenes/farm_view.tscn") as PackedScene).instantiate()
+	var world_env: WorldEnvironment = view.get_node("WorldEnvironment")
+	assert_eq(world_env.environment, FarmViewDebugRef.FARM_ENVIRONMENT, "Shared environment")
+	view.free()

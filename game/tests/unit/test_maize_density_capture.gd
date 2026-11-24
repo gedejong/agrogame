@@ -20,3 +20,16 @@ func test_densities_are_positive_grids() -> void:
 
 func test_block_tiles_positive() -> void:
 	assert_gt(DensityCapture.BLOCK_TILES, 0, "block tile count positive")
+
+
+func test_lit_by_the_farm_environment() -> void:
+	var capture: Node3D = DensityCapture.new()
+	capture._setup_lighting()
+	var envs: Array[Node] = capture.find_children("*", "WorldEnvironment", false, false)
+	assert_eq(envs.size(), 1, "One environment")
+	assert_eq(
+		(envs[0] as WorldEnvironment).environment,
+		FarmViewDebug.FARM_ENVIRONMENT,
+		"Captures show the farm view's environment and tonemap"
+	)
+	capture.free()

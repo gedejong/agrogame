@@ -52,3 +52,16 @@ func test_wind_strength_on_farm_view_scale() -> void:
 	assert_almost_eq(GridCapture.wind_strength(0.0), 0.0, 1e-6, "Calm")
 	assert_almost_eq(GridCapture.wind_strength(2.0), 0.25, 1e-6, "Light breeze")
 	assert_almost_eq(GridCapture.wind_strength(20.0), 1.0, 1e-6, "Capped at a gale")
+
+
+func test_lit_by_the_farm_environment() -> void:
+	var capture: Node3D = GridCapture.new()
+	capture._setup_lighting()
+	var envs: Array[Node] = capture.find_children("*", "WorldEnvironment", false, false)
+	assert_eq(envs.size(), 1, "One environment")
+	assert_eq(
+		(envs[0] as WorldEnvironment).environment,
+		FarmViewDebug.FARM_ENVIRONMENT,
+		"Captures show the farm view's environment and tonemap"
+	)
+	capture.free()

@@ -12,6 +12,13 @@ extends RefCounted
 
 const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
 
+## The farm view's sky, ambient light, fog and tonemap. The capture scenes
+## light their crops with it too, so their frames show what the player sees.
+const FARM_ENVIRONMENT: Environment = preload("res://scenes/farm_environment.tres")
+## The sun on a clear day, as update_weather_lighting sets it.
+const SUN_COLOR_CLEAR := Color(0.95, 0.9, 0.8)
+const SUN_ENERGY_CLEAR := 1.15
+
 ## Synthetic stress events injected (behind a project setting) so the stress-icon
 ## overlay can be exercised without waiting for the simulation to produce them.
 const FAKE_STRESS_EVENTS: Array = [
@@ -57,10 +64,9 @@ static func update_weather_lighting(
 	# (e.g., calm overcast mornings with dew) — this creates subtle ground fog.
 	var humidity_proxy: float = clampf((rain_mm / 5.0) + (1.0 - temp_spread / 15.0) * 0.5, 0.0, 1.0)
 	# Sun: dim and cool on rainy days
-	var sunny_color := Color(0.95, 0.9, 0.8)
 	var overcast_color := Color(0.65, 0.65, 0.7)
-	sun.light_color = sunny_color.lerp(overcast_color, overcast)
-	sun.light_energy = lerpf(1.15, 0.5, overcast)
+	sun.light_color = SUN_COLOR_CLEAR.lerp(overcast_color, overcast)
+	sun.light_energy = lerpf(SUN_ENERGY_CLEAR, 0.5, overcast)
 	var e := env.environment
 	if not e:
 		return
@@ -73,6 +79,22 @@ static func update_weather_lighting(
 	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
 	# Animated fog wisps
 	fog_clouds.set_fog_intensity(humidity_proxy)
+
+
+static func add_farm_lighting(parent: Node, sun_rotation_deg: Vector3) -> DirectionalLight3D:
+	## Light parent as the farm view is lit on a clear day: its environment
+	## and a shadow-casting sun. The sun's angle is the caller's, since each
+	## capture camera needs its own.
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = sun_rotation_deg
+	sun.light_color = SUN_COLOR_CLEAR
+	sun.light_energy = SUN_ENERGY_CLEAR
+	sun.shadow_enabled = true
+	parent.add_child(sun)
+	var world_env := WorldEnvironment.new()
+	world_env.environment = FARM_ENVIRONMENT
+	parent.add_child(world_env)
+	return sun
 
 
 static func apply_wind_to_all_crops(

@@ -173,18 +173,7 @@ static func row_camera(row: int, viewport_size: Vector2) -> Dictionary:
 
 
 func _setup_lighting() -> void:
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-40, -20, 0)
-	light.shadow_enabled = true
-	add_child(light)
-	var ambient := WorldEnvironment.new()
-	var env := Environment.new()
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 0.5
-	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.85, 0.88, 0.90)
-	ambient.environment = env
-	add_child(ambient)
+	FarmViewDebug.add_farm_lighting(self, Vector3(-40, -20, 0))
 
 
 func _cell_visuals(crop_key: String, cfg: Dictionary) -> Dictionary:
