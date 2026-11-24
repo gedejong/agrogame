@@ -28,6 +28,8 @@ class MicronutrientRuntime(RuntimeMemory):
     plant_present: bool = True
     # Saved with the patch (#577): yesterday's growth and root fractions.
     _MEMORY = ("_last_biomass_inc", "_root_fractions")
+    # Both mirror the crop, so a crop change resets them (#583).
+    _CROP_MEMORY = _MEMORY
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)

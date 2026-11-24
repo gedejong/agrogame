@@ -1,13 +1,15 @@
 """Runtime wiring for ``SoilChemistryModule`` (#288, ADR-010).
 
-Owns every event subscription that drives soil pH: the daily buffering
-tick plus the two pH-perturbing events, lime application and the N-cycle
-proton load (#492, ADR-020). The module itself subscribes to nothing —
-canonical module shape (see ``docs/conventions.md``).
+Owns every event subscription that touches soil pH: the daily publish tick
+plus the two pH-perturbing events, lime application and the N-cycle proton
+load (#492, ADR-020). The module itself subscribes to nothing — canonical
+module shape (see ``docs/conventions.md``).
 
-The daily buffering runs on ``DayTick(phase="chemistry")``, which fires
+The daily publish runs on ``DayTick(phase="chemistry")``, which fires
 before the water and nutrients phases, so the emitted ``SoilPHUpdated``
-values are cached before N/P nitrification consumes them. ``RedoxRuntime``
+values are cached before N/P nitrification consumes them. It no longer
+moves pH: the relaxation toward ``DayTick.target_ph`` was removed in #481
+(ADR-020 (b)). ``RedoxRuntime``
 also keys off the chemistry phase but only reads ``water_state.theta``, so
 the relative dispatch order of the two is immaterial.
 """
@@ -52,4 +54,4 @@ class ChemistryRuntime:
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "chemistry":
             return
-        self.module.daily_step(target_ph=ev.target_ph)
+        self.module.daily_step()

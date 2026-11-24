@@ -43,6 +43,9 @@ class SOMRuntime(RuntimeMemory):
     # Saved with the patch (#577): root-fraction smoothing, wet-dry memory
     # and the pool model's own memory (``ThreePoolSOM``).
     _MEMORY = ("_root_fracs", "_root_fracs_smoothed", "_prev_wfps", "_was_dry", "som")
+    # Both root-fraction terms reset with the crop: carrying the smoothed one
+    # alone would add a post-harvest priming decay with no anchor (#583).
+    _CROP_MEMORY = ("_root_fracs", "_root_fracs_smoothed")
 
     def __post_init__(self) -> None:
         n_layers = len(self.profile.layers)
