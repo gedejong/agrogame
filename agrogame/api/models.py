@@ -191,7 +191,9 @@ class SoilStateResponse(BaseModel):
     )
 
     # Aggregates
-    som_total_c_g_m2: float = Field(description="Total SOM carbon across all layers")
+    som_total_c_g_m2: float = Field(
+        description="Total SOM carbon, all layers (g C/m²; the kg C/ha pools ÷10)"
+    )
     theta_surface: float = Field(description="Top-layer water content (theta[0])")
 
 
@@ -248,6 +250,9 @@ class PatchLayoutResponse(BaseModel):
 
     patch_idx: int
     soil_profile_key: str
+    soil_name: str = Field(
+        description="The soil preset's display name, e.g. 'Loam - Temperate' (#629)"
+    )
     crop_key: str = Field(description="Current crop; empty after a per-patch harvest")
     climate_key: str
     area_fraction: float
@@ -300,7 +305,9 @@ class PatchDayResponse(BaseModel):
     root_depth_cm: float = Field(description="Current root penetration depth (cm)")
     lai: float = Field(description="Leaf area index (m²/m²)")
     soil_theta_surface: float = Field(description="Top-layer volumetric water content")
-    som_total_c_g_m2: float = Field(description="Total SOM carbon (g/m²)")
+    som_total_c_g_m2: float = Field(
+        description="Total SOM carbon, all layers (g C/m²; the kg C/ha pools ÷10)"
+    )
     water_stress: float = Field(
         description="Plant water stress: transpiration supply/demand"
         " (0=severe, 1=none)"
@@ -461,7 +468,9 @@ class PatchYieldReport(BaseModel):
     )
     yield_ratio: float = Field(description="Simulated / GYGA potential (0-1)")
     grade: str = Field(description="Letter grade A-F based on yield ratio")
-    som_total_c_g_m2: float
+    som_total_c_g_m2: float = Field(
+        description="Total SOM carbon, all layers (g C/m²; the kg C/ha pools ÷10)"
+    )
     theta_surface: float
     harvest_product: str = Field(
         default="grain", description="Sold product, e.g. 'grain' or 'fruit' (#448)"

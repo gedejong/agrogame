@@ -52,7 +52,10 @@ external automation. In-memory game sessions are keyed by `game_id`.
 - `POST /api/v1/games/{game_id}/start-season` — set up a season (crop and
   ledger reset from season 2 on, seeded weather) **without stepping**; see below
 - `POST /api/v1/games/{game_id}/step` — advance N days, returning daily snapshots
-  and in-season alerts; `stop_on_pause=true` stops on an interrupting alert
+  and in-season alerts; `stop_on_pause=true` stops on an interrupting alert.
+  `som_total_c_g_m2` (on `soil_state`, each patch's day result and `/report`) is
+  the whole-profile SOM carbon in g C/m²: the pool arrays are kg C/ha and the
+  field is their sum ÷ 10. Before #629 it carried the kg C/ha sum, 10× high.
 - `POST /api/v1/games/{game_id}/action` — apply a management action (plant,
   irrigate, fertilize, harvest, …). `plant` and `harvest` take an optional
   `patch_idx` (default `-1`: every patch). An index at or past the field's
@@ -66,8 +69,10 @@ external automation. In-memory game sessions are keyed by `game_id`.
   `patch_idx` is validated as on `/action`, with the same 422 and 400 (#525)
 - `GET /api/v1/games/{game_id}` — current session state, including `fields`
   (#516): each `field_id` maps to its patches in order, each
-  `{patch_idx, soil_profile_key, crop_key, climate_key, area_fraction}` with the
-  patch's current config (`crop_key` is `""` after a per-patch harvest).
+  `{patch_idx, soil_profile_key, soil_name, crop_key, climate_key,
+  area_fraction}` with the patch's current config (`crop_key` is `""` after a per-patch harvest). `soil_name` is the soil
+  preset's display name from `data/soils/presets.yaml` (e.g. `Loam - Temperate`),
+  which the client shows instead of deriving a label from the key (#629).
   `fields` lists every field in creation order, and the client lays out every
   field from it (#600): fields as row bands of the 6x6 map in this order, each
   field's patches as column bands, and day results, Plant and Harvest mapped by

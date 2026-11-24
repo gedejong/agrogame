@@ -13,14 +13,13 @@ func test_compute_scores_healthy() -> void:
 		"lai": 4.0,
 		"crop_stage": 2,
 		"crop_key": "maize",
-		"som_total_c_g_m2": 1500.0,
 		"theta_surface": 0.25,
 	}
 	var scores: Dictionary = QSC.compute_scores(data)
 	assert_gte(scores["water"], 90.0, "Healthy water")
 	assert_gte(scores["nutrient"], 90.0, "Healthy nutrients")
 	assert_gte(scores["growth"], 80.0, "Good growth")
-	assert_gte(scores["soil"], 80.0, "Good soil (SOM=1500, theta=optimal)")
+	assert_gte(scores["soil"], 80.0, "Good soil moisture (theta=optimal)")
 
 
 func test_compute_scores_drought() -> void:
@@ -114,13 +113,13 @@ func test_score_color_at_boundary_40() -> void:
 func test_theta_bone_dry() -> void:
 	var data := {"theta_surface": 0.0, "som_total_c_g_m2": 1000.0, "crop_stage": 0}
 	var scores: Dictionary = QSC.compute_scores(data)
-	assert_eq(scores["soil"], 25.0, "Bone dry theta=0 → theta_score=0, soil=SOM/2")
+	assert_eq(scores["soil"], 0.0, "Bone dry theta=0 scores 0, whatever the SOM")
 
 
 func test_theta_saturated() -> void:
 	var data := {"theta_surface": 0.5, "som_total_c_g_m2": 1000.0, "crop_stage": 0}
 	var scores: Dictionary = QSC.compute_scores(data)
-	assert_eq(scores["soil"], 25.0, "Saturated theta=0.5 → theta_score=0, soil=SOM/2")
+	assert_eq(scores["soil"], 0.0, "Saturated theta=0.5 scores 0, whatever the SOM")
 
 
 func test_gauge_defs_count() -> void:

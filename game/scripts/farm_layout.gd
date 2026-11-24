@@ -58,6 +58,13 @@ static func texture_for_soil_key(soil_profile_key: String) -> String:
 	return "organic"
 
 
+## What to call a tile's soil: the preset's display name from the API ("Loam -
+## Temperate"), else its texture class when the payload predates soil_name (#629).
+static func soil_label(tile: Dictionary) -> String:
+	var soil_name: String = tile.get("soil_name", "")
+	return soil_name if not soil_name.is_empty() else tile.get("soil_type", "")
+
+
 ## Why `fields` cannot be laid out on `grid` (columns, rows), or "" when it can.
 ## Each field needs a row and each of its patches a column, so a layout that
 ## does not fit is refused whole rather than shown with a field missing.
@@ -89,6 +96,7 @@ static func assign_fields(
 		tile["field_id"] = field["field_id"]
 		tile["patch_idx"] = patch_idx
 		tile["soil_type"] = soil_type
+		tile["soil_name"] = patches[patch_idx].get("soil_name", "")
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]
 		materials[i].set_shader_parameter("albedo_texture", load(paths["albedo"]))
 		materials[i].set_shader_parameter("normal_texture", load(paths["normal"]))
