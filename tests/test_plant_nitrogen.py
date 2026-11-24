@@ -24,7 +24,7 @@ from agrogame.plant.nitrogen import (
     PlantNitrogenState,
 )
 from agrogame.plant.presets import load_crop_presets
-from agrogame.sim.orchestrator import FullSimulationOrchestrator
+from agrogame.sim.orchestrator import FullSimulationOrchestrator, _plant_n_params
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
 
@@ -191,6 +191,48 @@ def test_presets_load_dilution_coefficients() -> None:
     assert crops.crops["spring_wheat"].n_crit_b == 0.442
     # A crop without a fitted curve uses the documented fallback (None here).
     assert crops.crops["sorghum"].n_crit_a is None
+
+
+def test_wheat_preset_holds_justes_constant_below_1_55_t_ha() -> None:
+    """Wheat holds N_ct = 4.4% below 1.55 t/ha (Justes et al. 1994, #603)."""
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    soils = load_soil_presets(Path("data/soils/presets.yaml"))
+    for key in ("winter_wheat", "spring_wheat"):
+        crop = crops.get_preset(key, "netherlands_temperate")
+        assert crop.n_crit_reference_biomass_t_ha == 1.55
+        orch = FullSimulationOrchestrator(
+            soils.soils["loam_temperate"], crop=crop, latitude_deg=52.0
+        )
+        m = orch.plant_n_module
+        assert math.isclose(m.critical_n_pct(1.55), 5.35 * 1.55**-0.442)
+        assert abs(m.critical_n_pct(1.55) - 4.4) < 0.05
+        for w in (0.0, 0.2, 1.0, 1.5):
+            assert m.critical_n_pct(w) == m.critical_n_pct(1.55)
+        assert m.critical_n_pct(1.6) < m.critical_n_pct(1.55)  # dilution resumes
+        assert math.isclose(m.critical_n_pct(5.0), 5.35 * 5.0**-0.442)
+    # Maize and the generic fallback keep the 1 t/ha threshold.
+    assert crops.crops["maize"].n_crit_reference_biomass_t_ha is None
+    maize = PlantNitrogenModule(_plant_n_params(crops.crops["maize"]))
+    assert math.isclose(maize.critical_n_pct(0.5), 3.40)
+    generic = PlantNitrogenModule(_plant_n_params(crops.crops["sorghum"]))
+    assert math.isclose(generic.critical_n_pct(0.5), 5.70)
+
+
+def test_wheat_threshold_survives_reset_crop_across_two_seasons() -> None:
+    """The per-crop threshold is rebuilt on reset_crop and early NNI stays <= 1."""
+    soils = load_soil_presets(Path("data/soils/presets.yaml"))
+    crop = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
+        "spring_wheat", "netherlands_temperate"
+    )
+    orch = FullSimulationOrchestrator(
+        soils.soils["loam_temperate"], crop=crop, latitude_deg=52.0
+    )
+    for season, start in enumerate((date(2024, 4, 1), date(2025, 4, 1))):
+        if season:
+            orch.reset_crop(crop)
+        assert orch.plant_n_module.params.reference_biomass_t_ha == 1.55
+        _, nni = _run_de_bilt_april_cycle(orch, start)
+        assert all(0.0 <= v <= 1.0 + 1e-9 for v in nni), f"season {season}"
 
 
 # --- #578: no N uptake before emergence, no demand floor ---------------------

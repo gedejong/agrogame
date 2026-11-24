@@ -22,6 +22,7 @@
         "tissue_s_conc_kg_kg": { "type": "number", "minimum": 0 },
         "n_crit_a": { "type": "number", "exclusiveMinimum": 0 },
         "n_crit_b": { "type": "number", "exclusiveMinimum": 0 },
+        "n_crit_reference_biomass_t_ha": { "type": "number", "exclusiveMinimum": 0 },
         "phenology": { "$ref": "#/definitions/phenologyParams" },
         "canopy": { "$ref": "#/definitions/canopyParams" },
         "roots": { "$ref": "#/definitions/rootParams" },

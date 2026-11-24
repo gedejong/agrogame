@@ -99,6 +99,15 @@ For shoot dry matter `W` (t/ha) and stock `N_stock` (kg/ha):
     74:397–407.
   - **fallback** (crops without a fitted curve) `5.70 · W^-0.50` — the
     generic C3 dilution of Greenwood et al. (1990), *Ann. Bot.* 66:425–436.
+- **Amendment 2026-11-24 (#603): the flat-below threshold is per crop.**
+  Justes et al. (1994), *Ann. Bot.* 74:397-407, state the wheat law holds
+  between 1.55 and 12 t/ha and give a constant N_ct = 4.4 % below 1.55 t/ha;
+  `5.35 · 1.55^-0.442 = 4.408 %`, so the curve is continuous there and the
+  existing `max(W, reference)` form reproduces the cited constant with
+  `reference_biomass_t_ha = 1.55` (preset key `n_crit_reference_biomass_t_ha`).
+  Wheat uses 1.55; every other crop keeps 1.0 (the Greenwood et al. 1990
+  domain, W > 1 t/ha). Previously wheat was held at 5.35 % below 1 t/ha,
+  21 % above the cited constant.
 - Actual N: `N_actual% = 100 · N_stock / (W·1000)`.
 - NNI: `N_actual% / N_crit%` (Lemaire & Gastal 1997).
 - Stress: a documented linear rescale of NNI between `nni_stress_min` and

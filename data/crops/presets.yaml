@@ -108,6 +108,9 @@ crops:
     # Justes et al. (1994) Ann. Bot. 74:397-407.
     n_crit_a: 5.35
     n_crit_b: 0.442
+    # Law valid above 1.55 t/ha, constant N_ct = 4.4% below (Justes 1994);
+    # 5.35*1.55^-0.442 = 4.408%, so the flat value is the curve at 1.55 (#603).
+    n_crit_reference_biomass_t_ha: 1.55
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
@@ -169,6 +172,9 @@ crops:
     # Justes et al. (1994) Ann. Bot. 74:397-407.
     n_crit_a: 5.35
     n_crit_b: 0.442
+    # Law valid above 1.55 t/ha, constant N_ct = 4.4% below (Justes 1994);
+    # 5.35*1.55^-0.442 = 4.408%, so the flat value is the curve at 1.55 (#603).
+    n_crit_reference_biomass_t_ha: 1.55
     phenology:
       base_temperature_c: 0.0
       max_temperature_c: 30.0
