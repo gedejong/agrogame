@@ -398,6 +398,11 @@ def test_kenya_most_productive_for_maize() -> None:
         f"maize yields should sit in a competitive band across climates; "
         f"got NL {nl:.0f}, Kenya {ke:.0f}, Sahel {sa:.0f}"
     )
+    # #432 (D2): Kenya highland maize out-produces Sahel maize. GYGA
+    # water-limited potential grain: Kenya highlands ~7 t/ha, Sahel ~3 t/ha
+    # (scripts/benchmark_trajectories.py GYGA_YIELDS). No Kenya > NL: GYGA NL
+    # is ~11 t/ha. Measured seed=42 AGB: Kenya ~1234, Sahel ~777 g/m².
+    assert ke > sa, f"Kenya maize {ke:.0f} should out-produce Sahel {sa:.0f}"
 
 
 def test_sorghum_outperforms_in_sahel() -> None:
