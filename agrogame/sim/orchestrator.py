@@ -171,7 +171,7 @@ class SimulationOrchestrator:
         stage = self.phenology.state.stage
         _ = self.roots.daily_step(
             state=self.root_state,
-            profile=None,  # type: ignore[arg-type]
+            profile=None,
             stage=stage,
             daily_root_biomass_g_m2=max(0.0, fx.root_increment_g_m2),
             nutrient_signal=None,

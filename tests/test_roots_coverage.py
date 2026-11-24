@@ -206,3 +206,41 @@ def test_daily_step_uniform_distribution() -> None:
     fluxes = roots.daily_step(state, profile, PhenologyStage.VEGETATIVE)
     assert fluxes.depth_inc_cm >= 0.0
     assert state.layer_fractions is not None
+
+
+# ---------------------------------------------------------------------------
+# #651: the rooting front stops at the soil profile's bottom
+# ---------------------------------------------------------------------------
+
+
+def _grow(max_depth_cm: float, profile: SoilProfile | None) -> float:
+    """Depth after 20 VEGETATIVE days at 10 cm/day (200 cm of potential growth)."""
+    roots = RootModule(
+        RootParams(max_depth_cm=max_depth_cm, growth_rate_cm_per_day=10.0)
+    )
+    state = RootState()
+    for _ in range(20):
+        roots.daily_step(state, profile, PhenologyStage.VEGETATIVE)
+    return state.current_depth_cm
+
+
+def test_root_front_capped_at_profile_depth() -> None:
+    """#651 AC1: min(crop max, profile depth); the crop max alone without a profile."""
+    soils = load_soil_presets(Path("soils/presets.yaml")).soils
+    assert _grow(150.0, soils["loam_temperate"]) == 100.0
+    assert _grow(150.0, soils["clay_temperate"]) == 105.0
+    assert _grow(60.0, soils["loam_temperate"]) == 60.0
+    assert _grow(150.0, None) == 150.0
+
+
+def test_depth_beyond_profile_is_clamped_with_one_event() -> None:
+    """#651 AC5 at module level: a stale depth is clamped even at MATURITY."""
+    bus = EventBus()
+    depth_events: list[RootDepthChanged] = []
+    bus.subscribe(RootDepthChanged, depth_events.append)
+    roots = RootModule(RootParams(max_depth_cm=150.0), event_bus=bus)
+    state = RootState(current_depth_cm=118.8)
+    for _ in range(3):
+        roots.daily_step(state, _profile(), PhenologyStage.MATURITY)
+    assert state.current_depth_cm == 100.0
+    assert [(e.previous_cm, e.new_cm) for e in depth_events] == [(118.8, 100.0)]
