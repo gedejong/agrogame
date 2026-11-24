@@ -11,16 +11,15 @@ const GAUGE_DEFS: Array[Dictionary] = [
 	{"key": "water", "icon": "💧", "label": "Water"},
 	{"key": "nutrient", "icon": "🌿", "label": "Nutrients"},
 	{"key": "growth", "icon": "📈", "label": "Growth"},
-	{"key": "soil", "icon": "🏗", "label": "Soil"},
+	{"key": "soil", "icon": "🏗", "label": "Soil moisture"},
 ]
 
 ## Traffic light thresholds.
 const GOOD_THRESHOLD := 70.0
 const WARN_THRESHOLD := 40.0
 
-## Soil health reference values.
-## SOM: 2000 gC/m² is a well-managed agricultural soil (Ref: Brady & Weil 2017).
-const SOM_REFERENCE_C_G_M2 := 2000.0
+## Soil gauge reference. It carries no SOM term: the whole-profile SOM total has
+## no cited reference of matching unit and depth (#629).
 ## Theta: 0.25 m³/m³ is near field capacity for loam (Ref: FAO-56, Table 3).
 const THETA_OPTIMAL := 0.25
 const THETA_RANGE := 0.25
@@ -165,14 +164,9 @@ static func compute_scores(tile_data: Dictionary) -> Dictionary:
 	var growth: float = (
 		100.0 if stage == 0 else clampf(lai / maxf(expected_lai, 0.1) * 100.0, 0.0, 100.0)
 	)
-	# Soil: composite of SOM, theta relative to optimal
-	var som: float = tile_data.get("som_total_c_g_m2", 0.0)
+	# Soil moisture: surface theta relative to optimal
 	var theta: float = tile_data.get("theta_surface", 0.0)
-	var som_score: float = clampf(som / SOM_REFERENCE_C_G_M2 * 100.0, 0.0, 100.0)
-	var theta_score: float = clampf(
-		(1.0 - absf(theta - THETA_OPTIMAL) / THETA_RANGE) * 100.0, 0.0, 100.0
-	)
-	var soil: float = (som_score + theta_score) * 0.5
+	var soil: float = clampf((1.0 - absf(theta - THETA_OPTIMAL) / THETA_RANGE) * 100.0, 0.0, 100.0)
 	return {"water": water, "nutrient": nutrient, "growth": growth, "soil": soil}
 
 
@@ -216,7 +210,7 @@ static func compute_recommendation(tile_data: Dictionary, scores: Dictionary) ->
 		"growth":
 			return "Growth below expected. Check water and nutrients."
 		"soil":
-			return "Soil health declining. Reduce tillage or add organic matter."
+			return "Soil moisture off optimum. Irrigate if dry, improve drainage if wet."
 	return ""
 
 

@@ -41,6 +41,27 @@ func test_assign_fields_default_scenario_matches_historic_bands() -> void:
 	assert_eq(tex.resource_path, FarmLayout.SOIL_TEXTURES["clay"]["albedo"])
 
 
+func test_soil_label_prefers_the_api_name_over_the_texture_class() -> void:
+	var tile := {"soil_type": "organic", "soil_name": "Loam - Temperate"}
+	assert_eq(FarmLayout.soil_label(tile), "Loam - Temperate")
+	assert_eq(FarmLayout.soil_label({"soil_type": "clay", "soil_name": ""}), "clay", "old payload")
+	assert_eq(FarmLayout.soil_label({}), "")
+
+
+func test_assign_fields_records_each_patchs_soil_name() -> void:
+	var patches: Array = [
+		{"soil_profile_key": "sandy_temperate", "soil_name": "Sandy - Temperate"},
+		{"soil_profile_key": "loam_temperate", "soil_name": "Loam - Temperate"},
+	]
+	var tiles: Array = [{"col": 0}, {"col": 5}]
+	var fields: Array = [{"field_id": "field_1", "patches": patches}]
+	var mats: Array = [ShaderMaterial.new(), ShaderMaterial.new()]
+	FarmLayout.assign_fields(fields, tiles, mats, Vector2i(6, 6))
+	assert_eq(tiles[0]["soil_name"], "Sandy - Temperate")
+	assert_eq(tiles[1]["soil_name"], "Loam - Temperate")
+	assert_eq(tiles[1]["soil_type"], "organic", "texture class stays internal")
+
+
 func test_assign_fields_ignores_empty_layout() -> void:
 	var tiles: Array = [{"col": 0, "soil_type": "clay", "patch_idx": 2}]
 	FarmLayout.assign_fields([], tiles, [ShaderMaterial.new()], Vector2i(6, 6))

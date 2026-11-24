@@ -52,6 +52,11 @@ class ApiStub:
 		calls.append(["forecast", field_id])
 		forecasts.append([field_id, callback])
 
+	func preview_action(
+		_id: String, field_id: String, action: String, params: Dictionary, _cb: Callable
+	) -> void:
+		calls.append(["preview", field_id, action, params])
+
 	func create_game(callback: Callable, _fields: Array = []) -> void:
 		calls.append(["create_game"])
 		callback.call(true, {"game_id": "created"})
