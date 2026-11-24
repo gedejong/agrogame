@@ -225,12 +225,13 @@ class ThreePoolSOM(RuntimeMemory):
     """
 
     # Saved with the patch (#577). The pools travel in the soil snapshot; the
-    # disruption countdown and each layer's cumulative CO2 travel here.
+    # disruption countdown and each layer's cumulative CO2 travel here. All of
+    # it is soil-owned, so a crop change keeps it (#583).
     _MEMORY = ("_disruption_days",)
 
-    def memory_to_dict(self) -> dict[str, Any]:
+    def memory_to_dict(self, *, soil_only: bool = False) -> dict[str, Any]:
         """Return the disruption countdown and per-layer cumulative CO2."""
-        data = super().memory_to_dict()
+        data = super().memory_to_dict(soil_only=soil_only)
         data["cumulative_co2_c_kg_ha"] = [
             ly.cumulative_co2_c_kg_ha for ly in self.state.layers
         ]

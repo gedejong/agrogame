@@ -28,12 +28,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default="loam_temperate")
     parser.add_argument("--days", type=int, default=120)
     parser.add_argument("--out", type=Path, default=Path("out/full_integration.png"))
-    parser.add_argument("--ph", type=float, default=6.8, help="Base soil pH")
     parser.add_argument(
-        "--ph-pattern",
-        choices=["constant", "acidify", "alkalize"],
-        default="constant",
-        help="Trend of soil pH over time for visualization",
+        "--ph",
+        type=float,
+        default=6.8,
+        help="pH plotted when no soil pH history is recorded",
     )
     parser.add_argument(
         "--p-fert", type=str, default="", help="Comma ops day:kg/ha, e.g. '10:20,40:15'"
@@ -120,14 +119,6 @@ def _resolve_weather_for_day(
         rain = 8.0 if (day % 11 in (0, 1)) else 0.0
         return tmin, tmax, par, rain, 2.0, 60.0
     return 10.0, 22.0, 12.0, 3.0, 2.0, 60.0
-
-
-def _compute_target_ph(ph_pattern: str, base_ph: float, day: int) -> float:
-    if ph_pattern == "acidify":
-        return max(4.5, base_ph - 0.01 * day)
-    if ph_pattern == "alkalize":
-        return min(8.5, base_ph + 0.01 * day)
-    return base_ph
 
 
 def _apply_scheduled_ops(
@@ -623,7 +614,6 @@ def _run_simulation_loop(
         if auto_series and day < len(auto_series.records) and weather_module:
             _ = weather_module.emit_for_day(day)
 
-        target_ph = _compute_target_ph(args.ph_pattern, args.ph, day)
         _apply_scheduled_ops(day, p_ops, lime_ops, orch)
 
         d_biomass = _biomass_delta(h["biomass"])
@@ -642,7 +632,6 @@ def _run_simulation_loop(
             tmax_c=tmax,
             shortwave_mj_m2=par,
             sim_date=sim_date,
-            target_ph=target_ph,
             plant_n_demand_kg_ha=n_demand,
             plant_p_demand_kg_ha=p_demand,
         )

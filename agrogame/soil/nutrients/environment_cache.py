@@ -72,6 +72,8 @@ class EnvironmentalCache(RuntimeMemory):
         "microbe_activity_by_layer",
         "fungal_fraction_by_layer",
     )
+    # The root fractions reset with the crop; the soil signals survive it (#583).
+    _CROP_MEMORY = ("root_fractions",)
 
     def __init__(
         self,

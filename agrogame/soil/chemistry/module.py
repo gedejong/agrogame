@@ -1,9 +1,10 @@
 """Lightweight soil chemistry dynamics to emit pH updates as events.
 
 Per-layer pH moves with the proton budget of the N cycle and with lime, both
-converted through the layer's pH buffer capacity, plus a slow buffering term
-(ADR-020). Each change emits ``SoilPHUpdated`` so nutrient modules can use
-per-layer pH without tight coupling.
+converted through the layer's pH buffer capacity, and with nothing else: no
+relaxation toward a target and no weathering term (ADR-020). Each change
+emits ``SoilPHUpdated`` so nutrient modules can use per-layer pH without
+tight coupling.
 
 Canonical module shape (#288): pure logic over ``ChemistryParams`` +
 ``ChemistryState``. The module subscribes to no events itself — the
@@ -164,14 +165,18 @@ class SoilChemistryModule:
         return self._layer_properties[layer]
 
     def daily_step(self, target_ph: float | None = None) -> None:
-        """Apply a weak buffering tendency towards ``target_ph`` each day.
+        """Publish every layer's pH once a day; pH itself is left unchanged.
 
-        Falls back to ``params.default_target_ph`` when no target is given.
+        Emits one ``SoilPHUpdated`` per layer so the nutrient caches start
+        each day from the current pH. There is no relaxation toward a target
+        and no weathering term (ADR-020 (b), #481): pH moves only with the
+        N-cycle proton load and lime.
+
+        Args:
+            target_ph: Accepted and ignored. It once set the relaxation
+                target; it is kept so existing callers do not break.
         """
-        p = self._params
-        target = p.default_target_ph if target_ph is None else float(target_ph)
-        for i, ph in enumerate(self._state.ph):
-            self._state.ph[i] = ph + p.buffering_rate * (target - ph)
+        del target_ph  # no longer drives pH (ADR-020 (b))
         self._emit_all()
 
     @property

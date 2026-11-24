@@ -40,6 +40,9 @@ class AggregationRuntime(RuntimeMemory):
         "_was_dry",
         "_was_frozen",
     )
+    # The root fractions mirror the crop and reset with it; the rest is the
+    # soil's own and survives a crop change (#583).
+    _CROP_MEMORY = ("_root_fractions",)
 
     def __post_init__(self) -> None:
         n = len(self.profile.layers)

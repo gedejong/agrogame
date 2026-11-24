@@ -9,7 +9,7 @@ on 2026-11-18 (ruling relayed on #481 and #492). This ADR records that design
 once for both issues:
 
 - (a) is implemented by #492, which drafts this ADR;
-- (b) by #481 PR A;
+- (b) by #481 PR A (implemented);
 - (c) and (d) by #481 PR B.
 
 #481's PRs amend this ADR as they land, with the status of each part.
@@ -138,8 +138,29 @@ own, without the carbonic-acid and bicarbonate-leaching acidity that
 balances it in real soils, it makes unfertilised pH rise forever. Both
 fluxes are under 0.01 pH/yr, so both are omitted.
 
-Until PR A lands, the relaxation stays. #492 inherits it. In season 1 it
-damps the budget by about 0.003 pH.
+**Implemented by #481 PR A (2026-11-18).** `SoilChemistryModule.daily_step`
+now only publishes each layer's pH. `ChemistryParams.buffering_rate` and
+`default_target_ph` are deleted. `DayTick.target_ph` and
+`step_day(target_ph=...)` stay for their callers but no longer drive soil
+pH. Only `MicrobesRuntime` reads `target_ph`, and only when no chemistry
+module is wired. `daily_step` still accepts a `target_ph` and ignores it.
+
+Measured on the #481 5-year harness: `loam_temperate`, maize,
+`netherlands_temperate`, urea 40/30/30, seed 42, the harness in
+`tests/integration/test_ph_no_relaxation.py`. Layer-0 pH at each year end:
+
+| run | with the relaxation | without |
+|---|---|---|
+| 200 kg N | 6.771 / 6.741 / 6.723 / 6.710 / 6.702 | 6.763 / 6.712 / 6.664 / 6.616 / 6.569 |
+| 0 kg N | 6.800 / 6.800 / 6.800 / 6.800 / 6.800 | 6.800 / 6.799 / 6.799 / 6.799 / 6.799 |
+| 200 kg N + 3 t/ha lime in year 3 | year 5: 6.820, 0.119 above unlimed | year 5: 6.922, 0.353 above unlimed |
+
+- At 200 kg N the year-4 to year-5 fall grows from 0.008 to 0.047. The
+  spring had brought pH near its asymptote; without it the drift is close
+  to linear.
+- Lime keeps its full step: 3 t/ha of CaCO3 lifts layer 0 by about 0.35 on
+  this loam, and two years later that lift is still there.
+- At 0 kg N, pH still holds within 0.001.
 
 ### (c) Per-preset initial pH, calcareous layers, DTPA at the soil's own pH (#481 PR B)
 
@@ -196,9 +217,26 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
   more, because less nitrate is taken up.
 - **Five continuous years** (#492 PR evidence, every catalog scenario, seeds
   42-46): the clock took every soil to 5.12. Under the budget the
-  drift scales with N rate, and lime persists (still damped by the
-  relaxation until PR A). Year-5 grain is unchanged or higher in every
-  catalog scenario at typical N.
+  drift scales with N rate, and lime persists. Year-5 grain is unchanged or
+  higher in every catalog scenario at typical N.
+- **Without the relaxation** (#481 PR A evidence, same harness and seeds),
+  year-5 grain matches the relaxation run within 1 g/m² in every catalog
+  scenario. Typical N drifts further: sand 200 kg N reaches 6.31 in year 5,
+  against 6.57. The lowest layer-0 pH in any year and treatment is 5.92
+  (sand, 300 kg N). The 3 t/ha lime step is about three times what survived
+  the relaxation two years on.
+- **At 0 kg N, five-year drift is now visible where drainage is.** Year-5
+  drift is -0.04 in both Kenya scenarios and -0.065 under NL winter wheat,
+  against -0.017 and -0.027 with the relaxation. The temperate maize and
+  Sahel scenarios stay within 0.003 of 6.8.
+
+  The mechanism is nitrate leaching of mineralised native N. By the
+  stoichiometry above, layer 0's net H+ equals (NO3-N drained below it +
+  ΔNO3 - ΔNH4) / 14.007, and the seed-42 ledger closes on that exactly. Over
+  five years, layer 0 drains 215 kg NO3-N under winter wheat and 102 and
+  157 kg in the two Kenya scenarios, against 11 kg under NL maize.
+
+  The 0.005 bound of #492 applies per 150-day season and still holds.
 - **Single-season baselines** are unchanged within 0.3% across the catalog,
   and the realism suite is unchanged.
 - **Event contract.** `ProtonLoadOccurred` is new: additive in `/step`
@@ -210,7 +248,7 @@ at pH 4.07-4.85 (Kisinyo et al. 2013).
 - **Ordering for #481.** PR A must assert that the P-fixation and leaching
   proxies no longer exist before it removes the relaxation. Otherwise the
   -0.30 per season clock runs free: measured 6.07 / 5.34 / 4.61 / 4.00 over
-  four years.
+  four years. PR A asserts it in `test_precondition_ph_proxies_are_gone`.
 - **#531** (continuous calendar) depends on this ADR. Continuous play under
   the clock collapsed every soil within 3-5 years.
 - **#558: pH enters nitrification twice.** `NitrogenCycle._ph_factor`, an

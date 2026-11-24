@@ -8,6 +8,13 @@ so a save must carry it or a load does not continue the run it came from
 (#577). A class lists such attributes in ``_MEMORY`` and inherits
 :class:`RuntimeMemory`.
 
+The same memory decides what a crop change keeps (#583). ``_CROP_MEMORY``
+names the subset that mirrors the crop's own state (root fractions, canopy
+stress history, yesterday's growth); its source is rebuilt with the crop, so it
+resets. Every other name is soil-owned and ``reset_crop`` carries it across, as
+APSIM keeps its soil modules through sowing and harvest (Keating et al. 2003,
+Eur. J. Agron. 18:267-288).
+
 Two rules make a restore exact:
 
 - **JSON-native payload.** :func:`to_json_native` turns a deque or tuple into a
@@ -40,14 +47,31 @@ class RuntimeMemory:
     ``RuntimeMemory`` (a cycle's environmental cache) nests that object's own
     memory. ``_MEMORY_RECORDS`` maps an attribute to the dataclass its saved
     records decode into, for memory that holds records rather than numbers.
+    ``_CROP_MEMORY`` is the subset a crop change resets (#583); a nested
+    holder classifies its own names.
     """
 
     _MEMORY: ClassVar[tuple[str, ...]] = ()
+    _CROP_MEMORY: ClassVar[tuple[str, ...]] = ()
     _MEMORY_RECORDS: ClassVar[Mapping[str, type]] = {}
 
-    def memory_to_dict(self) -> dict[str, Any]:
-        """Return the declared memory as JSON-native values."""
-        return {name: to_json_native(getattr(self, name)) for name in self._MEMORY}
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Reject a crop-owned name that is not declared memory."""
+        super().__init_subclass__(**kwargs)
+        undeclared = sorted(set(cls._CROP_MEMORY) - set(cls._MEMORY))
+        if undeclared:
+            raise ValueError(
+                f"{cls.__name__}: _CROP_MEMORY not in _MEMORY: {undeclared}"
+            )
+
+    def memory_to_dict(self, *, soil_only: bool = False) -> dict[str, Any]:
+        """Return the declared memory as JSON-native values.
+
+        ``soil_only`` leaves out the crop-owned names, here and in every nested
+        holder: the memory ``reset_crop`` carries across (#583).
+        """
+        names = [n for n in self._MEMORY if not (soil_only and n in self._CROP_MEMORY)]
+        return {name: _dump(getattr(self, name), soil_only) for name in names}
 
     def restore_memory(self, data: Mapping[str, Any]) -> None:
         """Write saved memory into the existing objects (#577).
@@ -59,6 +83,13 @@ class RuntimeMemory:
             if name in data:
                 record = self._MEMORY_RECORDS.get(name)
                 _restore_attr(self, name, _decode(data[name], record))
+
+
+def _dump(value: Any, soil_only: bool) -> Any:
+    """One memory attribute, passing ``soil_only`` to a nested holder."""
+    if isinstance(value, RuntimeMemory):
+        return value.memory_to_dict(soil_only=soil_only)
+    return to_json_native(value)
 
 
 def to_json_native(value: Any) -> Any:

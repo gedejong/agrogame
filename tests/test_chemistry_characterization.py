@@ -57,8 +57,6 @@ def test_default_params_match_legacy_constants() -> None:
     """Frozen params reproduce the previously hard-coded magic numbers."""
     p = ChemistryParams()
     assert p.base_ph == 6.8
-    assert p.default_target_ph == 6.8
-    assert p.buffering_rate == 0.001
     # #465: the flat lime_ph_delta_per_kg_ha (0.001) is replaced by a
     # buffer-capacity formulation; see test_lime_requirement_*.
     assert p.phbc_clay_max_cmol_kg == 8.5
@@ -68,20 +66,24 @@ def test_default_params_match_legacy_constants() -> None:
     assert p.ph_ceiling == 9.0
 
 
-def test_daily_step_buffering_toward_target() -> None:
-    bus = EventBus()
-    chem = _module(bus, base_ph=7.0)
-    chem.daily_step(target_ph=5.5)
-    # 7.0 + 0.001 * (5.5 - 7.0) = 6.9985
-    assert chem.ph_by_layer[0] == pytest.approx(6.9985, abs=_ABS)
+def test_daily_step_leaves_ph_unchanged_and_publishes_each_layer() -> None:
+    """#481 (ADR-020 (b)): no relaxation; daily_step only publishes pH.
 
-
-def test_daily_step_defaults_to_param_target() -> None:
+    Before #481 the step pulled pH 0.001/day toward the target: from 6.0
+    toward 6.8 it gave 6.0008, from 7.0 toward 5.5 it gave 6.9985.
+    """
     bus = EventBus()
-    chem = _module(bus, base_ph=6.0)
-    chem.daily_step()  # target_ph None -> default_target_ph (6.8)
-    # 6.0 + 0.001 * (6.8 - 6.0) = 6.0008
-    assert chem.ph_by_layer[0] == pytest.approx(6.0008, abs=_ABS)
+    chem = _module(bus, base_ph=6.0, n_layers=3)
+    chem.set_state(ChemistryState(ph=[6.0, 7.0, 5.0]))
+    seen: list[SoilPHUpdated] = []
+    bus.subscribe(SoilPHUpdated, seen.append)
+
+    chem.daily_step()
+    chem.daily_step(target_ph=5.5)  # a target is accepted and ignored
+
+    assert chem.ph_by_layer == [6.0, 7.0, 5.0]
+    expected = [(0, 6.0), (1, 7.0), (2, 5.0)]
+    assert [(e.layer, e.ph) for e in seen] == expected * 2
 
 
 def test_lime_raises_ph_and_caps_at_ceiling() -> None:
@@ -127,12 +129,12 @@ def test_runtime_dispatches_all_events() -> None:
     seen: list[SoilPHUpdated] = []
     bus.subscribe(SoilPHUpdated, seen.append)
 
-    # DayTick on a non-chemistry phase is ignored (no buffering, no emit).
+    # DayTick on a non-chemistry phase is ignored (no emit).
     bus.emit(_tick("water", target_ph=5.0))
     assert seen == []
     assert chem.ph_by_layer[0] == pytest.approx(6.8, abs=_ABS)
 
-    # DayTick(chemistry) buffers toward the tick's target_ph.
+    # DayTick(chemistry) publishes each layer's pH (#481: no relaxation).
     bus.emit(_tick("chemistry", target_ph=6.8))
     assert len(seen) == 2  # one SoilPHUpdated per layer
     assert chem.ph_by_layer[0] == pytest.approx(6.8, abs=_ABS)

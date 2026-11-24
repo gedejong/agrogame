@@ -17,7 +17,12 @@ class EtState:
     # Stage-2 soil evaporation depends on the time since the last wetting
     # (Ritchie 1972, Water Resour. Res. 8:1204-1213), so the cumulative
     # evaporation since wetting is state, carried across days and saved with
-    # the patch (ETRuntime memory, #577); it is not a per-day cache.
+    # the patch (ETRuntime memory, #577); it is not a per-day cache. It is
+    # soil-owned, so a crop change (harvest, sowing) carries it too (#583): a
+    # dry bare topsoil stays in stage 2 rather than re-entering stage 1. DSSAT
+    # (SPAM/SOILEV.for) derives the sums from the topsoil deficit at seasonal
+    # initialisation, and APSIM (Models/Soils/WaterModel/EvaporationModel.cs)
+    # resets them only at Commencing; neither zeroes them at sowing.
     cumulative_evap_mm: float = 0.0
 
 
