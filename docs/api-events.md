@@ -124,7 +124,7 @@ payload.
 | `CO2Respired` | `layer: int`, `co2_c_kg_ha: float` | Microbial respiration |
 | `MicrobialGrowthOccurred` | `layer: int`, `delta_c_kg_ha: float` | Microbial biomass increase |
 | `MicrobialMortalityOccurred` | `layer: int`, `c_to_som_kg_ha: float` | Microbial turnover |
-| `MicrobialActivityComputed` | `layer: int`, `activity_index: float`, `wfps: float` (0–1), `ph: float`, `temperature_c: float` (°C) | Diagnostic: a layer's microbial activity index and the moisture, pH and temperature it was computed from |
+| `MicrobialActivityComputed` | `layer: int`, `activity_index: float`, `activity_index_excl_ph: float`, `wfps: float` (0–1), `ph: float`, `temperature_c: float` (°C) | Diagnostic: a layer's microbial activity index, the same index without its pH modifier (which nitrification reads, #558), and the moisture, pH and temperature they were computed from |
 | `EnzymeGroupTotalsComputed` | `totals_c_kg_ha_by_group: object` (group → kg C/ha) | Diagnostic: the day's profile-wide enzyme production cost per enzyme group |
 
 ### Soil Chemistry

@@ -15,6 +15,7 @@ AGRO-17 acceptance criteria:
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from agrogame.events import EventBus
@@ -418,14 +419,23 @@ class NitrogenCycle(RuntimeMemory):
         theta = self._water_state.theta[idx]
         return theta, layer.field_capacity, layer.saturation
 
-    @staticmethod
-    def _ph_factor(ph: float) -> float:
-        # Triangle with peak at 7.0, zero at 4.0 and 9.0
-        if ph <= 4.0 or ph >= 9.0:
-            return 0.0
-        if ph <= 7.0:
-            return (ph - 4.0) / 3.0
-        return (9.0 - ph) / 2.0
+    def _nitrification_ph_factor(self, ph: float) -> float:
+        """Nitrifier pH factor in [0, 1]; non-finite pH raises (#558).
+
+        DSSAT-CSM v4.8 ``Soil/Inorganic_N/SOILNI.for``, nitrification section:
+        ``PHFACT = AMIN1(1.0, 0.33*PH(L) - 1.36)``, its rate product ``NFAC``
+        floored at 0 (equivalent here, the chain being multiplicative). The
+        routine's source comment attributes it to Gilmour 1984, SSSAJ
+        48:1262-1266. Field evidence that nitrification stays pH-sensitive
+        above pH 6: Kyveryga, Blackmer, Ellsworth & Isla 2004, SSSAJ
+        68:545-551, doi:10.2136/sssaj2004.5450 (by mid-April ~89 % of
+        fall-applied NH3 nitrified above pH 7.5, ~39 % below pH 6.0).
+        """
+        if not math.isfinite(ph):
+            raise ValueError(f"soil pH must be finite, got {ph!r}")
+        p = self._params
+        line = p.nitrification_ph_slope * ph + p.nitrification_ph_intercept
+        return max(0.0, min(1.0, line))
 
     def _total_n(self) -> float:
         """Return total N (organic + NH4 + NO3) across all layers (kg/ha)."""
@@ -486,7 +496,7 @@ class NitrogenCycle(RuntimeMemory):
             if theta > fc and sat > fc:
                 anaerobic = min(1.0, (theta - fc) / max(1e-6, (sat - fc)))
         nitrif_aeration = max(0.0, 1.0 - anaerobic)
-        ph_factor = self._ph_factor(ph)
+        ph_factor = self._nitrification_ph_factor(ph)
         return moisture_factor, anaerobic, nitrif_aeration, ph_factor, moisture_nitrif
 
     def _mineralize_layer(
@@ -533,8 +543,10 @@ class NitrogenCycle(RuntimeMemory):
         if nh4 <= 0.0:
             return 0.0
         # Microbial coupling: dampen by activity and by fungal dominance
-        # (bacteria are primary nitrifiers)
-        activity = self._env.microbe_activity_by_layer[idx]
+        # (bacteria are primary nitrifiers). The activity excludes the
+        # heterotroph (Rousk) pH response: ph_factor is the nitrifiers' one
+        # pH response, so pH enters once (#558).
+        activity = self._env.microbe_activity_excl_ph_by_layer[idx]
         bact_share = 1.0 - self._env.fungal_fraction_by_layer[idx]
         fb_weight = 0.7 + 0.3 * bact_share  # 0.7..1.0
         rate = (

@@ -39,6 +39,11 @@ class NitrogenRateParams:
             under favourable conditions (APSIM SoilN; ~10-20%/day at optimum).
         nitrification_max_rate: Upper cap on the realized daily nitrification
             fraction after all environmental factors.
+        nitrification_ph_slope: Slope (per pH unit) of the nitrifier pH
+            factor ``max(0, min(1, slope * pH + intercept))``: DSSAT-CSM v4.8
+            ``Soil/Inorganic_N/SOILNI.for``, ``PHFACT = AMIN1(1.0, 0.33*PH(L)
+            - 1.36)`` (#558). The factor is 0 at pH 4.12 and 1 from pH 7.15.
+        nitrification_ph_intercept: Intercept of the same DSSAT-CSM line.
         denitrification_base_rate: NO3- loss first-order fraction per day
             under fully anaerobic conditions (WOFOST/APSIM order of
             magnitude; a few %/day).
@@ -86,6 +91,8 @@ class NitrogenRateParams:
     mineralization_base_rate: float = 0.001
     nitrification_base_rate: float = 0.15
     nitrification_max_rate: float = 0.20
+    nitrification_ph_slope: float = 0.33
+    nitrification_ph_intercept: float = -1.36
     denitrification_base_rate: float = 0.02
     volatilization_base_rate: float = 0.05
     volatilization_max_rate: float = 0.10
