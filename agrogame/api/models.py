@@ -396,12 +396,35 @@ class ActionRequest(BaseModel):
     params: dict = Field(default_factory=dict)
 
 
+class HarvestSettlement(BaseModel):
+    """One crop group settled by a harvest: the receipt line (#631, ADR-003)."""
+
+    crop_key: str
+    product: str = Field(description="Sold product, e.g. 'grain' or 'fruit'")
+    patch_indices: list[int]
+    area_ha: float = Field(description="Harvested area, ha")
+    dry_kg_ha: float = Field(description="Harvested dry mass, kg/ha")
+    dry_matter_fraction: float = Field(description="Dry mass / fresh mass, 0-1")
+    sold_kg_ha: float = Field(description="Sold (fresh) mass, kg/ha")
+    sold_kg: float = Field(description="Sold (fresh) mass over the area, kg")
+    quarter: int = Field(description="Calendar quarter of the sale, 1-4")
+    base_credits_per_kg: float
+    seasonal_multiplier: float
+    price_credits_per_kg: float = Field(description="base x multiplier, cr/kg")
+    revenue_credits: int = Field(description="Ledger revenue delta, credits")
+
+
 class ActionResponse(BaseModel):
     status: str
     action: str
     cost_credits: int
     balance_credits: int
     day_number: int
+    date: str = Field(default="", description="Session date after the action, ISO")
+    settlements: list[HarvestSettlement] = Field(
+        default_factory=list,
+        description="Harvest only: one entry per crop group settled (#631)",
+    )
     # Harvest-only settlement fields (0 for non-harvest actions).
     # grain_g_m2 is the harvested-organ dry mass: grain for cereals, fruit for
     # grape (#448).

@@ -733,19 +733,20 @@ func _on_harvest_complete(
 		_tile_data[i]["grain_g_m2"] = 0.0
 		_update_crop_visuals(i)
 	_refresh_quick_status()
-	# Yield + P&L come straight from the harvest action's settlement response.
-	var grain_g_m2: float = data.get("grain_g_m2", 0.0)
+	# The receipt carries the yield and price; the line keeps the net and farm profit.
+	var net: int = int(data.get("revenue_credits", 0)) - cost
 	status_label.text = (
-		"Harvested %s on %s: %.0f g/m² grain (cost %d credits) — revenue %d | farm profit %d credits"
+		"Harvested %s %s on %s: net %d (revenue %d) | farm profit %d credits"
 		% [
 			crop_key,
+			data.get("harvest_product", ""),
 			where,
-			grain_g_m2,
-			cost,
+			net,
 			int(data.get("revenue_credits", 0)),
 			int(data.get("profit_credits", 0)),
 		]
 	)
+	HarvestReceipt.show_in($UILayer, data, field_id)
 	_update_harvest_button()
 
 

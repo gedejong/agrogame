@@ -27,6 +27,7 @@ from agrogame.api.models import (
     DayResultResponse,
     DayWeatherResponse,
     FieldConfigRequest,
+    HarvestSettlement,
     ForecastDayResponse,
     ForecastResponse,
     GameCreatedResponse,
@@ -871,7 +872,7 @@ def _sold_kg_ha(dry_g_m2: float, product: HarvestProduct) -> float:
 
 def _harvest_action(
     s: GameSession, field: Field, prices: PriceTable, patch_idx: int = -1
-) -> tuple[float, int, int, HarvestProduct]:
+) -> tuple[float, int, int, HarvestProduct, HarvestSettlement]:
     """Harvest the targeted patch(es) and settle season economics.
 
     ``patch_idx`` selects a single patch; the default (-1) harvests the whole
@@ -884,7 +885,9 @@ def _harvest_action(
     ``harvest(); Patch.reset_crop(None)`` would (#538). Non-targeted patches are
     left standing.
 
-    Returns ``(grain_g_m2, revenue_credits, profit_credits, product)``.
+    Returns ``(grain_g_m2, revenue_credits, profit_credits, product,
+    settlement)``; the settlement is built from the very values passed to
+    ``settle_season`` and its revenue is the ledger delta (#631).
     """
     from agrogame.game.turn import SeasonResult
 
@@ -939,6 +942,29 @@ def _harvest_action(
     )
     revenue = s.ledger.season_revenue - revenue_before
     s.season_settled = True
+    quarter = _quarter_of(s.current_date)
+    # An unpriced (e.g. bare targets[0]) crop settles at 0, as get_crop_price does.
+    cp = prices.crop_prices.get(crop_key)
+    base_price = cp.base_credits_per_kg if cp is not None else 0.0
+    multiplier = prices.seasonal_multiplier(crop_key, quarter)
+    sold_ha = _sold_kg_ha(grain_g_m2, product)
+    settlement = HarvestSettlement(
+        crop_key=crop_key,
+        product=product.name,
+        patch_indices=[
+            i for i, p in enumerate(field.patches) if any(p is t for t in targets)
+        ],
+        area_ha=round(area_ha, 3),
+        dry_kg_ha=round(grain_g_m2 * 10.0, 1),
+        dry_matter_fraction=round(product.dry_matter_fraction, 4),
+        sold_kg_ha=round(sold_ha, 1),
+        sold_kg=round(sold_ha * area_ha, 1),
+        quarter=quarter,
+        base_credits_per_kg=base_price,
+        seasonal_multiplier=multiplier,
+        price_credits_per_kg=round(base_price * multiplier, 4),
+        revenue_credits=revenue,
+    )
 
     # Record a SeasonResult so GET /report works in the day-by-day loop.
     if not s.turn_manager:
@@ -964,7 +990,7 @@ def _harvest_action(
         patch.harvested_crop_key = patch.config.crop_key
         patch.reset_crop(None)
 
-    return grain_g_m2, revenue, profit, product
+    return grain_g_m2, revenue, profit, product, settlement
 
 
 def _settle_standing_grain(
@@ -1428,6 +1454,7 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
             cost_credits=0,
             balance_credits=s.ledger.balance_credits,
             day_number=s.day_index,
+            date=s.current_date.isoformat(),
         )
 
     from agrogame.game.economy import PriceTable
@@ -1448,10 +1475,16 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
     profit_credits = 0
     harvest_product = ""
     sold_kg_ha = 0.0
+    settlements: list[HarvestSettlement] = []
     if req.action == "harvest":
-        grain_g_m2, revenue_credits, profit_credits, product = _harvest_action(
-            s, field, prices, patch_idx
-        )
+        (
+            grain_g_m2,
+            revenue_credits,
+            profit_credits,
+            product,
+            settlement,
+        ) = _harvest_action(s, field, prices, patch_idx)
+        settlements.append(settlement)
         harvest_product = product.name
         sold_kg_ha = round(_sold_kg_ha(grain_g_m2, product), 1)
     elif req.action == "plant":
@@ -1502,6 +1535,8 @@ def execute_action(game_id: str, req: ActionRequest) -> ActionResponse:
         cost_credits=cost,
         balance_credits=s.ledger.balance_credits,
         day_number=s.day_index,
+        date=s.current_date.isoformat(),
+        settlements=settlements,
         grain_g_m2=round(grain_g_m2, 1),
         revenue_credits=revenue_credits,
         profit_credits=profit_credits,
