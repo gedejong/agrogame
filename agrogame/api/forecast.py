@@ -401,6 +401,10 @@ def project_soil_forecast(
     historical input-fed scenario rather than holding in general. With the
     fallow-conditioned default the five-day delta can differ by more than
     20%; the deepening path retains sign agreement in its regression scenario.
+
+    ``crop_n_uptake=False`` drops the crop-uptake sink, leaving only the SOM
+    source and leaching, as for a fallow anchor's LAI 0. The route passes it for
+    a crop at MATURITY, which takes up no N in the engine (#539).
     """
     et = Evapotranspiration()
     canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
