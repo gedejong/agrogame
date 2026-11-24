@@ -57,6 +57,9 @@ Design rules:
 3. **`SoilSnapshot.to_dict()` is reused as-is** for the soil portion of each field. No parallel serialization path.
 4. **Root zone state is included.** Root depth accumulates over the growing season based on daily growth increments that depend on soil water content, layer impedance, and temperature -- not just GDD. Because this accumulation cannot be faithfully recalculated from GDD alone, `root_state` is persisted per field. This includes `current_depth_cm`, `distribution` type, and per-layer root fractions.
 5. **Weather state is excluded.** Weather is generated from climate preset + RNG seed + day counter. Store the seed, not the timeseries.
+
+    > **Note (ADR-018, 2026-11-18):** when ADR-018 was accepted, saves stored the materialised weather series (`GameState.weather_data` in `agrogame/game/save.py`, about 104 KB per simulated year), against this rule. [ADR-018](ADR-018-continuous-simulation.md) decides what is stored: the seed, from which the 200-day weather chunks are regenerated (decision 6). #596 brings saves into line.
+
 6. **JSON for now, MessagePack later.** JSON is human-readable and diff-friendly in Git. If save files exceed 10 MB (unlikely below 200 fields), swap the serialization layer to MessagePack with the same dict structure. The `schema_version` field makes this migration mechanical.
 7. **Atomic writes.** Write to a `.tmp` file, then `os.replace()` to the target path. No half-written saves on crash.
 8. **One save file per game slot.** No database, no SQLite. File-based saves are portable and inspectable.

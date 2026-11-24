@@ -53,6 +53,8 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-015](docs/adr/ADR-015-som-steady-state-initialisation.md) — SOM initial pool sizing at the kinetic steady state (depth-attenuated fresh-input shares, pools preserved across crop resets)
 - [ADR-016](docs/adr/ADR-016-preferential-flow-retirement.md) — Preferential flow is structural, not hydrological (dual-porosity water model retired; path back via #485)
 - [ADR-017](docs/adr/ADR-017-in-season-alerts.md) — Act any day, with fast-forward interrupted by in-season alerts (drought/N/frost latch, opt-in `stop_on_pause`; supersedes ADR-004)
+- [ADR-018](docs/adr/ADR-018-continuous-simulation.md) — Continuous simulation, no automatic season end (per-patch crop lifecycle, Run stops on alerts, harvest-delay loss, calendar-year P&L; amends ADR-003 and ADR-017)
+- [ADR-020](docs/adr/ADR-020-soil-ph-proton-budget.md) — Soil pH as an N-cycle proton budget buffered by pH buffer capacity (part (a) by #492; no relaxation term, per-preset initial pH and calcareous layers by #481)
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 

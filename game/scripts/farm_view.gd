@@ -222,7 +222,16 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 			status_label.text = "Game %s loaded" % _game_id
 		_load_failures = 0
 		_apply_layout(patches)
+		_show_balance(data.get("balance_credits", -1))
 		_set_buttons_disabled(false)
+
+
+## The loaded game's balance, in place of the scene's "—" (#582); -1 when unknown.
+func _show_balance(balance: int) -> void:
+	if balance < 0:
+		return
+	_balance_credits = balance
+	credits_label.text = "%d" % balance
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -301,6 +310,15 @@ func _show_quick_status(tile_data: Dictionary, soil_type: String) -> void:
 	_quick_status.history_requested.connect(_on_quick_status_history)
 	_quick_status.soil_view_requested.connect(_on_soil_view)
 	$UILayer.add_child(_quick_status)
+
+
+## Rebuild the card from the selected tile's current data, so it never outlives a
+## crop or status change from a step, action reply or reconcile (#582).
+func _refresh_quick_status() -> void:
+	if _selected_tile.x < 0:
+		return
+	var data: Dictionary = _tile_data[_selected_tile.y * GRID_COLS + _selected_tile.x]
+	_show_quick_status(data, data.get("soil_type", ""))
 
 
 func _hide_quick_status() -> void:
@@ -608,6 +626,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		_cutaway.update_tile_info(history)
 	# Crop stage may have changed (e.g. reached maturity or was cleared).
 	_update_harvest_button()
+	_refresh_quick_status()
 
 
 ## Every /action goes out here, holding the bar until its reply, and for all
@@ -729,6 +748,7 @@ func _on_harvest_complete(
 			_tile_data[i]["lai"] = 0.0
 			_tile_data[i]["grain_g_m2"] = 0.0
 			_update_crop_visuals(i)
+	_refresh_quick_status()
 	# Yield + P&L come straight from the harvest action's settlement response.
 	var grain_g_m2: float = data.get("grain_g_m2", 0.0)
 	status_label.text = (
@@ -800,6 +820,7 @@ func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch
 			_tile_data[i]["crop_stage"] = 1
 			_tile_data[i]["lai"] = 0.0
 			_update_crop_visuals(i)
+	_refresh_quick_status()
 	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
 	_step_days(1)
 
@@ -832,6 +853,7 @@ func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) 
 	for i: int in FarmTiles.reconcile_crops(data.get("fields", {}), _tile_data):
 		_update_crop_visuals(i)
 	_update_harvest_button()
+	_refresh_quick_status()
 	_refresh_action_costs()
 
 
