@@ -326,7 +326,9 @@ func _on_quick_status_history() -> void:
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var data: Dictionary = _tile_data[idx]
 	var history: Array = _daily_history.get(data.get("patch_idx", 0), [])
-	_cutaway.show_tile_info(FarmLayout.soil_label(data), data.get("crop_key", ""), history, $UILayer)
+	_cutaway.show_tile_info(
+		FarmLayout.soil_label(data), data.get("crop_key", ""), history, $UILayer
+	)
 
 
 func _update_tile_shader(idx: int) -> void:

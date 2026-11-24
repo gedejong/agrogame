@@ -166,9 +166,7 @@ static func compute_scores(tile_data: Dictionary) -> Dictionary:
 	)
 	# Soil moisture: surface theta relative to optimal
 	var theta: float = tile_data.get("theta_surface", 0.0)
-	var soil: float = clampf(
-		(1.0 - absf(theta - THETA_OPTIMAL) / THETA_RANGE) * 100.0, 0.0, 100.0
-	)
+	var soil: float = clampf((1.0 - absf(theta - THETA_OPTIMAL) / THETA_RANGE) * 100.0, 0.0, 100.0)
 	return {"water": water, "nutrient": nutrient, "growth": growth, "soil": soil}
 
 
