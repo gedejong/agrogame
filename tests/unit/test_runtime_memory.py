@@ -151,3 +151,109 @@ def test_orchestrator_ignores_an_owner_this_build_lacks() -> None:
     memory["FullSimulationOrchestrator"]["_last_biomass_inc_g_m2"] = 2.5
     orch.restore_runtime_memory(memory)
     assert orch._last_biomass_inc_g_m2 == 2.5
+
+
+# #583: every memory holder's (soil-owned, crop-owned) names. Soil-owned memory
+# survives ``reset_crop``; crop-owned memory resets with the crop it mirrors.
+# Adding, removing or reclassifying a ``_MEMORY`` name must change this table.
+_CANOPY = (
+    "_last_water _last_n _last_p _last_fe _last_zn _last_mn _last_s "
+    "_stress_history _consecutive_wilt_days _consecutive_waterlog_days "
+    "_waterlogged_today _root_depth_cm"
+)
+_CLASSIFICATION: dict[str, tuple[str, str]] = {
+    "FullSimulationOrchestrator": (
+        "_co2_buffer",
+        "_last_biomass_inc_g_m2 _pending_root_canopy_inc_g_m2",
+    ),
+    "ETRuntime": ("_evap_state _residue", ""),
+    "CanopyRuntime": ("", _CANOPY),
+    "AggregationRuntime": (
+        "_day_count _prev_wfps _was_dry _was_frozen _fungal_fractions",
+        "_root_fractions",
+    ),
+    "SOMRuntime": ("_prev_wfps _was_dry som", "_root_fracs _root_fracs_smoothed"),
+    "ThreePoolSOM": ("_disruption_days", ""),
+    "MicrobesRuntime": (
+        "_daily_enzyme_totals",
+        "_root_fractions _root_fractions_smoothed",
+    ),
+    "MicronutrientRuntime": ("", "_last_biomass_inc _root_fractions"),
+    "MicronutrientCycle": ("_env _som_c_by_layer _last_eh_by_layer", ""),
+    "NitrogenRuntime": ("_eh_by_layer", ""),
+    "NitrogenCycle": (
+        "_env _som_mineralized_n _aerobic_fraction_override _pending_h_kmol_ha",
+        "_massflow_supply_by_layer",
+    ),
+    "RedoxRuntime": ("_pre_drainage_theta", "_root_fractions"),
+    "EnvironmentalCache": (
+        "ph_by_layer microbe_activity_by_layer fungal_fraction_by_layer",
+        "root_fractions",
+    ),
+    "PhosphorusCycle": ("_slow_release_schedules _env", ""),
+    "SulfurCycle": ("_slow_release_schedules _env", ""),
+}
+
+
+def _engine_holders() -> dict[str, type]:
+    """Every ``RuntimeMemory`` subclass defined in the engine (not in tests)."""
+    found, todo = {}, list(RuntimeMemory.__subclasses__())
+    while todo:
+        cls = todo.pop()
+        todo.extend(cls.__subclasses__())
+        if cls.__module__.startswith("agrogame."):
+            found[cls.__name__] = cls
+    return found
+
+
+def test_583_soil_and_crop_memory_classification_is_pinned() -> None:
+    holders = _engine_holders()
+    assert set(holders) == set(_CLASSIFICATION)
+    for name, (soil, crop) in _CLASSIFICATION.items():
+        soil_names, crop_names = set(soil.split()), set(crop.split())
+        assert not soil_names & crop_names, name
+        assert set(holders[name]._MEMORY) == soil_names | crop_names, name
+        assert set(holders[name]._CROP_MEMORY) == crop_names, name
+
+
+def test_583_a_crop_owned_name_outside_memory_is_rejected() -> None:
+    with pytest.raises(ValueError, match=r"_CROP_MEMORY not in _MEMORY: \['_y'\]"):
+
+        class _Bad(RuntimeMemory):
+            _MEMORY = ("_x",)
+            _CROP_MEMORY = ("_y",)
+
+
+class _SoilInner(RuntimeMemory):
+    _MEMORY = ("ph", "roots")
+    _CROP_MEMORY = ("roots",)
+
+    def __init__(self) -> None:
+        self.ph, self.roots = [6.5], [0.7, 0.3]
+
+
+class _SoilHolder(RuntimeMemory):
+    _MEMORY = ("clock", "growth", "env")
+    _CROP_MEMORY = ("growth",)
+
+    def __init__(self) -> None:
+        self.clock, self.growth, self.env = 4.5, 1.25, _SoilInner()
+
+
+def test_583_soil_only_drops_crop_names_in_nested_holders() -> None:
+    holder = _SoilHolder()
+    assert holder.memory_to_dict(soil_only=True) == {"clock": 4.5, "env": {"ph": [6.5]}}
+    full = holder.memory_to_dict()
+    assert full["growth"] == 1.25 and full["env"]["roots"] == [0.7, 0.3]
+    fresh = _SoilHolder()
+    fresh.clock, fresh.env.ph[:] = 0.0, [7.0]
+    fresh.growth, fresh.env.roots[:] = 0.0, [1.0]
+    fresh.restore_memory(holder.memory_to_dict(soil_only=True))
+    assert (fresh.clock, fresh.env.ph) == (4.5, [6.5])  # soil-owned: restored
+    assert (fresh.growth, fresh.env.roots) == (0.0, [1.0])  # crop-owned: kept
+
+
+def test_583_som_soil_memory_keeps_cumulative_co2() -> None:
+    som = ThreePoolSOM(SOMPoolParams(), n_layers=2)
+    som.state.layers[0].cumulative_co2_c_kg_ha = 1.5
+    assert som.memory_to_dict(soil_only=True) == som.memory_to_dict()

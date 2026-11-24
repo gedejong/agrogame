@@ -65,6 +65,8 @@ class CanopyRuntime(RuntimeMemory):
         "_waterlogged_today",
         "_root_depth_cm",
     )
+    # All of it mirrors the crop, so a crop change resets it (#583).
+    _CROP_MEMORY = _MEMORY
 
     def __post_init__(self) -> None:
         self.event_bus.subscribe(DayTick, self._on_day_tick)
