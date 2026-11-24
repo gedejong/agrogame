@@ -58,14 +58,24 @@ class PriceTable:
             )
         return cls(input_costs=input_costs, crop_prices=crop_prices)
 
+    def seasonal_multiplier(self, crop_key: str, quarter: int = 1) -> float:
+        """Seasonal price multiplier for a crop (ADR-003); 0.0 if unpriced.
+
+        The single source for ``get_crop_price`` and the harvest receipt (#631),
+        so the multiplier shown is the one charged.
+        """
+        cp = self.crop_prices.get(crop_key)
+        if cp is None:
+            return 0.0
+        qi = max(0, min(3, quarter - 1))
+        return cp.seasonal_multipliers[qi] if cp.seasonal_multipliers else 1.0
+
     def get_crop_price(self, crop_key: str, quarter: int = 1) -> float:
         """Get effective price (base * seasonal multiplier) for a crop."""
         cp = self.crop_prices.get(crop_key)
         if cp is None:
             return 0.0
-        qi = max(0, min(3, quarter - 1))
-        mult = cp.seasonal_multipliers[qi] if cp.seasonal_multipliers else 1.0
-        return cp.base_credits_per_kg * mult
+        return cp.base_credits_per_kg * self.seasonal_multiplier(crop_key, quarter)
 
 
 @dataclass
