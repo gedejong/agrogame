@@ -245,11 +245,22 @@ def test_stop_lifts_for_the_next_crop() -> None:
     assert patch.orch.phenology.state.stage is PhenologyStage.PLANTED
     replant_depth = patch.orch.root_state.current_depth_cm
     seasons.append(season())
-    (grown_1, _), (grown_2, standing_2) = seasons
+    (grown_1, standing_1), (grown_2, standing_2) = seasons
+    # #651 AC2: the front stops at the 100 cm loam bottom on every day of both
+    # seasons, and both end there (DSSAT DEPMAX = DS(NLAYR); APSIM NG MaxDepth).
+    bottom_cm = sum(layer.depth_cm for layer in patch.orch.profile.layers)
+    assert bottom_cm == 100.0
+    assert all(d.depth_cm <= bottom_cm for d in (*grown_1, *standing_1))
+    assert all(d.depth_cm <= bottom_cm for d in (*grown_2, *standing_2))
+    assert grown_1[-1].depth_cm == grown_2[-1].depth_cm == bottom_cm
     # Season 2 roots and takes up like season 1, within a factor of two.
     gain_1 = grown_1[-1].depth_cm - grown_1[0].depth_cm
     assert grown_2[-1].depth_cm - replant_depth > 0.5 * gain_1
-    assert sum(d.depth_events for d in grown_2) > 0.5 * len(grown_2)
+    # #651 AC4 replaces "> 0.5 * len(grown_2)", which held only while the
+    # front ran on to the crop's 150 cm below a 100 cm profile. Once the front
+    # reaches the bottom it stops reporting, so compare against season 1.
+    events_1 = sum(d.depth_events for d in grown_1)
+    assert sum(d.depth_events for d in grown_2) > 0.5 * events_1
     for uptake in ("n_uptake", "non_n_uptake"):
         season_1 = sum(getattr(d, uptake) for d in grown_1)
         assert sum(getattr(d, uptake) for d in grown_2) > 0.5 * season_1, uptake
@@ -327,3 +338,60 @@ def test_projection_inputs_turn_crop_uptake_off_at_maturity() -> None:
         if stage is PhenologyStage.MATURITY:
             break
     assert seen == {PhenologyStage.GRAIN_FILL: True, PhenologyStage.MATURITY: False}
+
+
+# --- #651: the front stops at the soil bottom; #539's stop still governs above it
+
+
+def test_maturity_stop_governs_where_the_profile_cap_does_not_bind() -> None:
+    """#651 AC3: Sahel sorghum on 110 cm sandy soil stops at maturity, not the bottom.
+
+    Seed 42: the front last advances on day 77 and the crop is mature after
+    day 78, at 75.6 cm (as on main); the crop maximum is 180 cm.
+    """
+    climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
+        "sahel_arid"
+    ]
+    crop = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
+        "sorghum", "sahel_arid"
+    )
+    profile = load_soil_presets(Path("soils/presets.yaml")).soils["sandy_subsaharan"]
+    orch = Orch(profile, crop=crop, latitude_deg=climate.latitude_deg)
+    bottom_cm = sum(layer.depth_cm for layer in profile.layers)
+    tally = _Tally(orch)
+    days: list[_Day] = []
+    for rec in _weather("sahel_arid", date(2024, 6, 1), 42)[:150]:
+        tally.day = _Day()
+        orch.step_day(**_drive(rec))
+        days.append(_snapshot(orch, tally))
+    m = next(i for i, d in enumerate(days) if d.stage is PhenologyStage.MATURITY)
+    at_m = days[m]
+    assert bottom_cm == 110.0
+    assert days[m - 1].depth_events == 1
+    assert at_m.depth_cm < bottom_cm < orch.roots.params.max_depth_cm
+    for d in days[m + 1 :]:
+        assert (d.depth_cm, d.depth_events) == (at_m.depth_cm, 0)
+
+
+def test_stale_saved_depth_below_the_bottom_is_clamped() -> None:
+    """#651 AC5: a pre-fix save holding 118.8 cm on 100 cm loam reads 100.0.
+
+    The clamp emits one ``RootDepthChanged`` even at MATURITY, so the canopy's
+    persisted drought-depth memory follows (FAO-56 TAW ∝ Zr, Eq. 82).
+    """
+    from agrogame.soil.canopy.runtime import CanopyRuntime
+
+    orch = _orch("kenya_maize")
+    records = iter(_weather("kenya_highlands", date(2024, 3, 1), 42))
+    while orch.phenology.state.stage is not PhenologyStage.MATURITY:
+        orch.step_day(**_drive(next(records)))
+    canopy_rt = next(rt for rt in orch._runtimes if isinstance(rt, CanopyRuntime))
+    orch.root_state.current_depth_cm = 118.8
+    canopy_rt._root_depth_cm = 118.8
+    assert canopy_rt._drought_depth_factor() == pytest.approx(40.0 / 118.8)
+    events: list[RootDepthChanged] = []
+    orch.event_bus.subscribe(RootDepthChanged, events.append)
+    orch.step_day(**_drive(next(records)))
+    assert orch.root_state.current_depth_cm == 100.0
+    assert canopy_rt._drought_depth_factor() == pytest.approx(0.40)
+    assert [(e.previous_cm, e.new_cm) for e in events] == [(118.8, 100.0)]
