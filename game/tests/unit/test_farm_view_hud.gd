@@ -69,7 +69,7 @@ func test_the_card_follows_a_harvest_over_two_seasons() -> void:
 		view._tile_data[0]["crop_stage"] = 3
 		view._select_tile(0, 0)
 		assert_true(_header(view).begins_with("Maize"), "season %d: standing crop" % season)
-		view._on_harvest_complete(true, {"balance_credits": 1300}, "maize", 0)
+		view._on_harvest_complete(true, {"balance_credits": 1300}, "maize", "field_1", 0)
 		assert_true(_header(view).begins_with("Empty"), "season %d: bare after harvest" % season)
 
 
@@ -84,7 +84,7 @@ func test_the_card_follows_a_reconcile_that_clears_or_sows_the_tile() -> void:
 
 func test_the_card_follows_a_plant_reply() -> void:
 	var view := _view()
-	view._on_plant_complete(true, {"balance_credits": 900}, "rice", 0)
+	view._on_plant_complete(true, {"balance_credits": 900}, "rice", "field_1", 0)
 	assert_true(_header(view).begins_with("Rice"), "the planted crop")
 
 

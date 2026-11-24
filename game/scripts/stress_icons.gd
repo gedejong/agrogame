@@ -102,7 +102,8 @@ func _process(_delta: float) -> void:
 			lbl.visible = close
 
 
-## Stresses map to tiles by patch_idx, never soil name (#516).
+## Stresses map to tiles by (field_id, patch_idx): never by soil name (#516),
+## nor by patch index alone, which every field has (#600).
 func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Array) -> void:
 	var active_stresses: Dictionary = {}
 	for field_key: String in patches:
@@ -110,7 +111,7 @@ func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Arr
 		for pi in range(patch_list.size()):
 			var patch: Dictionary = patch_list[pi]
 			var events: Array = patch.get("events", [])
-			var pkey: String = str(pi)  # stress keys are per patch index (#516)
+			var pkey := FarmLayout.patch_key(field_key, pi)  # per (field, patch) (#600)
 			# Event-based stress
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
@@ -159,7 +160,7 @@ func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Arr
 	for key: String in active_stresses:
 		var info: Dictionary = active_stresses[key]
 		for i in range(tile_data.size()):
-			if str(tile_data[i].get("patch_idx", -1)) == info["pkey"]:
+			if FarmLayout.tile_key(tile_data[i]) == info["pkey"]:
 				if not tile_stresses.has(i):
 					tile_stresses[i] = []
 				var sk: String = info["stress_key"]
