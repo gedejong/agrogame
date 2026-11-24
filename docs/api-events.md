@@ -166,16 +166,18 @@ those keys. `event_type` alone is not unique: `CanopyIntercepted` and
 
 ## What the Godot Client Reads
 
-The client reads events only from `patches[field_id][i].events`, the last
-stepped day; it ignores `daily_snapshots[].events`. These are the only types
-and `data` fields it reads. It does not read `EvapotranspirationComputed`.
+The client reads events from `patches[field_id][i].events`, the last stepped
+day, and, for the crop-status damage tally (#630), the `HeatDamageApplied` and
+`FrostDamageApplied` events of `daily_snapshots[].events`. The tally reads the
+snapshots only, so the last day, which both carry, counts once. These are the
+only types and `data` fields it reads. It does not read `EvapotranspirationComputed`.
 
 | Event | `data` fields read | Script | Drives |
 |-------|--------------------|--------|--------|
 | `NutrientStressComputed` | `nutrient`, `stress`, `uptake_kg_ha` | `farm_tiles.gd`, `stress_icons.gd`, `flow_overlay.gd` | Crop stress visuals, deficiency icons (`stress` < 0.5), N and P uptake tubes |
 | `WaterStressComputed` | `stress` | `stress_icons.gd` | Drought icon (`stress` < 0.5) |
-| `FrostDamageApplied` | `severity` | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
-| `HeatDamageApplied` | `grain_reduction_factor`: severity is `1 − grain_reduction_factor`, the share of that day's grain growth lost, clamped to [0, 1] (#569). If the field is missing, the client logs a warning and uses 0.5 | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
+| `FrostDamageApplied` | `severity`, `lai_loss` (snapshots: summed per crop) | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
+| `HeatDamageApplied` | `grain_reduction_factor` (snapshots: days counted per crop, latest factor): severity is `1 − grain_reduction_factor`, the share of that day's grain growth lost, clamped to [0, 1] (#569). If the field is missing, the client logs a warning and uses 0.5 | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
 | `WaterloggingDetected` | none; its presence shows the icon | `stress_icons.gd` | Waterlogging icon |
 | `RedoxChanged` | `eh_mv` | `stress_icons.gd` | Anaerobic icon (`eh_mv` < −100) |
 | `WaterInfiltrated` | `amounts_mm` (summed), `layer_indices` | `flow_overlay.gd` | Infiltration tubes, rain connector, pulse above 5 mm |

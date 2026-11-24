@@ -1216,6 +1216,7 @@ def _build_daily_snapshot(
         patch_idx=pi,
         crop_stage=crop_stage,
         dev_stage=dev_stage,
+        root_depth_cm=round(p.orch.root_state.current_depth_cm, 1),
         lai=round(p.orch.canopy.state.lai, 2),
         grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
         water_stress=round(p.orch.canopy.state.last_water_stress, 2),

@@ -632,6 +632,21 @@ def test_step_events_in_patch_response(client) -> None:
     assert len(patch["events"]) > 0
 
 
+def test_daily_snapshot_root_depth_cm(client) -> None:
+    """DailySnapshot.root_depth_cm (#630) matches the patch's, and is 0 once bare."""
+    game_id = _create_game(client)
+    data = client.post(f"/api/v1/games/{game_id}/step?days=7&seed=42").json()
+    snaps = data["daily_snapshots"]
+    assert snaps[0]["root_depth_cm"] > 0.0
+    assert snaps[-1]["root_depth_cm"] == data["patches"]["f1"][0]["root_depth_cm"]
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    bare = client.post(f"/api/v1/games/{game_id}/step?days=1").json()
+    assert bare["daily_snapshots"][0]["root_depth_cm"] == 0.0
+
+
 def _step_events(data) -> list:
     """Flatten all events across a /step response's daily_snapshots."""
     events: list = []
