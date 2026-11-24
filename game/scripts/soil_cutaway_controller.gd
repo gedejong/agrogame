@@ -139,19 +139,18 @@ func _get_soil_column(
 ) -> Dictionary:
 	var idx: int = tp.y * grid_cols + tp.x
 	var soil_type: String = tile_data[idx]["soil_type"]
-	var patch_idx: int = tile_data[idx].get("patch_idx", 0)  # by index, not soil (#516)
-	var soil_state := {}
-	var root_depth_cm := 0.0
-	var events: Array = []
-	for field_key: String in patches:
-		var patch_list: Array = patches[field_key]
-		var pi: int = patch_idx if patch_idx < patch_list.size() else 0
-		if pi < patch_list.size():
-			var patch: Dictionary = patch_list[pi]
-			soil_state = patch.get("soil_state", {})
-			root_depth_cm = patch.get("root_depth_cm", 0.0)
-			events = patch.get("events", [])
-			print("[COL] field=%s pi=%d events=%d" % [field_key, pi, events.size()])
+	# The tile's own (field, patch): never soil (#516), another field or another
+	# patch index (#600). A patch the payload lacks has no column.
+	var field_id: String = tile_data[idx].get("field_id", "")
+	var patch_list: Array = patches.get(field_id, [])
+	var patch_idx: int = tile_data[idx].get("patch_idx", -1)
+	if patch_idx < 0 or patch_idx >= patch_list.size():
+		return {}
+	var patch: Dictionary = patch_list[patch_idx]
+	var soil_state: Dictionary = patch.get("soil_state", {})
+	var root_depth_cm: float = patch.get("root_depth_cm", 0.0)
+	var events: Array = patch.get("events", [])
+	print("[COL] field=%s pi=%d events=%d" % [field_id, patch_idx, events.size()])
 	if soil_state.is_empty():
 		return {}
 	var crop_key: String = tile_data[idx].get("crop_key", "")

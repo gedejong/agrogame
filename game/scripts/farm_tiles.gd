@@ -156,9 +156,12 @@ static func heat_severity(data: Dictionary) -> float:
 	return clampf(1.0 - float(data["grain_reduction_factor"]), 0.0, 1.0)
 
 
-## Write one patch of a /step payload into every tile whose patch_idx matches,
-## and return those tiles' indices, ascending, for the caller to refresh.
-static func write_patch(patch: Dictionary, patch_idx: int, tile_data: Array) -> Array[int]:
+## Write `field_id`'s patch `patch_idx` of a /step payload into every tile laid
+## out as that (field, patch) (#600), and return those tiles' indices,
+## ascending, for the caller to refresh.
+static func write_patch(
+	patch: Dictionary, field_id: String, patch_idx: int, tile_data: Array
+) -> Array[int]:
 	var stage_name: String = patch.get("crop_stage", "")
 	var stage: int = STAGE_MAP.get(stage_name, 0)
 	var lai: float = patch.get("lai", 0.0)
@@ -170,10 +173,8 @@ static func write_patch(patch: Dictionary, patch_idx: int, tile_data: Array) -> 
 	# it, in which case the visuals fall back to a per-stage nominal value.
 	var dev_stage: float = float(patch.get("dev_stage", -1.0))
 	var stress := stress_from_events(patch.get("events", []))
-	var written: Array[int] = []
-	for i in range(tile_data.size()):
-		if tile_data[i]["patch_idx"] != patch_idx:
-			continue
+	var written := FarmLayout.tiles_of(field_id, patch_idx, tile_data)
+	for i: int in written:
 		var tile: Dictionary = tile_data[i]
 		tile["som_total_c_g_m2"] = som
 		tile["theta_surface"] = theta
@@ -197,7 +198,6 @@ static func write_patch(patch: Dictionary, patch_idx: int, tile_data: Array) -> 
 		tile["zn_stress"] = stress["zn_stress"]
 		tile["frost_damage"] = stress["frost_damage"]
 		tile["heat_damage"] = stress["heat_damage"]
-		written.append(i)
 	return written
 
 

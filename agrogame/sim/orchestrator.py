@@ -367,6 +367,8 @@ def _plant_n_params(crop: CropPreset | None) -> PlantNitrogenParams:
         overrides["n_crit_a"] = crop.n_crit_a
     if crop.n_crit_b is not None:
         overrides["n_crit_b"] = crop.n_crit_b
+    if crop.n_crit_reference_biomass_t_ha is not None:
+        overrides["reference_biomass_t_ha"] = crop.n_crit_reference_biomass_t_ha
     return PlantNitrogenParams(**overrides)
 
 

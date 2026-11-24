@@ -32,7 +32,8 @@ class PlantNitrogenModule:
         """Critical shoot N concentration (% of DM) for a given shoot DM.
 
         ``N_crit% = a * W^-b`` (Lemaire & Gastal 1997). The power law is only
-        valid above ``reference_biomass_t_ha`` (~1 t/ha), so below it the
+        valid above ``reference_biomass_t_ha`` (per crop; 1 t/ha default, 1.55 for
+        wheat), so below it the
         value is held flat at the reference (avoids the W -> 0 divergence).
         """
         p = self.params

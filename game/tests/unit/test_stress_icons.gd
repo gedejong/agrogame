@@ -24,7 +24,7 @@ func test_frost_event_creates_icon() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0, "Frost event should create icon")
 
 
@@ -32,7 +32,7 @@ func test_no_events_no_icons() -> void:
 	var icons := StressIconsRef.new()
 	add_child_autofree(icons)
 	var mesh := _make_mesh()
-	icons.update_from_patches({"f": [{"events": []}]}, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches({"f": [{"events": []}]}, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_eq(icons._icons.size(), 0, "No events = no icons")
 
 
@@ -43,7 +43,7 @@ func test_clear_icons() -> void:
 	var patches := {
 		"f": [{"events": [{"event_type": "HeatDamageApplied", "module": "t", "data": {}}]}]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0)
 	icons.clear_icons()
 	assert_eq(icons._icons.size(), 0, "clear_icons empties dict")
@@ -62,7 +62,7 @@ func test_drought_from_water_stress() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0, "Drought icon should appear")
 
 
@@ -85,7 +85,7 @@ func test_n_deficiency_from_nutrient_stress() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0, "N deficiency icon should appear")
 
 
@@ -109,7 +109,7 @@ func test_no_stress_above_threshold() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_eq(icons._icons.size(), 0, "No icon when stress above threshold")
 
 
@@ -129,7 +129,7 @@ func test_multiple_stresses_stack() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0, "Multiple stresses should create icons")
 	# Verify both icon sprites exist in the container
 	var container: Node3D = icons._icons["0"]
@@ -159,7 +159,7 @@ func test_p_deficiency_from_nutrient_stress() -> void:
 			}
 		]
 	}
-	icons.update_from_patches(patches, [{"patch_idx": 0}], [mesh])
+	icons.update_from_patches(patches, [{"field_id": "f", "patch_idx": 0}], [mesh])
 	assert_gt(icons._icons.size(), 0, "P deficiency icon should appear")
 
 
@@ -170,7 +170,8 @@ func test_icons_map_to_tiles_by_patch_index() -> void:
 	var frost := {"event_type": "FrostDamageApplied", "module": "t", "data": {}}
 	var patches := {"field_1": [{"events": []}, {"events": [frost]}]}
 	var tiles: Array = [
-		{"patch_idx": 0, "soil_type": "organic"}, {"patch_idx": 1, "soil_type": "organic"}
+		{"field_id": "field_1", "patch_idx": 0, "soil_type": "organic"},
+		{"field_id": "field_1", "patch_idx": 1, "soil_type": "organic"},
 	]
 	icons.update_from_patches(patches, tiles, [_make_mesh(), _make_mesh(Vector3.RIGHT)])
 	assert_eq(icons._icons.keys(), ["1"], "icon on patch 1's tile only")
@@ -200,5 +201,5 @@ func test_harvested_bare_tile_shows_no_icon() -> void:
 			{"event_type": "NutrientLeached", "module": "t", "data": {"nutrient": "NO3"}},
 		]
 	}
-	icons.update_from_patches({"f": [bare]}, [{"patch_idx": 0}], [_make_mesh()])
+	icons.update_from_patches({"f": [bare]}, [{"field_id": "f", "patch_idx": 0}], [_make_mesh()])
 	assert_eq(icons._icons.size(), 0, "a bare tile draws no stress icon")
