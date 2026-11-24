@@ -59,6 +59,9 @@ class CropPreset:
     # and wheat (Justes et al.) set these in the YAML presets.
     n_crit_a: float | None = None
     n_crit_b: float | None = None
+    # Shoot DM (t/ha) below which the curve is held flat (#603). None -> 1.0
+    # (Greenwood et al. 1990 domain); wheat 1.55 (Justes et al. 1994).
+    n_crit_reference_biomass_t_ha: float | None = None
     key: str = ""
     harvest_product: HarvestProduct = GRAIN_PRODUCT
 
@@ -233,6 +236,11 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             ),
             n_crit_b=(
                 float(raw["n_crit_b"]) if raw.get("n_crit_b") is not None else None
+            ),
+            n_crit_reference_biomass_t_ha=(
+                float(raw["n_crit_reference_biomass_t_ha"])
+                if raw.get("n_crit_reference_biomass_t_ha") is not None
+                else None
             ),
             key=key,
             harvest_product=_build_harvest_product(raw),
