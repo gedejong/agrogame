@@ -44,6 +44,24 @@ class ApiClientSpy:
 					"grain_g_m2": 120.0,
 					"revenue_credits": 1200,
 					"profit_credits": 400,
+					"harvest_product": "grain",
+					"date": "2024-10-18",
+					"settlements":
+					[
+						{
+							"crop_key": "maize",
+							"product": "grain",
+							"area_ha": 0.334,
+							"dry_kg_ha": 1200.0,
+							"dry_matter_fraction": 1.0,
+							"sold_kg": 400.8,
+							"quarter": 4,
+							"base_credits_per_kg": 0.22,
+							"seasonal_multiplier": 1.2,
+							"price_credits_per_kg": 0.264,
+							"revenue_credits": 1200,
+						}
+					],
 				}
 			)
 		)
@@ -134,21 +152,26 @@ func test_harvest_clears_crop_and_surfaces_pnl() -> void:
 	assert_eq(spy.report_calls, 0, "no /report after a Harvest (#601)")
 
 
-func test_harvest_status_line_shows_grain_yield() -> void:
-	# #359: the harvested grain yield (g/m²) must appear in the status line,
-	# alongside the existing cost/revenue/profit P&L.
+func test_harvest_status_line_shows_net_and_the_yield_is_on_the_receipt() -> void:
+	# #631 C4: the line names crop, product, net and farm profit and never g/m²
+	# (it called fruit "grain"); the yield (#359) moved to the receipt, in t/ha.
 	var view := _make_view()
 	view._tile_data[0]["crop_key"] = "maize"
 	view._tile_data[0]["crop_stage"] = 3
 	view._select_tile(0, 0)
 	view._on_harvest_pressed()
-	# Spy returns grain_g_m2 = 120.0 → "120 g/m² grain".
-	assert_string_contains(view.status_label.text, "grain")
-	assert_string_contains(view.status_label.text, "g/m")
-	assert_string_contains(view.status_label.text, "120")
-	# P&L still present.
-	assert_string_contains(view.status_label.text, "revenue")
-	assert_string_contains(view.status_label.text, "profit")
+	var line: String = view.status_label.text
+	assert_string_contains(line, "maize grain")
+	assert_string_contains(line, "net 1150")
+	assert_string_contains(line, "farm profit 400")
+	assert_false(line.contains("g/m"), "no g/m² in the line")
+	var receipt: Node = view.get_node("UILayer/HarvestReceipt")
+	assert_not_null(receipt, "the receipt opens after a Harvest")
+	var text := ""
+	for label: Label in receipt.find_children("*", "Label", true, false):
+		text += label.text + "\n"
+	assert_string_contains(text, "1.20 t/ha")
+	assert_string_contains(text, "Field 1")
 
 
 func test_harvest_names_the_field_and_labels_profit_as_the_farms() -> void:
