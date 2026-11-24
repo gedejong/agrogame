@@ -3,6 +3,10 @@
 ## Status
 Proposed
 
+Item 4 (soil cutaway) is amended by [ADR-021](ADR-021-diorama-presentation.md)
+(proposed, 2026-11-24): the pit cutaway is retired in favour of the diorama slab's
+cut faces.
+
 ## Context
 
 The current frontend uses Godot's 2D systems (TileMapLayer, Sprite2D, Line2D, Polygon2D) to render an isometric farming game. While functional, this approach has hit scaling limits:

@@ -2,6 +2,10 @@
 
 ## Status: Accepted
 
+**Amended by [ADR-021](ADR-021-diorama-presentation.md) (proposed, 2026-11-24):** the
+underground is shown on the cut faces of a diorama slab, always visible, instead of
+the camera-into-the-ground cutaway described under "The Underground" below.
+
 **Update (AGRO-113):** Monorepo structure — Godot project lives in `game/`
 alongside the Python simulation. GDScript is the primary scripting language
 (Python-like, accessible to the team). C# available for performance-critical
