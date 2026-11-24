@@ -48,6 +48,23 @@ func test_leaf_sheen_is_specular_not_albedo() -> void:
 	assert_string_contains(text, "ROUGHNESS = mix(0.5, 0.8, effective_sen);")
 
 
+func test_stress_strength_goes_through_one_response_curve() -> void:
+	# #641: every overlay reads its strength through the same curve, so 0.6
+	# is a clear difference on screen; zero stays zero.
+	var text: String = _source(LEAF_SHADER)
+	assert_string_contains(text, "const float STRESS_CURVE = 0.5;")
+	for k: String in ["water", "n", "p", "fe", "zn", "frost", "heat"]:
+		assert_string_contains(text, "float s_%s = pow(stress_%s, STRESS_CURVE);" % [k, k])
+		assert_false(
+			text.contains("= stress_%s *" % k), "stress_%s is only read through its curve" % k
+		)
+
+
+func test_heat_scorch_covers_tip_and_margin() -> void:
+	var text: String = _source(LEAF_SHADER)
+	assert_string_contains(text, "max(smoothstep(0.4, 0.85, UV.x), 0.8 * edge)")
+
+
 func test_leaf_midrib_brightens_multiplicatively() -> void:
 	var text: String = _source(LEAF_SHADER)
 	assert_string_contains(text, "color = mix(color, color * 1.3, rib * midrib * 0.8);")

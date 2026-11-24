@@ -4,7 +4,9 @@ render_mode cull_disabled;
 // Stress symptoms follow plant physiology:
 //   Mobile nutrients (N, P) → older/lower leaves first
 //   Immobile nutrients (Fe, Zn) → younger/upper leaves first
-// Ref: Marschner 2012, Mineral Nutrition of Higher Plants.
+// Ref: Marschner 2012, Mineral Nutrition of Higher Plants (symptom descriptions
+// for N, P, Fe and Zn). The frost and heat symptoms are general descriptions
+// of tissue necrosis; no source for the heat margin scorch was verified (#641).
 #include "res://shaders/crop_wind.gdshaderinc"
 #include "res://shaders/srgb.gdshaderinc"
 
@@ -36,6 +38,7 @@ uniform float stress_heat : hint_range(0.0, 1.0) = 0.0;
 
 // Colour targets, authored in sRGB like the per-crop base colours and
 // converted to linear light where the lighting maths uses them.
+const float STRESS_CURVE = 0.5;
 const vec3 YOUNG_GREEN = SRGB_TO_LINEAR(vec3(0.35, 0.65, 0.25));
 const vec3 SENESCENT = SRGB_TO_LINEAR(vec3(0.7, 0.6, 0.2));
 const vec3 DEAD = SRGB_TO_LINEAR(vec3(0.5, 0.4, 0.2));
@@ -87,41 +90,51 @@ void fragment() {
 
 	// --- Per-type stress overlays ---
 	// Leaf position factor: 0=bottom/old, 1=top/young
+	// Response curve (#641): a leaf seen from a farm-view camera needs a
+	// visible symptom well before the stress reaches 1.0, so each strength
+	// is passed through a square root (0.6 reads as 0.77). Zero stays zero.
+	float s_water = pow(stress_water, STRESS_CURVE);
+	float s_n = pow(stress_n, STRESS_CURVE);
+	float s_p = pow(stress_p, STRESS_CURVE);
+	float s_fe = pow(stress_fe, STRESS_CURVE);
+	float s_zn = pow(stress_zn, STRESS_CURVE);
+	float s_frost = pow(stress_frost, STRESS_CURVE);
+	float s_heat = pow(stress_heat, STRESS_CURVE);
 	float old_leaf = 1.0 - leaf_height;  // stronger on older/lower leaves
 	float young_leaf = leaf_height;       // stronger on younger/upper leaves
 
 	// DROUGHT: brown edges + darkening. Affects all leaves, worse on older.
 	float edge = smoothstep(0.0, 0.3, abs(UV.y - 0.5));
-	float drought_f = stress_water * (0.5 + edge * 0.5) * (0.6 + old_leaf * 0.4);
-	color = mix(color, DROUGHT_COLOR, drought_f * 0.6);
+	float drought_f = s_water * (0.5 + edge * 0.5) * (0.6 + old_leaf * 0.4);
+	color = mix(color, DROUGHT_COLOR, drought_f);
 
 	// NITROGEN: uniform pale yellow-green. Mobile → older leaves first.
 	// Ref: whole leaf turns pale, starting from tip of lower leaves.
 	float n_tip = smoothstep(0.3, 0.8, UV.x);  // stronger toward leaf tip
-	float n_f = stress_n * (0.4 + old_leaf * 0.6) * (0.7 + n_tip * 0.3);
-	color = mix(color, N_DEFICIENCY, n_f * 0.6);
+	float n_f = s_n * (0.4 + old_leaf * 0.6) * (0.7 + n_tip * 0.3);
+	color = mix(color, N_DEFICIENCY, n_f);
 
 	// PHOSPHORUS: dark green base + purple overlay. Mobile → older leaves.
 	// Ref: anthocyanin accumulation, dark green because N accumulates.
-	float p_f = stress_p * (0.4 + old_leaf * 0.6);
-	color = mix(color, P_DARK_GREEN, p_f * 0.3);  // darken first
-	color = mix(color, P_PURPLE, p_f * 0.4);       // then purple tint
+	float p_f = s_p * (0.4 + old_leaf * 0.6);
+	color = mix(color, P_DARK_GREEN, p_f * 0.5);  // darken first
+	color = mix(color, P_PURPLE, p_f * 0.7);       // then purple tint
 
 	// IRON: interveinal chlorosis on YOUNG leaves. Immobile → top first.
 	// Ref: veins green, blade yellow to almost white. Parallel veins (monocot).
 	float vein_pattern = abs(sin(UV.y * 12.0));
-	float is_vein = smoothstep(0.55, 0.85, vein_pattern);
+	float is_vein = smoothstep(0.7, 0.92, vein_pattern);
 	vec3 fe_color = mix(FE_CHLOROSIS, FE_VEIN_COLOR, is_vein);
-	float fe_f = stress_fe * (0.3 + young_leaf * 0.7);  // top leaves first
-	color = mix(color, fe_color, fe_f * 0.6);
+	float fe_f = s_fe * (0.5 + young_leaf * 0.5);  // top leaves first
+	color = mix(color, fe_color, fe_f);
 
 	// ZINC: banded pale/bronze stripes. Immobile → young leaves first.
 	// Ref: light bands across leaf + shortened internodes.
 	float zn_band = abs(sin(UV.x * 8.0));  // bands along leaf length
 	float is_pale_band = smoothstep(0.4, 0.7, zn_band);
 	vec3 zn_color = mix(ZN_BRONZE, ZN_PALE, is_pale_band);
-	float zn_f = stress_zn * (0.3 + young_leaf * 0.7);  // top leaves first
-	color = mix(color, zn_color, zn_f * 0.55);
+	float zn_f = s_zn * (0.3 + young_leaf * 0.7);  // top leaves first
+	color = mix(color, zn_color, zn_f);
 
 	// FROST: patchy near-black necrosis. Sudden — affects all leaves.
 	// Ref: ice crystal damage causes water-soaked, then blackened tissue.
@@ -129,15 +142,15 @@ void fragment() {
 	float frost_noise = sin(UV.x * 17.3 + UV.y * 23.1 + wind_phase) *
 	                    sin(UV.x * 9.7 - UV.y * 13.5 + wind_phase * 1.7);
 	float frost_patch = smoothstep(-0.2, 0.6, frost_noise);
-	float frost_f = stress_frost * (0.4 + frost_patch * 0.6);
-	color = mix(color, FROST_NECROSIS, frost_f * 0.85);
+	float frost_f = s_frost * (0.4 + frost_patch * 0.6);
+	color = mix(color, FROST_NECROSIS, frost_f);
 
-	// HEAT: leaf tip burn — brown scorch on outer 35% of leaf.
+	// HEAT: brown scorch of the tip and, along the blade, the margin.
 	// Ref: high transpiration + low water → tip desiccation first.
 	// Stronger on younger/upper leaves (higher VPD exposure at canopy top).
-	float heat_tip = smoothstep(0.65, 1.0, UV.x);
-	float heat_f = stress_heat * heat_tip * (0.5 + young_leaf * 0.5);
-	color = mix(color, HEAT_BURN, heat_f * 0.8);
+	float heat_tip = max(smoothstep(0.4, 0.85, UV.x), 0.8 * edge);
+	float heat_f = s_heat * heat_tip * (0.5 + young_leaf * 0.5);
+	color = mix(color, HEAT_BURN, heat_f);
 
 	ALBEDO = color;
 	// Thin tissue transmits light: a blade between viewer and sun glows.
