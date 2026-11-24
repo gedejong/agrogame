@@ -65,7 +65,7 @@ nav:
       - In-season Alerts: adr/ADR-017-in-season-alerts.md
       - Continuous Simulation: adr/ADR-018-continuous-simulation.md
       - Soil pH Proton Budget: adr/ADR-020-soil-ph-proton-budget.md
-      - Diorama Presentation: adr/ADR-021-diorama-presentation.md
+      - Diorama Presentation: adr/ADR-022-diorama-presentation.md
   - Validation: validation.md
   - Research: research-correctness.md
   - Configuration: configuration.md
