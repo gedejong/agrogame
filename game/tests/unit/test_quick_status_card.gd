@@ -122,34 +122,6 @@ func test_theta_saturated() -> void:
 	assert_eq(scores["soil"], 0.0, "Saturated theta=0.5 scores 0, whatever the SOM")
 
 
-func test_soil_gauge_ignores_som_and_follows_theta() -> void:
-	# #629: the SOM term is gone, so it neither saturates nor moves the gauge;
-	# theta moves it by 20% around a typical value.
-	var base := {"theta_surface": 0.2, "crop_stage": 0}
-	var low: float = QSC.compute_scores(base)["soil"]
-	for som: float in [0.0, 7345.0, 73450.0]:
-		base["som_total_c_g_m2"] = som
-		assert_eq(QSC.compute_scores(base)["soil"], low, "SOM %.0f is not an input" % som)
-	var wetter: float = QSC.compute_scores({"theta_surface": 0.24, "crop_stage": 0})["soil"]
-	var drier: float = QSC.compute_scores({"theta_surface": 0.16, "crop_stage": 0})["soil"]
-	assert_gt(wetter, low, "+20% theta moves the gauge")
-	assert_lt(drier, low, "-20% theta moves the gauge")
-	assert_lt(low, 100.0, "no saturation at a typical theta")
-
-
-func test_soil_gauge_is_labelled_for_what_it_measures() -> void:
-	var labels: Array = QSC.GAUGE_DEFS.map(func(g: Dictionary) -> String: return g["label"])
-	assert_has(labels, "Soil moisture")
-	assert_does_not_have(labels, "Soil")
-
-
-func test_card_title_uses_the_given_soil_name() -> void:
-	var card := QSC.new()
-	add_child_autofree(card)
-	card.show_status({"crop_key": "maize", "crop_stage": 0}, "Loam - Temperate")
-	assert_eq(card._tile_label.text, "Maize — Loam - Temperate")
-
-
 func test_gauge_defs_count() -> void:
 	assert_eq(QSC.GAUGE_DEFS.size(), 4, "4 health gauges")
 

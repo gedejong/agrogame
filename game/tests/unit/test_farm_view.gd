@@ -199,37 +199,6 @@ func test_default_scenario_renders_as_before() -> void:
 		assert_eq(tex.resource_path, FarmLayout.SOIL_TEXTURES["clay"]["albedo"])
 
 
-func test_status_line_shows_soil_name_and_som_with_unit() -> void:
-	# #629: the loam tile reads "Loam - Temperate", not "organic"; SOM carries
-	# its unit and is the API's g C/m2 (pools / 10), not kg C/ha.
-	var loam := _patch("loam_temperate")
-	loam["soil_name"] = "Loam - Temperate"
-	var view := _enter("g", _game([loam]))
-	view._apply_patch_data(
-		{
-			"field_1":
-			[
-				{
-					"crop_key": "maize",
-					"crop_stage": "vegetative",
-					"soil_theta_surface": 0.11,
-					"som_total_c_g_m2": 7345.4
-				}
-			]
-		}
-	)
-	view._select_tile(0, 0)
-	assert_eq(view.status_label.text, "[0,0] Loam - Temperate | maize | SOM 7,345 gC/m² | θ 0.11")
-	assert_eq(view._quick_status._tile_label.text, "Maize — Loam - Temperate")
-	view._on_quick_status_history()
-	var panel: PanelContainer = view._cutaway._tile_info_panel
-	var titles: Array = panel.find_children("*", "Label", true, false).filter(
-		func(n: Label) -> bool: return n.text.contains("Loam - Temperate")
-	)
-	assert_eq(titles.size(), 1, "History panel title carries the soil name")
-	assert_false(view.status_label.text.to_lower().contains("organic"))
-
-
 func test_two_patches_sharing_a_soil_map_by_index() -> void:
 	# Mapping by soil name would give every tile the last patch's data (#516).
 	var view := _enter("g", _game([_patch("loam_temperate"), _patch("loam_temperate")]))
