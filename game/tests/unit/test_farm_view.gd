@@ -126,7 +126,7 @@ func test_preview_actions_cover_fixed_cost_buttons() -> void:
 	# Cost-preview specs (#318) must carry an action, label and params each,
 	# so the previewed cost label matches the executed action's deduction.
 	var actions: Array = []
-	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+	for spec: Dictionary in ActionPreviews.ACTIONS:
 		assert_true(spec.has("action"), "spec has action")
 		assert_true(spec.has("label"), "spec has label")
 		assert_true(spec.has("params"), "spec has params")
@@ -140,7 +140,7 @@ func test_preview_actions_cover_fixed_cost_buttons() -> void:
 func test_preview_irrigate_params_match_handler() -> void:
 	# The irrigate handler sends amount_mm=20; the preview spec must agree
 	# so the shown cost equals the ledger deduction.
-	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+	for spec: Dictionary in ActionPreviews.ACTIONS:
 		if spec["action"] == "irrigate":
 			assert_eq(spec["params"].get("amount_mm"), 20)
 
@@ -149,7 +149,7 @@ func test_preview_fertilize_is_variable_cost() -> void:
 	# Fertilize spans several priced tiers (#349 review), so its spec carries no
 	# fixed params: the preview resolves the cheapest tier at request time and
 	# the button shows a "from" price, gating only when no tier is affordable.
-	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+	for spec: Dictionary in ActionPreviews.ACTIONS:
 		if spec["action"] == "fertilize":
 			assert_true(spec.get("variable_cost", false), "fertilize previews a from-price")
 			assert_true(spec["params"].is_empty(), "fertilize params resolved dynamically")
@@ -159,7 +159,7 @@ func test_preview_lime_is_variable_cost() -> void:
 	# Lime is offered in t/ha tiers through its own picker (#465), so like
 	# fertilize it previews the cheapest tier as a "from" price rather than a
 	# fixed cost.
-	for spec: Dictionary in FarmView._PREVIEW_ACTIONS:
+	for spec: Dictionary in ActionPreviews.ACTIONS:
 		if spec["action"] == "lime":
 			assert_true(spec.get("variable_cost", false), "lime previews a from-price")
 			assert_true(spec["params"].is_empty(), "lime params resolved dynamically")
@@ -240,7 +240,7 @@ func test_missing_game_returns_to_title_without_creating_one() -> void:
 	assert_eq(api.calls, [["get_game", "gone"]], "no replacement game")
 
 
-## Chain `chain`'s reply for _PREVIEW_ACTIONS[i]. cost_credits encodes both,
+## Chain `chain`'s reply for ACTIONS[i]. cost_credits encodes both,
 ## irrigate 11/21, fertilize 12/22, tillage 13/23, lime 14/24. The older chain
 ## of each overlapping pair (odd) is unaffordable and the newer (even) is
 ## affordable, so a stale reply also shows in the tooltip, `disabled` and balance.
@@ -254,8 +254,8 @@ func _preview_reply(chain: int, i: int) -> Dictionary:
 ## No button may show a code whose last digit belongs to another action.
 func _assert_own_codes(view: Node3D, after: String) -> void:
 	var price := RegEx.create_from_string("(\\d+)cr\\)$")
-	for i in range(FarmView._PREVIEW_ACTIONS.size()):
-		var btn: Button = view._action_button_for(FarmView._PREVIEW_ACTIONS[i]["action"])
+	for i in range(ActionPreviews.ACTIONS.size()):
+		var btn: Button = view._previews.button_for(ActionPreviews.ACTIONS[i]["action"])
 		var found := price.search(btn.text)
 		if found != null:
 			assert_eq(int(found.get_string(1)) % 10, i + 1, "%s after %s" % [btn.text, after])
@@ -276,9 +276,9 @@ func _overlap_two_refreshes(view: Node3D, api: ApiClientTest.PreviewStubClient, 
 
 
 func _assert_chain_shown(view: Node3D, chain: int) -> void:
-	for i in range(FarmView._PREVIEW_ACTIONS.size()):
-		var spec: Dictionary = FarmView._PREVIEW_ACTIONS[i]
-		var btn: Button = view._action_button_for(spec["action"])
+	for i in range(ActionPreviews.ACTIONS.size()):
+		var spec: Dictionary = ActionPreviews.ACTIONS[i]
+		var btn: Button = view._previews.button_for(spec["action"])
 		var code: int = 10 * chain + i + 1
 		var label := ActionCost.format_button_label(
 			spec["label"], code, spec.get("variable_cost", false)
@@ -426,7 +426,7 @@ func test_bar_stays_held_until_each_step_and_action_is_applied() -> void:
 	for ok: bool in affordable:
 		api.reply_ok("preview", {"cost_credits": 5, "balance_credits": 900, "affordable": ok})
 	for i in range(affordable.size()):
-		var btn: Button = view._action_button_for(FarmView._PREVIEW_ACTIONS[i]["action"])
+		var btn: Button = view._previews.button_for(ActionPreviews.ACTIONS[i]["action"])
 		assert_eq(btn.disabled, not affordable[i], "%s follows its latest reply" % btn.name)
 	assert_false(view.harvest_btn.disabled, "Harvest follows the standing crop")
 	view._deselect()

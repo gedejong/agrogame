@@ -36,18 +36,6 @@ const CROP_GRID := {
 	"grape": Vector2i(2, 2),
 }
 
-## Action buttons and the exact params their handlers send, so the previewed
-## cost label matches the eventual ledger deduction (#318). Fertilize spans
-## several priced tiers (#349), so it carries no fixed params: the preview
-## resolves the cheapest tier at request time (see _preview_params_for) and its
-## button shows a "from" price, gating only when no tier is affordable.
-const _PREVIEW_ACTIONS: Array[Dictionary] = [
-	{"action": "irrigate", "label": "Irrigate", "params": {"amount_mm": 20}},
-	{"action": "fertilize", "label": "Fertilize", "params": {}, "variable_cost": true},
-	{"action": "tillage", "label": "Tillage", "params": {"intensity": 0.8}},
-	{"action": "lime", "label": "Lime", "params": {}, "variable_cost": true},
-]
-
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_meshes: Array[MeshInstance3D] = []
@@ -59,6 +47,7 @@ var _fertilizer_popup: PopupMenu = null
 var _lime_popup: LimePopup = null
 var _cutaway := SoilCutawayController.new()
 var _quick_status: QuickStatusCard = null
+var _previews: ActionPreviews = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
@@ -128,6 +117,17 @@ func _ready() -> void:
 	plant_btn.pressed.connect(_on_plant_pressed)
 	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
+	_previews = ActionPreviews.new(
+		_api_client,
+		{
+			"irrigate": irrigate_btn,
+			"fertilize": fertilize_btn,
+			"tillage": tillage_btn,
+			"lime": lime_btn,
+		},
+		func(balance: int) -> void: _balance_credits = balance,
+		func() -> bool: return _bar_held,
+	)
 	_setup_crop_popup()
 	_setup_fertilizer_popup()
 	_setup_lime_popup()
@@ -485,66 +485,7 @@ func _refresh_action_costs() -> void:
 	## Preview each fixed-cost action so buttons show cost + block if unaffordable.
 	if _game_id.is_empty():
 		return
-	_preview_action_at(0)
-
-
-func _preview_action_at(i: int) -> void:
-	if i < 0 or i >= _PREVIEW_ACTIONS.size():
-		return
-	var spec: Dictionary = _PREVIEW_ACTIONS[i]
-	_api_client.preview_action(
-		_game_id,
-		FarmLayout.FIELD_ID,
-		spec["action"],
-		_preview_params_for(spec),
-		func(success: bool, data: Dictionary) -> void: _on_preview_cost(success, data, i)
-	)
-
-
-func _preview_params_for(spec: Dictionary) -> Dictionary:
-	## Fertilize has no fixed tier: preview (and gate on) the cheapest option so
-	## the button only blocks when no tier is affordable (#349 review).
-	if spec["action"] == "fertilize":
-		return FertilizerPicker.params_for(FertilizerPicker.cheapest_option_id())
-	if spec["action"] == "lime":
-		return LimePicker.params_for(LimePicker.cheapest_option_id())
-	return spec["params"]
-
-
-func _on_preview_cost(success: bool, data: Dictionary, i: int) -> void:
-	if success:
-		_apply_cost_to_button(i, data)
-	# Chain the next preview (one shared HTTPRequest handles them sequentially).
-	_preview_action_at(i + 1)
-
-
-func _apply_cost_to_button(i: int, data: Dictionary) -> void:
-	var spec: Dictionary = _PREVIEW_ACTIONS[i]
-	var btn: Button = _action_button_for(spec["action"])
-	if btn == null:
-		return
-	var cost: int = data.get("cost_credits", 0)
-	var balance: int = data.get("balance_credits", 0)
-	var affordable: bool = data.get("affordable", true)
-	_balance_credits = balance
-	var variable_cost: bool = spec.get("variable_cost", false)
-	btn.text = ActionCost.format_button_label(spec["label"], cost, variable_cost)
-	btn.tooltip_text = ActionCost.tooltip_text(spec["action"], cost, balance)
-	btn.disabled = not affordable or _bar_held
-
-
-func _action_button_for(action: String) -> Button:
-	match action:
-		"irrigate":
-			return irrigate_btn
-		"fertilize":
-			return fertilize_btn
-		"tillage":
-			return tillage_btn
-		"lime":
-			return lime_btn
-		_:
-			return null
+	_previews.refresh(_game_id, FarmLayout.FIELD_ID)
 
 
 func _on_weather_clicked(event: InputEvent) -> void:
