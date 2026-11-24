@@ -22,9 +22,8 @@ void vertex() {
 }
 
 void fragment() {
-	if (!FRONT_FACING) {
-		NORMAL = -NORMAL;
-	}
+	// With cull_disabled the engine already turns NORMAL towards the viewer
+	// on a back face; flipping it again left heads lit from inside (#637).
 	// Vertex colours are Godot Colors (sRGB), which the engine passes to a
 	// custom shader unconverted.
 	ALBEDO = albedo * SRGB_TO_LINEAR(COLOR.rgb);

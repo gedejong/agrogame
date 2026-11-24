@@ -67,10 +67,9 @@ void fragment() {
 	if (mask < 0.3) {
 		discard;
 	}
-	// A blade is a two-sided sheet: shade whichever face is towards the viewer.
-	if (!FRONT_FACING) {
-		NORMAL = -NORMAL;
-	}
+	// A blade is a two-sided sheet. With cull_disabled the engine already
+	// turns NORMAL towards the viewer on a back face (DO_SIDE_CHECK); flipping
+	// it again here shaded every back face as if lit from behind (#637).
 
 	// Bottom-up senescence: lower leaves senesce faster during grain fill.
 	float effective_sen = clamp(senescence + (1.0 - leaf_height) * senescence * 0.4, 0.0, 1.0);

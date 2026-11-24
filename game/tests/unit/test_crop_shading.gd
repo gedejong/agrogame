@@ -1,8 +1,9 @@
 extends GutTest
-## Colour space of the crop and soil shaders (#637). Colours are authored in
-## sRGB and must reach the lighting maths as linear light: colour uniforms are
-## set from a Color, which the engine converts (a Vector3 goes in unchanged),
-## and colour literals and vertex colours go through SRGB_TO_LINEAR.
+## Shading of the crop and soil shaders (#637). Colours are authored in sRGB
+## and must reach the lighting maths as linear light: colour uniforms are set
+## from a Color, which the engine converts (a Vector3 goes in unchanged), and
+## colour literals and vertex colours go through SRGB_TO_LINEAR. Two-sided
+## surfaces leave the back-face normal to the engine.
 
 const CR = preload("res://scripts/crop_renderer_3d.gd")
 
@@ -78,3 +79,12 @@ func _source(path: String) -> String:
 	var text: String = FileAccess.get_file_as_string(path)
 	assert_false(text.is_empty(), path + " is readable")
 	return text
+
+
+func test_two_sided_shaders_do_not_flip_the_normal_again() -> void:
+	# With cull_disabled the engine turns NORMAL towards the viewer on a back
+	# face before fragment() runs; a second flip shades that face from behind.
+	for path: String in [LEAF_SHADER, ORGAN_SHADER]:
+		var text: String = _source(path)
+		assert_string_contains(text, "render_mode cull_disabled")
+		assert_false(text.contains("NORMAL = -NORMAL"), path + " leaves NORMAL to the engine")
