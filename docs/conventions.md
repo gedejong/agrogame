@@ -80,6 +80,15 @@ so aliases survive a load (#577). The full-graph guard in
 `tests/integration/test_save_continuation.py` enforces this: memory that
 is left out shows up as a leaf that differs after a load.
 
+A crop change keeps the same memory by one rule (#583): memory whose source
+is the soil or the atmosphere is **soil-owned** and `reset_crop` carries it
+across; memory that mirrors the crop's own state (root fractions, canopy
+stress, yesterday's growth) is **crop-owned** and resets, because its source
+is rebuilt with the crop. List the crop-owned names in `_CROP_MEMORY`;
+everything else in `_MEMORY` is soil-owned. `tests/unit/test_runtime_memory.py`
+pins the classification, and the no-op fallow-to-fallow walk in
+`tests/integration/test_reset_crop_memory.py` catches soil memory left out.
+
 ## 3. Method names
 
 `daily_step(...)` is the canonical name for the once-per-day computation on
