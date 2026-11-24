@@ -75,15 +75,16 @@ _THETA_CM_TO_MM = 10.0
 # (a stale table is a visible, testable diff; a private-method import is a
 # hidden coupling). Values mirror the *default* branch of
 # ``RootModule._stage_multiplier``: full elongation while vegetative, tapering
-# through flowering and beyond. Crop-level overrides (``RootParams.stage_multipliers``,
-# wired via ``plant/roots/factory.py``) take precedence when supplied — see
+# through flowering and grain fill, and a hard stop at maturity (#539). Crop-level
+# overrides (``RootParams.stage_multipliers``, wired via ``plant/roots/factory.py``)
+# take precedence for every stage except MATURITY — see
 # ``stage_depth_multiplier``'s ``overrides`` argument.
 _STAGE_DEPTH_MULTIPLIERS: dict[PhenologyStage, float] = {
     PhenologyStage.EMERGED: 1.0,
     PhenologyStage.VEGETATIVE: 1.0,
     PhenologyStage.FLOWERING: 0.6,
 }
-_DEFAULT_STAGE_DEPTH_MULTIPLIER = 0.3  # sowing/germination/maturity/senescence
+_DEFAULT_STAGE_DEPTH_MULTIPLIER = 0.3  # planted/grain fill
 
 
 @dataclass(frozen=True)
@@ -262,13 +263,16 @@ def stage_depth_multiplier(
     branch**: when ``overrides`` (the crop's ``RootParams.stage_multipliers``,
     wired into the engine via ``plant/roots/factory.py``) contains ``stage``, its
     value wins (clamped ≥ 0). Otherwise the default table
-    (``_STAGE_DEPTH_MULTIPLIERS``) applies, with stages not in it (sowing,
-    germination, maturity, senescence) falling back to the reduced default.
+    (``_STAGE_DEPTH_MULTIPLIERS``) applies, with stages not in it (planted,
+    grain fill) falling back to the reduced default. MATURITY is a hard stop at
+    0.0 that no override lifts, as in the engine (#539).
 
     Threading ``overrides`` through keeps the forecast's depth projection in step
     with any crop that customises its stage table; no shipped preset sets one
     today, but a future preset would otherwise silently diverge from the engine.
     """
+    if stage is PhenologyStage.MATURITY:
+        return 0.0
     if overrides and stage in overrides:
         return max(0.0, overrides[stage])
     return _STAGE_DEPTH_MULTIPLIERS.get(stage, _DEFAULT_STAGE_DEPTH_MULTIPLIER)
@@ -337,6 +341,7 @@ def project_soil_forecast(
     root_max_depth_cm: float = float("inf"),
     root_stage_multiplier: float = 1.0,
     root_penetration_factor: float = 1.0,
+    crop_n_uptake: bool = True,
 ) -> list[SoilForecastPoint]:
     """Project water-stress and mineral-N ``len(weather)`` days ahead.
 
@@ -473,7 +478,8 @@ def project_soil_forecast(
         mineral_n += decomposed_n * (1.0 - _SOM_HUMIFICATION_LABILE)
 
         # Mineral-N sinks: crop uptake (canopy- and stress-scaled) then leaching.
-        uptake = _PEAK_N_UPTAKE_KG_HA_DAY * canopy_cover * ks
+        # A mature crop takes up no N (#539; ADR-013 amendment 2026-11-24).
+        uptake = _PEAK_N_UPTAKE_KG_HA_DAY * canopy_cover * ks if crop_n_uptake else 0.0
         mineral_n = max(0.0, mineral_n - uptake)
         leach_fraction = min(
             _LEACH_MAX_FRACTION, drainage / (drainage + _LEACH_DRAINAGE_HALF_MM)
