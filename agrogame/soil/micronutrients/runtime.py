@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from agrogame.events import EventBus
@@ -26,6 +27,11 @@ class MicronutrientRuntime(RuntimeMemory):
     # False on a bare fallow (#542): pools still equilibrate, but there is no
     # plant demand, so no uptake and no NutrientStressComputed.
     plant_present: bool = True
+    # Injected port (ADR-008; cf. RootsRuntime.canopy_increment_provider):
+    # whether the plant takes up nutrients today. The orchestrator returns
+    # False at MATURITY (#539), where pools equilibrate as on a fallow. It
+    # reads the saved phenology stage, so it adds no cross-day memory.
+    uptake_active_provider: Callable[[], bool] | None = None
     # Saved with the patch (#577): yesterday's growth and root fractions.
     _MEMORY = ("_last_biomass_inc", "_root_fractions")
     # Both mirror the crop, so a crop change resets them (#583).
@@ -65,10 +71,16 @@ class MicronutrientRuntime(RuntimeMemory):
             redox_params=self.redox_params,
         )
 
+    def _uptake_active(self) -> bool:
+        """Whether the plant takes up micronutrients today (no port: always)."""
+        if self.uptake_active_provider is None:
+            return True
+        return self.uptake_active_provider()
+
     def _on_day_tick(self, ev: DayTick) -> None:
         if ev.phase != "nutrients":
             return
-        if not self.plant_present:
+        if not self.plant_present or not self._uptake_active():
             self.cycle.equilibrate()
             return
         self.cycle.daily_step(
