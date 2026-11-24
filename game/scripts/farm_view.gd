@@ -266,20 +266,31 @@ func _select_tile(col: int, row: int) -> void:
 	var crop_key: String = data.get("crop_key", "")
 	var crop_info := " | %s" % crop_key if not crop_key.is_empty() else ""
 	status_label.text = (
-		"[%d,%d] %s%s | SOM %.0f | θ %.2f"
+		"[%d,%d] %s%s | SOM %s %s | θ %.2f"
 		% [
 			col,
 			row,
-			data["soil_type"],
+			FarmLayout.soil_label(data),
 			crop_info,
-			data.get("som_total_c_g_m2", 0.0),
+			_som_text(data.get("som_total_c_g_m2", 0.0)),
+			UiTheme.carbon_label(),
 			data.get("theta_surface", 0.0),
 		]
 	)
-	var soil_type: String = data.get("soil_type", "")
 	# Show Quick Status card instead of full sparkline panel
-	_show_quick_status(data, soil_type)
+	_show_quick_status(data, FarmLayout.soil_label(data))
 	_update_harvest_button()
+
+
+## SOM carbon (API g C/m²) in the display unit, thousands separated: "7,345".
+static func _som_text(som_g_m2: float) -> String:
+	var digits := str(roundi(UiTheme.to_display_mass_from_gm2(som_g_m2)))
+	var out := ""
+	for i in range(digits.length()):
+		if i > 0 and (digits.length() - i) % 3 == 0:
+			out += ","
+		out += digits[i]
+	return out
 
 
 func _deselect() -> void:
@@ -315,7 +326,7 @@ func _on_quick_status_history() -> void:
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var data: Dictionary = _tile_data[idx]
 	var history: Array = _daily_history.get(data.get("patch_idx", 0), [])
-	_cutaway.show_tile_info(data.get("soil_type", ""), data.get("crop_key", ""), history, $UILayer)
+	_cutaway.show_tile_info(FarmLayout.soil_label(data), data.get("crop_key", ""), history, $UILayer)
 
 
 func _update_tile_shader(idx: int) -> void:

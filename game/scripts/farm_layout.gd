@@ -48,6 +48,13 @@ static func texture_for_soil_key(soil_profile_key: String) -> String:
 	return "organic"
 
 
+## What to call a tile's soil: the preset's display name from the API ("Loam -
+## Temperate"), else its texture class when the payload predates soil_name (#629).
+static func soil_label(tile: Dictionary) -> String:
+	var soil_name: String = tile.get("soil_name", "")
+	return soil_name if not soil_name.is_empty() else tile.get("soil_type", "")
+
+
 ## Give each tile FIELD_ID, whose patches these are, its column band's
 ## patch_idx, and its material that patch's soil textures. An empty patch list
 ## leaves the tiles as they are.
@@ -60,6 +67,7 @@ static func assign_tiles(patches: Array, tile_data: Array, materials: Array, col
 		tile_data[i]["field_id"] = FIELD_ID
 		tile_data[i]["patch_idx"] = patch_idx
 		tile_data[i]["soil_type"] = soil_type
+		tile_data[i]["soil_name"] = patches[patch_idx].get("soil_name", "")
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]
 		materials[i].set_shader_parameter("albedo_texture", load(paths["albedo"]))
 		materials[i].set_shader_parameter("normal_texture", load(paths["normal"]))

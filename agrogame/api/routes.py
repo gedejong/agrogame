@@ -242,12 +242,25 @@ def _pore_fields(pore: dict) -> dict:
     }
 
 
+_KG_HA_TO_G_M2 = 0.1  # 1 kg/ha = 1000 g / 10 000 m² = 0.1 g/m²
+
+
+def _som_total_g_m2(snap: SoilSnapshot) -> float:
+    """Whole-profile SOM carbon in g C/m².
+
+    The pool arrays are kg C/ha (``SOMPool.c_kg_ha``), so the sum is converted
+    here; the field is named for the unit it must carry (#629).
+    """
+    kg_ha = (
+        sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
+    )
+    return float(kg_ha * _KG_HA_TO_G_M2)
+
+
 def _build_soil_state(patch: Patch) -> SoilStateResponse:
     """Build SoilStateResponse from a patch's current soil snapshot."""
     snap = patch.orch.snapshot_soil()
-    som_total = (
-        sum(snap.som_labile_c) + sum(snap.som_intermediate_c) + sum(snap.som_stable_c)
-    )
+    som_total = _som_total_g_m2(snap)
     redox_eh = list(snap.redox_eh) if snap.redox_eh else []
     ksat_mm_day, porosity = _dynamic_soil_properties(patch)
     root_state = patch.orch.root_state
@@ -347,11 +360,13 @@ def _field_layouts(s: GameSession) -> dict[str, list[PatchLayoutResponse]]:
     The client lays out its tiles from this, so a one-patch scenario renders as
     one band instead of the three hard-coded soil bands.
     """
+    soils = load_soil_presets(Path("soils/presets.yaml")).soils
     return {
         fid: [
             PatchLayoutResponse(
                 patch_idx=i,
                 soil_profile_key=p.config.soil_profile_key,
+                soil_name=soils[p.config.soil_profile_key].name,
                 crop_key=p.config.crop_key,
                 climate_key=p.config.climate_key,
                 area_fraction=p.config.area_fraction,
@@ -1086,11 +1101,7 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
         patches[fid] = []
         for i, p in enumerate(fld.patches):
             snap = p.orch.snapshot_soil()
-            som_total = (
-                sum(snap.som_labile_c)
-                + sum(snap.som_intermediate_c)
-                + sum(snap.som_stable_c)
-            )
+            som_total = _som_total_g_m2(snap)
             theta_top = snap.water_theta[0] if snap.water_theta else 0.0
             # Actual plant water stress from transpiration supply/demand ratio
             w_stress = p.orch.canopy.state.last_water_stress
@@ -1766,11 +1777,7 @@ def get_harvest_report(game_id: str) -> HarvestReportResponse:
             gyga = _GYGA_YIELDS.get(crop_key, {}).get(climate, 10.0)
             ratio = min(grain_t_ha / gyga, 1.0) if gyga > 0 else 0.0
             snap = p.orch.snapshot_soil()
-            som_total = (
-                sum(snap.som_labile_c)
-                + sum(snap.som_intermediate_c)
-                + sum(snap.som_stable_c)
-            )
+            som_total = _som_total_g_m2(snap)
             patch_reports[fid].append(
                 PatchYieldReport(
                     patch_idx=i,

@@ -165,7 +165,9 @@ def test_get_game_reports_one_patch_layout(client) -> None:
         json={"fields": [{"field_id": "field_1", "patches": [patch]}]},
     )
     assert resp.status_code == 200
-    assert _layout(client, resp.json()["game_id"]) == [{"patch_idx": 0, **patch}]
+    assert _layout(client, resp.json()["game_id"]) == [
+        {"patch_idx": 0, "soil_name": "Sandy - Sub-Saharan Variant", **patch}
+    ]
 
 
 def test_get_game_reports_three_patches_in_order(client) -> None:
@@ -191,6 +193,11 @@ def test_get_game_reports_three_patches_in_order(client) -> None:
     assert [p["patch_idx"] for p in layout] == [0, 1, 2]
     assert [p["soil_profile_key"] for p in layout] == soils
     assert [p["area_fraction"] for p in layout] == fractions
+    assert [p["soil_name"] for p in layout] == [
+        "Sandy - Temperate",
+        "Loam - Temperate",
+        "Clay - Temperate",
+    ]
     assert {p["crop_key"] for p in layout} == {"maize"}
     assert {p["climate_key"] for p in layout} == {"netherlands_temperate"}
 
@@ -504,6 +511,39 @@ def test_step_one_day(client) -> None:
     assert 0.0 <= patch["dev_stage"] <= 2.0
     assert "soil_theta_surface" in patch
     assert data["season_complete"] is False
+
+
+def _pool_sum_g_m2(game_id: str) -> float:
+    """Whole-profile SOM C from the live pools (kg C/ha) as g C/m² (#629)."""
+    from agrogame.api.state import games
+
+    orch = games[game_id].field_manager.fields["f1"].patches[0].orch
+    kg_ha = sum(
+        getattr(layer, pool).c_kg_ha
+        for layer in orch.som.state.layers
+        for pool in ("labile", "intermediate", "stable")
+    )
+    return kg_ha / 10.0  # 1 kg/ha = 0.1 g/m2
+
+
+def test_som_total_is_g_c_per_m2_on_every_surface(client) -> None:
+    """som_total_c_g_m2 is the pool sum in g/m2 on /step, /status and /report (#629).
+
+    Two seasons: the unit must hold after the season reset, not just at day 1.
+    """
+    game_id = _create_game(client)
+    for season in range(2):
+        client.post(f"/api/v1/games/{game_id}/start-season?days=5&seed={42 + season}")
+        step = client.post(f"/api/v1/games/{game_id}/step?days=5").json()
+        assert step["season_complete"]
+        day_som = step["patches"]["f1"][0]["som_total_c_g_m2"]
+        state_som = step["patches"]["f1"][0]["soil_state"]["som_total_c_g_m2"]
+        expected = _pool_sum_g_m2(game_id)
+        assert day_som == pytest.approx(expected, abs=0.1), season
+        assert state_som == pytest.approx(expected, abs=0.01), season
+        report = client.get(f"/api/v1/games/{game_id}/report").json()
+        rep_som = report["patches"]["f1"][0]["som_total_c_g_m2"]
+        assert rep_som == pytest.approx(expected, abs=0.1), season
 
 
 def test_step_multiple_days(client) -> None:
