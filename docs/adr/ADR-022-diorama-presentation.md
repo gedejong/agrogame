@@ -39,6 +39,19 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
      with density fading with depth.
    - Under decorative land, the face shows a static profile typical of the
      scenario's region.
+   - **Soil detail follows the same rule: drawn from the simulation where the
+     model holds the quantity, decorative only outside it.**
+     - Old root channels come from the biopore density per layer, the channels
+       decayed roots leave (ADR-009).
+     - Grey and rust redox mottles appear where a layer's redox potential drops
+       into the iron-reducing range (Vepraskas 1992). They are the visible trace
+       of a fluctuating water table.
+     - Below the simulated profile, a band of regional parent material: rock
+       fragments, ironstone gravel or marine clay. It lies outside the model, so
+       it is decorative.
+     - No aquifer or water table is drawn while the water balance drains freely
+       and has no groundwater. Adding one is a hydrology decision, not a
+       presentation one.
    - ADR-005's goal 2 (showing what happens underground) stands. It is now
      delivered as an ambient, always-visible edge, not as a mode.
 2. **The pit cutaway is retired.** The pit, the hidden tiles, the pillar, the
@@ -107,5 +120,8 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
 - Epic #645 (children #646 to #649); #634 (roots drawn at about twice their
   depth), #641 (stress tints, cutaway
   colours), #637 / PR #640 (farm environment and lighting)
+- Vepraskas, M. J. (1992). *Redoximorphic Features for Identifying Aquic
+  Conditions*. Technical Bulletin 301, North Carolina Agricultural Research
+  Service.
 - Williams, J. R. (1995). The EPIC model. In V. P. Singh (Ed.), *Computer
   Models of Watershed Hydrology*, pp. 909–1000. Water Resources Publications.
