@@ -86,6 +86,14 @@ func test_card_width_is_fixed_narrow_or_wide() -> void:
 	assert_eq(wide.size.x, QSC.WIDTH, "widest state: a long line wraps")
 
 
+func test_a_long_soil_name_wraps_instead_of_widening_the_card() -> void:
+	var card: PanelContainer = QSC.new()
+	add_child_autofree(card)
+	card.show_status({"crop_key": "maize"}, "Sandy - Sub-Saharan Variant")
+	await wait_process_frames(2)
+	assert_eq(card.size.x, QSC.WIDTH)
+
+
 func test_history_panel_opens_beside_the_card_not_on_it() -> void:
 	var pos: Vector2 = QSC.history_position()
 	assert_eq(pos, Vector2(QSC.ORIGIN.x + QSC.WIDTH + QSC.HISTORY_GAP, QSC.ORIGIN.y))

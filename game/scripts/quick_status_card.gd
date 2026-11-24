@@ -76,6 +76,7 @@ func show_status(tile_data: Dictionary, soil_type: String) -> void:
 	_tile_label.add_theme_color_override("font_color", UiTheme.TEXT_PRIMARY)
 	_tile_label.uppercase = true
 	_tile_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tile_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # a long soil name wraps (#630)
 	vbox.add_child(_tile_label)
 
 	_add_separator(vbox)
