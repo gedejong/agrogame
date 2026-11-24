@@ -17,7 +17,7 @@ func test_max_sparklines_per_tab() -> void:
 
 
 func test_graphs_backward_compat() -> void:
-	assert_eq(TileInfoPanel.GRAPHS.size(), 10, "10 graph keys")
+	assert_eq(TileInfoPanel.GRAPHS.size(), 11, "11 graph keys (#630 adds root depth)")
 	assert_true(TileInfoPanel.GRAPHS.has("lai"), "GRAPHS has lai")
 	assert_true(TileInfoPanel.GRAPHS.has("theta_surface"), "GRAPHS has theta")
 	assert_true(TileInfoPanel.GRAPHS.has("mn_available_surface"), "GRAPHS has Mn")

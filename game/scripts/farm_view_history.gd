@@ -28,6 +28,7 @@ static func append_snapshots(snapshots: Array, daily_history: Dictionary, fields
 				{
 					"crop_stage": snap.get("crop_stage", ""),
 					"lai": snap.get("lai", 0.0),
+					"root_depth_cm": snap.get("root_depth_cm", 0.0),
 					"grain_g_m2": snap.get("grain_g_m2", 0.0),
 					"water_stress": 1.0 - snap.get("water_stress", 1.0),
 					"theta_surface": snap.get("soil_theta_surface", 0.0),
@@ -66,6 +67,7 @@ static func append_patch(
 			{
 				"crop_stage": patch.get("crop_stage", ""),
 				"lai": patch.get("lai", 0.0),
+				"root_depth_cm": patch.get("root_depth_cm", 0.0),
 				"grain_g_m2": patch.get("grain_g_m2", 0.0),
 				# API water_stress = transpiration supply/demand (1=no stress, 0=severe).
 				# Invert so graph shows stress intensity (0=healthy, 1=severe).

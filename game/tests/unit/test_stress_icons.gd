@@ -203,3 +203,20 @@ func test_harvested_bare_tile_shows_no_icon() -> void:
 	}
 	icons.update_from_patches({"f": [bare]}, [{"field_id": "f", "patch_idx": 0}], [_make_mesh()])
 	assert_eq(icons._icons.size(), 0, "a bare tile draws no stress icon")
+
+
+func test_clear_tiles_drops_only_the_named_tiles_icons() -> void:
+	var icons := StressIconsRef.new()
+	add_child_autofree(icons)
+	var meshes: Array = [_make_mesh(), _make_mesh(Vector3(1, 0, 0))]
+	var tiles: Array = [
+		{"field_id": "f", "patch_idx": 0},
+		{"field_id": "f", "patch_idx": 1},
+	]
+	var hit := {"events": [{"event_type": "HeatDamageApplied", "data": {}}]}
+	icons.update_from_patches({"f": [hit, hit]}, tiles, meshes)
+	assert_eq(icons._icons.keys().size(), 2)
+	icons.clear_tiles([0] as Array[int])
+	assert_eq(icons._icons.keys(), ["1"], "tile 1 keeps its icon")
+	icons.clear_tiles([0] as Array[int])  # already gone: no error
+	assert_eq(icons._icons.keys(), ["1"])

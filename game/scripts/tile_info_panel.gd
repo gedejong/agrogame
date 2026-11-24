@@ -23,6 +23,13 @@ const TABS := {
 			"mass_type": "mass",
 			"color": UiTheme.ACCENT_GOLD
 		},
+		{
+			"key": "root_depth_cm",
+			"label": "Root depth",
+			"unit": "cm",
+			"mass_type": "",
+			"color": Color(0.55, 0.40, 0.25)
+		},
 	],
 	"Water":
 	[
@@ -95,6 +102,7 @@ const TABS := {
 const GRAPHS := {
 	"lai": {"label": "LAI"},
 	"grain_g_m2": {"label": "Grain"},
+	"root_depth_cm": {"label": "Root depth"},
 	"theta_surface": {"label": "Soil water"},
 	"water_stress": {"label": "Water stress"},
 	"n_available": {"label": "N available"},

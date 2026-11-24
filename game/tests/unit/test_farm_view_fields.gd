@@ -302,3 +302,112 @@ func test_a_reconcile_changing_field_2_updates_its_rows_only() -> void:
 		assert_eq(_grid(view, "lai"), _bands(2.0, 0.0), "field_1 keeps its growth")
 		var reread := "Plant failed; credits and crops re-read from the server"
 		assert_eq(view.status_label.text, reread)
+
+
+## A step of `n` days in which only field_1's patch 0 has heat, on day `heat_day`.
+func _heat_step(n: int, heat_day: int, first: int = 1) -> Dictionary:
+	var snaps: Array = []
+	for d in range(first, first + n):
+		for field: String in ["field_1", "field_2"]:
+			var events: Array = []
+			if field == "field_1" and d == heat_day:
+				events.append(
+					{"event_type": "HeatDamageApplied", "data": {"grain_reduction_factor": 0.5}}
+				)
+			(
+				snaps
+				. append(
+					{
+						"day_number": d,
+						"field_id": field,
+						"patch_idx": 0,
+						"crop_stage": "vegetative",
+						"dev_stage": 0.1 + 0.01 * d,
+						"root_depth_cm": 10.0 + d,
+						"events": events,
+					}
+				)
+			)
+	var maize := {"crop_key": "maize", "crop_stage": "vegetative", "events": []}
+	var rice := {"crop_key": "rice", "crop_stage": "vegetative", "events": []}
+	var patches := {
+		"field_1": [maize.duplicate(true), maize.duplicate(true), maize.duplicate(true)]
+	}
+	patches["field_2"] = [rice.duplicate(true)]
+	patches["field_1"][0]["root_depth_cm"] = 10.0 + first + n - 1
+	patches["field_2"][0]["root_depth_cm"] = 30.0
+	return {"day_number": first + n - 1, "daily_snapshots": snaps, "patches": patches}
+
+
+func _card_texts(view: Node3D) -> Array:
+	var out: Array = []
+	for lbl: Label in view._quick_status.find_children("*", "Label", true, false):
+		out.append(lbl.text)
+	return out
+
+
+func test_damage_latches_over_a_step_for_its_own_field_only() -> void:
+	var view := _enter(_fields())
+	view._apply_day_result(_heat_step(7, 3))
+	for i in range(36):
+		var field: String = _owner(i)[0]
+		var patch: int = _owner(i)[1]
+		var hot: bool = field == "field_1" and patch == 0
+		assert_eq(view._tile_data[i]["heat_damage"], 0.5 if hot else 0.0, "tile %d" % i)
+		assert_eq(view._tile_data[i].get("heat_days", 0), 1 if hot else 0, "tile %d" % i)
+	assert_eq(_icon_tiles(view), [0, 1, 6, 7, 12, 13], "the icon latches though day 7 was calm")
+	var keys: Array = view._stress_icons._icons["0"].get_meta("stress_keys")
+	assert_has(keys, "HeatDamageApplied")
+
+
+func test_card_follows_the_selected_tiles_field_and_patch() -> void:
+	var view := _enter(_fields())
+	view._apply_day_result(_heat_step(7, 3))
+	view._select_tile(0, 0)
+	var f1 := _card_texts(view)
+	assert_has(f1, "Heat: 1 day, grain growth −50% that day")
+	assert_has(f1, "Roots 17 cm")
+	view._select_tile(0, 4)
+	var f2 := _card_texts(view)
+	assert_has(f2, "Roots 30 cm", "field 2's patch, not field 1's")
+	assert_eq(f2.filter(func(t: String) -> bool: return t.begins_with("Heat")), [])
+	assert_has(f2, "Vegetative")
+
+
+func test_heat_counts_carry_across_steps_and_reset_on_replant_and_harvest() -> void:
+	var view := _enter(_fields())
+	view._apply_day_result(_heat_step(7, 3))
+	view._apply_day_result(_heat_step(7, 9, 8))
+	assert_eq(view._tile_data[0]["heat_days"], 2)
+	# Season two: the rollover replants, DVS falls, and the count starts again.
+	var rollover := _heat_step(7, 16, 15)
+	for snap: Dictionary in rollover["daily_snapshots"]:
+		snap["dev_stage"] = 0.01 * (snap["day_number"] - 14)
+	view._apply_day_result(rollover)
+	assert_eq(view._tile_data[0]["heat_days"], 1, "season two's own day")
+	# Plant resets it, and Harvest clears the icons of its patch only.
+	view._on_plant_complete(true, {}, "sorghum", "field_1", 0)
+	assert_eq(view._tile_data[0]["heat_days"], 0)
+	view._apply_day_result(_heat_step(3, 17, 16))
+	view._apply_day_result(_heat_step(3, 17, 19))
+	view._tile_data[24]["heat_damage"] = 0.0
+	var field_2_icons: Array = _icon_tiles(view).filter(func(i: int) -> bool: return i >= 18)
+	view._on_harvest_complete(true, {}, "maize", "field_1", 0)
+	assert_eq(_icon_tiles(view).filter(func(i: int) -> bool: return i < 18 and i % 6 < 2), [])
+	assert_eq(view._tile_data[0]["heat_days"], 0)
+	assert_eq(_icon_tiles(view).filter(func(i: int) -> bool: return i >= 18), field_2_icons)
+	view._select_tile(0, 0)
+	var texts := _card_texts(view)
+	assert_has(texts, "—")
+	assert_has(texts, "Roots —")
+
+
+func test_history_panel_clears_the_card() -> void:
+	var view := _enter(_fields())
+	view._apply_day_result(_heat_step(2, 1))
+	view._select_tile(0, 0)
+	view._on_quick_status_history()
+	await wait_process_frames(2)
+	var panel: Control = view._cutaway._tile_info_panel
+	assert_false(view._quick_status.get_global_rect().intersects(panel.get_global_rect()))
+	assert_eq(panel.position.x, view._quick_status.position.x + QuickStatusCard.WIDTH + 8.0)
