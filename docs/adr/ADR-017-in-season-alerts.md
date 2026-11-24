@@ -4,6 +4,9 @@
 
 Accepted, 2026-11-17, implemented by #470. Supersedes
 [ADR-004](ADR-004-game-loop-turn-system.md), which was never accepted.
+Amended by [ADR-018](ADR-018-continuous-simulation.md) (2026-11-18): there is
+no season boundary, so latches persist and re-arm on Plant, and the alert log
+and `pause_count` cover the game so far.
 
 Provenance of each decision is recorded under "Decisions and provenance".
 
@@ -69,6 +72,10 @@ Signals are the simulation's own state, never a proxy:
 `rearm_days` consecutive clear days. A day on which the gate is closed is a
 clear day.
 
+> **Amended by ADR-018 (decision 8):** nothing resets latches at a season
+> boundary, because there is none; a field's latches also re-arm on Plant in
+> that field.
+
 **Interrupt spacing.** An interrupting alert does not fire within 3 days of
 the previous interrupt on the same field; the gap must exceed 3 days. A reason
 held back this way is deferred, not dropped: it fires on the first allowed day
@@ -98,6 +105,9 @@ constant, and none changes a simulated value.
 - Latch state and the season's alerts are saved as optional keys within save
   schema v1 (ADR-001). A save without them loads with every reason armed.
 
+> **Amended by ADR-018 (decision 8):** with no season, `pause_count`, `GET
+> /status` and the saved alert log cover the game so far.
+
 ## Playtest method and evidence
 
 The thresholds come from a delegated agent playtest (2026-10-02). It drove
@@ -114,6 +124,10 @@ measured by that playtest. The rarity target, at most 4 interrupting pauses
 per season with a median gap of 14 days or more, is a judgement anchored on
 ADR-004's five-minute season, roughly one interrupt per five FF7 presses.
 Numbers from playtesting with real players would supersede it.
+
+> **Amended by ADR-018 (decision 4):** the rarity target applies to the
+> stress alerts (drought, nitrogen), on which it was anchored, and not to
+> *harvest ready*.
 
 The implementation reproduces the playtest on the live `/step` path (seeds 42
 to 51, one season each, field level):
@@ -161,6 +175,10 @@ rice's 10 °C threshold is a chilling-injury question for the rice preset
 - **Early stop is opt-in on `/step`.** Manager, recorded on #470.
 - **One day loop.** `/start-season` only sets up; `/step` drives the days.
   Manager, implemented by #487.
+
+    > **Superseded by ADR-018 (decision 1):** there is no season to set up;
+    > `/step` drives one continuous calendar, and #595 retires `/start-season`.
+
 - **Rewrite ADR-004 as a new ADR that supersedes it.** Edwin, relayed by the
   manager.
 - **Thresholds delegated to an agent playtest.** Edwin, relayed by the
@@ -201,6 +219,9 @@ rice's 10 °C threshold is a chilling-injury question for the rice preset
 - **Frost-response actions**, and with them frost as an interrupt.
 - **Season phases.** `SeasonPhase` still reports `planning`, `executing` and
   `settling` as before. #519 tracks `current_day` in `/status`.
+
+    > **Superseded by ADR-018 (decision 1):** there is no season phase; #595
+    > removes `SeasonPhase`.
 
 ## Alternatives Considered
 
