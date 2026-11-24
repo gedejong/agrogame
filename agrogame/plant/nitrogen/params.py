@@ -27,9 +27,11 @@ class PlantNitrogenParams:
         n_crit_a: Coefficient ``a`` of ``N_crit% = a * W^-b`` (% at 1 t/ha).
         n_crit_b: Dilution exponent ``b`` (dimensionless, > 0).
         reference_biomass_t_ha: Shoot DM below which the dilution curve is
-            held flat at its 1 t/ha value. The power law diverges as
-            W -> 0, so it is only valid above a critical biomass (~1 t/ha
-            in the source fits); below it N_crit% is capped at ``a``.
+            held flat at its value at this biomass. The power law
+            diverges as W -> 0, so it is only valid above a critical
+            biomass: 1 t/ha for the generic C3 fit (Greenwood et al. 1990),
+            1.55 t/ha for wheat (Justes et al. 1994); below it N_crit% is
+            ``a * reference^-b`` (``a`` only when the reference is 1).
         nni_stress_min: NNI at or below which the stress mapping returns
             ``stress_floor``. Anchors the low end of the linear NNI->stress
             rescale (CERES-Maize NFAC style; Jones et al. 2003).

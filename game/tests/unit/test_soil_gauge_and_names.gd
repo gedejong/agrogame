@@ -74,3 +74,47 @@ func test_status_line_shows_soil_name_and_som_with_unit() -> void:
 	)
 	assert_eq(titles.size(), 1, "History panel title carries the soil name")
 	assert_false(view.status_label.text.to_lower().contains("organic"))
+
+
+func test_status_line_reads_the_selected_fields_soil_and_som() -> void:
+	# Both fields have a patch 0; a tile in field_2 must show field_2's soil name
+	# and SOM, not field_1 patch 0's (#600 addressing, #629 values).
+	var fields := {
+		"field_1":
+		[
+			{
+				"soil_profile_key": "sandy_temperate",
+				"soil_name": "Sandy - Temperate",
+				"crop_key": "maize",
+			}
+		],
+		"field_2":
+		[
+			{
+				"soil_profile_key": "clay_temperate",
+				"soil_name": "Clay - Temperate",
+				"crop_key": "rice",
+			}
+		],
+	}
+	GameState.game_id = "g"
+	var api := FarmViewTest.ApiStub.new()
+	api.game_reply = [true, {"game_id": "g", "fields": fields}]
+	add_child_autofree(api)
+	var view: Node3D = FarmViewScene.instantiate()
+	view._api_client = api
+	add_child_autofree(view)
+	var day := {"crop_stage": "vegetative", "soil_theta_surface": 0.2}
+	(
+		view
+		. _apply_patch_data(
+			{
+				"field_1": [day.merged({"crop_key": "maize", "som_total_c_g_m2": 7345.0})],
+				"field_2": [day.merged({"crop_key": "rice", "som_total_c_g_m2": 12346.0})],
+			}
+		)
+	)
+	view._select_tile(0, 5)
+	assert_eq(view.status_label.text, "[0,5] Clay - Temperate | rice | SOM 12,346 gC/m² | θ 0.20")
+	view._select_tile(0, 0)
+	assert_eq(view.status_label.text, "[0,0] Sandy - Temperate | maize | SOM 7,345 gC/m² | θ 0.20")

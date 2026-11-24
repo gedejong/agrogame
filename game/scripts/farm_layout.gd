@@ -1,15 +1,19 @@
 class_name FarmLayout
 extends RefCounted
-## Maps a field's patch list onto the farm view's tile columns (#516).
+## Maps a game's fields onto the farm view's tile grid (#516, #600).
 ##
-## GET /games/{id} reports each field's patches in order. N patches become N
-## contiguous column bands, and every tile keeps its band's patch_idx, so day
-## results and per-patch actions map by index, never by soil name (two patches
-## may share a soil).
+## GET /games/{id} reports every field's patches in order. Fields become
+## contiguous row bands and, within a field, its N patches become N contiguous
+## column bands. Every tile keeps its (field_id, patch_idx), so day results and
+## per-patch actions map by that pair: never by soil name (two patches may share
+## a soil), and never by patch index alone (every field has a patch 0).
 
-## The field the farm view renders, and names on every field-scoped call (#548).
-## Other fields are #472's.
+## The field Irrigate, Fertilize, Tillage and Lime name (#548) until the active
+## field replaces it (#601).
 const FIELD_ID := "field_1"
+## The z gap between two fields' row bands, in world units (a tile is 1.0). A
+## visual boundary only: every field is modelled as 1 ha (#472 G1).
+const FIELD_GAP := 0.3
 ## Albedo and normal maps per texture class (moved from farm_view.gd).
 const SOIL_TEXTURES := {
 	"sandy":
@@ -38,6 +42,12 @@ static func patch_for_column(col: int, patch_count: int, cols: int) -> int:
 	return clampi(floori(float(col * patch_count) / float(cols)), 0, patch_count - 1)
 
 
+## Field owning row `row` when `field_count` fields share `rows` rows: the
+## column formula on rows, so on 6 rows 2 fields take 3+3 and 3 take 2+2+2.
+static func field_for_row(row: int, field_count: int, rows: int) -> int:
+	return patch_for_column(row, field_count, rows)
+
+
 ## Texture class for a soil preset key: "sand" gives sandy, "clay" gives clay,
 ## and anything else the middle ("organic") texture.
 static func texture_for_soil_key(soil_profile_key: String) -> String:
@@ -55,25 +65,94 @@ static func soil_label(tile: Dictionary) -> String:
 	return soil_name if not soil_name.is_empty() else tile.get("soil_type", "")
 
 
-## Give each tile FIELD_ID, whose patches these are, its column band's
-## patch_idx, and its material that patch's soil textures. An empty patch list
+## Why `fields` cannot be laid out on `grid` (columns, rows), or "" when it can.
+## Each field needs a row and each of its patches a column, so a layout that
+## does not fit is refused whole rather than shown with a field missing.
+static func layout_error(fields: Array, grid: Vector2i) -> String:
+	if fields.size() > grid.y:
+		return "%d fields, but the map has %d rows" % [fields.size(), grid.y]
+	for field: Dictionary in fields:
+		var count: int = (field["patches"] as Array).size()
+		if count < 1 or count > grid.x:
+			return "%s has %d patches; a field takes 1 to %d" % [field["field_id"], count, grid.x]
+	return ""
+
+
+## Give each tile its row band's field_id, that field's column band's
+## patch_idx, and its material that patch's soil textures. `fields` is
+## [{field_id, patches}] and must fit `grid` (layout_error). An empty field list
 ## leaves the tiles as they are.
-static func assign_tiles(patches: Array, tile_data: Array, materials: Array, cols: int) -> void:
-	if patches.is_empty():
+static func assign_fields(
+	fields: Array, tile_data: Array, materials: Array, grid: Vector2i
+) -> void:
+	if fields.is_empty():
 		return
 	for i in range(tile_data.size()):
-		var patch_idx := patch_for_column(tile_data[i]["col"], patches.size(), cols)
+		var tile: Dictionary = tile_data[i]
+		var field: Dictionary = fields[field_for_row(tile.get("row", 0), fields.size(), grid.y)]
+		var patches: Array = field["patches"]
+		var patch_idx := patch_for_column(tile["col"], patches.size(), grid.x)
 		var soil_type := texture_for_soil_key(patches[patch_idx].get("soil_profile_key", ""))
-		tile_data[i]["field_id"] = FIELD_ID
-		tile_data[i]["patch_idx"] = patch_idx
-		tile_data[i]["soil_type"] = soil_type
-		tile_data[i]["soil_name"] = patches[patch_idx].get("soil_name", "")
+		tile["field_id"] = field["field_id"]
+		tile["patch_idx"] = patch_idx
+		tile["soil_type"] = soil_type
+		tile["soil_name"] = patches[patch_idx].get("soil_name", "")
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]
 		materials[i].set_shader_parameter("albedo_texture", load(paths["albedo"]))
 		materials[i].set_shader_parameter("normal_texture", load(paths["normal"]))
 
 
-## FIELD_ID's patch list from a GET /games/{id} payload, or [] when absent.
-static func patches_from_game(data: Dictionary) -> Array:
+## assign_fields for one field, FIELD_ID, holding `patches`. One field takes
+## every row, so only the column count matters.
+static func assign_tiles(patches: Array, tile_data: Array, materials: Array, cols: int) -> void:
+	if patches.is_empty():
+		return
+	assign_fields(
+		[{"field_id": FIELD_ID, "patches": patches}], tile_data, materials, Vector2i(cols, 1)
+	)
+
+
+## Each row's z when `field_count` fields share `rows` rows of `tile_size`:
+## rows of one field tile_size apart, rows either side of a field boundary
+## tile_size + FIELD_GAP apart, and the whole centred on z = 0. One field gives
+## the plain grid's positions exactly.
+static func row_z(field_count: int, rows: int, tile_size: float) -> Array[float]:
+	var z: Array[float] = []
+	var total := 0.0
+	for row in range(rows):
+		z.append(row * tile_size + FIELD_GAP * field_for_row(row, field_count, rows))
+		total += z[row]
+	var mean: float = total / float(maxi(rows, 1))
+	for row in range(rows):
+		z[row] -= mean
+	return z
+
+
+## The fields of a GET /games/{id} payload as [{field_id, patches}], in the
+## payload's key order (the server's creation order), or [] when absent.
+static func fields_from_game(data: Dictionary) -> Array:
 	var fields: Dictionary = data.get("fields", {})
-	return fields.get(FIELD_ID, [])
+	var out: Array = []
+	for field_id: String in fields:
+		out.append({"field_id": field_id, "patches": fields[field_id]})
+	return out
+
+
+## The key history and stress icons file `field_id`'s patch `patch_idx` under.
+static func patch_key(field_id: String, patch_idx: int) -> String:
+	return "%s/%d" % [field_id, patch_idx]
+
+
+## patch_key of the (field, patch) a tile is laid out as.
+static func tile_key(tile: Dictionary) -> String:
+	return patch_key(tile.get("field_id", ""), tile.get("patch_idx", -1))
+
+
+## Indices, ascending, of the tiles laid out as `field_id`'s patch `patch_idx`.
+static func tiles_of(field_id: String, patch_idx: int, tile_data: Array) -> Array[int]:
+	var key := patch_key(field_id, patch_idx)
+	var out: Array[int] = []
+	for i in range(tile_data.size()):
+		if tile_key(tile_data[i]) == key:
+			out.append(i)
+	return out

@@ -74,9 +74,11 @@ external automation. In-memory game sessions are keyed by `game_id`.
   preset's display name from `data/soils/presets.yaml` (e.g. `Loam - Temperate`),
   which the client shows instead of deriving a label from the key (#629).
   `fields` lists every field in creation order, and the client lays out every
-  field from it. (Until #472's client children land, the Godot farm view still
-  renders only `fields.field_1`.) `GET /status` carries the same member. An
-  unknown `game_id` is a 404.
+  field from it (#600): fields as row bands of the 6x6 map in this order, each
+  field's patches as column bands, and day results, Plant and Harvest mapped by
+  (field, patch). Irrigate, Fertilize, Tillage and Lime still name `field_1`
+  until the client's active field (#601). `GET /status` carries the same
+  member. An unknown `game_id` is a 404.
 - `GET /api/v1/games/{game_id}/forecast?field_id=<id>` — short-range forecast:
   weather plus a projected water-stress (FAO-56 Ks) and mineral-N trajectory
   for decision support, anchored on patch 0 of `field_id` (#547). Without

@@ -132,7 +132,7 @@ texture = ExtResource("9")
 stretch_mode = 5
 
 [node name="CreditsLabel" type="Label" parent="UILayer/BottomBar/BottomVBox/TopBar"]
-text = "10000"
+text = "—"
 theme_override_font_sizes/font_size = 12
 
 [node name="Spacer2" type="Control" parent="UILayer/BottomBar/BottomVBox/TopBar"]
