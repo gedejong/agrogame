@@ -173,3 +173,9 @@ func test_farm_view_scene_uses_the_farm_environment() -> void:
 	var world_env: WorldEnvironment = view.get_node("WorldEnvironment")
 	assert_eq(world_env.environment, FarmViewDebugRef.FARM_ENVIRONMENT, "Shared environment")
 	view.free()
+
+
+func test_3d_view_is_antialiased() -> void:
+	# #637: without anti-aliasing, sub-pixel wheat blades render as speckle.
+	var msaa: int = ProjectSettings.get_setting("rendering/anti_aliasing/quality/msaa_3d", 0)
+	assert_eq(msaa, Viewport.MSAA_4X, "MSAA 4x on 3D")
