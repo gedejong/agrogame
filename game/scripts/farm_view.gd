@@ -70,10 +70,10 @@ var _wind_ms: float = 2.0
 var _wind_dir: Vector2 = Vector2(0.7, 0.7)
 var _debug_console: DebugConsole = null
 var _debug := FarmViewDebug.new()
-## Per-patch history: keyed by patch_idx, each an Array[Dictionary].
+## Per-patch history: keyed by FarmLayout.patch_key, each an Array[Dictionary].
 ## Capped at FarmViewHistory.MAX_HISTORY_DAYS. Cleared on season reset.
 var _daily_history: Dictionary = {}
-var _layout: Array = []  # field_1's patches as laid out on the tiles (#516)
+var _layout: Array = []  # every field, [{field_id, patches}], as laid out (#516, #600)
 ## Scene changer and title-return delay, swappable so tests can observe them.
 var _change_scene: Callable
 var _title_delay_s: float = 2.0
@@ -133,7 +133,7 @@ func _ready() -> void:
 	_setup_lime_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
-	_apply_layout(ScenarioCatalog.default_patches())
+	_apply_layout(ScenarioCatalog.default_fields())
 	_stress_icons = StressIcons.new()
 	add_child(_stress_icons)
 	# Debug console: toggle with backtick (`)
@@ -190,10 +190,15 @@ func _build_tile_grid() -> void:
 	_tile_data.append_array(grid["tile_data"])
 
 
-func _apply_layout(patches: Array) -> void:
-	## Lay field_1's patches out as column bands, textured by soil (#516).
-	_layout = patches
-	FarmLayout.assign_tiles(patches, _tile_data, _tile_materials, GRID_COLS)
+func _apply_layout(fields: Array) -> void:
+	## Lay every field out as a row band of its patches' column bands, textured
+	## by soil (#516), with FarmLayout.FIELD_GAP between fields (#600).
+	_layout = fields
+	FarmLayout.assign_fields(fields, _tile_data, _tile_materials, Vector2i(GRID_COLS, GRID_ROWS))
+	var row_z := FarmLayout.row_z(fields.size(), GRID_ROWS, TILE_SIZE)
+	for i in range(_tile_data.size()):
+		_tile_meshes[i].position.z = row_z[_tile_data[i]["row"]]
+		(_crop_sprites[i][0] as Node3D).position = _tile_meshes[i].position
 
 
 func _load_layout() -> void:
@@ -203,7 +208,8 @@ func _load_layout() -> void:
 
 
 func _on_game_loaded(success: bool, data: Dictionary) -> void:
-	var patches: Array = FarmLayout.patches_from_game(data)
+	var fields: Array = FarmLayout.fields_from_game(data)
+	var unfit := FarmLayout.layout_error(fields, Vector2i(GRID_COLS, GRID_ROWS))
 	if data.get("not_found", false):
 		# Backend lost the game (e.g. restarted): never substitute a default (#516).
 		status_label.text = "Game not found, returning to title"
@@ -211,17 +217,20 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 		GameState.game_id = ""
 		var title := "res://scenes/main.tscn"
 		get_tree().create_timer(_title_delay_s).timeout.connect(_change_scene.bind(title))
-	elif not success or patches.is_empty():
+	elif not success or fields.is_empty():
 		# The bar stays held (#516), so retry on our own, backing off (#564).
 		var delay: float = minf(_load_retry_s * pow(2.0, _load_failures), LOAD_RETRY_MAX_S)
 		_load_failures += 1
 		status_label.text = "Error: could not load game %s, retrying in %.0f s" % [_game_id, delay]
 		get_tree().create_timer(delay).timeout.connect(_load_layout)
+	elif not unfit.is_empty():
+		# Showing part of the farm would hide a field, so the bar stays held (#600).
+		status_label.text = "Error: game %s does not fit the map: %s" % [_game_id, unfit]
 	else:
 		if _load_failures > 0:  # replace the retry notice
 			status_label.text = "Game %s loaded" % _game_id
 		_load_failures = 0
-		_apply_layout(patches)
+		_apply_layout(fields)
 		_show_balance(data.get("balance_credits", -1))
 		_set_buttons_disabled(false)
 
@@ -332,7 +341,7 @@ func _on_quick_status_history() -> void:
 		return
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var data: Dictionary = _tile_data[idx]
-	var history: Array = _daily_history.get(data.get("patch_idx", 0), [])
+	var history: Array = _daily_history.get(FarmLayout.tile_key(data), [])
 	_cutaway.show_tile_info(data.get("soil_type", ""), data.get("crop_key", ""), history, $UILayer)
 
 
@@ -606,15 +615,16 @@ func _apply_day_result(data: Dictionary) -> void:
 
 
 func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
-	for field_key: String in patches:
-		var patch_list: Array = patches[field_key]
+	for field_id: String in patches:
+		var patch_list: Array = patches[field_id]
 		for patch_idx in range(patch_list.size()):
 			var patch: Dictionary = patch_list[patch_idx]
-			# Accumulate per-patch history (skip when daily_snapshots covered it)
-			if not skip_history:
-				FarmViewHistory.append_patch(patch, patch_idx, _daily_history)
 			# Tile writes live in FarmTiles (#546); refreshes stay here, tile order.
-			for i: int in FarmTiles.write_patch(patch, patch_idx, _tile_data):
+			var written := FarmTiles.write_patch(patch, field_id, patch_idx, _tile_data)
+			# History for a laid-out patch (skip when daily_snapshots covered it)
+			if not skip_history and not written.is_empty():
+				FarmViewHistory.append_patch(patch, field_id, patch_idx, _daily_history)
+			for i: int in written:
 				_update_tile_shader(i)
 				_update_crop_visuals(i)
 	# Update stress icons from patch events
@@ -622,8 +632,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes)
 	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-		var history: Array = _daily_history.get(_tile_data[idx]["patch_idx"], [])
-		_cutaway.update_tile_info(history)
+		_cutaway.update_tile_info(_daily_history.get(FarmLayout.tile_key(_tile_data[idx]), []))
 	# Crop stage may have changed (e.g. reached maturity or was cleared).
 	_update_harvest_button()
 	_refresh_quick_status()
@@ -631,13 +640,19 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 
 ## Every /action goes out here, holding the bar until its reply, and for all
 ## but Harvest the step that reply triggers, has been applied (#534).
-func _send_action(action: String, params: Dictionary, on_reply: Callable) -> void:
+func _send_action(field_id: String, action: String, params: Dictionary, on_reply: Callable) -> void:
 	_set_buttons_disabled(true)
-	_api_client.execute_action(_game_id, FarmLayout.FIELD_ID, action, params, on_reply)
+	_api_client.execute_action(_game_id, field_id, action, params, on_reply)
+
+
+## Irrigate, Fertilize, Tillage and Lime act on a whole field: FIELD_ID until
+## the active field (#601). Plant and Harvest name the selected tile's.
+func _send_field_action(action: String, params: Dictionary) -> void:
+	_send_action(FarmLayout.FIELD_ID, action, params, _on_action_complete)
 
 
 func _on_irrigate() -> void:
-	_ensure_game(func() -> void: _send_action("irrigate", {"amount_mm": 20}, _on_action_complete))
+	_ensure_game(func() -> void: _send_field_action("irrigate", {"amount_mm": 20}))
 
 
 func _setup_fertilizer_popup() -> void:
@@ -688,7 +703,7 @@ func _on_fertilizer_selected(option_id: int) -> void:
 			status_label.text = (
 				"Applying %s %d %s — est. %d credits" % [display_name, int(amount), unit, cost]
 			)
-			_send_action("fertilize", params, _on_action_complete)
+			_send_field_action("fertilize", params)
 	)
 
 
@@ -712,12 +727,12 @@ func _on_lime_selected(amount_kg_ha: float, cost: int) -> void:
 			status_label.text = (
 				"Applying lime %.1f t/ha — est. %d credits" % [amount_kg_ha / 1000.0, cost]
 			)
-			_send_action("lime", params, _on_action_complete)
+			_send_field_action("lime", params)
 	)
 
 
 func _on_tillage() -> void:
-	_ensure_game(func() -> void: _send_action("tillage", {"intensity": 0.8}, _on_action_complete))
+	_ensure_game(func() -> void: _send_field_action("tillage", {"intensity": 0.8}))
 
 
 func _on_harvest_pressed() -> void:
@@ -726,13 +741,15 @@ func _on_harvest_pressed() -> void:
 		return
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var crop_key: String = _tile_data[idx].get("crop_key", "")
+	var field_id := _selected_field()
 	var patch_idx: int = _tile_data[idx]["patch_idx"]
-	var on_reply := _on_harvest_complete.bind(crop_key, patch_idx)
-	_ensure_game(func() -> void: _send_action("harvest", {"patch_idx": patch_idx}, on_reply))
+	var on_reply := _on_harvest_complete.bind(crop_key, field_id, patch_idx)
+	var params := {"patch_idx": patch_idx}
+	_ensure_game(func() -> void: _send_action(field_id, "harvest", params, on_reply))
 
 
 func _on_harvest_complete(
-	success: bool, data: Dictionary, crop_key: String, patch_idx: int
+	success: bool, data: Dictionary, crop_key: String, field_id: String, patch_idx: int
 ) -> void:
 	_set_buttons_disabled(false)
 	if not success:
@@ -741,13 +758,12 @@ func _on_harvest_complete(
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
 	# Backend really settled + cleared the crop, so this clear survives /step.
-	for i in range(_tile_data.size()):
-		if _tile_data[i]["patch_idx"] == patch_idx:
-			_tile_data[i]["crop_key"] = ""
-			_tile_data[i]["crop_stage"] = 0
-			_tile_data[i]["lai"] = 0.0
-			_tile_data[i]["grain_g_m2"] = 0.0
-			_update_crop_visuals(i)
+	for i: int in FarmLayout.tiles_of(field_id, patch_idx, _tile_data):
+		_tile_data[i]["crop_key"] = ""
+		_tile_data[i]["crop_stage"] = 0
+		_tile_data[i]["lai"] = 0.0
+		_tile_data[i]["grain_g_m2"] = 0.0
+		_update_crop_visuals(i)
 	_refresh_quick_status()
 	# Yield + P&L come straight from the harvest action's settlement response.
 	var grain_g_m2: float = data.get("grain_g_m2", 0.0)
@@ -784,7 +800,7 @@ func _on_plant_pressed() -> void:
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to plant"
 		return
-	_crop_popup.refresh_costs(_api_client, _game_id, FarmLayout.FIELD_ID, _plant_params)
+	_crop_popup.refresh_costs(_api_client, _game_id, _selected_field(), _plant_params)
 	var btn_rect := plant_btn.get_global_rect()
 	_crop_popup.position = Vector2i(int(btn_rect.position.x), int(btn_rect.end.y))
 	_crop_popup.popup()
@@ -797,29 +813,35 @@ func _plant_params(crop_key: String) -> Dictionary:
 	return {"crop_key": crop_key, "patch_idx": _tile_data[idx]["patch_idx"]}
 
 
+func _selected_field() -> String:
+	## The field of the selected tile, which Plant and Harvest act on (#600).
+	return _tile_data[_selected_tile.y * GRID_COLS + _selected_tile.x]["field_id"]
+
+
 func _on_crop_selected(id: int) -> void:
 	if id < 0 or id >= AVAILABLE_CROPS.size():
 		return
 	var crop_key: String = AVAILABLE_CROPS[id]
 	var params := _plant_params(crop_key)
-	var patch_idx: int = params["patch_idx"]
-	var on_reply := _on_plant_complete.bind(crop_key, patch_idx)
-	_ensure_game(func() -> void: _send_action("plant", params, on_reply))
+	var field_id := _selected_field()
+	var on_reply := _on_plant_complete.bind(crop_key, field_id, params["patch_idx"])
+	_ensure_game(func() -> void: _send_action(field_id, "plant", params, on_reply))
 
 
-func _on_plant_complete(success: bool, data: Dictionary, crop_key: String, patch_idx: int) -> void:
+func _on_plant_complete(
+	success: bool, data: Dictionary, crop_key: String, field_id: String, patch_idx: int
+) -> void:
 	if not success:
 		_set_buttons_disabled(false)
 		_reconcile("Plant failed")
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
-	for i in range(_tile_data.size()):
-		if _tile_data[i]["patch_idx"] == patch_idx:
-			_tile_data[i]["crop_key"] = crop_key
-			_tile_data[i]["crop_stage"] = 1
-			_tile_data[i]["lai"] = 0.0
-			_update_crop_visuals(i)
+	for i: int in FarmLayout.tiles_of(field_id, patch_idx, _tile_data):
+		_tile_data[i]["crop_key"] = crop_key
+		_tile_data[i]["crop_stage"] = 1
+		_tile_data[i]["lai"] = 0.0
+		_update_crop_visuals(i)
 	_refresh_quick_status()
 	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
 	_step_days(1)

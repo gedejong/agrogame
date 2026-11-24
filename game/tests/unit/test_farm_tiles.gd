@@ -102,9 +102,11 @@ func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
 	var real_events: Array = debug_events.map(
 		func(e: Dictionary) -> Dictionary: return _heat(0.4, 34.0) if e["event_type"] == heat else e
 	)
-	var tiles: Array = [[{"patch_idx": 0}], [{"patch_idx": 0}]]
-	FarmTiles.write_patch({"events": debug_events}, 0, tiles[0])
-	FarmTiles.write_patch({"events": real_events}, 0, tiles[1])
+	var tiles: Array = [
+		[{"field_id": "field_1", "patch_idx": 0}], [{"field_id": "field_1", "patch_idx": 0}]
+	]
+	FarmTiles.write_patch({"events": debug_events}, "field_1", 0, tiles[0])
+	FarmTiles.write_patch({"events": real_events}, "field_1", 0, tiles[1])
 	assert_eq(tiles[0][0], tiles[1][0], "same tile state")
 	assert_eq(roundi(float(tiles[0][0]["heat_damage"]) * 1000.0), 600, "not the 0.5 fallback")
 
@@ -112,7 +114,7 @@ func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
 func test_writes_reach_only_tiles_with_matching_patch_idx() -> void:
 	var tiles: Array = []
 	for idx: int in [0, 0, 1, 1, 2, 2]:
-		tiles.append({"patch_idx": idx, "crop_key": "", "lai": 0.0})
+		tiles.append({"field_id": "field_1", "patch_idx": idx, "crop_key": "", "lai": 0.0})
 	var before: Array = tiles.duplicate(true)
 	var patch := {
 		"crop_key": "rice",
@@ -120,17 +122,19 @@ func test_writes_reach_only_tiles_with_matching_patch_idx() -> void:
 		"lai": 2.0,
 		"events": [_nutrient("N", {"stress": 0.25})],
 	}
-	assert_eq(FarmTiles.write_patch(patch, 1, tiles), [2, 3] as Array[int], "ascending")
+	assert_eq(FarmTiles.write_patch(patch, "field_1", 1, tiles), [2, 3] as Array[int], "ascending")
 	for i: int in [0, 1, 4, 5]:
 		assert_eq(tiles[i], before[i], "tile %d untouched" % i)
 	for i: int in [2, 3]:
 		var t: Dictionary = tiles[i]
 		assert_eq([t["crop_key"], t["crop_stage"], t["lai"], t["n_stress"]], ["rice", 4, 2.0, 0.75])
-	assert_eq(FarmTiles.write_patch(patch, 7, tiles), [] as Array[int], "no tiles, no writes")
+	assert_eq(
+		FarmTiles.write_patch(patch, "field_1", 7, tiles), [] as Array[int], "no tiles, no writes"
+	)
 
 
 func test_lai_peak_held_only_past_emergence_with_the_same_crop() -> void:
-	var tiles: Array = [{"patch_idx": 0}]
+	var tiles: Array = [{"field_id": "field_1", "patch_idx": 0}]
 	var steps: Array = [  # crop, stage, lai, expected lai_peak
 		["maize", "vegetative", 2.0, 2.0],
 		["maize", "vegetative", 3.5, 3.5],
@@ -142,19 +146,19 @@ func test_lai_peak_held_only_past_emergence_with_the_same_crop() -> void:
 	]
 	for step: Array in steps:
 		var patch := {"crop_key": step[0], "crop_stage": step[1], "lai": step[2]}
-		FarmTiles.write_patch(patch, 0, tiles)
+		FarmTiles.write_patch(patch, "field_1", 0, tiles)
 		assert_eq(tiles[0]["lai_peak"], step[3], "%s %s" % [step[0], step[1]])
 
 
 func test_lai_peak_does_not_carry_into_the_next_season() -> void:
 	# Sowing maize again (stage 1) drops season one's 4.5 peak.
-	var tiles: Array = [{"patch_idx": 0}]
+	var tiles: Array = [{"field_id": "field_1", "patch_idx": 0}]
 	for peak: float in [4.5, 2.0]:
 		for day: Array in [
 			["planted", 0.0, 0.0], ["vegetative", peak, peak], ["maturity", 1.0, peak]
 		]:
 			var patch := {"crop_key": "maize", "crop_stage": day[0], "lai": day[1]}
-			FarmTiles.write_patch(patch, 0, tiles)
+			FarmTiles.write_patch(patch, "field_1", 0, tiles)
 			assert_eq(tiles[0]["lai_peak"], day[2], "season peak %.1f, %s" % [peak, day[0]])
 
 

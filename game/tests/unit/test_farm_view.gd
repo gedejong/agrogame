@@ -207,7 +207,7 @@ func test_two_patches_sharing_a_soil_map_by_index() -> void:
 	view._apply_patch_data({"field_1": [maize, rice]})
 	assert_eq(_band(view, "crop_key"), ["maize", "maize", "maize", "rice", "rice", "rice"])
 	assert_eq(_band(view, "lai"), [1.0, 1.0, 1.0, 3.0, 3.0, 3.0])
-	assert_eq(view._daily_history.keys(), [0, 1], "one history per patch")
+	assert_eq(view._daily_history.keys(), ["field_1/0", "field_1/1"], "one history per patch")
 	# Plant and Harvest send the tile's own patch: 0 from column 0, 1 from column
 	# 5. A soil-name lookup gives the same index for both bands and fails here.
 	# Both name field_1, the only field the view renders (#548).
@@ -221,7 +221,7 @@ func test_two_patches_sharing_a_soil_map_by_index() -> void:
 		view._on_harvest_pressed()
 		assert_eq(api.calls[-1], ["action", "field_1", "harvest", {"patch_idx": case[1]}])
 	# Completion touches band 1 only.
-	view._on_plant_complete(true, {}, "sorghum", 1)
+	view._on_plant_complete(true, {}, "sorghum", "field_1", 1)
 	assert_eq(_band(view, "crop_key"), ["maize", "maize", "maize", "sorghum", "sorghum", "sorghum"])
 
 
