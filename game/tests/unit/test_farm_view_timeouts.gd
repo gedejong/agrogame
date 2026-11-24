@@ -140,10 +140,10 @@ func test_a_hung_step_or_action_times_out_and_lifts_the_bar() -> void:
 		assert_true(_bar_is(view, false), "%s: and lifts the bar" % method)
 
 
-## Answer the refresh's previews from _PREVIEW_ACTIONS[first] on, the i-th
+## Answer the refresh's previews from ACTIONS[first] on, the i-th
 ## priced at `base + i`, and check each button then shows its own price.
 func _answer_chain(view: Node3D, api: ApiClientTest.StubClient, first: int, base: int) -> void:
-	var specs: Array[Dictionary] = FarmView._PREVIEW_ACTIONS
+	var specs: Array[Dictionary] = ActionPreviews.ACTIONS
 	for i in range(first, specs.size()):
 		assert_true(api.awaiting("preview"), "%s sent" % specs[i]["action"])
 		var reply := {"cost_credits": base + i, "balance_credits": 900, "affordable": true}
@@ -153,7 +153,9 @@ func _answer_chain(view: Node3D, api: ApiClientTest.StubClient, first: int, base
 		var spec: Dictionary = specs[i]
 		var variable: bool = spec.get("variable_cost", false)
 		var label := ActionCost.format_button_label(spec["label"], base + i, variable)
-		assert_eq(view._action_button_for(spec["action"]).text, label, "%s priced" % spec["label"])
+		assert_eq(
+			view._previews.button_for(spec["action"]).text, label, "%s priced" % spec["label"]
+		)
 
 
 func test_a_timed_out_preview_does_not_stall_the_cost_refresh() -> void:
@@ -190,7 +192,7 @@ func _band(view: Node3D, key: String) -> Array:
 
 ## Answer the cost refresh's previews, each at the stub server's balance.
 func _answer_previews(api: ApplyingStub) -> void:
-	for i in range(FarmView._PREVIEW_ACTIONS.size()):
+	for i in range(ActionPreviews.ACTIONS.size()):
 		assert_true(api.awaiting("preview"), "the costs are refreshed")
 		api.reply_ok("preview", {"cost_credits": 5, "balance_credits": api.balance})
 

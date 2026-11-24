@@ -25,14 +25,14 @@ func test_texture_follows_soil_key() -> void:
 		assert_true(FarmLayout.SOIL_TEXTURES[key].has("albedo"), "%s albedo" % key)
 
 
-func test_assign_tiles_default_scenario_matches_historic_bands() -> void:
+func test_assign_fields_default_scenario_matches_historic_bands() -> void:
 	# The default scenario must render exactly as before #516.
 	var tiles: Array = []
 	var mats: Array = []
 	for col in range(6):
 		tiles.append({"col": col})
 		mats.append(ShaderMaterial.new())
-	FarmLayout.assign_tiles(ScenarioCatalog.default_patches(), tiles, mats, 6)
+	FarmLayout.assign_fields(ScenarioCatalog.default_fields(), tiles, mats, Vector2i(6, 6))
 	var soils: Array = tiles.map(func(t: Dictionary) -> String: return t["soil_type"])
 	var idxs: Array = tiles.map(func(t: Dictionary) -> int: return t["patch_idx"])
 	assert_eq(soils, ["sandy", "sandy", "organic", "organic", "clay", "clay"])
@@ -48,21 +48,23 @@ func test_soil_label_prefers_the_api_name_over_the_texture_class() -> void:
 	assert_eq(FarmLayout.soil_label({}), "")
 
 
-func test_assign_tiles_records_each_patchs_soil_name() -> void:
+func test_assign_fields_records_each_patchs_soil_name() -> void:
 	var patches: Array = [
 		{"soil_profile_key": "sandy_temperate", "soil_name": "Sandy - Temperate"},
 		{"soil_profile_key": "loam_temperate", "soil_name": "Loam - Temperate"},
 	]
 	var tiles: Array = [{"col": 0}, {"col": 5}]
-	FarmLayout.assign_tiles(patches, tiles, [ShaderMaterial.new(), ShaderMaterial.new()], 6)
+	var fields: Array = [{"field_id": "field_1", "patches": patches}]
+	var mats: Array = [ShaderMaterial.new(), ShaderMaterial.new()]
+	FarmLayout.assign_fields(fields, tiles, mats, Vector2i(6, 6))
 	assert_eq(tiles[0]["soil_name"], "Sandy - Temperate")
 	assert_eq(tiles[1]["soil_name"], "Loam - Temperate")
 	assert_eq(tiles[1]["soil_type"], "organic", "texture class stays internal")
 
 
-func test_assign_tiles_ignores_empty_layout() -> void:
+func test_assign_fields_ignores_empty_layout() -> void:
 	var tiles: Array = [{"col": 0, "soil_type": "clay", "patch_idx": 2}]
-	FarmLayout.assign_tiles([], tiles, [ShaderMaterial.new()], 6)
+	FarmLayout.assign_fields([], tiles, [ShaderMaterial.new()], Vector2i(6, 6))
 	assert_eq(tiles[0]["patch_idx"], 2, "tiles untouched")
 
 

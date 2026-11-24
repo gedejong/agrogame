@@ -23,8 +23,6 @@ class ApiClientSpy:
 	var last_field_id: String = ""
 	var action_calls: int = 0
 	var report_calls: int = 0
-	# When false, get_report reports failure (as a real mid-season 400 would).
-	var report_succeeds: bool = true
 
 	func execute_action(
 		game_id: String, field_id: String, action: String, params: Dictionary, callback: Callable
@@ -52,9 +50,6 @@ class ApiClientSpy:
 
 	func get_report(_game_id: String, callback: Callable) -> void:
 		report_calls += 1
-		if not report_succeeds:
-			callback.call(false, {})
-			return
 		callback.call(true, {"revenue_credits": 1200, "profit_credits": 400})
 
 
@@ -136,8 +131,7 @@ func test_harvest_clears_crop_and_surfaces_pnl() -> void:
 	# P&L comes from the harvest action response itself (real contract).
 	assert_string_contains(view.status_label.text, "revenue")
 	assert_string_contains(view.status_label.text, "profit")
-	# The detailed report is still fetched opportunistically.
-	assert_eq(spy.report_calls, 1, "Detailed report fetched after settlement")
+	assert_eq(spy.report_calls, 0, "no /report after a Harvest (#601)")
 
 
 func test_harvest_status_line_shows_grain_yield() -> void:
@@ -157,21 +151,19 @@ func test_harvest_status_line_shows_grain_yield() -> void:
 	assert_string_contains(view.status_label.text, "profit")
 
 
-func test_harvest_handles_unavailable_report() -> void:
-	# Real backend returned HTTP 400 on a mid-season /report before this fix.
-	# The action response already surfaced P&L; a report failure must degrade
-	# gracefully with a visible note rather than silently swallowing.
+func test_harvest_names_the_field_and_labels_profit_as_the_farms() -> void:
+	# #601 AC4/AC5: profit_credits is the farm-wide season figure, so the line
+	# says so, and it names the field harvested. No /report follows: on main a
+	# field_2 Harvest then sold field_1's standing maize at grain fill.
 	var view := _make_view()
 	var spy: ApiClientSpy = view._api_client
-	spy.report_succeeds = false
 	view._tile_data[0]["crop_key"] = "maize"
 	view._tile_data[0]["crop_stage"] = 3
 	view._select_tile(0, 0)
 	view._on_harvest_pressed()
-	assert_eq(spy.report_calls, 1, "Report fetch attempted")
-	# Action-response P&L stays visible; failure appends a clear note.
-	assert_string_contains(view.status_label.text, "revenue")
-	assert_string_contains(view.status_label.text, "detailed report unavailable")
+	assert_string_contains(view.status_label.text, "Field 1")
+	assert_string_contains(view.status_label.text, "farm profit 400")
+	assert_eq(spy.report_calls, 0, "the harvest never calls /report")
 
 
 func test_harvest_noop_on_bare_patch() -> void:

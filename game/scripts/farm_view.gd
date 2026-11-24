@@ -36,18 +36,6 @@ const CROP_GRID := {
 	"grape": Vector2i(2, 2),
 }
 
-## Action buttons and the exact params their handlers send, so the previewed
-## cost label matches the eventual ledger deduction (#318). Fertilize spans
-## several priced tiers (#349), so it carries no fixed params: the preview
-## resolves the cheapest tier at request time (see _preview_params_for) and its
-## button shows a "from" price, gating only when no tier is affordable.
-const _PREVIEW_ACTIONS: Array[Dictionary] = [
-	{"action": "irrigate", "label": "Irrigate", "params": {"amount_mm": 20}},
-	{"action": "fertilize", "label": "Fertilize", "params": {}, "variable_cost": true},
-	{"action": "tillage", "label": "Tillage", "params": {"intensity": 0.8}},
-	{"action": "lime", "label": "Lime", "params": {}, "variable_cost": true},
-]
-
 var _game_id: String = ""
 var _selected_tile := Vector2i(-1, -1)
 var _tile_meshes: Array[MeshInstance3D] = []
@@ -59,6 +47,8 @@ var _fertilizer_popup: PopupMenu = null
 var _lime_popup: LimePopup = null
 var _cutaway := SoilCutawayController.new()
 var _quick_status: QuickStatusCard = null
+var _previews: ActionPreviews = null
+var _active: ActiveField = null
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
@@ -101,6 +91,7 @@ var _load_retry_s: float = 1.0  # the first layout-load retry's delay; doubles p
 @onready var next_day_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/NextDayButton
 @onready var ff7_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FastForward7
 @onready var ff_all_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FastForwardAll
+@onready var active_field_label: Label = $UILayer/BottomBar/BottomVBox/ActionBar/ActiveFieldLabel
 @onready var irrigate_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/IrrigateButton
 @onready var fertilize_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/FertilizeButton
 @onready var tillage_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/TillageButton
@@ -128,6 +119,18 @@ func _ready() -> void:
 	plant_btn.pressed.connect(_on_plant_pressed)
 	harvest_btn.pressed.connect(_on_harvest_pressed)
 	soil_view_btn.pressed.connect(_on_soil_view)
+	_previews = ActionPreviews.new(
+		_api_client,
+		{
+			"irrigate": irrigate_btn,
+			"fertilize": fertilize_btn,
+			"tillage": tillage_btn,
+			"lime": lime_btn,
+		},
+		func(balance: int) -> void: _balance_credits = balance,
+		func() -> bool: return _bar_held,
+	)
+	_active = ActiveField.new(active_field_label, _api_client, _on_forecast_received)
 	_setup_crop_popup()
 	_setup_fertilizer_popup()
 	_setup_lime_popup()
@@ -194,6 +197,7 @@ func _apply_layout(fields: Array) -> void:
 	## Lay every field out as a row band of its patches' column bands, textured
 	## by soil (#516), with FarmLayout.FIELD_GAP between fields (#600).
 	_layout = fields
+	_active.reset(fields)
 	FarmLayout.assign_fields(fields, _tile_data, _tile_materials, Vector2i(GRID_COLS, GRID_ROWS))
 	var row_z := FarmLayout.row_z(fields.size(), GRID_ROWS, TILE_SIZE)
 	for i in range(_tile_data.size()):
@@ -281,6 +285,7 @@ func _select_tile(col: int, row: int) -> void:
 	var idx := row * GRID_COLS + col
 	_tile_materials[idx].set_shader_parameter("selected", 1.0)
 	var data: Dictionary = _tile_data[idx]
+	_activate(data["field_id"])
 	var crop_key: String = data.get("crop_key", "")
 	var crop_info := " | %s" % crop_key if not crop_key.is_empty() else ""
 	status_label.text = (
@@ -298,6 +303,14 @@ func _select_tile(col: int, row: int) -> void:
 	# Show Quick Status card instead of full sparkline panel
 	_show_quick_status(data, FarmLayout.soil_label(data))
 	_update_harvest_button()
+
+
+func _activate(field_id: String) -> void:
+	## Selecting a tile makes its field the active one; on a change, the forecast
+	## and the cost previews are re-asked for it (#601). Esc keeps it.
+	if _active.select(field_id) and not _game_id.is_empty():
+		_active.request_forecast(_game_id)
+		_refresh_action_costs()
 
 
 ## SOM carbon (API g C/m²) in the display unit, thousands separated: "7,345".
@@ -488,7 +501,7 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 		return
 	_last_step_data = data
 	_apply_day_result(data)
-	_api_client.get_forecast(_game_id, FarmLayout.FIELD_ID, _on_forecast_received)
+	_active.request_forecast(_game_id)
 	_refresh_action_costs()
 	if _cutaway.is_active() and _selected_tile.x >= 0:
 		_show_soil_cutaway()
@@ -498,66 +511,7 @@ func _refresh_action_costs() -> void:
 	## Preview each fixed-cost action so buttons show cost + block if unaffordable.
 	if _game_id.is_empty():
 		return
-	_preview_action_at(0)
-
-
-func _preview_action_at(i: int) -> void:
-	if i < 0 or i >= _PREVIEW_ACTIONS.size():
-		return
-	var spec: Dictionary = _PREVIEW_ACTIONS[i]
-	_api_client.preview_action(
-		_game_id,
-		FarmLayout.FIELD_ID,
-		spec["action"],
-		_preview_params_for(spec),
-		func(success: bool, data: Dictionary) -> void: _on_preview_cost(success, data, i)
-	)
-
-
-func _preview_params_for(spec: Dictionary) -> Dictionary:
-	## Fertilize has no fixed tier: preview (and gate on) the cheapest option so
-	## the button only blocks when no tier is affordable (#349 review).
-	if spec["action"] == "fertilize":
-		return FertilizerPicker.params_for(FertilizerPicker.cheapest_option_id())
-	if spec["action"] == "lime":
-		return LimePicker.params_for(LimePicker.cheapest_option_id())
-	return spec["params"]
-
-
-func _on_preview_cost(success: bool, data: Dictionary, i: int) -> void:
-	if success:
-		_apply_cost_to_button(i, data)
-	# Chain the next preview (one shared HTTPRequest handles them sequentially).
-	_preview_action_at(i + 1)
-
-
-func _apply_cost_to_button(i: int, data: Dictionary) -> void:
-	var spec: Dictionary = _PREVIEW_ACTIONS[i]
-	var btn: Button = _action_button_for(spec["action"])
-	if btn == null:
-		return
-	var cost: int = data.get("cost_credits", 0)
-	var balance: int = data.get("balance_credits", 0)
-	var affordable: bool = data.get("affordable", true)
-	_balance_credits = balance
-	var variable_cost: bool = spec.get("variable_cost", false)
-	btn.text = ActionCost.format_button_label(spec["label"], cost, variable_cost)
-	btn.tooltip_text = ActionCost.tooltip_text(spec["action"], cost, balance)
-	btn.disabled = not affordable or _bar_held
-
-
-func _action_button_for(action: String) -> Button:
-	match action:
-		"irrigate":
-			return irrigate_btn
-		"fertilize":
-			return fertilize_btn
-		"tillage":
-			return tillage_btn
-		"lime":
-			return lime_btn
-		_:
-			return null
+	_previews.refresh(_game_id, _active.id)
 
 
 func _on_weather_clicked(event: InputEvent) -> void:
@@ -658,10 +612,10 @@ func _send_action(field_id: String, action: String, params: Dictionary, on_reply
 	_api_client.execute_action(_game_id, field_id, action, params, on_reply)
 
 
-## Irrigate, Fertilize, Tillage and Lime act on a whole field: FIELD_ID until
-## the active field (#601). Plant and Harvest name the selected tile's.
+## Irrigate, Fertilize, Tillage and Lime act on the whole active field (#601).
+## Plant and Harvest name the selected tile's, which is the active one.
 func _send_field_action(action: String, params: Dictionary) -> void:
-	_send_action(FarmLayout.FIELD_ID, action, params, _on_action_complete)
+	_send_action(_active.id, action, params, _on_action_complete.bind(_active.id))
 
 
 func _on_irrigate() -> void:
@@ -770,6 +724,7 @@ func _on_harvest_complete(
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
+	var where := ActiveField.display_name(field_id)
 	# Backend really settled + cleared the crop, so this clear survives /step.
 	for i: int in FarmLayout.tiles_of(field_id, patch_idx, _tile_data):
 		_tile_data[i]["crop_key"] = ""
@@ -781,9 +736,10 @@ func _on_harvest_complete(
 	# Yield + P&L come straight from the harvest action's settlement response.
 	var grain_g_m2: float = data.get("grain_g_m2", 0.0)
 	status_label.text = (
-		"Harvested %s: %.0f g/m² grain (cost %d credits) — revenue %d | profit %d credits"
+		"Harvested %s on %s: %.0f g/m² grain (cost %d credits) — revenue %d | farm profit %d credits"
 		% [
 			crop_key,
+			where,
 			grain_g_m2,
 			cost,
 			int(data.get("revenue_credits", 0)),
@@ -791,15 +747,6 @@ func _on_harvest_complete(
 		]
 	)
 	_update_harvest_button()
-	# The action response is authoritative for P&L; fetch the season report only
-	# to confirm the fuller breakdown is available and note the gap if it is not.
-	_api_client.get_report(_game_id, _on_harvest_report_received)
-
-
-func _on_harvest_report_received(success: bool, _data: Dictionary) -> void:
-	# Report failure (e.g. mid-season 400) just notes the gap; P&L already shown.
-	if not success:
-		status_label.text += " (detailed report unavailable)"
 
 
 func _setup_crop_popup() -> void:
@@ -856,11 +803,13 @@ func _on_plant_complete(
 		_tile_data[i]["lai"] = 0.0
 		_update_crop_visuals(i)
 	_refresh_quick_status()
-	status_label.text = "Planted %s — %d credits" % [crop_key, cost]
+	status_label.text = (
+		"Planted %s on %s — %d credits" % [crop_key, ActiveField.display_name(field_id), cost]
+	)
 	_step_days(1)
 
 
-func _on_action_complete(success: bool, data: Dictionary) -> void:
+func _on_action_complete(success: bool, data: Dictionary, field_id: String) -> void:
 	if not success:
 		_set_buttons_disabled(false)
 		_reconcile("Action failed")
@@ -868,7 +817,7 @@ func _on_action_complete(success: bool, data: Dictionary) -> void:
 	var action: String = data.get("action", "")
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "Credits: %d" % data.get("balance_credits", 0)
-	status_label.text = "%s — %d credits" % [action, cost]
+	status_label.text = "%s on %s — %d credits" % [action, ActiveField.display_name(field_id), cost]
 	_step_days(1)
 
 
@@ -932,6 +881,7 @@ func _start_debug_driver() -> void:
 			"apply_step_fn": _apply_debug_step,
 			"select_tile_fn": _select_tile,
 			"show_cutaway_fn": _show_soil_cutaway,
+			"field_id_fn": func() -> String: return _active.id,
 		}
 	)
 
