@@ -10,9 +10,9 @@ func test_organ_material_is_wind_shader_with_params() -> void:
 	var mat := CR.create_organ_material(Color(0.5, 0.25, 0.125), 0.4, 0.6, 1.5)
 	assert_true(mat is ShaderMaterial, "Organ material is a ShaderMaterial")
 	assert_eq(mat.shader, CR.ORGAN_SHADER, "Organ shader")
-	var albedo: Vector3 = mat.get_shader_parameter("albedo")
-	assert_almost_eq(albedo.x, 0.5, 0.001, "Albedo r")
-	assert_almost_eq(albedo.z, 0.125, 0.001, "Albedo b")
+	var albedo: Color = mat.get_shader_parameter("albedo")
+	assert_almost_eq(albedo.r, 0.5, 0.001, "Albedo r")
+	assert_almost_eq(albedo.b, 0.125, 0.001, "Albedo b")
 	assert_almost_eq(float(mat.get_shader_parameter("roughness")), 0.4, 0.001, "Roughness")
 	assert_almost_eq(float(mat.get_shader_parameter("sway")), 0.6, 0.001, "Sway")
 	assert_almost_eq(float(mat.get_shader_parameter("wind_phase")), 1.5, 0.001, "Phase")
@@ -35,12 +35,12 @@ func test_fixture_material_is_static() -> void:
 func test_stem_material_colours() -> void:
 	var fresh := Color(0.1, 0.6, 0.2)
 	var dry := Color(0.5, 0.4, 0.2)
-	var c: Vector3 = CR.create_stem_material(0.0, fresh, dry).get_shader_parameter("stem_color")
-	assert_almost_eq(c.y, 0.6, 0.001, "Fresh colour at zero senescence")
-	var d: Vector3 = CR.create_stem_material(1.0, fresh, dry).get_shader_parameter("stem_color")
-	assert_almost_eq(d.x, 0.5, 0.001, "Dry colour at full senescence")
-	var e: Vector3 = CR.create_stem_material(0.0).get_shader_parameter("stem_color")
-	assert_almost_eq(e.x, CR.STEM_COLOR.r, 0.001, "Default fresh colour is the culm green")
+	var c: Color = CR.create_stem_material(0.0, fresh, dry).get_shader_parameter("stem_color")
+	assert_almost_eq(c.g, 0.6, 0.001, "Fresh colour at zero senescence")
+	var d: Color = CR.create_stem_material(1.0, fresh, dry).get_shader_parameter("stem_color")
+	assert_almost_eq(d.r, 0.5, 0.001, "Dry colour at full senescence")
+	var e: Color = CR.create_stem_material(0.0).get_shader_parameter("stem_color")
+	assert_almost_eq(e.r, CR.STEM_COLOR.r, 0.001, "Default fresh colour is the culm green")
 
 
 func test_leaf_material_hanging_flag() -> void:

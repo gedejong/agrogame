@@ -6,6 +6,7 @@ render_mode cull_disabled;
 //   Immobile nutrients (Fe, Zn) → younger/upper leaves first
 // Ref: Marschner 2012, Mineral Nutrition of Higher Plants.
 #include "res://shaders/crop_wind.gdshaderinc"
+#include "res://shaders/srgb.gdshaderinc"
 
 uniform sampler2D alpha_mask : source_color;
 uniform vec3 base_color : source_color = vec3(0.2, 0.55, 0.15);
@@ -33,22 +34,23 @@ uniform float stress_zn : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_frost : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_heat : hint_range(0.0, 1.0) = 0.0;
 
-const vec3 GREEN = vec3(0.2, 0.55, 0.15);
-const vec3 YOUNG_GREEN = vec3(0.35, 0.65, 0.25);
-const vec3 SENESCENT = vec3(0.7, 0.6, 0.2);
-const vec3 DEAD = vec3(0.5, 0.4, 0.2);
+// Colour targets, authored in sRGB like the per-crop base colours and
+// converted to linear light where the lighting maths uses them.
+const vec3 YOUNG_GREEN = SRGB_TO_LINEAR(vec3(0.35, 0.65, 0.25));
+const vec3 SENESCENT = SRGB_TO_LINEAR(vec3(0.7, 0.6, 0.2));
+const vec3 DEAD = SRGB_TO_LINEAR(vec3(0.5, 0.4, 0.2));
 
 // Stress color targets
-const vec3 DROUGHT_COLOR = vec3(0.35, 0.28, 0.15);    // dark brown — wilted
-const vec3 N_DEFICIENCY = vec3(0.70, 0.72, 0.30);     // pale yellow-green — uniform chlorosis
-const vec3 P_DARK_GREEN = vec3(0.12, 0.35, 0.10);     // abnormally dark green (P-starved)
-const vec3 P_PURPLE = vec3(0.40, 0.15, 0.35);         // purple/reddish anthocyanin
-const vec3 FE_CHLOROSIS = vec3(0.82, 0.80, 0.45);     // strong yellow — almost white in severe
-const vec3 FE_VEIN_COLOR = vec3(0.2, 0.55, 0.15);     // green veins stay green
-const vec3 ZN_PALE = vec3(0.70, 0.65, 0.40);          // pale band color
-const vec3 ZN_BRONZE = vec3(0.50, 0.38, 0.20);        // bronze/necrotic band
-const vec3 FROST_NECROSIS = vec3(0.10, 0.08, 0.06);   // near-black, water-soaked tissue
-const vec3 HEAT_BURN = vec3(0.55, 0.30, 0.10);        // brown scorch — leaf tip burn
+const vec3 DROUGHT_COLOR = SRGB_TO_LINEAR(vec3(0.35, 0.28, 0.15));   // dark brown — wilted
+const vec3 N_DEFICIENCY = SRGB_TO_LINEAR(vec3(0.70, 0.72, 0.30));    // pale yellow-green — uniform chlorosis
+const vec3 P_DARK_GREEN = SRGB_TO_LINEAR(vec3(0.12, 0.35, 0.10));    // abnormally dark green (P-starved)
+const vec3 P_PURPLE = SRGB_TO_LINEAR(vec3(0.40, 0.15, 0.35));        // purple/reddish anthocyanin
+const vec3 FE_CHLOROSIS = SRGB_TO_LINEAR(vec3(0.82, 0.80, 0.45));    // strong yellow — almost white in severe
+const vec3 FE_VEIN_COLOR = SRGB_TO_LINEAR(vec3(0.2, 0.55, 0.15));    // green veins stay green
+const vec3 ZN_PALE = SRGB_TO_LINEAR(vec3(0.70, 0.65, 0.40));         // pale band color
+const vec3 ZN_BRONZE = SRGB_TO_LINEAR(vec3(0.50, 0.38, 0.20));       // bronze/necrotic band
+const vec3 FROST_NECROSIS = SRGB_TO_LINEAR(vec3(0.10, 0.08, 0.06));  // near-black, water-soaked tissue
+const vec3 HEAT_BURN = SRGB_TO_LINEAR(vec3(0.55, 0.30, 0.10));       // brown scorch — leaf tip burn
 
 void vertex() {
 	if (wind_strength > 0.001) {
@@ -76,10 +78,11 @@ void fragment() {
 	// Young, still-expanding leaves are a paler green than mature blades.
 	vec3 color = mix(YOUNG_GREEN, base_color, age);
 	// Midrib: a pale ridge along the blade centre, with faint parallel veins.
+	// Both scale the blade's own colour, so the rib stays the blade's hue.
 	float rib = 1.0 - smoothstep(0.0, 0.05, abs(UV.y - 0.5));
 	float veins = 0.5 + 0.5 * sin(UV.y * 75.0);
 	color *= 1.0 - midrib * 0.07 * veins;
-	color = mix(color, color * 1.3 + vec3(0.08, 0.08, 0.02), rib * midrib * 0.8);
+	color = mix(color, color * 1.3, rib * midrib * 0.8);
 	color = mix(color, SENESCENT, smoothstep(0.0, 0.7, effective_sen));
 	color = mix(color, DEAD, smoothstep(0.5, 1.0, effective_sen));
 
@@ -137,14 +140,17 @@ void fragment() {
 	float heat_f = stress_heat * heat_tip * (0.5 + young_leaf * 0.5);
 	color = mix(color, HEAT_BURN, heat_f * 0.8);
 
-	// Waxy cuticle highlight
-	float ndotv = abs(dot(NORMAL, VIEW));
-	float sheen = pow(1.0 - ndotv, 3.0) * 0.15 + pow(ndotv, 6.0) * 0.1;
-	color += vec3(sheen) * (1.0 - effective_sen);
-
 	ALBEDO = color;
 	// Thin tissue transmits light: a blade between viewer and sun glows.
 	BACKLIGHT = color * 0.4 * (1.0 - effective_sen * 0.5);
+	// Waxy cuticle: its sheen is reflected at the leaf surface, so it is
+	// specular and leaves the pigment colour beneath untouched. SPECULAR is
+	// the engine default 0.5, a dielectric's 4 % reflectance at normal
+	// incidence, which the lighting's Fresnel term raises towards grazing
+	// angles; a fresh blade is glossier than a senescent one. SPECULAR stays
+	// constant: lifting it with the view angle made sub-pixel blades sparkle
+	// under MSAA (#637).
+	SPECULAR = 0.5;
 	ROUGHNESS = mix(0.5, 0.8, effective_sen);
 	METALLIC = 0.0;
 	ALPHA_SCISSOR_THRESHOLD = 0.3;

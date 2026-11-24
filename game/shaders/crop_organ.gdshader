@@ -5,6 +5,7 @@ render_mode cull_disabled;
 // by the whole-plant wind bend and swinging on its own stalk. The mesh
 // origin is the organ's attachment point.
 #include "res://shaders/crop_wind.gdshaderinc"
+#include "res://shaders/srgb.gdshaderinc"
 
 uniform vec3 albedo : source_color = vec3(1.0);
 uniform float roughness : hint_range(0.0, 1.0) = 0.75;
@@ -24,7 +25,9 @@ void fragment() {
 	if (!FRONT_FACING) {
 		NORMAL = -NORMAL;
 	}
-	ALBEDO = albedo * COLOR.rgb;
+	// Vertex colours are Godot Colors (sRGB), which the engine passes to a
+	// custom shader unconverted.
+	ALBEDO = albedo * SRGB_TO_LINEAR(COLOR.rgb);
 	ROUGHNESS = roughness;
 	METALLIC = 0.0;
 }
