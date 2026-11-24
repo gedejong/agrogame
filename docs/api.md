@@ -64,6 +64,16 @@ external automation. In-memory game sessions are keyed by `game_id`.
   per ha × each targeted patch's `area_fraction`, rounded per patch, exactly
   as the creation-time seed charge does (#525): on the default field one patch
   of maize costs 67, all three 201.
+  Every `/action` reply carries `date` (ISO session date after the action,
+  additive, #631). A `harvest` reply also carries `settlements`, one entry per
+  crop group settled (a full-field harvest is one entry today), and `[]` for
+  every other action and for a no-op. Each entry holds `crop_key`, `product`
+  (`grain` or `fruit`), `patch_indices`, `area_ha` (ha), `dry_kg_ha` (kg/ha
+  dry mass), `dry_matter_fraction` (0 to 1), `sold_kg_ha` (kg/ha fresh),
+  `sold_kg` (kg over the area), `quarter` (1 to 4), `base_credits_per_kg`,
+  `seasonal_multiplier`, `price_credits_per_kg` (base x multiplier, cr/kg) and
+  `revenue_credits` (ledger delta, credits; the reply's `revenue_credits` is
+  their sum). The client renders these as the harvest receipt.
 - `POST /api/v1/games/{game_id}/action/preview` — estimate an action's credit
   cost and affordability without executing it (same cost source as `/action`).
   `patch_idx` is validated as on `/action`, with the same 422 and 400 (#525)

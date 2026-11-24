@@ -374,7 +374,7 @@ def _gd_dict_const(source: str, name: str) -> dict[str, str]:
 
 def _gd_int_const(source: str, name: str) -> int:
     """Value of a ``const NAME := <int>`` line in GDScript."""
-    match = re.search(rf"^const {name}(?::\s*int)? := (\d+)$", source, re.M)
+    match = re.search(rf"^const {name}(?::\s*int)?\s*:?=\s*(\d+)$", source, re.M)
     if match is None:
         raise ValueError(f"const {name} not found in {_PICKER_GD}")
     return int(match.group(1))
@@ -475,6 +475,21 @@ def _act(
     path = "action/preview" if preview else "action"
     body = {"field_id": "field_1", "action": action, "params": params}
     return client.post(f"/api/v1/games/{game_id}/{path}", json=body)
+
+
+_LIME_GD = Path(__file__).resolve().parents[1] / "game" / "scripts" / "lime_picker.gd"
+
+
+def _step(client: TestClient, game_id: str, days: int) -> None:
+    resp = client.post(f"/api/v1/games/{game_id}/step?days={days}&seed=42")
+    assert resp.status_code == 200, resp.text
+
+
+def _harvest(client: TestClient, game_id: str, params: dict) -> dict:
+    resp = _act(client, game_id, "harvest", params)
+    assert resp.status_code == 200, resp.text
+    body: dict = resp.json()
+    return body
 
 
 def _harvest_all(client: TestClient, game_id: str) -> None:
@@ -590,3 +605,129 @@ class TestPlantSeedByArea:
         executed = _act(client, game_id, action, params)
         assert preview.status_code == executed.status_code == 400
         assert preview.json() == executed.json()
+
+
+# ---------------------------------------------------------------------------
+# Lime picker parity with prices.yaml (#631 B8)
+# ---------------------------------------------------------------------------
+class TestLimePickerParity:
+    def test_lime_picker_matches_price_table(self, prices: PriceTable) -> None:
+        source = _LIME_GD.read_text(encoding="utf-8")
+        match = re.search(
+            r"^const PRICE_PER_KG(?::\s*float)?\s*:?=\s*([\d.]+)$", source, re.M
+        )
+        assert match is not None
+        assert float(match.group(1)) == prices.input_costs["amendment_lime_per_kg"]
+        assert (
+            _gd_int_const(source, "LABOR_PER_ACTION")
+            == prices.input_costs["labor_per_action"]
+        )
+
+
+# ---------------------------------------------------------------------------
+# Harvest receipt: settlements[] and date (#631 B1-B6)
+# ---------------------------------------------------------------------------
+def _check_receipt(body: dict, balance_before: int) -> dict:
+    """The B2 identities every receipt must satisfy; returns the settlement."""
+    assert len(body["settlements"]) == 1
+    st = body["settlements"][0]
+    assert abs(st["sold_kg_ha"] - st["dry_kg_ha"] / st["dry_matter_fraction"]) < 0.1
+    assert abs(st["sold_kg"] - st["sold_kg_ha"] * st["area_ha"]) < 0.1
+    assert abs(st["revenue_credits"] - st["sold_kg"] * st["price_credits_per_kg"]) < 1
+    assert body["revenue_credits"] == st["revenue_credits"]
+    assert body["balance_credits"] - balance_before == (
+        st["revenue_credits"] - body["cost_credits"]
+    )
+    return dict(st)
+
+
+class TestHarvestReceipt:
+    def test_default_scenario_maize_receipt_across_two_seasons(
+        self, client: TestClient
+    ) -> None:
+        game_id = _create_game(client, NL_MAIZE_PATCHES, credits=10_000)
+        _step(client, game_id, 200)
+        before = games[game_id].ledger.balance_credits
+        body = _harvest(client, game_id, {"patch_idx": 1})
+        assert body["date"] == "2024-10-18"
+        st = _check_receipt(body, before)
+        assert (st["crop_key"], st["product"], st["patch_indices"]) == (
+            "maize",
+            "grain",
+            [1],
+        )
+        assert st["area_ha"] == 0.334
+        assert (st["quarter"], st["base_credits_per_kg"]) == (4, 0.22)
+        assert st["seasonal_multiplier"] == 1.2
+        assert st["price_credits_per_kg"] == pytest.approx(0.264)
+        assert st["dry_kg_ha"] > 0
+
+        # Second season: replant the same patch, run on, harvest again. The
+        # receipt describes this harvest only, not the first one.
+        assert (
+            _act(
+                client, game_id, "plant", {"crop_key": "maize", "patch_idx": 1}
+            ).status_code
+            == 200
+        )
+        _step(client, game_id, 200)
+        before2 = games[game_id].ledger.balance_credits
+        body2 = _harvest(client, game_id, {"patch_idx": 1})
+        st2 = _check_receipt(body2, before2)
+        assert body2["date"] > body["date"]
+        assert st2["patch_indices"] == [1]
+        assert st2["revenue_credits"] != st["revenue_credits"]
+        assert body2["revenue_credits"] == st2["revenue_credits"]
+
+    def test_grape_receipt_uses_fresh_fruit(self, client: TestClient) -> None:
+        game_id = _create_game(client, NL_MAIZE_PATCHES, credits=10_000)
+        _harvest(client, game_id, {"patch_idx": 1})
+        assert (
+            _act(
+                client, game_id, "plant", {"crop_key": "grape", "patch_idx": 1}
+            ).status_code
+            == 200
+        )
+        _step(client, game_id, 200)
+        before = games[game_id].ledger.balance_credits
+        body = _harvest(client, game_id, {"patch_idx": 1})
+        st = _check_receipt(body, before)
+        assert (st["product"], st["dry_matter_fraction"]) == ("fruit", 0.2528)
+        assert (st["base_credits_per_kg"], st["seasonal_multiplier"]) == (0.8, 1.1)
+
+    @pytest.mark.parametrize(
+        ("days", "quarter", "multiplier"), [(182, 3, 0.8), (183, 4, 1.2)]
+    )
+    def test_quarter_boundary_kenya_maize(
+        self, client: TestClient, days: int, quarter: int, multiplier: float
+    ) -> None:
+        patch = {
+            "soil_profile_key": "loam_temperate",
+            "crop_key": "maize",
+            "climate_key": "kenya_highlands",
+            "area_fraction": 1.0,
+        }
+        game_id = _create_game(client, [patch])
+        _step(client, game_id, days)
+        st = _harvest(client, game_id, {})["settlements"][0]
+        assert (st["quarter"], st["seasonal_multiplier"]) == (quarter, multiplier)
+
+    def test_full_field_harvest_is_one_settlement(self, client: TestClient) -> None:
+        game_id = _create_game(client, NL_MAIZE_PATCHES)
+        _step(client, game_id, 200)
+        body = _harvest(client, game_id, {})
+        assert len(body["settlements"]) == 1
+        st = body["settlements"][0]
+        assert st["patch_indices"] == [0, 1, 2]
+        assert st["area_ha"] == 1.0
+
+    def test_irrigate_and_noop_have_no_settlements(self, client: TestClient) -> None:
+        game_id = _create_game(client, NL_MAIZE_PATCHES)
+        irrigate = _act(client, game_id, "irrigate", {"amount_mm": 10}).json()
+        assert irrigate["settlements"] == []
+        assert irrigate["date"] == games[game_id].current_date.isoformat()
+        _harvest(client, game_id, {"patch_idx": 0})
+        noop = _act(client, game_id, "harvest", {"patch_idx": 0}).json()
+        assert noop["status"] == "no-op"
+        assert noop["settlements"] == []
+        assert noop["date"] == irrigate["date"]
