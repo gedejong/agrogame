@@ -188,3 +188,24 @@ func test_fields_for_out_of_range_is_empty_and_in_range_a_copy() -> void:
 	var second: Array = ScenarioCatalogScript.default_fields()
 	assert_eq(second[0]["field_id"], "field_1", "catalog field ids are immutable to callers")
 	assert_eq(second[0]["patches"][0]["crop_key"], "maize", "and so are its patches")
+
+
+func _patches_of(label: String, field_index: int = 0) -> Array:
+	for i in range(ScenarioCatalogScript.option_count()):
+		if ScenarioCatalogScript.label_for(i) == label:
+			return ScenarioCatalogScript.fields_for(i)[field_index]["patches"]
+	return []
+
+
+func test_kenya_maize_and_rice_scenario_is_the_two_single_field_scenarios() -> void:
+	# #601 AC6: field_1 is the Kenya-highland maize scenario's patches, field_2
+	# the Kenya rice scenario's; the farm has the one climate it must.
+	var both := "Kenya highlands: maize and rice"
+	var fields: Array = ScenarioCatalogScript.fields_for(ScenarioCatalogScript.option_count() - 1)
+	assert_eq(ScenarioCatalogScript.label_for(ScenarioCatalogScript.option_count() - 1), both)
+	assert_eq(
+		fields.map(func(f: Dictionary) -> String: return f["field_id"]), ["field_1", "field_2"]
+	)
+	assert_eq(_patches_of(both, 0), _patches_of("Kenya-highland maize"))
+	assert_eq(_patches_of(both, 1), _patches_of("Kenya rice"))
+	assert_ne(_patches_of("Kenya rice"), [], "the rice scenario exists")

@@ -92,6 +92,7 @@ func test_start_runs_plant_then_step_then_show_sequence() -> void:
 		{
 			"api": api,
 			"game_id_fn": func() -> String: return "g1",
+			"field_id_fn": func() -> String: return "field_7",
 			"ensure_game_fn": func(cb: Callable) -> void: cb.call(),
 			"apply_step_fn": func(data: Dictionary) -> void: applied.append(data),
 			"select_tile_fn": func(col: int, row: int) -> void: selected.append(Vector2i(col, row)),
@@ -102,7 +103,7 @@ func test_start_runs_plant_then_step_then_show_sequence() -> void:
 	assert_eq(api.plant_calls.size(), 3, "auto-plants three demo crops")
 	assert_eq(api.plant_calls[0]["params"]["crop_key"], "maize")
 	var fields: Array = api.plant_calls.map(func(c: Dictionary) -> String: return c["field_id"])
-	assert_eq(fields, ["field_1", "field_1", "field_1"], "plants on field_1 (#548)")
+	assert_eq(fields, ["field_7", "field_7", "field_7"], "plants on the active field (#601)")
 	assert_eq(api.step_calls.size(), 1, "fast-forwards once")
 	assert_eq(api.step_calls[0]["days"], 21, "steps 21 days")
 	assert_eq(applied.size(), 1, "applies the stepped result")
@@ -120,6 +121,7 @@ func test_start_stops_on_step_failure() -> void:
 		{
 			"api": api,
 			"game_id_fn": func() -> String: return "g1",
+			"field_id_fn": func() -> String: return "field_7",
 			"ensure_game_fn": func(cb: Callable) -> void: cb.call(),
 			"apply_step_fn": func(_d: Dictionary) -> void: pass,
 			"select_tile_fn": func(_c: int, _r: int) -> void: pass,

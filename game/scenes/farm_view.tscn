@@ -130,6 +130,9 @@ text = "Run Season"
 
 [node name="Sep1" type="VSeparator" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 
+[node name="ActiveFieldLabel" type="Label" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
+text = "Field 1"
+
 [node name="IrrigateButton" type="Button" parent="UILayer/BottomBar/BottomVBox/ActionBar"]
 text = "Irrigate (20mm)"
 icon = ExtResource("6")

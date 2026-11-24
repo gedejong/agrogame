@@ -118,7 +118,7 @@ static func inject_debug_stress_events(patches: Dictionary) -> void:
 
 func start(ctx: Dictionary) -> void:
 	## Kick off the auto-cutaway demo: ensure a game exists, then plant crops.
-	## ctx keys: api, game_id_fn, ensure_game_fn, apply_step_fn, select_tile_fn,
+	## ctx keys: api, game_id_fn, ensure_game_fn, apply_step_fn, select_tile_fn, field_id_fn,
 	## show_cutaway_fn (see _ctx docstring).
 	_ctx = ctx
 	var ensure_game_fn: Callable = ctx["ensure_game_fn"]
@@ -139,7 +139,7 @@ func _plant_next(crops: Array, idx: int) -> void:
 	var game_id_fn: Callable = _ctx["game_id_fn"]
 	api.execute_action(
 		game_id_fn.call(),
-		FarmLayout.FIELD_ID,
+		(_ctx["field_id_fn"] as Callable).call(),
 		"plant",
 		{"crop_key": c[0], "patch_idx": c[1]},
 		func(_s: bool, _d: Dictionary) -> void: _plant_next(crops, idx + 1)

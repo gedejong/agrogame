@@ -8,9 +8,6 @@ extends RefCounted
 ## per-patch actions map by that pair: never by soil name (two patches may share
 ## a soil), and never by patch index alone (every field has a patch 0).
 
-## The field Irrigate, Fertilize, Tillage and Lime name (#548) until the active
-## field replaces it (#601).
-const FIELD_ID := "field_1"
 ## The z gap between two fields' row bands, in world units (a tile is 1.0). A
 ## visual boundary only: every field is modelled as 1 ha (#472 G1).
 const FIELD_GAP := 0.3
@@ -92,16 +89,6 @@ static func assign_fields(
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]
 		materials[i].set_shader_parameter("albedo_texture", load(paths["albedo"]))
 		materials[i].set_shader_parameter("normal_texture", load(paths["normal"]))
-
-
-## assign_fields for one field, FIELD_ID, holding `patches`. One field takes
-## every row, so only the column count matters.
-static func assign_tiles(patches: Array, tile_data: Array, materials: Array, cols: int) -> void:
-	if patches.is_empty():
-		return
-	assign_fields(
-		[{"field_id": FIELD_ID, "patches": patches}], tile_data, materials, Vector2i(cols, 1)
-	)
 
 
 ## Each row's z when `field_count` fields share `rows` rows of `tile_size`:

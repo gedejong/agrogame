@@ -36,6 +36,8 @@ class ApiStub:
 	var game_reply: Array = [true, {}]
 	var defer_game: bool = false
 	var _game_cb: Callable
+	## The forecasts asked for, as [field_id, callback], answered by the test.
+	var forecasts: Array = []
 
 	func get_game(game_id: String, callback: Callable) -> void:
 		calls.append(["get_game", game_id])
@@ -45,6 +47,10 @@ class ApiStub:
 
 	func reply_game(ok: bool, data: Dictionary) -> void:
 		_game_cb.call(ok, data)
+
+	func get_forecast(_game_id: String, field_id: String, callback: Callable) -> void:
+		calls.append(["forecast", field_id])
+		forecasts.append([field_id, callback])
 
 	func create_game(callback: Callable, _fields: Array = []) -> void:
 		calls.append(["create_game"])

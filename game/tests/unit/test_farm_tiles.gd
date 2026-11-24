@@ -198,7 +198,7 @@ func _laid_out_maize() -> Array:
 		tile.merge({"lai_peak": 3.0, "dev_stage": 1.2, "grain_g_m2": 40.0})
 		tiles.append(tile)
 		mats.append(ShaderMaterial.new())
-	FarmLayout.assign_tiles(ScenarioCatalog.default_patches(), tiles, mats, 6)
+	FarmLayout.assign_fields(ScenarioCatalog.default_fields(), tiles, mats, Vector2i(6, 6))
 	return tiles
 
 

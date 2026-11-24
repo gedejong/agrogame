@@ -141,6 +141,38 @@ const SCENARIOS: Array = [
 			},
 		],
 	},
+	{
+		# Two fields on one farm, one climate (weather is farm-level, ADR-002):
+		# the Kenya-highland maize field and the Kenya rice field (#601).
+		"label": "Kenya highlands: maize and rice",
+		"fields":
+		[
+			{
+				"field_id": "field_1",
+				"patches":
+				[
+					{
+						"soil_profile_key": "loam_temperate",
+						"crop_key": "maize",
+						"climate_key": "kenya_highlands",
+						"area_fraction": 1.0,
+					},
+				],
+			},
+			{
+				"field_id": "field_2",
+				"patches":
+				[
+					{
+						"soil_profile_key": "clay_temperate",
+						"crop_key": "rice",
+						"climate_key": "kenya_highlands",
+						"area_fraction": 1.0,
+					},
+				],
+			},
+		],
+	},
 ]
 
 
