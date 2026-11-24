@@ -131,13 +131,17 @@ func test_start_stops_on_step_failure() -> void:
 	assert_eq(shown.size(), 0, "cutaway not opened when the step fails")
 
 
-func test_farm_environment_tonemap() -> void:
-	# #637: exposure 1.0 and white 6.0 keep midtones at their authored
-	# brightness and leave headroom before highlights clip.
+func test_farm_environment_tonemap_and_ssao() -> void:
+	# #637: white 6.0 leaves headroom before highlights clip; exposure 1.4
+	# brightens the scene under the clear-day sun and sky ambient. SSAO darkens
+	# only ambient light, not sunlit foliage.
 	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
 	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_FILMIC, "Filmic tonemap")
-	assert_almost_eq(env.tonemap_exposure, 1.0, 1e-6, "Exposure")
+	assert_almost_eq(env.tonemap_exposure, 1.4, 1e-6, "Exposure")
 	assert_almost_eq(env.tonemap_white, 6.0, 1e-6, "White point")
+	assert_true(env.ssao_enabled, "SSAO on")
+	assert_almost_eq(env.ssao_intensity, 1.5, 1e-6, "SSAO intensity")
+	assert_almost_eq(env.ssao_light_affect, 0.0, 1e-6, "SSAO leaves direct light alone")
 
 
 func test_add_farm_lighting_lights_as_the_farm_view() -> void:
