@@ -31,4 +31,8 @@ class RootParams:
     # Scale of the kernel used for continuous distributions as a fraction of
     # current root depth (depth * kernel_scale_fraction). Used by exponential
     # and taproot kernels.
+    # UNCITED: no source gives a scale proportional to the rooting depth, and
+    # no preset or factory overrides 0.5. Replacing it with a cited
+    # distribution (DSSAT SRGF or Jackson et al. 1996) is tracked in #655,
+    # which waits on #535. The value is unchanged by #651.
     kernel_scale_fraction: float = 0.5

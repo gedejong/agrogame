@@ -70,8 +70,33 @@ class RootModule:
         f *= max(0.0, min(1.0, agg_penetration))
         return max(0.0, min(1.0, f))
 
+    def _depth_cap_cm(self, profile: SoilProfileView | None) -> float:
+        """Deepest the rooting front may reach: the crop maximum and the soil bottom.
+
+        Below the profile there is no layer to take water or N from, so the
+        front stops at the soil's total depth as well as at the crop maximum
+        (#651). DSSAT-CSM CERES-Maize sets ``DEPMAX = DS(NLAYR)`` ("Depth of
+        soil, cm", ``MZ_CERES.for:747``) and caps ``RTDEP = AMIN1(RTDEP,
+        DEPMAX)`` (``MZ_ROOTS.for:188``; Jones et al. 2003, Eur. J. Agron.
+        18:235-265). APSIM Next Generation ``RootZoneState.GrowRootDepth``
+        sums layer thicknesses down to the first layer with XF = 0
+        (``RootZoneState.cs:305-311``), then takes ``Math.Min(
+        maximumRootDepth, MaxDepth)`` (``:320-321``; Holzworth et al. 2014,
+        Environ. Model. Softw. 62:327-350). The engine has no per-layer XF, so
+        the profile bottom is its analogue. Without a profile (the minimal
+        ``SimulationOrchestrator``) only the crop maximum applies.
+        """
+        cap = self.params.max_depth_cm
+        if profile is not None:
+            cap = min(cap, sum(layer.depth_cm for layer in profile.layers))
+        return cap
+
     def _update_depth(
-        self, state: RootState, stage: PhenologyStage, constraints: dict | None
+        self,
+        state: RootState,
+        stage: PhenologyStage,
+        constraints: dict | None,
+        profile: SoilProfileView | None = None,
     ) -> float:
         prev = state.current_depth_cm
         hardpan = (constraints or {}).get("hardpan_cm")
@@ -80,8 +105,11 @@ class RootModule:
         mult = self._stage_multiplier(stage)
         cf = self._constraint_factor(hardpan, water_table, prev, agg_pen)
         inc = self.params.growth_rate_cm_per_day * mult * cf
-        new = min(self.params.max_depth_cm, prev + max(0.0, inc))
-        if new > prev and self.event_bus:
+        new = min(self._depth_cap_cm(profile), prev + max(0.0, inc))
+        # Any change is reported, not only growth: a depth saved before the
+        # profile cap is clamped on the next tick at any stage, and the
+        # canopy's drought-depth factor must follow it (#651).
+        if new != prev and self.event_bus:
             self.event_bus.emit(RootDepthChanged(previous_cm=prev, new_cm=new))
         state.current_depth_cm = new
         return new - prev
@@ -263,13 +291,13 @@ class RootModule:
     def daily_step(
         self,
         state: RootState,
-        profile: SoilProfileView,
+        profile: SoilProfileView | None,
         stage: PhenologyStage,
         daily_root_biomass_g_m2: float = 0.0,
         nutrient_signal: Sequence[float] | None = None,
         constraints: dict | None = None,
     ) -> RootFluxes:
-        d_depth = self._update_depth(state, stage, constraints)
+        d_depth = self._update_depth(state, stage, constraints, profile)
         _ = self._update_biomass(state, daily_root_biomass_g_m2)
         self._update_distribution(state, profile, nutrient_signal)
         return RootFluxes(depth_inc_cm=d_depth, biomass_delta_g_m2=0.0)

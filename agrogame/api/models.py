@@ -302,7 +302,10 @@ class PatchDayResponse(BaseModel):
         " 0 sowing, 1 anthesis, 2 physiological maturity",
     )
     grain_g_m2: float
-    root_depth_cm: float = Field(description="Current root penetration depth (cm)")
+    root_depth_cm: float = Field(
+        description="Current root penetration depth (cm), capped at the crop's"
+        " maximum rooting depth and at the soil profile's total depth"
+    )
     lai: float = Field(description="Leaf area index (m²/m²)")
     soil_theta_surface: float = Field(description="Top-layer volumetric water content")
     som_total_c_g_m2: float = Field(
