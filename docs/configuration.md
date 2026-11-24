@@ -100,7 +100,7 @@ A file is `{ "crops": { "<key>": { …cropParameters… } } }`.
 | `thermal_time.emergence_dd` | number | °C·day (GDD) | > 0 | *(required)* | Growing-degree-days from sowing to emergence. |
 | `thermal_time.flowering_dd` | number | °C·day (GDD) | > 0 | *(required)* | GDD from sowing to flowering. |
 | `thermal_time.maturity_dd` | number | °C·day (GDD) | > 0 | *(required)* | GDD from sowing to physiological maturity. |
-| `roots.max_depth_cm` | number | cm | > 0 (guidance: 30–300) | *(required)* | Maximum rooting depth. |
+| `roots.max_depth_cm` | number | cm | > 0 (guidance: 30–300) | *(required)* | Maximum rooting depth. The root front is also capped at the soil profile's total depth (DSSAT, APSIM). |
 | `roots.growth_rate_cm_per_day` | number | cm/day | > 0 (guidance: 0.5–4) | *(required)* | Downward root-front extension rate. |
 | `roots.distribution` | array[number] | fraction per layer | ≥ 3 items, each ≥ 0 | *(required)* | Relative root density by layer (top→bottom). |
 | `biomass.rue_g_per_mj` | number | g DM / MJ | > 0 (guidance: 1–4) | *(required)* | Radiation-use efficiency (biomass per MJ intercepted PAR). |
@@ -198,7 +198,7 @@ phenology, canopy dynamics, roots, and optional per-climate overrides. A file is
 
 | Field | Type | Unit | Range / enum | Default | Description |
 |---|---|---|---|---|---|
-| `max_depth_cm` | number | cm | ≥ 0 (guidance: 30–300) | 120.0 | Maximum rooting depth. |
+| `max_depth_cm` | number | cm | ≥ 0 (guidance: 30–300) | 120.0 | Maximum rooting depth. The root front is also capped at the soil profile's total depth (DSSAT, APSIM). |
 | `growth_rate_cm_per_day` | number | cm/day | ≥ 0 (guidance: 0.5–4) | 1.5 | Downward root-front extension rate. |
 | `distribution` | string | — | `exponential`, `uniform`, `taproot` | `exponential` | Root density profile shape. |
 
