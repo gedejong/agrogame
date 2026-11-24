@@ -206,6 +206,60 @@ def test_standing_crop_stops_roots_and_nutrient_uptake(
     assert sum(d.transpiration_mm for d in standing) > 0.0
 
 
+def test_stop_lifts_for_the_next_crop() -> None:
+    """The maturity stop belongs to the crop: a replanted crop roots and takes up.
+
+    Kenya maize, seed 42: maturity + 10 standing days, harvest, 10 bare days,
+    replant, then season 2 to maturity + 10 days. A gate that stayed engaged
+    after replanting would starve every second season (review of #636).
+    """
+    climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
+        "kenya_highlands"
+    ]
+    maize = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
+        "maize", "kenya_highlands"
+    )
+    records = iter(
+        SyntheticWeatherGenerator(climate, seed=42)
+        .generate(500, date(2024, 3, 1))
+        .records
+    )
+    patch = Patch(PatchConfig("loam_temperate", "maize", "kenya_highlands", 1.0))
+
+    def season() -> tuple[list[_Day], list[_Day]]:
+        tally, grown, standing = _Tally(patch.orch), [], []
+        while len(standing) < 10:
+            tally.day = _Day()
+            patch.step_day(**_drive(next(records)))
+            day = _snapshot(patch.orch, tally)
+            mature = bool(grown) and grown[-1].stage is PhenologyStage.MATURITY
+            (standing if mature else grown).append(day)
+        return grown, standing
+
+    seasons = [season()]
+    patch.harvest()
+    patch.reset_crop(None)
+    for _ in range(10):
+        patch.step_day(**_drive(next(records)))
+    patch.reset_crop(maize)
+    assert patch.orch.phenology.state.stage is PhenologyStage.PLANTED
+    replant_depth = patch.orch.root_state.current_depth_cm
+    seasons.append(season())
+    (grown_1, _), (grown_2, standing_2) = seasons
+    # Season 2 roots and takes up like season 1, within a factor of two.
+    gain_1 = grown_1[-1].depth_cm - grown_1[0].depth_cm
+    assert grown_2[-1].depth_cm - replant_depth > 0.5 * gain_1
+    assert sum(d.depth_events for d in grown_2) > 0.5 * len(grown_2)
+    for uptake in ("n_uptake", "non_n_uptake"):
+        season_1 = sum(getattr(d, uptake) for d in grown_1)
+        assert sum(getattr(d, uptake) for d in grown_2) > 0.5 * season_1, uptake
+    assert set().union(*(d.nutrients for d in grown_2)) == _NON_N
+    # And the stop re-engages at the second maturity.
+    for d in standing_2:
+        assert (d.depth_cm, d.depth_events) == (grown_2[-1].depth_cm, 0)
+        assert d.n_uptake == d.non_n_uptake == 0.0
+
+
 # --- AC6: save continuation across maturity (#577/#585) ----------------------
 
 _SAVE_AFTER_MATURITY = 10
