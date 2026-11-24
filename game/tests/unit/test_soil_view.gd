@@ -113,6 +113,47 @@ func test_refresh_rebuilds_roots() -> void:
 		)
 
 
+func test_root_front_is_drawn_at_the_reported_depth() -> void:
+	# #539: the root image puts its front at root_depth_cm's share of the profile,
+	# so a depth held at maturity holds the drawn front. NL spring wheat matures
+	# at about 43 cm; before #539 it went on to 58 cm.
+	var style: Dictionary = SoilViewScript.CROP_ROOT_STYLE["spring_wheat"]
+	var at_maturity: Image = SoilViewScript._generate_root_image(43.0, 100.0, style)
+	var kept_growing: Image = SoilViewScript._generate_root_image(58.0, 100.0, style)
+	# Front row = depth / total height x 512 rows, within the taproot width.
+	assert_almost_eq(_root_front_row(at_maturity), 220, 1, "43 cm front at row 220")
+	assert_almost_eq(_root_front_row(kept_growing), 296, 1, "58 cm front at row 296")
+	# A depth held at maturity redraws the same roots, pixel for pixel.
+	var held: Image = SoilViewScript._generate_root_image(43.0, 100.0, style)
+	assert_eq(held.get_data(), at_maturity.get_data(), "Frozen depth, identical roots")
+
+
+func test_refresh_at_a_held_depth_keeps_the_root_texture() -> void:
+	# #539: once the depth stops changing, a day's refresh reuses the drawn roots.
+	var view := Node3D.new()
+	view.set_script(SoilViewScript)
+	add_child_autofree(view)
+	var columns: Array[Dictionary] = _sandy_columns()
+	columns[0]["root_depth_cm"] = 43.0
+	columns[0]["crop_key"] = "spring_wheat"
+	view.show_cutaway(columns)
+	view.show_cutaway(columns)
+	var drawn: Texture2D = view._layer_materials[0].get_shader_parameter("root_texture")
+	columns[0]["soil_state"] = {"water_theta": [0.25, 0.26, 0.23]}
+	view.show_cutaway(columns)
+	for mat: ShaderMaterial in view._layer_materials:
+		assert_same(mat.get_shader_parameter("root_texture"), drawn, "Same roots drawn")
+
+
+func _root_front_row(img: Image) -> int:
+	## Deepest image row holding any root pixel.
+	for py in range(img.get_height() - 1, -1, -1):
+		for px in range(img.get_width()):
+			if img.get_pixel(px, py).a > 0.0:
+				return py
+	return -1
+
+
 func _sandy_columns() -> Array[Dictionary]:
 	var columns: Array[Dictionary] = [
 		{

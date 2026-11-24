@@ -25,6 +25,20 @@ class RootModule:
         self.event_bus = event_bus
 
     def _stage_multiplier(self, stage: PhenologyStage) -> float:
+        # Hard stop at physiological maturity (#539), ahead of any crop
+        # override, like CanopyModule._growth_multiplier (#433). CERES-Maize
+        # advances the root front only on days with new root growth
+        # (DSSAT-CSM MZ_ROOTS.for:125, ``IF (GRORT.LE.0.0001) GOTO 999``) and
+        # runs growth only for ISTAGE 1-6 (MZ_CERES.for:665-740; Jones et al.
+        # 2003, Eur. J. Agron. 18:235-265). APSIM Next Generation
+        # ``RootFrontVelocity`` is 0 from flowering (maize) or start of grain
+        # fill (sorghum) to maturity, and ``PhaseLookup`` defaults to 0 outside
+        # any listed phase (Holzworth et al. 2014, Environ. Model. Softw.
+        # 62:327-350). WOFOST (PCSE ``WOFOST_Root_Dynamics.calc_rates``) stops
+        # the front once root partitioning FR is 0 (de Wit et al. 2019, Agric.
+        # Syst. 168:154-167). Root turnover continues (APSIM ``Root.cs``).
+        if stage is PhenologyStage.MATURITY:
+            return 0.0
         if self.params.stage_multipliers and stage in self.params.stage_multipliers:
             return max(0.0, self.params.stage_multipliers[stage])
         # default: vegetative emphasis

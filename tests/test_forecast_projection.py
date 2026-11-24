@@ -135,6 +135,31 @@ def test_projection_mineral_n_depletes_with_uptake() -> None:
     assert all(p.mineral_n_kg_ha >= 0.0 for p in pts)
 
 
+def test_projection_mature_crop_applies_no_uptake_sink() -> None:
+    # #539 AC10: a crop at MATURITY takes up no N, so with no rain (no leaching)
+    # and no SOM source the projection holds the anchor; with uptake on it falls.
+
+    def project(crop_n_uptake: bool) -> list[SoilForecastPoint]:
+        return project_soil_forecast(
+            available_water_mm=110.0,
+            total_available_water_mm=120.0,
+            mineral_n_kg_ha=56.4,
+            lai=1.1,
+            weather=[(20.0, 15.0, 0.0)] * 6,
+            som_labile_n_kg_ha=0.0,
+            crop_n_uptake=crop_n_uptake,
+        )
+
+    mature = project(crop_n_uptake=False)
+    assert [p.mineral_n_kg_ha for p in mature] == [56.4] * 6
+    growing = project(crop_n_uptake=True)
+    assert all(
+        b < a for a, b in pairwise([56.4] + [p.mineral_n_kg_ha for p in growing])
+    )
+    # Water is not gated at maturity: the stress trajectory is unchanged.
+    assert [p.water_stress for p in mature] == [p.water_stress for p in growing]
+
+
 def test_projection_heavy_rain_leaches_nitrogen() -> None:
     # Compare N loss with vs without large drainage-driving rain.
     dry = project_soil_forecast(
@@ -306,7 +331,9 @@ def test_stage_depth_multiplier_mirrors_engine_defaults() -> None:
     # Spot-check the documented values.
     assert stage_depth_multiplier(PhenologyStage.VEGETATIVE) == 1.0
     assert stage_depth_multiplier(PhenologyStage.FLOWERING) == 0.6
-    assert stage_depth_multiplier(PhenologyStage.MATURITY) == 0.3
+    assert stage_depth_multiplier(PhenologyStage.GRAIN_FILL) == 0.3
+    # The root front stops at maturity, as in the engine (#539).
+    assert stage_depth_multiplier(PhenologyStage.MATURITY) == 0.0
 
 
 def test_stage_depth_multiplier_honours_crop_overrides() -> None:
@@ -326,7 +353,14 @@ def test_stage_depth_multiplier_honours_crop_overrides() -> None:
     # Overridden stages take the crop value; unlisted stages keep the default.
     assert stage_depth_multiplier(PhenologyStage.VEGETATIVE, overrides) == 0.4
     assert stage_depth_multiplier(PhenologyStage.FLOWERING, overrides) == 0.9
-    assert stage_depth_multiplier(PhenologyStage.MATURITY, overrides) == 0.3
+    assert stage_depth_multiplier(PhenologyStage.GRAIN_FILL, overrides) == 0.3
+    # MATURITY is a hard stop whatever the crop table says (#539).
+    assert stage_depth_multiplier(PhenologyStage.MATURITY, overrides) == 0.0
+    positive = {PhenologyStage.MATURITY: 0.8}
+    assert stage_depth_multiplier(PhenologyStage.MATURITY, positive) == 0.0
+    assert RootModule(RootParams(stage_multipliers=positive))._stage_multiplier(
+        PhenologyStage.MATURITY
+    ) == pytest.approx(0.0)
     # Negative overrides are clamped at 0, matching the engine.
     assert (
         stage_depth_multiplier(
