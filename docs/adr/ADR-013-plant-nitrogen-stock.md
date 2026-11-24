@@ -36,6 +36,37 @@ and N uptake only for ISTAGE 1-6, emergence to maturity (Jones et al. 2003,
 (Brown et al. 2014, *Environ. Model. Softw.* 62:385-398). Neither model has a
 demand floor.
 
+### Amendment 2026-11-24 — no N uptake after maturity ([#539](https://github.com/gedejong/agrogame/issues/539))
+
+The post-maturity counterpart of the #578 amendment. Shoot DM is frozen at
+MATURITY (#433), so the critical-N target is fixed, and a crop standing below
+critical kept filling its stock to that target: Kenya maize gained about
+85 kg N/ha over 300 standing days on top of the 94 it took up in the season,
+and scavenged every kilogram the soil mineralised meanwhile. Under #531 a
+mature crop stands until the player harvests it, so this reached play.
+
+The N demand is now 0 while the phenology stage is MATURITY, so the stock
+holds at its maturity value. CERES-Maize runs growth and uptake only for
+ISTAGE 1-6, setting `UNO3 = UNH4 = PUptake = 0` otherwise, and ISTAGE 6 itself
+returns with no N or K uptake (DSSAT-CSM `MZ_CERES.for:665-740`,
+`MZ_GROSUB.for:1621-1623`; Jones et al. 2003, *Eur. J. Agron.* 18:235-265).
+The WOFOST crop parameter files define `DVS_NPK_STOP`, the development stage
+above which no crop N/P/K uptake occurs (de Wit et al. 2019, *Agric. Syst.*
+168:154-167); PCSE declares the parameter but does not apply it, so it is cited
+as the WOFOST definition, not as PCSE behaviour.
+
+P, S, Fe, Zn and Mn uptake stop on the same rule: P and S demand are 0 at
+MATURITY, ahead of their 0.01 and 0.005 kg/ha/day floors, and the micronutrient
+pools equilibrate as on a fallow patch (#542). Before this they kept drawing on
+the last grain-fill day's growth increment, which no longer updates once
+growth stops. Water uptake is not gated: transpiration follows green LAI
+through the late season, as the FAO-56 late-season crop coefficient declines
+to Kc_end without a step to zero (Allen et al. 1998, Table 12). The root front
+stops at MATURITY too, and root turnover continues (APSIM Next Generation
+`Root.cs`). Every gate reads the saved phenology stage, so no runtime memory is
+added (#585). The `/forecast` mineral-N projection drops its crop-uptake sink
+for a mature anchor.
+
 ## Context
 
 Before this change the crop's N-stress signal was **flow-based**: the
