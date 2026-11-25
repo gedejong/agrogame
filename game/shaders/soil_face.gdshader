@@ -42,7 +42,9 @@ void fragment() {
 	vec4 prof = texture(profile_tex, UV);
 	// x + z runs along both camera faces, so grain and strands turn the corner.
 	float u = v_world.x + v_world.z;
-	vec2 g_uv = vec2(u, -v_world.y) * GRAIN_PER_WU;
+	// Mirrored repeat: the textures' top and bottom edges differ in lightness,
+	// so a plain repeat would draw false horizons down the extension.
+	vec2 g_uv = abs(fract(vec2(u, -v_world.y) * GRAIN_PER_WU * 0.5) * 2.0 - 1.0);
 	vec3 sandy = texture(grain_sandy, g_uv).rgb;
 	vec3 loam = texture(grain_loam, g_uv).rgb;
 	vec3 clay = texture(grain_clay, g_uv).rgb;
