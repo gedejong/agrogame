@@ -5,9 +5,10 @@ const QSC = preload("res://scripts/quick_status_card.gd")
 
 
 func _show(tile: Dictionary, warned: bool = false) -> PanelContainer:
-	tile.merge({"water_stress": 0.0 if warned else 1.0, "n_stress": 1.0 if warned else 0.0})
-	if warned:
-		tile.merge({"lai": 0.0, "crop_stage": 2, "theta_surface": 0.0})
+	tile.merge({"water_ks": 0.0 if warned else 1.0, "n_stress": 1.0 if warned else 0.0})
+	if warned:  # every gauge marked (#660)
+		tile.merge({"crop_stage_name": "vegetative", "growth_vs_potential": 0.0})
+		tile.merge({"root_zone_water_fraction": 0.0, "depletion_fraction_p": 0.55})
 	var card: PanelContainer = QSC.new()
 	add_child_autofree(card)
 	card.show_status(tile, "Sand - Temperate")
@@ -84,9 +85,11 @@ func test_card_width_is_fixed_narrow_or_wide() -> void:
 		},
 		true
 	)
+	var marked := _show({"crop_key": "maize"}, true)
 	await wait_process_frames(2)
 	assert_eq(narrow.size.x, QSC.WIDTH, "narrowest state")
 	assert_eq(wide.size.x, QSC.WIDTH, "widest state: a long line wraps")
+	assert_eq(marked.size.x, QSC.WIDTH, "four marked gauges (#660)")
 
 
 func test_a_long_soil_name_wraps_instead_of_widening_the_card() -> void:
