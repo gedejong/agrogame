@@ -2,7 +2,7 @@ class_name DioramaRegions
 extends RefCounted
 ## The decorative extension's regional layers (#652, ADR-022 decision 1): below
 ## the simulated profile, one continuous stack per climate key, independent of
-## the patches above, so no face shows a break at a segment join. No simulation
+## the fields above, so no face shows a break at a segment join. No simulation
 ## value drives it. Depths are metres below the surface and are style constants
 ## within the cited setting; hue and chroma come from the CC0 sets, unedited.
 

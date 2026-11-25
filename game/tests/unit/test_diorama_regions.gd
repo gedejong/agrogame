@@ -166,3 +166,24 @@ func test_unknown_climate_keeps_the_placeholder() -> void:
 	for ext: Dictionary in slab._extensions:
 		assert_same(ext["mesh"].material_override, ext["placeholder"])
 		assert_true(ext["mesh"].visible)
+
+
+func test_stones_stay_put_over_two_seasons_and_a_reload() -> void:
+	var fields := ScenarioCatalog.fields_for(1)  # Kenya-highland maize
+	var slab := _slab(fields)
+	slab.update(_patches(fields))
+	var regional: ShaderMaterial = slab._extensions[0]["mesh"].material_override
+	var placed: Image = regional.get_shader_parameter("artefacts").get_image()
+	var soil: Dictionary = _patches(fields)["field_1"][0]["soil_state"]
+	for week in range(104):  # two years of weekly payloads, wetting and drying
+		var theta := 0.13 + 0.12 * absf(sin(week * 0.3))
+		soil["water_theta"] = [theta, theta, theta]
+		slab.update({"field_1": [{"root_depth_cm": week % 52 * 2.0, "soil_state": soil}]})
+	for ext: Dictionary in slab._extensions:
+		assert_same(ext["mesh"].material_override, regional, "the same material")
+	var after: Image = regional.get_shader_parameter("artefacts").get_image()
+	assert_eq(after.get_data(), placed.get_data(), "no artefact moved")
+	var reloaded := _slab(fields)  # a saved game laid out again
+	reloaded.update(_patches(fields))
+	var again: ShaderMaterial = reloaded._extensions[0]["mesh"].material_override
+	assert_eq(again.get_shader_parameter("artefacts").get_image().get_data(), placed.get_data())
