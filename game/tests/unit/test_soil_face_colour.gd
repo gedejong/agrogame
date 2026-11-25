@@ -2,6 +2,7 @@ extends GutTest
 ## SoilFaceColour (#646 criteria 2 and 3): the soil faces' lightness from
 ## SOC, texture and theta (FAO 2006 Tables 46 and 57, ASTM D1535), and the
 ## root density with depth (the engine's exponential kernel).
+## The #680 hue tests are in test_soil_colour_hue.gd.
 
 
 ## A soil_state with `thickness` and one texture, SOC, theta, FC and WP for
