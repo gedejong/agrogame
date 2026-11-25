@@ -19,8 +19,10 @@ const SLIDER_DEFS: Array[Dictionary] = [
 	{"key": "water", "label": "Water stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "n", "label": "N stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "p", "label": "P stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "s", "label": "S stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "fe", "label": "Fe stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "zn", "label": "Zn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
+	{"key": "mn", "label": "Mn stress", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "frost", "label": "Frost dmg", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{"key": "heat", "label": "Heat dmg", "min": 0.0, "max": 1.0, "step": 0.01, "default": 0.0},
 	{
@@ -290,8 +292,10 @@ func _rebuild() -> void:
 		"water": _sliders["water"]["slider"].value,
 		"n": _sliders["n"]["slider"].value,
 		"p": _sliders["p"]["slider"].value,
+		"s": _sliders["s"]["slider"].value,
 		"fe": _sliders["fe"]["slider"].value,
 		"zn": _sliders["zn"]["slider"].value,
+		"mn": _sliders["mn"]["slider"].value,
 		"frost": _sliders["frost"]["slider"].value,
 		"heat": _sliders["heat"]["slider"].value,
 	}

@@ -65,6 +65,10 @@ game/override.cfg
 !game/assets/icons/icon_drought.svg.import
 !game/assets/icons/icon_n_deficiency.svg.import
 !game/assets/icons/icon_p_deficiency.svg.import
+!game/assets/icons/icon_s_deficiency.svg.import
+!game/assets/icons/icon_fe_deficiency.svg.import
+!game/assets/icons/icon_zn_deficiency.svg.import
+!game/assets/icons/icon_mn_deficiency.svg.import
 !game/assets/icons/icon_eh.svg.import
 !game/assets/icons/icon_anaerobic.svg.import
 !game/assets/icons/icon_ch4.svg.import

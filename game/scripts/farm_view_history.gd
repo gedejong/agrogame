@@ -8,6 +8,10 @@ extends RefCounted
 ## by soil name, which two patches may share (#516), nor by patch index alone,
 ## which every field has (#600). Each value is an Array[Dictionary] of daily
 ## records, capped at MAX_HISTORY_DAYS (oldest dropped first).
+##
+## `water` and `root_zone` are the Quick Status Water and Root zone gauges on
+## their 0-100 scale (#669): 100 x the day's Ks, the last WaterStressComputed
+## (100 when absent), and 100 x the root-zone water fraction capped at 1.
 
 const MAX_HISTORY_DAYS := 365
 
@@ -30,7 +34,8 @@ static func append_snapshots(snapshots: Array, daily_history: Dictionary, fields
 					"lai": snap.get("lai", 0.0),
 					"root_depth_cm": snap.get("root_depth_cm", 0.0),
 					"grain_g_m2": snap.get("grain_g_m2", 0.0),
-					"water_stress": 1.0 - snap.get("water_stress", 1.0),
+					"water": _water_gauge(snap.get("events", [])),
+					"root_zone": _root_zone_gauge(snap),
 					"theta_surface": snap.get("soil_theta_surface", 0.0),
 					"n_available": snap.get("n_available_total", 0.0),
 					"redox_eh_surface": snap.get("redox_eh_surface", 400.0),
@@ -69,9 +74,8 @@ static func append_patch(
 				"lai": patch.get("lai", 0.0),
 				"root_depth_cm": patch.get("root_depth_cm", 0.0),
 				"grain_g_m2": patch.get("grain_g_m2", 0.0),
-				# API water_stress = transpiration supply/demand (1=no stress, 0=severe).
-				# Invert so graph shows stress intensity (0=healthy, 1=severe).
-				"water_stress": 1.0 - patch.get("water_stress", 1.0),
+				"water": _water_gauge(patch.get("events", [])),
+				"root_zone": _root_zone_gauge(patch),
 				"theta_surface": patch.get("soil_theta_surface", 0.0),
 				"n_available": n_total,
 				"redox_eh_surface": _first_or(soil_state, "redox_eh", 400.0),
@@ -93,6 +97,14 @@ static func _laid_out_key(fields: Array, field_id: String, patch_idx: int) -> St
 			if patch_idx < (field["patches"] as Array).size():
 				return FarmLayout.patch_key(field_id, patch_idx)
 	return ""
+
+
+static func _water_gauge(events: Array) -> float:
+	return 100.0 * float(FarmTiles.stress_from_events(events)["water_ks"])
+
+
+static func _root_zone_gauge(day: Dictionary) -> float:
+	return 100.0 * clampf(float(day.get("root_zone_water_fraction", 0.0)), 0.0, 1.0)
 
 
 static func _cap(records: Array) -> void:

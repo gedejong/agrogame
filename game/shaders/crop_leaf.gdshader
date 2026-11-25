@@ -3,10 +3,15 @@ render_mode cull_disabled;
 // Shared crop leaf shader — alpha mask + senescence + per-type stress coloring.
 // Stress symptoms follow plant physiology:
 //   Mobile nutrients (N, P) → older/lower leaves first
-//   Immobile nutrients (Fe, Zn) → younger/upper leaves first
+//   Immobile nutrients (S, Fe, Zn, Mn) → younger/upper leaves first
 // Ref: Marschner 2012, Mineral Nutrition of Higher Plants (symptom descriptions
 // for N, P, Fe and Zn). The frost and heat symptoms are general descriptions
 // of tissue necrosis; no source for the heat margin scorch was verified (#641).
+// S: chlorosis like N's, but on young leaves first, as S remobilises poorly
+// from old leaves (Hawkesford et al. 2012, "Functions of Macronutrients",
+// Marschner's Mineral Nutrition of Higher Plants, 3rd ed., ch. 6).
+// Mn: interveinal chlorosis of young leaves (Broadley et al. 2012, "Function
+// of Nutrients: Micronutrients", ibid., ch. 7).
 #include "res://shaders/crop_wind.gdshaderinc"
 #include "res://shaders/srgb.gdshaderinc"
 
@@ -30,8 +35,10 @@ uniform float hanging : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_water : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_n : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_p : hint_range(0.0, 1.0) = 0.0;
+uniform float stress_s : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_fe : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_zn : hint_range(0.0, 1.0) = 0.0;
+uniform float stress_mn : hint_range(0.0, 1.0) = 0.0;
 // Transient damage from FrostDamageApplied / HeatDamageApplied events.
 uniform float stress_frost : hint_range(0.0, 1.0) = 0.0;
 uniform float stress_heat : hint_range(0.0, 1.0) = 0.0;
@@ -50,6 +57,7 @@ const vec3 P_DARK_GREEN = SRGB_TO_LINEAR(vec3(0.12, 0.35, 0.10));    // abnormal
 const vec3 P_PURPLE = SRGB_TO_LINEAR(vec3(0.40, 0.15, 0.35));        // purple/reddish anthocyanin
 const vec3 FE_CHLOROSIS = SRGB_TO_LINEAR(vec3(0.82, 0.80, 0.45));    // strong yellow — almost white in severe
 const vec3 FE_VEIN_COLOR = SRGB_TO_LINEAR(vec3(0.2, 0.55, 0.15));    // green veins stay green
+const vec3 MN_CHLOROSIS = SRGB_TO_LINEAR(vec3(0.66, 0.68, 0.40));    // duller yellow-green than Fe's
 const vec3 ZN_PALE = SRGB_TO_LINEAR(vec3(0.70, 0.65, 0.40));         // pale band color
 const vec3 ZN_BRONZE = SRGB_TO_LINEAR(vec3(0.50, 0.38, 0.20));       // bronze/necrotic band
 const vec3 FROST_NECROSIS = SRGB_TO_LINEAR(vec3(0.10, 0.08, 0.06));  // near-black, water-soaked tissue
@@ -96,8 +104,10 @@ void fragment() {
 	float s_water = pow(stress_water, STRESS_CURVE);
 	float s_n = pow(stress_n, STRESS_CURVE);
 	float s_p = pow(stress_p, STRESS_CURVE);
+	float s_s = pow(stress_s, STRESS_CURVE);
 	float s_fe = pow(stress_fe, STRESS_CURVE);
 	float s_zn = pow(stress_zn, STRESS_CURVE);
+	float s_mn = pow(stress_mn, STRESS_CURVE);
 	float s_frost = pow(stress_frost, STRESS_CURVE);
 	float s_heat = pow(stress_heat, STRESS_CURVE);
 	float old_leaf = 1.0 - leaf_height;  // stronger on older/lower leaves
@@ -114,6 +124,10 @@ void fragment() {
 	float n_f = s_n * (0.4 + old_leaf * 0.6) * (0.7 + n_tip * 0.3);
 	color = mix(color, N_DEFICIENCY, n_f);
 
+	// SULFUR: the N chlorosis colour, but young leaves first (immobile).
+	float s_f = s_s * (0.4 + young_leaf * 0.6);
+	color = mix(color, N_DEFICIENCY, s_f);
+
 	// PHOSPHORUS: dark green base + purple overlay. Mobile → older leaves.
 	// Ref: anthocyanin accumulation, dark green because N accumulates.
 	float p_f = s_p * (0.4 + old_leaf * 0.6);
@@ -127,6 +141,11 @@ void fragment() {
 	vec3 fe_color = mix(FE_CHLOROSIS, FE_VEIN_COLOR, is_vein);
 	float fe_f = s_fe * (0.5 + young_leaf * 0.5);  // top leaves first
 	color = mix(color, fe_color, fe_f);
+
+	// MANGANESE: interveinal chlorosis on young leaves, duller than iron's.
+	vec3 mn_color = mix(MN_CHLOROSIS, FE_VEIN_COLOR, is_vein);
+	float mn_f = s_mn * (0.4 + young_leaf * 0.6);
+	color = mix(color, mn_color, mn_f);
 
 	// ZINC: banded pale/bronze stripes. Immobile → young leaves first.
 	// Ref: light bands across leaf + shortened internodes.

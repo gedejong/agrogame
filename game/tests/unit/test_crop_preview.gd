@@ -10,7 +10,7 @@ func test_crops_list_defined() -> void:
 
 
 func test_slider_defs_defined() -> void:
-	assert_eq(CropPreviewRef.SLIDER_DEFS.size(), 13, "13 slider parameters")
+	assert_eq(CropPreviewRef.SLIDER_DEFS.size(), 15, "15 slider parameters (#669 adds S, Mn)")
 	var keys: Array[String] = []
 	for def: Dictionary in CropPreviewRef.SLIDER_DEFS:
 		keys.append(def["key"])
@@ -19,6 +19,8 @@ func test_slider_defs_defined() -> void:
 	assert_has(keys, "grain")
 	assert_has(keys, "frost")
 	assert_has(keys, "heat")
+	assert_has(keys, "s")
+	assert_has(keys, "mn")
 	assert_has(keys, "sen_override")
 	assert_has(keys, "wind")
 	assert_has(keys, "wind_angle")

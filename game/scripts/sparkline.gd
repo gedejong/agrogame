@@ -2,6 +2,10 @@ extends Control
 ## Reusable sparkline graph — draws a polyline with auto-scaled Y axis.
 ## Supports stage markers as vertical dotted lines.
 
+## A Quick Status gauge series (#669) plots on the card's fixed 0-100 scale.
+const GAUGE_MIN := 0.0
+const GAUGE_MAX := 100.0
+
 var _data: PackedFloat64Array = PackedFloat64Array()
 var _color := Color.WHITE
 var _fill_color := Color(1, 1, 1, 0.1)
@@ -11,24 +15,37 @@ var _stage_days: PackedInt32Array = PackedInt32Array()
 var _stage_color := Color(1.0, 1.0, 1.0, 0.15)
 var _y_min := 0.0
 var _y_max := 1.0
+var _gauge := false
+var _value_shown := true
 
 
+## `gauge`: a Quick Status gauge series, printed as the card's integer on a
+## fixed 0-100 range (#669).
 func setup(
 	label: String,
 	unit: String,
 	color: Color,
 	min_height: float = 40.0,
+	gauge: bool = false,
 ) -> void:
 	_label = label
 	_unit = unit
 	_color = color
 	_fill_color = Color(color.r, color.g, color.b, 0.08)
 	custom_minimum_size = Vector2(200, min_height)
+	_gauge = gauge
 
 
-func set_data(data: PackedFloat64Array, stage_days: PackedInt32Array = PackedInt32Array()) -> void:
+## `value_shown` false prints "—" for the latest value, as the card does for a
+## gauge that does not apply; the line still plots every day.
+func set_data(
+	data: PackedFloat64Array,
+	stage_days: PackedInt32Array = PackedInt32Array(),
+	value_shown: bool = true,
+) -> void:
 	_data = data
 	_stage_days = stage_days
+	_value_shown = value_shown
 	_compute_range()
 	queue_redraw()
 
@@ -39,7 +56,37 @@ func get_latest_value() -> float:
 	return _data[_data.size() - 1]
 
 
+## "<label>: <latest value>", as drawn above the line.
+func label_text() -> String:
+	if not _value_shown:
+		return "%s: —" % _label
+	if _data.is_empty():
+		return "%s: " % _label
+	return "%s: %s" % [_label, value_text(_data[_data.size() - 1], _unit, _gauge)]
+
+
+## The latest value as printed: `integer` floors it as QuickStatusCard prints a
+## gauge, else 0, 1 or 2 decimals by magnitude; then the unit.
+static func value_text(latest: float, unit: String, integer: bool) -> String:
+	var text := ""
+	if integer:
+		text = "%d" % floori(latest + 1e-6)
+	elif absf(latest) >= 100.0:
+		text = "%.0f" % latest
+	elif absf(latest) >= 1.0:
+		text = "%.1f" % latest
+	else:
+		text = "%.2f" % latest
+	if not unit.is_empty():
+		text += " " + unit
+	return text
+
+
 func _compute_range() -> void:
+	if _gauge:
+		_y_min = GAUGE_MIN
+		_y_max = GAUGE_MAX
+		return
 	if _data.is_empty():
 		_y_min = 0.0
 		_y_max = 1.0
@@ -69,21 +116,10 @@ func _draw() -> void:
 	# Background
 	draw_rect(Rect2(0, graph_y, w, graph_h), Color(1.0, 1.0, 1.0, 0.03))
 	# Label + current value
-	var val_text := ""
-	if not _data.is_empty():
-		var latest: float = _data[_data.size() - 1]
-		if absf(latest) >= 100.0:
-			val_text = "%.0f" % latest
-		elif absf(latest) >= 1.0:
-			val_text = "%.1f" % latest
-		else:
-			val_text = "%.2f" % latest
-		if not _unit.is_empty():
-			val_text += " " + _unit
 	draw_string(
 		ThemeDB.fallback_font,
 		Vector2(2, label_h - 2),
-		"%s: %s" % [_label, val_text],
+		label_text(),
 		HORIZONTAL_ALIGNMENT_LEFT,
 		-1,
 		10,

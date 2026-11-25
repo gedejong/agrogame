@@ -60,6 +60,55 @@ func test_stress_strength_goes_through_one_response_curve() -> void:
 		)
 
 
+func test_sulfur_and_manganese_overlays() -> void:
+	# #669: both read their strength through the #641 curve and weigh young
+	# leaves first (Marschner 2012, ch. 6 and 7); S takes N's chlorosis colour,
+	# Mn Fe's vein mask towards its own, duller colour.
+	var text: String = _source(LEAF_SHADER)
+	for k: String in ["s", "mn"]:
+		assert_string_contains(text, "uniform float stress_%s : hint_range(0.0, 1.0) = 0.0;" % k)
+		assert_string_contains(text, "float s_%s = pow(stress_%s, STRESS_CURVE);" % [k, k])
+		assert_false(text.contains("= stress_%s *" % k), "stress_%s only through its curve" % k)
+	assert_string_contains(text, "float s_f = s_s * (0.4 + young_leaf * 0.6);")
+	assert_string_contains(text, "color = mix(color, N_DEFICIENCY, s_f);")
+	assert_string_contains(text, "vec3 mn_color = mix(MN_CHLOROSIS, FE_VEIN_COLOR, is_vein);")
+	assert_string_contains(text, "float mn_f = s_mn * (0.4 + young_leaf * 0.6);")
+	assert_string_contains(text, "Hawkesford et al. 2012")
+	assert_string_contains(text, "Broadley et al. 2012")
+	# Order: S after N, Mn after Fe.
+	assert_lt(text.find("N_DEFICIENCY, n_f"), text.find("N_DEFICIENCY, s_f"))
+	assert_lt(text.find("fe_color, fe_f"), text.find("mn_color, mn_f"))
+
+
+func test_mn_chlorosis_is_duller_than_iron() -> void:
+	var text: String = _source(LEAF_SHADER)
+	var fe := _srgb_const(text, "FE_CHLOROSIS")
+	var mn := _srgb_const(text, "MN_CHLOROSIS")
+	assert_lt(mn.s, fe.s, "less saturated")
+	assert_lt(mn.v, fe.v, "darker")
+
+
+func test_leaf_material_carries_sulfur_manganese_and_todays_ks() -> void:
+	var stresses := StressUtils.parse_stress_data(
+		{"water_ks": 0.3, "water_stress": 1.0, "s_stress": 0.4, "mn_stress": 0.2}
+	)
+	var leaf := CR.create_leaf_material("maize", 0.0, stresses)
+	assert_almost_eq(float(leaf.get_shader_parameter("stress_s")), 0.4, 0.001)
+	assert_almost_eq(float(leaf.get_shader_parameter("stress_mn")), 0.2, 0.001)
+	# The drought tint and droop follow Ks (#669), not the growth factor.
+	assert_almost_eq(float(leaf.get_shader_parameter("stress_water")), 0.7, 0.001)
+	assert_almost_eq(CR.stress_droop_bonus(stresses), 0.42, 0.001, "0.7 x 0.6")
+
+
+func _srgb_const(text: String, name: String) -> Color:
+	var re := RegEx.create_from_string(
+		"const vec3 %s = SRGB_TO_LINEAR\\(vec3\\(([\\d.]+), ([\\d.]+), ([\\d.]+)\\)\\);" % name
+	)
+	var m := re.search(text)
+	assert_not_null(m, name)
+	return Color(float(m.get_string(1)), float(m.get_string(2)), float(m.get_string(3)))
+
+
 func test_heat_scorch_covers_tip_and_margin() -> void:
 	var text: String = _source(LEAF_SHADER)
 	assert_string_contains(text, "max(smoothstep(0.4, 0.85, UV.x), 0.8 * edge)")
