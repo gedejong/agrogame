@@ -29,10 +29,12 @@
     "MicrobesRuntime._on_enzyme_produced"
   ],
   "GddAccumulated": [
-    "CanopyModule._on_gdd_accumulated"
+    "CanopyModule._on_gdd_accumulated",
+    "CanopyRuntime._on_potential_gdd"
   ],
   "Harvested": [
-    "CanopyModule._on_harvest"
+    "CanopyModule._on_harvest",
+    "CanopyRuntime._on_potential_harvest"
   ],
   "LimeApplied": [
     "ChemistryRuntime._on_lime"
@@ -91,7 +93,8 @@
     "EnvironmentalCache._on_soil_ph_updated"
   ],
   "StageChanged": [
-    "CanopyModule._on_stage_changed"
+    "CanopyModule._on_stage_changed",
+    "CanopyRuntime._on_potential_stage"
   ],
   "SubstrateReleased": [
     "MicrobialBiomassModule._on_substrate"
