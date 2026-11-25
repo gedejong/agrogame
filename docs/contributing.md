@@ -62,7 +62,10 @@ A pointer is a small text file that begins with
   `git lfs pull`".
 
 Fix it with `git lfs pull` (after the setup above, if the filter was missing).
-`git lfs fsck --pointers` checks the result.
+`git lfs fsck --pointers` checks the result. If Godot imported the project while
+the binaries were pointers, it marked their `.import` files `valid=false`;
+restore them with `git checkout -- game/assets/materials game/assets/models`
+and import again (`godot --path game --headless --import`).
 
 ### CI
 
