@@ -37,7 +37,7 @@ func after_each() -> void:
 	GameState.game_id = ""
 
 
-## The Kenya maize and rice scenario's two fields, one patch each.
+## The Kenya maize and wheat scenario's two fields, one patch each.
 func _enter() -> Node3D:
 	GameState.game_id = "g"
 	var api := Stub.new()
