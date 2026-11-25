@@ -42,7 +42,24 @@ cereals ~2.7–3.0). Never feed shortwave directly to RUE. See
 - Maturity growth stop (#433): net canopy assimilation is gated to zero once the
   crop reaches `MATURITY` (`_growth_multiplier` → 0), matching the DSSAT/APSIM
   physiological-maturity convention — a senescing canopy no longer accretes
-  biomass. LAI senescence and grain fill are unaffected.
+  biomass.
+- No green leaf after maturity (#623): a determinate crop (maize, wheat,
+  sorghum, rice, soybean) senesces all green leaf at its first `MATURITY`
+  canopy step, so LAI is 0.0 from that day and the crop transpires nothing
+  while it stands. The canopy phase runs after `et` (ADR-010), so the
+  maturity day's own ET, and the whole season to maturity, are unchanged.
+  The reference models end the crop at maturity by default: WOFOST
+  `crop_finish` at DVSEND (PCSE `phenology.py:473-476`, `engine.py:330-333`,
+  `classic_waterbalance.py:421-422`) and DSSAT-CSM harvest at maturity,
+  `IHARI = 'M'` (`AUTHAR.for:152-154`, `IPSIM.for:155`). A standing crop
+  reaches the same state within days: CERES-Wheat senesces the last green
+  leaf to zero at LSPHE 6.3, 60 °C·d after maturity (`CER_Growth.for:818-822`,
+  `WHCER048.ECO`/`.SPE`), and FAO-56 puts Kcb_end for field-dried grain maize
+  at 0.15, which is Kc_min for dry bare soil (Allen et al. 1998, Tables 12 and
+  17). The preset flag `green_leaf_dies_at_maturity` (default `true`) is
+  `false` for grape: its MATURITY is fruit ripeness on a deciduous vine that
+  keeps its leaves until leaf drop (FAO-56 Table 12, footnote 18), so it keeps
+  the peak grain-fill senescence rate.
 - Events: `LightIntercepted`, `BiomassAccumulated`, `LAIUpdated`
 
 ### Stress integration

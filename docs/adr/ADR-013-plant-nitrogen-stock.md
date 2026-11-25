@@ -67,6 +67,46 @@ stops at MATURITY too, and root turnover continues (APSIM Next Generation
 added (#585). The `/forecast` mineral-N projection drops its crop-uptake sink
 for a mature anchor.
 
+> **Superseded by the 2026-11-25 amendment (#623):** the sentence "Water uptake
+> is not gated: transpiration follows green LAI through the late season, as
+> the FAO-56 late-season crop coefficient declines to Kc_end without a step to
+> zero" no longer holds after maturity. A determinate crop now has no green
+> leaf from its first MATURITY step.
+
+### Amendment 2026-11-25 — no green leaf after maturity ([#623](https://github.com/gedejong/agrogame/issues/623))
+
+This replaces the 2026-11-24 water sentence. The FAO-56 late-season decline
+to Kc_end describes the crop before harvest; it does not license the green
+canopy that kept transpiring after physiological maturity, where green LAI
+decayed only at the peak grain-fill senescence rate (e-folding 50 days for
+maize, 62 for spring wheat). A standing NL spring wheat crop transpired 91 mm
+in the 60 days after maturity, against 127 mm in its season, and standing
+Sahel maize and sorghum 95 and 102 mm (medians, seeds 42-51).
+
+A determinate crop (maize, wheat, sorghum, rice, soybean) now senesces all
+green leaf at its first MATURITY canopy step, so LAI is 0.0 from that day and
+transpiration, rain interception and the client follow it with no separate
+gate. WOFOST ends the crop at DVSEND by default and nothing transpires after
+(`crop_finish`; PCSE `phenology.py:473-476`, `engine.py:330-333`,
+`classic_waterbalance.py:421-422`); DSSAT-CSM harvests at maturity unless the
+experiment file says otherwise (`IHARI = 'M'`; `AUTHAR.for:152-154`,
+`IPSIM.for:155`). Where the crop stands, CERES-Wheat senesces the last green
+leaf to zero at LSPHE 6.3, 60 °C·d after maturity (`CER_Growth.for:818-822`,
+`WHCER048.ECO`/`.SPE`), and FAO-56 gives field-dried grain maize a Kcb_end of
+0.15, which is Kc_min for dry bare soil (Allen et al. 1998, Tables 12 and 17).
+Grape is exempt through the preset flag `green_leaf_dies_at_maturity`: its
+MATURITY is fruit ripeness on a deciduous vine that keeps its leaves until
+leaf drop (FAO-56 Table 12, footnote 18).
+
+The gate reads the saved phenology stage, so a save taken after maturity
+before this change loses its green leaf at the first step after loading, and
+no runtime memory is added (#585). The canopy phase runs after `et`
+(ADR-010), so the season to maturity is unchanged. One consequence was
+accepted with the ruling: the standing crop no longer dries the profile, so a
+resown Sahel crop starts on stored subsoil water (resown maize grain about
++60% median, sorghum about +12%); #662 checks that carry-over against the
+model's dry-season soil evaporation.
+
 ## Context
 
 Before this change the crop's N-stress signal was **flow-based**: the
