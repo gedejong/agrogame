@@ -959,6 +959,18 @@ class FullSimulationOrchestrator(RuntimeMemory):
         return self._fallow
 
     @property
+    def potential_canopy(self) -> CanopyModule | None:
+        """The potential-production shadow canopy (#660); None on a fallow patch.
+
+        Read-only: it belongs to the ``CanopyRuntime``, which a fallow patch
+        does not wire and a crop change rebuilds.
+        """
+        for rt in self._runtimes:
+            if isinstance(rt, CanopyRuntime):
+                return rt.potential
+        return None
+
+    @property
     def plant_n_nni(self) -> float:
         """Current whole-shoot N nutrition index (NNI); 1.0 = at critical N."""
         return self.plant_n_state.nni
