@@ -1,8 +1,9 @@
 // The farm's sky (#680): Godot 4.7.2's PhysicalSkyMaterial shader
 // (scene/resources/3d/sky_material.cpp, MIT licence, (c) the Godot Engine
-// contributors), verbatim but for two changes. ambient_gain scales only the
+// contributors), verbatim but for three changes. ambient_gain scales only the
 // radiance map, so the sky's ambient light can rise without the background the
-// camera sees; FarmViewDebug sets it from the weather. The night_sky texture is
+// camera sees; FarmViewDebug sets it from the weather. backdrop_gain and
+// backdrop_fog act only on that background (#692). The night_sky texture is
 // dropped: the farm always has a sun.
 shader_type sky;
 render_mode use_debanding;
@@ -19,6 +20,15 @@ uniform vec4 ground_color : source_color = vec4(0.1, 0.07, 0.034, 1.0);
 uniform float exposure : hint_range(0, 128) = 1.0;
 // Gain on the sky's ambient light and reflections only (#680).
 uniform float ambient_gain : hint_range(0, 8) = 1.0;
+// The background the camera sees, at its brightness before #680's exposure
+// drop (#692; Edwin, 2026-11-25): backdrop_gain is 1.40, the exposure before
+// #680, over tonemap_exposure.
+// Godot fogs the background after this shader, as mix(C, mix(F, C, a), s) for
+// fog light colour F, aerial perspective a and sky affect s (sky.glsl, 4.7.2),
+// so the fog's share is lifted by adding (gain - 1) F s (1 - a) / (1 - s + s a).
+// The values in farm_environment.tres follow from its fog; GUT re-derives them.
+uniform float backdrop_gain = 1.0;
+uniform vec3 backdrop_fog = vec3(0.0);
 
 
 const vec3 UP = vec3( 0.0, 1.0, 0.0 );
@@ -83,6 +93,8 @@ void sky() {
 		// background the camera sees.
 		if (AT_CUBEMAP_PASS) {
 			COLOR *= ambient_gain;
+		} else {
+			COLOR = COLOR * backdrop_gain + backdrop_fog;
 		}
 	} else {
 		// There is no sun: night_sky is dropped, so the sky is black.
