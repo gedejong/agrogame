@@ -108,8 +108,13 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
      therefore carries `/visual-check` frames for every scenario it touches,
      and a GUT test that checks the asset loads and has its credits entry.
    - **Weight.** Import at the smallest resolution that reads at default zoom.
-     Each PR reports the bytes it adds. Whether to move binaries to Git LFS is
-     decided at the first asset PR, once its size is known.
+     Each PR reports the bytes it adds. **Git LFS (Edwin, 2026-11-25; #652):**
+     downloaded binaries under `game/assets/materials/` and
+     `game/assets/models/` live in Git LFS; the textures already in Git stay
+     there. CI jobs that load assets check out with `lfs: true`. Each asset PR
+     reports its LFS bytes and the projected monthly CI download against the
+     free 10 GiB; the PR that takes LFS past about 20 MB at HEAD proposes a CI
+     cache.
    - Placement, variety and seeding stay procedural: the scenario's climate key
      and a deterministic seed choose and place assets.
 6. **Performance budget.** At default zoom, the slab and surroundings together
