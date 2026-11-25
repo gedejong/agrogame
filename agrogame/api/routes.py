@@ -1114,6 +1114,42 @@ def _reported_stage(p: Patch) -> tuple[str, float]:
     return phen.state.stage.value, round(phen.development_stage(), 3)
 
 
+def _growth_vs_potential(p: Patch) -> float | None:
+    """Actual over potential shoot biomass (#660); None if fallow or no potential."""
+    potential = p.orch.potential_canopy
+    if potential is None or potential.state.biomass_g_m2 <= 0.0:
+        return None
+    return round(p.orch.canopy.state.biomass_g_m2 / potential.state.biomass_g_m2, 3)
+
+
+def _root_zone_water_fraction(p: Patch, theta: list[float]) -> float:
+    """Available over total available water in the root zone (#660, FAO-56 Eq. 82).
+
+    The root depth is floored at the top layer's thickness, so a bare or
+    seedling patch reads its topsoil. Uncapped: a profile wetter than field
+    capacity reads above 1.
+    """
+    layers = p.orch.profile.layers
+    depths = [ly.depth_cm for ly in layers]
+    available, taw = root_zone_water_mm(
+        theta,
+        depths,
+        [ly.field_capacity for ly in layers],
+        [ly.wilting_point for ly in layers],
+        max(p.orch.root_state.current_depth_cm, depths[0]),
+    )
+    return round(available / taw, 3) if taw > 0.0 else 0.0
+
+
+def _depletion_fraction_p(p: Patch) -> float | None:
+    """The crop's FAO-56 Table 22 p (#660); None on a fallow patch."""
+    if p.orch.is_fallow:
+        return None
+    crops = load_crop_presets(Path("data/crops/presets.yaml"))
+    preset = crops.get_preset(p.config.crop_key, p.config.climate_key)
+    return preset.depletion_fraction_p
+
+
 def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
     """Build the per-day response with weather, crop, and soil state."""
 
@@ -1130,7 +1166,7 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
             snap = p.orch.snapshot_soil()
             som_total = _som_total_g_m2(snap)
             theta_top = snap.water_theta[0] if snap.water_theta else 0.0
-            # Actual plant water stress from transpiration supply/demand ratio
+            # Growth water factor (running-mean Ta/Tp x VPD RUE factor), not Ks
             w_stress = p.orch.canopy.state.last_water_stress
             crop_stage, dev_stage = _reported_stage(p)
             patches[fid].append(
@@ -1145,6 +1181,11 @@ def _build_day_result(s: GameSession, rec: WeatherRecord) -> DayResultResponse:
                     soil_theta_surface=round(theta_top, 4),
                     som_total_c_g_m2=round(som_total, 1),
                     water_stress=round(w_stress, 2),
+                    growth_vs_potential=_growth_vs_potential(p),
+                    root_zone_water_fraction=_root_zone_water_fraction(
+                        p, list(snap.water_theta)
+                    ),
+                    depletion_fraction_p=_depletion_fraction_p(p),
                     soil_state=_build_soil_state(p),
                     events=_serialize_events(p),
                 )

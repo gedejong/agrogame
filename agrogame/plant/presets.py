@@ -62,6 +62,10 @@ class CropPreset:
     # Shoot DM (t/ha) below which the curve is held flat (#603). None -> 1.0
     # (Greenwood et al. 1990 domain); wheat 1.55 (Justes et al. 1994).
     n_crit_reference_biomass_t_ha: float | None = None
+    # Soil-water depletion fraction for no stress, RAW = p * TAW (#660; FAO-56
+    # Table 22, Allen et al. 1998). Display only: the API reports it for the
+    # root-zone water gauge and no engine module reads it. None -> not given.
+    depletion_fraction_p: float | None = None
     key: str = ""
     harvest_product: HarvestProduct = GRAIN_PRODUCT
 
@@ -237,6 +241,11 @@ def _load_crop_presets_cached(p: Path) -> CropLibrary:
             n_crit_reference_biomass_t_ha=(
                 float(raw["n_crit_reference_biomass_t_ha"])
                 if raw.get("n_crit_reference_biomass_t_ha") is not None
+                else None
+            ),
+            depletion_fraction_p=(
+                float(raw["depletion_fraction_p"])
+                if raw.get("depletion_fraction_p") is not None
                 else None
             ),
             key=key,

@@ -23,6 +23,7 @@
         "n_crit_a": { "type": "number", "exclusiveMinimum": 0 },
         "n_crit_b": { "type": "number", "exclusiveMinimum": 0 },
         "n_crit_reference_biomass_t_ha": { "type": "number", "exclusiveMinimum": 0 },
+        "depletion_fraction_p": { "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1 },
         "phenology": { "$ref": "#/definitions/phenologyParams" },
         "canopy": { "$ref": "#/definitions/canopyParams" },
         "roots": { "$ref": "#/definitions/rootParams" },
