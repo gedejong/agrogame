@@ -89,7 +89,10 @@ class CanopyModule:
         Flowering: moderate (lower canopy leaves begin dying).
         Grain fill: smooth linear ramp from flowering level to
         senescence_grain_fill_max over the grain fill GDD duration.
-        Maturity: peak senescence.
+        Maturity: peak senescence. Only a crop whose green leaf outlives
+        maturity (``green_leaf_dies_at_maturity`` false, grape) keeps decaying
+        at this rate; a determinate crop loses all green leaf at its first
+        MATURITY step in ``update_lai`` (#623).
         """
         stage = self._current_stage
         if stage in (PhenologyStage.EMERGED, PhenologyStage.VEGETATIVE):
@@ -117,11 +120,11 @@ class CanopyModule:
         and APSIM physiological-maturity convention (Jones et al. 2003, DSSAT
         CERES; Holzworth et al. 2014, APSIM). Before maturity the RUE pool is
         passed through unattenuated (the day's water/N/temperature factors in
-        ``calculate_biomass_growth`` already scale it). A senescing canopy can
-        still intercept PAR because LAI decays gradually rather than dropping
-        to zero, so without this gate a stressed crop keeps accreting biomass
-        through maturity (#433). LAI senescence is unaffected — the canopy
-        still visibly dies back.
+        ``calculate_biomass_growth`` already scale it). The canopy still
+        intercepts PAR on the first MATURITY day, before ``update_lai`` drops a
+        determinate crop's green leaf (#623), and every day after for a crop
+        that keeps its leaves (grape), so without this gate it would keep
+        accreting biomass through maturity (#433).
         """
         if self._current_stage == PhenologyStage.MATURITY:
             return 0.0
@@ -221,7 +224,10 @@ class CanopyModule:
         return intercepted_par_mj_m2 * max(0.0, temp_factor) * rue * stress
 
     def update_lai(self, new_leaf_biomass_g_m2: float) -> float:
-        """Update LAI from new leaf biomass and senescence with logistic taper."""
+        """Update LAI from new leaf biomass and senescence with logistic taper.
+
+        In MATURITY a determinate crop senesces all green leaf (#623).
+        """
         prev = self.state.lai
         growth = (
             max(0.0, new_leaf_biomass_g_m2) * self.params.specific_leaf_area_m2_per_g
@@ -234,6 +240,16 @@ class CanopyModule:
             * self.params.senescence_rate_per_day
             * self._senescence_multiplier
         )
+        # #623: a determinate crop carries no green leaf from its first MATURITY
+        # step (citations on ``CanopyParams.green_leaf_dies_at_maturity``). The
+        # gate reads the stage, which a loaded save restores, so a pre-#623 save
+        # with a green mature canopy is zeroed too, with no runtime memory
+        # (#585). ET, rain interception and the client follow LAI.
+        if (
+            self.params.green_leaf_dies_at_maturity
+            and self._current_stage == PhenologyStage.MATURITY
+        ):
+            sen = self.state.lai
         self.state.lai = min(
             self.params.lai_max, max(0.0, self.state.lai + growth - sen)
         )
@@ -426,8 +442,8 @@ class CanopyModule:
         # Gate net assimilation at physiological maturity (#433). The RUE
         # formula stays pure (it is exercised directly in the unit tests); the
         # phenological stop is applied here so a senescing, still-PAR-
-        # intercepting canopy fixes no further net carbon in MATURITY. LAI
-        # senescence below is left untouched, so the canopy still dies back.
+        # intercepting canopy fixes no further net carbon in MATURITY. The LAI
+        # step below ends a determinate crop's green leaf at maturity (#623).
         gross_inc *= self._growth_multiplier
         # Split the single finite pool root vs shoot before any shoot
         # partitioning, so the root share is genuinely withheld from shoot/grain.

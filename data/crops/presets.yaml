@@ -422,6 +422,12 @@ crops:
       sla_m2_per_g: 0.015
       lai_max: 4.0
       senescence_rate_per_day: 0.005
+      # #623: MATURITY is fruit ripeness on a vine that still transpires:
+      # FAO-56 grapes (table/raisin, wine) end at Kc_end 0.45 (Table 12) and
+      # Kcb_end 0.40 (Table 17), above Kc_min 0.15-0.20 (Eq. 76), so green
+      # leaf outlives it. Analogy only: Table 12 footnote 18 (fruit- and
+      # nut-tree rows, not grapes) gives Kc_end as the value prior to leaf drop.
+      green_leaf_dies_at_maturity: false
       temp_base_c: 10.0
       temp_opt_c: 25.0         # Mediterranean optimum
       temp_max_c: 35.0

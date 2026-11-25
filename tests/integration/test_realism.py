@@ -39,8 +39,12 @@ def _run_scenario(
     seed: int = 42,
     *,
     fertilizer_kg_ha: float = 0.0,
+    daily_lai: list[float] | None = None,
 ) -> tuple[float, float, str, float]:
-    """Run a crop×climate simulation and return (biomass, lai, stage, grain)."""
+    """Run a crop×climate simulation and return (biomass, lai, stage, grain).
+
+    ``daily_lai``, when given, collects the end-of-day LAI of every day (#623).
+    """
     _load_crop_presets_cached.cache_clear()
     _load_climate_presets_cached.cache_clear()
     crops = load_crop_presets(Path("data/crops/presets.yaml"))
@@ -66,6 +70,8 @@ def _run_scenario(
             shortwave_mj_m2=rec.shortwave_mj_m2 or 12.0,
             sim_date=rec.day,
         )
+        if daily_lai is not None:
+            daily_lai.append(orch.canopy.state.lai)
     return (
         orch.canopy.state.biomass_g_m2,
         orch.canopy.state.lai,
@@ -79,11 +85,13 @@ def _run_scenario(
 
 def test_winter_wheat_netherlands_spring_start() -> None:
     """NL winter wheat 150d Apr start should reach maturity with decent biomass."""
-    biomass, lai, stage, _grain = _run_scenario(
+    daily_lai: list[float] = []
+    biomass, _lai, stage, _grain = _run_scenario(
         "winter_wheat",
         "netherlands_temperate",
         date(2024, 4, 1),
         fertilizer_kg_ha=200.0,
+        daily_lai=daily_lai,
     )
     assert stage == "MATURITY"
     # Literature total above-ground biomass for NW-European wheat:
@@ -92,7 +100,9 @@ def test_winter_wheat_netherlands_spring_start() -> None:
     # a >~30% regression at the low end and unphysical growth at the top.
     assert 1000 < biomass < 2200
     # Peak LAI for a closed wheat canopy: 4-8 (WOFOST; Hay & Porter 2006).
-    assert 3.0 < lai < 8.5
+    # #623 (D2, Edwin 2026-11-25): the season peak, since a mature determinate
+    # crop has no green leaf by day 150.
+    assert 3.0 < max(daily_lai) < 8.5
 
 
 def test_winter_wheat_netherlands_autumn_start() -> None:

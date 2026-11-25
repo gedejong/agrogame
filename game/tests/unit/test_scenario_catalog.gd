@@ -197,15 +197,25 @@ func _patches_of(label: String, field_index: int = 0) -> Array:
 	return []
 
 
-func test_kenya_maize_and_rice_scenario_is_the_two_single_field_scenarios() -> void:
-	# #601 AC6: field_1 is the Kenya-highland maize scenario's patches, field_2
-	# the Kenya rice scenario's; the farm has the one climate it must.
-	var both := "Kenya highlands: maize and rice"
+func test_kenya_maize_and_wheat_scenario_is_maize_beside_spring_wheat() -> void:
+	# #601 AC6, #658: field_1 is the Kenya-highland maize scenario's patches,
+	# field_2 spring wheat on clay; the farm has the one climate it must.
+	var both := "Kenya highlands: maize and wheat"
 	var fields: Array = ScenarioCatalogScript.fields_for(ScenarioCatalogScript.option_count() - 1)
 	assert_eq(ScenarioCatalogScript.label_for(ScenarioCatalogScript.option_count() - 1), both)
 	assert_eq(
 		fields.map(func(f: Dictionary) -> String: return f["field_id"]), ["field_1", "field_2"]
 	)
 	assert_eq(_patches_of(both, 0), _patches_of("Kenya-highland maize"))
-	assert_eq(_patches_of(both, 1), _patches_of("Kenya rice"))
-	assert_ne(_patches_of("Kenya rice"), [], "the rice scenario exists")
+	var wheat: Array = [
+		{
+			"soil_profile_key": "clay_temperate",
+			"crop_key": "spring_wheat",
+			"climate_key": "kenya_highlands",
+			"area_fraction": 1.0,
+		}
+	]
+	assert_eq(_patches_of(both, 1), wheat)
+	for field_index in 2:
+		for patch: Dictionary in _patches_of(both, field_index):
+			assert_eq(patch["climate_key"], "kenya_highlands")

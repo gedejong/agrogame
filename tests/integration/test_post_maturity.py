@@ -1,9 +1,12 @@
-"""A mature crop left standing stops acting on the soil (#539).
+"""A mature crop left standing stops acting on the soil (#539, #623).
 
 After physiological maturity the root front stops, and N, P, S, Fe, Zn and Mn
 uptake stop (CERES-Maize ISTAGE gating; APSIM NG ``RootFrontVelocity``; WOFOST
-``DVS_NPK_STOP``). Root turnover continues (APSIM NG ``Root.cs``) and water
-uptake is not gated: transpiration follows green LAI (FAO-56 late season).
+``DVS_NPK_STOP``). Root turnover continues (APSIM NG ``Root.cs``). A
+determinate crop carries no green leaf from its first MATURITY canopy step, so
+it transpires nothing while it stands (#623: WOFOST ``crop_finish``, DSSAT
+``IHARI = 'M'``, CERES-Wheat LSPHE, FAO-56 Kcb_end); grape still transpires
+at the season's end (FAO-56 grape rows, Kcb_end 0.40 > Kc_min, Table 17).
 
 Engine path as ``test_realism._run_scenario``, seeds 42-51. Day *m* is the
 first step after which the phenology stage is MATURITY; every assertion covers
@@ -14,7 +17,8 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from itertools import pairwise
+from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import cache
 from pathlib import Path
@@ -29,6 +33,7 @@ from agrogame.plant.events import NutrientStressComputed, PlantNUptakeComputed
 from agrogame.plant.presets import load_crop_presets
 from agrogame.plant.roots.events import RootDepthChanged, RootTurnoverOccurred
 from agrogame.sim.orchestrator import FullSimulationOrchestrator as Orch
+from agrogame.soil.canopy.events import LAIUpdated
 from agrogame.soil.loader import load_soil_presets
 from agrogame.soil.water.types import DailyDrivers
 from agrogame.weather.generator import SyntheticWeatherGenerator
@@ -47,6 +52,11 @@ SCENARIOS = {
         "clay_netherlands",
         date(2024, 4, 1),
     ),
+}
+# #623 AC2 adds Sahel maize, the largest standing-crop water user (refinement).
+_SEASON_SCENARIOS = {
+    **SCENARIOS,
+    "sahel_maize": ("maize", "sahel_arid", "loam_temperate", date(2024, 6, 1)),
 }
 _NON_N = frozenset({"p", "s", "fe", "zn", "mn"})
 
@@ -87,6 +97,9 @@ class _Day:
     non_n_uptake: float = 0.0
     nutrients: set[str] = field(default_factory=set)
     transpiration_mm: float = 0.0
+    evaporation_mm: float = 0.0
+    lai: float = 0.0
+    lai_updates: list[tuple[float, float]] = field(default_factory=list)
 
 
 class _Tally:
@@ -100,6 +113,7 @@ class _Tally:
         bus.subscribe(PlantNUptakeComputed, self._n)
         bus.subscribe(NutrientStressComputed, self._non_n)
         bus.subscribe(EvapotranspirationComputed, self._et)
+        bus.subscribe(LAIUpdated, self._lai)
 
     def _depth(self, _ev: RootDepthChanged) -> None:
         self.day.depth_events += 1
@@ -117,6 +131,10 @@ class _Tally:
 
     def _et(self, ev: EvapotranspirationComputed) -> None:
         self.day.transpiration_mm += ev.transpiration_mm
+        self.day.evaporation_mm += ev.evaporation_mm
+
+    def _lai(self, ev: LAIUpdated) -> None:
+        self.day.lai_updates.append((ev.previous_lai, ev.new_lai))
 
 
 def _snapshot(orch: Orch, tally: _Tally) -> _Day:
@@ -128,24 +146,29 @@ def _snapshot(orch: Orch, tally: _Tally) -> _Day:
     day.n_stock = orch.plant_n_stock_kg_ha
     day.shoot = orch.canopy.state.biomass_g_m2
     day.grain = orch.canopy.state.grain_biomass_g_m2
+    day.lai = orch.canopy.state.lai
     return day
 
 
-def _orch(scenario: str) -> Orch:
-    crop_key, climate_key, soil_key, _start = SCENARIOS[scenario]
+def _orch(scenario: str, *, keep_green: bool = False) -> Orch:
+    """The scenario's engine; ``keep_green`` restores the pre-#623 canopy rule."""
+    crop_key, climate_key, soil_key, _start = _SEASON_SCENARIOS[scenario]
     climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
         climate_key
     ]
     crop = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
         crop_key, climate_key
     )
+    if keep_green:
+        canopy = replace(crop.canopy, green_leaf_dies_at_maturity=False)
+        crop = replace(crop, canopy=canopy)
     profile = load_soil_presets(Path("soils/presets.yaml")).soils[soil_key]
     return Orch(profile, crop=crop, latitude_deg=climate.latitude_deg)
 
 
 def _days(orch: Orch, scenario: str, seed: int) -> Iterator[_Day]:
     """Step the engine path (``test_realism._run_scenario``), day by day."""
-    _crop, climate_key, _soil, start = SCENARIOS[scenario]
+    _crop, climate_key, _soil, start = _SEASON_SCENARIOS[scenario]
     tally = _Tally(orch)
     for rec in _weather(climate_key, start, seed):
         tally.day = _Day()
@@ -172,7 +195,7 @@ def _standing(scenario: str, seed: int) -> tuple[list[_Day], list[_Day], float]:
 def test_standing_crop_stops_roots_and_nutrient_uptake(
     scenario: str, seed: int
 ) -> None:
-    """#539 AC5 (a)-(f) and AC3 on every standing day m+1..m+100."""
+    """#539 AC5 (a)-(e) and AC3, and #623 AC1/AC3, on every day m+1..m+100."""
     season, standing, turnover_rate = _standing(scenario, seed)
     at_m = season[-1]
     assert at_m.stage is PhenologyStage.MATURITY
@@ -182,6 +205,13 @@ def test_standing_crop_stops_roots_and_nutrient_uptake(
     assert sum(d.non_n_uptake for d in season) > 0.0
     assert set().union(*(d.nutrients for d in season)) == _NON_N
     assert sum(d.depth_events for d in season) > 0
+    assert sum(d.transpiration_mm for d in season) > 0.0
+    # #623 AC1: the first MATURITY canopy step drops all green leaf, and the
+    # canopy reports it.
+    assert at_m.lai == 0.0
+    assert len(at_m.lai_updates) == 1
+    assert at_m.lai_updates[0][0] > 0.0
+    assert at_m.lai_updates[0][1] == 0.0
     prev = at_m
     for d in standing:
         assert d.stage is PhenologyStage.MATURITY
@@ -201,9 +231,49 @@ def test_standing_crop_stops_roots_and_nutrient_uptake(
         )
         assert d.turnover_events == 1
         assert d.fractions == at_m.fractions
+        # (f), replaced by #623 AC3: no green leaf, so no transpiration.
+        assert (d.lai, d.lai_updates, d.transpiration_mm) == (0.0, [], 0.0)
         prev = d
-    # (f) water is not gated: the senescing canopy still transpires.
-    assert sum(d.transpiration_mm for d in standing) > 0.0
+    # The bare soil still evaporates, so the ET tally is live.
+    assert sum(d.evaporation_mm for d in standing) > 0.0
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+@pytest.mark.parametrize("scenario", sorted(_SEASON_SCENARIOS))
+def test_season_to_maturity_is_unchanged(scenario: str, seed: int) -> None:
+    """#623 AC2: only day m's canopy step differs from the pre-#623 rule.
+
+    Shoot, grain and transpiration agree on every day 1..m, and LAI on every
+    day before m. The maturity day's own ET still reads the pre-maturity
+    canopy, because ``et`` precedes ``canopy`` (ADR-010).
+    """
+    new = _standing(scenario, seed)[0]
+    old: list[_Day] = []
+    for day in _days(_orch(scenario, keep_green=True), scenario, seed):
+        old.append(day)
+        if day.stage is PhenologyStage.MATURITY:
+            break
+    assert len(old) == len(new)
+    growth_new = [(d.shoot, d.grain, d.transpiration_mm) for d in new]
+    assert growth_new == [(d.shoot, d.grain, d.transpiration_mm) for d in old]
+    assert [d.lai for d in new[:-1]] == [d.lai for d in old[:-1]]
+    assert new[-1].lai == 0.0 < old[-1].lai
+
+
+def _patch_season(
+    patch: Patch, records: Iterator[WeatherRecord], standing_days: int
+) -> tuple[list[_Day], list[_Day]]:
+    """Step a patch to maturity, then ``standing_days`` more: (grown, standing)."""
+    tally = _Tally(patch.orch)
+    grown: list[_Day] = []
+    standing: list[_Day] = []
+    while len(standing) < standing_days:
+        tally.day = _Day()
+        patch.step_day(**_drive(next(records)))
+        day = _snapshot(patch.orch, tally)
+        mature = bool(grown) and grown[-1].stage is PhenologyStage.MATURITY
+        (standing if mature else grown).append(day)
+    return grown, standing
 
 
 def test_stop_lifts_for_the_next_crop() -> None:
@@ -211,7 +281,8 @@ def test_stop_lifts_for_the_next_crop() -> None:
 
     Kenya maize, seed 42: maturity + 10 standing days, harvest, 10 bare days,
     replant, then season 2 to maturity + 10 days. A gate that stayed engaged
-    after replanting would starve every second season (review of #636).
+    after replanting would starve every second season (review of #636). The
+    #623 leaf drop belongs to the crop too: the replanted canopy grows again.
     """
     climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
         "kenya_highlands"
@@ -225,18 +296,7 @@ def test_stop_lifts_for_the_next_crop() -> None:
         .records
     )
     patch = Patch(PatchConfig("loam_temperate", "maize", "kenya_highlands", 1.0))
-
-    def season() -> tuple[list[_Day], list[_Day]]:
-        tally, grown, standing = _Tally(patch.orch), [], []
-        while len(standing) < 10:
-            tally.day = _Day()
-            patch.step_day(**_drive(next(records)))
-            day = _snapshot(patch.orch, tally)
-            mature = bool(grown) and grown[-1].stage is PhenologyStage.MATURITY
-            (standing if mature else grown).append(day)
-        return grown, standing
-
-    seasons = [season()]
+    seasons = [_patch_season(patch, records, 10)]
     patch.harvest()
     patch.reset_crop(None)
     for _ in range(10):
@@ -244,7 +304,7 @@ def test_stop_lifts_for_the_next_crop() -> None:
     patch.reset_crop(maize)
     assert patch.orch.phenology.state.stage is PhenologyStage.PLANTED
     replant_depth = patch.orch.root_state.current_depth_cm
-    seasons.append(season())
+    seasons.append(_patch_season(patch, records, 10))
     (grown_1, standing_1), (grown_2, standing_2) = seasons
     # #651 AC2: the front stops at the 100 cm loam bottom on every day of both
     # seasons, and both end there (DSSAT DEPMAX = DS(NLAYR); APSIM NG MaxDepth).
@@ -269,6 +329,47 @@ def test_stop_lifts_for_the_next_crop() -> None:
     for d in standing_2:
         assert (d.depth_cm, d.depth_events) == (grown_2[-1].depth_cm, 0)
         assert d.n_uptake == d.non_n_uptake == 0.0
+    # #623: the replanted canopy grows like the first (seed 42 peaks 3.47 and
+    # 2.41), and each crop drops its green leaf at its own maturity.
+    assert max(d.lai for d in grown_2) > 0.5 * max(d.lai for d in grown_1)
+    for grown, standing in seasons:
+        assert grown[-1].lai == 0.0
+        assert all((d.lai, d.transpiration_mm) == (0.0, 0.0) for d in standing)
+
+
+def test_grape_keeps_its_leaves_after_maturity_across_two_seasons() -> None:
+    """#623 AC4: the exempt grape stays green and transpires while it stands.
+
+    Kenya-highland grape, seed 42, loam, 1 Mar: maturity + 30 standing days,
+    harvest, 10 bare days, replant, then season 2 to maturity + 30 days.
+    FAO-56 grape rows: Kcb_end 0.40 (Table 17) above Kc_min 0.15-0.20
+    (Eq. 76), so the vine keeps a transpiring canopy and senescence runs on at
+    the pre-#623 peak rate.
+    """
+    climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
+        "kenya_highlands"
+    ]
+    grape = load_crop_presets(Path("data/crops/presets.yaml")).get_preset(
+        "grape", "kenya_highlands"
+    )
+    assert grape.canopy.green_leaf_dies_at_maturity is False
+    records = iter(
+        SyntheticWeatherGenerator(climate, seed=42)
+        .generate(560, date(2024, 3, 1))
+        .records
+    )
+    patch = Patch(PatchConfig("loam_temperate", "grape", "kenya_highlands", 1.0))
+    seasons = [_patch_season(patch, records, 30)]
+    patch.harvest()
+    patch.reset_crop(None)
+    for _ in range(10):
+        patch.step_day(**_drive(next(records)))
+    patch.reset_crop(grape)
+    seasons.append(_patch_season(patch, records, 30))
+    for grown, standing in seasons:
+        lai = [grown[-1].lai] + [d.lai for d in standing]
+        assert all(0.0 < b < a for a, b in pairwise(lai))
+        assert sum(d.transpiration_mm for d in standing) > 0.0
 
 
 # --- AC6: save continuation across maturity (#577/#585) ----------------------
@@ -319,6 +420,43 @@ def test_save_after_maturity_continues_exactly() -> None:
     assert loaded.fields["f1"].patches[0].orch.phenology.state.stage is (
         PhenologyStage.MATURITY
     )
+
+
+def test_pre_623_save_with_a_green_mature_canopy_drops_its_leaf() -> None:
+    """#623 AC5: a mature save from before #623 (LAI 1.5) is bare after one step.
+
+    The gate reads the restored phenology stage, so it adds no runtime memory
+    (#585). That first step's ET still reads the saved LAI, as a fresh run's
+    maturity day does, because ``et`` precedes ``canopy`` (ADR-010). From the
+    next day on nothing transpires.
+    """
+    records = _weather("kenya_highlands", date(2024, 3, 1), 42)
+    ref = _kenya_maize_manager()
+    orch = ref.fields["f1"].patches[0].orch
+    day = 0
+    while orch.phenology.state.stage is not PhenologyStage.MATURITY:
+        ref.step_day(**_drive(records[day]))
+        day += 1
+    for rec in records[day : day + _SAVE_AFTER_MATURITY]:
+        ref.step_day(**_drive(rec))
+    day += _SAVE_AFTER_MATURITY
+    saved = json.loads(json.dumps(ref.to_dict()))
+    canopy_state = saved["fields"]["f1"]["patches"][0]["canopy_state"]
+    assert canopy_state["lai"] == 0.0
+    canopy_state["lai"] = 1.5  # as a pre-#623 save would hold it
+    loaded = FieldManager.from_dict(saved)
+    l_orch = loaded.fields["f1"].patches[0].orch
+    assert l_orch.canopy.state.lai == 1.5
+    tally = _Tally(l_orch)
+    days: list[_Day] = []
+    for rec in records[day : day + 10]:
+        tally.day = _Day()
+        loaded.step_day(**_drive(rec))
+        days.append(_snapshot(l_orch, tally))
+    assert days[0].stage is PhenologyStage.MATURITY
+    assert (days[0].lai, days[0].lai_updates[-1][1]) == (0.0, 0.0)
+    for d in days[1:]:
+        assert (d.lai, d.lai_updates, d.transpiration_mm) == (0.0, [], 0.0)
 
 
 # --- AC10: the forecast drops the crop-uptake sink for a mature anchor ---------

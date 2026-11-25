@@ -3,7 +3,7 @@ from __future__ import annotations
 from agrogame.events import EventBus
 from agrogame.soil.canopy import CanopyModule, CanopyParams
 from agrogame.soil.phenology import PhenologyStage, StageChanged
-from agrogame.soil.canopy.events import Harvested
+from agrogame.soil.canopy.events import Harvested, LAIUpdated
 from agrogame.plant.stress import compute_water_stress
 
 
@@ -282,3 +282,89 @@ def test_gate_rearms_each_cycle_after_harvest() -> None:
         # Harvest resets the canopy for the next cycle.
         bus.emit(Harvested(fraction_remaining=0.0))
         assert canopy.state.biomass_g_m2 == 0.0
+
+
+# --- #623: no green leaf after physiological maturity ------------------------
+
+
+def _determinate_and_exempt() -> list[tuple[CanopyModule, EventBus]]:
+    """The default (determinate) canopy and the grape-style exempt one."""
+    pair = []
+    for dies in (True, False):
+        bus = EventBus()
+        params = CanopyParams(
+            extinction_coefficient_k=0.6,
+            radiation_use_efficiency_g_per_mj=3.0,
+            specific_leaf_area_m2_per_g=0.02,
+            lai_max=6.0,
+            senescence_rate_per_day=0.05,
+            green_leaf_dies_at_maturity=dies,
+        )
+        canopy = CanopyModule(params, event_bus=bus)
+        canopy.state.lai = 3.0
+        pair.append((canopy, bus))
+    return pair
+
+
+def test_green_leaf_dies_at_maturity_by_default() -> None:
+    """Determinate is the default; only a cited preset opts out (#623 AC4)."""
+    canopy, _bus = _canopy_with_bus()
+    assert canopy.params.green_leaf_dies_at_maturity is True
+
+
+def test_first_maturity_step_drops_all_green_leaf_and_reports_it() -> None:
+    """#623 AC1: LAI is 0.0 after every MATURITY step, with one LAIUpdated."""
+    (canopy, bus), _exempt = _determinate_and_exempt()
+    updates: list[LAIUpdated] = []
+    bus.subscribe(LAIUpdated, updates.append)
+    _advance_to(bus, PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY)
+    intercepted = []
+    for _ in range(5):
+        fx = canopy.daily_step(
+            incident_shortwave_mj_m2=18.0,
+            temp_factor=1.0,
+            water_stress=1.0,
+            n_stress=1.0,
+        )
+        intercepted.append(fx.intercepted_par_mj_m2)
+        assert canopy.state.lai == 0.0
+    # The first MATURITY step intercepts with the canopy it started with; the
+    # #433 gate keeps that PAR from becoming biomass. Then nothing is left.
+    assert intercepted[0] > 0.0
+    assert intercepted[1:] == [0.0] * 4
+    assert [(u.previous_lai, u.new_lai) for u in updates] == [(3.0, 0.0)]
+
+
+def test_exempt_canopy_keeps_the_peak_senescence_rate_at_maturity() -> None:
+    """#623 AC4: with the flag off, MATURITY keeps the pre-#623 decay."""
+    _determinate, (canopy, bus) = _determinate_and_exempt()
+    _advance_to(bus, PhenologyStage.GRAIN_FILL, PhenologyStage.MATURITY)
+    p = canopy.params
+    canopy.update_lai(new_leaf_biomass_g_m2=0.0)
+    expected = 3.0 * (1.0 - p.senescence_rate_per_day * p.senescence_grain_fill_max)
+    assert canopy.state.lai == expected
+    assert canopy.state.lai > 0.0
+
+
+def test_flag_changes_nothing_before_maturity() -> None:
+    """#623 AC2: the gate acts only in MATURITY; earlier stages are unchanged."""
+    (dies, dies_bus), (keeps, keeps_bus) = _determinate_and_exempt()
+    stage = PhenologyStage.PLANTED
+    for nxt in (
+        PhenologyStage.EMERGED,
+        PhenologyStage.VEGETATIVE,
+        PhenologyStage.FLOWERING,
+        PhenologyStage.GRAIN_FILL,
+    ):
+        _advance_to(dies_bus, stage, nxt)
+        _advance_to(keeps_bus, stage, nxt)
+        stage = nxt
+        for canopy in (dies, keeps):
+            canopy.daily_step(
+                incident_shortwave_mj_m2=16.0,
+                temp_factor=1.0,
+                water_stress=1.0,
+                n_stress=1.0,
+            )
+        assert dies.state.lai == keeps.state.lai > 0.0
+        assert dies.state.biomass_g_m2 == keeps.state.biomass_g_m2

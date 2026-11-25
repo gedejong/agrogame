@@ -139,6 +139,7 @@ def _build_canopy(raw: dict) -> CanopyParams:
         ),
         senescence_grain_fill_max=float(c.get("senescence_grain_fill_max", 2.0)),
         grain_fill_duration_gdd=float(c.get("grain_fill_duration_gdd", 900.0)),
+        green_leaf_dies_at_maturity=bool(c.get("green_leaf_dies_at_maturity", True)),
         harvest_index=float(c.get("harvest_index", 0.45)),
         grains_per_g_source=float(c.get("grains_per_g_source", 0.0)),
         grain_set_window_gdd=float(c.get("grain_set_window_gdd", 200.0)),
