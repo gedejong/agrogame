@@ -20,8 +20,8 @@ const WIND_SCALE_MAX_MS := 8.0
 const WIND_MIN_STRENGTH := 0.05
 
 const LOAD_RETRY_MAX_S := 30.0  # the longest wait between layout-load retries (#564)
-const SOM_MAX_C_G_M2 := 5000.0
-const THETA_SATURATED := 0.45
+## FarmLayout's top texture classes in SoilFaceColour's column order (S, L, C).
+const TOP_COLUMNS: Array[String] = ["sandy", "organic", "clay"]
 const AVAILABLE_CROPS: Array[String] = ["maize", "spring_wheat", "sorghum", "rice", "grape"]
 ## Plants per tile as (rows across, plants per row). A tile is
 ## METERS_PER_TILE^2 = 4 m^2, so plants/tile / 4 = plants/m^2.
@@ -204,7 +204,7 @@ func _apply_layout(fields: Array) -> void:
 	for i in range(_tile_data.size()):
 		_tile_meshes[i].position.z = row_z[_tile_data[i]["row"]]
 		(_crop_sprites[i][0] as Node3D).position = _tile_meshes[i].position
-	_slab.lay_out(fields, _tile_data, _tile_meshes, sun)
+	_slab.lay_out(fields, _tile_data, _tile_meshes)
 
 
 func _load_layout() -> void:
@@ -378,11 +378,15 @@ func _on_quick_status_history() -> void:
 
 
 func _update_tile_shader(idx: int) -> void:
+	# The top is the face's top band: one colour for both (#680). Before the
+	# first payload with a profile, the texture shows as it is.
 	var data: Dictionary = _tile_data[idx]
-	var som_frac: float = clampf(data.get("som_total_c_g_m2", 0.0) / SOM_MAX_C_G_M2, 0.0, 1.0)
-	var moisture_frac: float = clampf(data.get("theta_surface", 0.0) / THETA_SATURATED, 0.0, 1.0)
-	_tile_materials[idx].set_shader_parameter("som_frac", som_frac)
-	_tile_materials[idx].set_shader_parameter("moisture_frac", moisture_frac)
+	if not data.has("surface_albedo"):
+		return
+	var col := maxi(TOP_COLUMNS.find(data.get("soil_type", "organic")), 0)
+	var gain := SoilFaceColour.top_gain(data["surface_albedo"], col)
+	_tile_materials[idx].set_shader_parameter("colour_gain", gain)
+	_tile_materials[idx].set_shader_parameter("saturation", data.get("surface_saturation", 0.0))
 
 
 func _update_crop_visuals(idx: int) -> void:

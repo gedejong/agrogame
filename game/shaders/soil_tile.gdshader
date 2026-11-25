@@ -5,16 +5,17 @@ render_mode cull_disabled;
 
 uniform sampler2D albedo_texture : source_color;
 uniform sampler2D normal_texture : hint_normal;
-uniform float som_frac : hint_range(0.0, 1.0) = 0.0;
-uniform float moisture_frac : hint_range(0.0, 1.0) = 0.0;
 uniform float selected : hint_range(0.0, 1.0) = 0.0;
-
-// SOM_DARK and MOISTURE_DARK are reflectance ratios, not colours: they scale
-// the linear albedo, so they need no sRGB conversion.
-const vec3 SOM_DARK = vec3(0.4, 0.3, 0.2);
-const float SOM_STRENGTH = 0.7;
-const vec3 MOISTURE_DARK = vec3(0.55, 0.55, 0.6);
-const float MOISTURE_STRENGTH = 0.5;
+// The soil's colour (#680): a per-channel linear gain that makes the texture's
+// mean, grain included, the face's top band (SoilFaceColour.top_gain of
+// surface_albedo: same Munsell value, same hue). The texture keeps its detail.
+uniform vec3 colour_gain = vec3(1.0);
+// The top layer's degree of saturation, theta over porosity
+// (SoilFaceColour.saturation): wet soil is glossier.
+uniform float saturation : hint_range(0.0, 1.0) = 0.0;
+// Style constants: roughness and specular of the top, dry to saturated.
+const vec2 ROUGHNESS_DRY_WET = vec2(0.85, 0.3);
+const vec2 SPECULAR_DRY_WET = vec2(0.2, 0.5);
 
 varying vec3 v_world_pos;
 
@@ -50,9 +51,10 @@ void vertex() {
 
 void fragment() {
 	vec2 uv2 = UV * 2.0;
-	vec3 color = texture(albedo_texture, uv2).rgb;
+	vec3 color = texture(albedo_texture, uv2).rgb * colour_gain;
 
-	// World-space noise for uniform grain across all tiles
+	// World-space noise for uniform grain across all tiles. Its mean factor is
+	// SoilFaceColour.TOP_GRAIN_MEAN: change both together.
 	vec2 wp = v_world_pos.xz;
 	float grain_fine = fbm(wp * 80.0);
 	float grain_coarse = fbm(wp * 25.0);
@@ -61,10 +63,6 @@ void fragment() {
 	color *= 0.85 + grain_coarse * 0.3;
 	color *= 0.9 + (grain_fine - 0.5) * 0.25;
 	color *= 1.0 - cracks * 0.3;
-
-	// SOM / moisture
-	color = mix(color, color * SOM_DARK, som_frac * SOM_STRENGTH);
-	color = mix(color, color * MOISTURE_DARK, moisture_frac * MOISTURE_STRENGTH);
 
 	// Normal from world-space noise gradient + texture
 	vec3 tex_norm = texture(normal_texture, uv2).rgb;
@@ -84,8 +82,8 @@ void fragment() {
 	ALBEDO = color;
 	NORMAL_MAP = norm;
 	NORMAL_MAP_DEPTH = 1.8;
-	ROUGHNESS = mix(0.85, 0.3, moisture_frac) + (1.0 - grain_fine) * 0.1;
+	ROUGHNESS = mix(ROUGHNESS_DRY_WET.x, ROUGHNESS_DRY_WET.y, saturation) + (1.0 - grain_fine) * 0.1;
 	METALLIC = 0.0;
-	SPECULAR = mix(0.2, 0.5, moisture_frac);
+	SPECULAR = mix(SPECULAR_DRY_WET.x, SPECULAR_DRY_WET.y, saturation);
 	EMISSION = sel_color * border * selected * 0.6;
 }

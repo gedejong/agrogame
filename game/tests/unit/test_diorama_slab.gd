@@ -1,9 +1,10 @@
 extends GutTest
 ## DioramaSlab (#646): segments per edge tile mapped by (field, patch)
 ## (criterion 4), the true-scale section and its 4x extension, hidden faces
-## until a payload (5), framing (7), the extension hook (13) and the fill on
-## the face turned from the sun (14). The farm view tests at the end check the
-## wiring: every /step result refreshes the slab and clicks still reach tiles.
+## until a payload (5), framing (7) and the extension hook (13). #680 replaced
+## criterion 14's fill with no fill, and gave the faces their soil's cited hue.
+## The farm view tests at the end check the wiring: every /step result
+## refreshes the slab and clicks still reach tiles.
 
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
@@ -32,17 +33,8 @@ func after_each() -> void:
 	GameState.game_id = ""
 
 
-## The farm view scene's sun, as placed in farm_view.tscn.
-func _sun_transform() -> Transform3D:
-	var view: Node3D = FarmViewScene.instantiate()
-	var sun: Transform3D = (view.get_node("DirectionalLight3D") as Node3D).transform
-	view.free()
-	return sun
-
-
-## A slab laid out for `fields` on a 6x6 grid, under the farm view's sun turned
-## a further `turn_deg` about y.
-func _slab(fields: Array, turn_deg: float = 0.0) -> DioramaSlab:
+## A slab laid out for `fields` on a 6x6 grid.
+func _slab(fields: Array) -> DioramaSlab:
 	var root := Node3D.new()
 	add_child_autofree(root)
 	var tiles := Node3D.new()
@@ -54,13 +46,9 @@ func _slab(fields: Array, turn_deg: float = 0.0) -> DioramaSlab:
 	var row_z := FarmLayout.row_z(fields.size(), 6, 1.0)
 	for i in range(36):
 		grid["meshes"][i].position.z = row_z[grid["tile_data"][i]["row"]]
-	var sun := DirectionalLight3D.new()
-	sun.transform = _sun_transform()
-	sun.rotate_y(deg_to_rad(turn_deg))
-	root.add_child(sun)
 	var slab := DioramaSlab.new()
 	root.add_child(slab)
-	slab.lay_out(fields, grid["tile_data"], grid["meshes"], sun)
+	slab.lay_out(fields, grid["tile_data"], grid["meshes"])
 	return slab
 
 
@@ -101,10 +89,6 @@ func _side(slab: DioramaSlab, side: String) -> Array[Dictionary]:
 func _span(mesh: MeshInstance3D) -> Vector2:
 	var box := mesh.transform * mesh.get_aabb()
 	return Vector2(box.end.y, box.position.y)
-
-
-func _fill(mesh: MeshInstance3D) -> float:
-	return (mesh.material_override as ShaderMaterial).get_shader_parameter("face_fill")
 
 
 func test_netherlands_default_has_a_segment_per_edge_tile() -> void:
@@ -210,17 +194,59 @@ func test_extension_hook_replaces_only_the_placeholder() -> void:
 		assert_same(ext["mesh"].material_override, ext["placeholder"], "null restores it")
 
 
-func test_fill_lights_the_face_turned_from_the_sun() -> void:
-	for turn: float in [0.0, 180.0]:
-		var slab := _slab(ScenarioCatalog.default_fields(), turn)
-		var shaded := "+z" if turn == 0.0 else "+x"
+func test_no_fill_lights_the_face_turned_from_the_sun() -> void:
+	# Replaces #646's criterion 14, which asserted a fill of 0.35. Edwin withdrew
+	# the fill on 2026-11-25 ("it's ok to make the left side darker to fit the
+	# shadows"; #680, ADR-022 decision 1, Lighting): the faces take the scene's
+	# light alone, so nothing on the slab emits.
+	var fields := ScenarioCatalog.default_fields()
+	var slab := _slab(fields)
+	slab.update(_patches(fields))
+	# Segments draw with the face shader, extensions with the regional one.
+	var faces: Array[Dictionary] = slab._segments + slab._extensions
+	for face: Dictionary in faces:
+		var mesh: MeshInstance3D = face["mesh"]
+		var shader: Shader = (mesh.material_override as ShaderMaterial).shader
+		var names := shader.get_shader_uniform_list().map(
+			func(u: Dictionary) -> String: return u["name"]
+		)
+		assert_false("face_fill" in names, "%s takes no fill" % shader.resource_path)
+		assert_false(shader.code.contains("EMISSION"), "%s emits nothing" % shader.resource_path)
+		assert_null(mesh.get_instance_shader_parameter("face_fill"), "no per-quad fill")
+	var placeholder: Shader = (slab._extensions[0]["placeholder"] as ShaderMaterial).shader
+	assert_false(placeholder.code.contains("EMISSION"), "nor the placeholder")
+	for side: Dictionary in slab._sides:
+		var plain: StandardMaterial3D = side["mesh"].material_override
+		assert_false(plain.emission_enabled, "a closed side does not glow")
+
+
+func test_faces_take_their_soils_cited_hue() -> void:
+	# #680: per depth, the gain that gives the cross texture the cited hue of
+	# its patch's soil; Kenya's loam takes the KE 1 Nitisol hue by climate.
+	var cases := {
+		0: ["sandy_temperate", "loam_temperate", "clay_temperate"],
+		SAHEL: ["sandy_subsaharan"],
+		1: ["loam_temperate@kenya_highlands"],
+	}
+	for id: int in cases:
+		var fields := ScenarioCatalog.fields_for(id)
+		var slab := _slab(fields)
+		var patches := _patches(fields)
+		slab.update(patches)
 		for seg: Dictionary in slab._segments:
-			var want := DioramaSlab.FACE_FILL if seg["side"] == shaded else 0.0
-			assert_eq(_fill(seg["mesh"]), want, "%s segment, sun turned %d" % [seg["side"], turn])
-		for ext: Dictionary in slab._extensions:
-			var plus_z: bool = ext["mesh"].rotation_degrees.y == 0.0
-			var want := DioramaSlab.FACE_FILL if plus_z == (shaded == "+z") else 0.0
-			assert_eq(_fill(ext["mesh"]), want, "extension, sun turned %d" % turn)
+			var why := "%s, patch %d" % [ScenarioCatalog.label_for(id), seg["patch_idx"]]
+			assert_eq(seg["soil_key"], cases[id][seg["patch_idx"]], why)
+			var soil: Dictionary = patches[seg["field_id"]][seg["patch_idx"]]["soil_state"]
+			var want := SoilFaceColour.hue_samples(soil, seg["soil_key"], slab._section_cm)
+			var mat: ShaderMaterial = seg["mesh"].material_override
+			var got: Image = (mat.get_shader_parameter("hue_tex") as Texture2D).get_image()
+			assert_eq(got.get_height(), want.size(), "one gain per profile sample")
+			for p: int in [0, want.size() / 2, want.size() - 1]:
+				var g := got.get_pixel(0, p)
+				var w: Color = want[p]
+				assert_almost_eq(
+					Vector3(g.r, g.g, g.b), Vector3(w.r, w.g, w.b), Vector3.ONE * 1e-4, why
+				)
 
 
 ## Enter the farm view with no game, so nothing loads or steps on its own.

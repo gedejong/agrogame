@@ -54,8 +54,6 @@ static func build_grid(
 		for col in range(grid.x):
 			var mat := ShaderMaterial.new()
 			mat.shader = shader
-			mat.set_shader_parameter("som_frac", 0.0)
-			mat.set_shader_parameter("moisture_frac", 0.0)
 			mat.set_shader_parameter("selected", 0.0)
 			var mesh_inst := MeshInstance3D.new()
 			mesh_inst.mesh = box
@@ -190,6 +188,13 @@ static func write_patch(
 		var tile: Dictionary = tile_data[i]
 		tile["som_total_c_g_m2"] = som
 		tile["theta_surface"] = theta
+		# The top's colour and gloss, from the profile the faces draw (#680).
+		var soil: Variant = patch.get("soil_state")
+		if soil is Dictionary and SoilFaceColour.has_profile(soil):
+			tile["surface_albedo"] = SoilFaceColour.surface_albedo(
+				soil, SoilFaceColour.colour_key(tile)
+			)
+			tile["surface_saturation"] = SoilFaceColour.saturation(soil)
 		# Season-peak LAI anchors canopy-loss senescence; it resets
 		# when a new crop is sown or the season restarts.
 		var prev_crop: String = tile.get("crop_key", "")
