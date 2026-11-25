@@ -1,10 +1,9 @@
 extends GutTest
 ## DioramaRegions (#652): the regional stacks as data (criterion 1) and their
 ## wiring into the slab (criterion 2): one regional material per slab on every
-## extension quad, its fill per quad, every set at its real-world size, and the
+## extension quad, no fill since #680, every set at its real-world size, and the
 ## placeholder kept for an unknown climate key.
 
-const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const KENYA_TWO_FIELDS := 6  # ScenarioCatalog ids, as in test_diorama_slab.gd
 const SAHEL := 2
 ## The #652 table: [name, top m, bottom m, set, size m] per layer.
@@ -70,9 +69,8 @@ func _assert_floats(got: PackedFloat32Array, want: Array, label: String) -> void
 		assert_almost_eq(got[i], want[i], 1e-5, "%s [%d]" % [label, i])
 
 
-## A slab laid out for `fields` on a 6x6 grid, under the farm view's sun turned
-## a further `turn_deg` about y (as test_diorama_slab.gd builds it).
-func _slab(fields: Array, turn_deg: float = 0.0) -> DioramaSlab:
+## A slab laid out for `fields` on a 6x6 grid (as test_diorama_slab.gd builds it).
+func _slab(fields: Array) -> DioramaSlab:
 	var root := Node3D.new()
 	add_child_autofree(root)
 	var tiles := Node3D.new()
@@ -84,15 +82,9 @@ func _slab(fields: Array, turn_deg: float = 0.0) -> DioramaSlab:
 	var row_z := FarmLayout.row_z(fields.size(), 6, 1.0)
 	for i in range(36):
 		grid["meshes"][i].position.z = row_z[grid["tile_data"][i]["row"]]
-	var view: Node3D = FarmViewScene.instantiate()
-	var sun := DirectionalLight3D.new()
-	sun.transform = (view.get_node("DirectionalLight3D") as Node3D).transform
-	view.free()
-	sun.rotate_y(deg_to_rad(turn_deg))
-	root.add_child(sun)
 	var slab := DioramaSlab.new()
 	root.add_child(slab)
-	slab.lay_out(fields, grid["tile_data"], grid["meshes"], sun)
+	slab.lay_out(fields, grid["tile_data"], grid["meshes"])
 	return slab
 
 
@@ -145,18 +137,24 @@ func test_every_set_repeats_at_its_real_world_size() -> void:
 		assert_almost_eq(repeat_wu / (want_m[i] * 0.5), 1.0, 0.1, "slot %d within 10 %%" % i)
 
 
-func test_each_quad_carries_its_own_fill() -> void:
-	for turn: float in [0.0, 180.0]:
-		var fields := ScenarioCatalog.default_fields()
-		var slab := _slab(fields, turn)
-		slab.update(_patches(fields))
-		var fills := []
-		for ext: Dictionary in slab._extensions:
-			var mesh: MeshInstance3D = ext["mesh"]
-			assert_eq(mesh.get_instance_shader_parameter("face_fill"), slab._fill(mesh))
-			fills.append(mesh.get_instance_shader_parameter("face_fill"))
-		fills.sort()
-		assert_eq(fills, [0.0, DioramaSlab.FACE_FILL], "sun turned %d" % turn)
+func test_the_extension_takes_no_fill() -> void:
+	# Replaces this file's per-quad fill test: Edwin withdrew the fill on the
+	# face turned from the sun on 2026-11-25 (#680, ADR-022 decision 1,
+	# Lighting), so the regional extension emits nothing either.
+	var fields := ScenarioCatalog.default_fields()
+	var slab := _slab(fields)
+	slab.update(_patches(fields))
+	var regional: ShaderMaterial = slab._extensions[0]["mesh"].material_override
+	var shader: Shader = regional.shader
+	assert_eq(shader.resource_path, "res://shaders/soil_extension.gdshader")
+	var names := shader.get_shader_uniform_list().map(
+		func(u: Dictionary) -> String: return u["name"]
+	)
+	assert_false("face_fill" in names, "no fill uniform")
+	assert_false(shader.code.contains("EMISSION"), "the extension emits nothing")
+	for ext: Dictionary in slab._extensions:
+		var mesh: MeshInstance3D = ext["mesh"]
+		assert_null(mesh.get_instance_shader_parameter("face_fill"), "no per-quad fill")
 
 
 func test_unknown_climate_keeps_the_placeholder() -> void:

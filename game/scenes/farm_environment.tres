@@ -1,15 +1,19 @@
-[gd_resource type="Environment" load_steps=3 format=3]
+[gd_resource type="Environment" load_steps=4 format=3]
 
-[sub_resource type="PhysicalSkyMaterial" id="sky_mat"]
-rayleigh_coefficient = 2.0
-rayleigh_color = Color(0.3, 0.4, 0.65, 1)
-mie_coefficient = 0.003
-mie_eccentricity = 0.75
-mie_color = Color(0.7, 0.7, 0.7, 1)
-turbidity = 4.0
-sun_disk_scale = 14.0
-ground_color = Color(0.2, 0.18, 0.15, 1)
-energy_multiplier = 1.0
+[ext_resource type="Shader" uid="uid://24721bht3psu" path="res://shaders/farm_sky.gdshader" id="1"]
+
+[sub_resource type="ShaderMaterial" id="sky_mat"]
+shader = ExtResource("1")
+shader_parameter/rayleigh = 2.0
+shader_parameter/rayleigh_color = Color(0.3, 0.4, 0.65, 1)
+shader_parameter/mie = 0.003
+shader_parameter/mie_eccentricity = 0.75
+shader_parameter/mie_color = Color(0.7, 0.7, 0.7, 1)
+shader_parameter/turbidity = 4.0
+shader_parameter/sun_disk_scale = 14.0
+shader_parameter/ground_color = Color(0.2, 0.18, 0.15, 1)
+shader_parameter/exposure = 1.0
+shader_parameter/ambient_gain = 2.95
 
 [sub_resource type="Sky" id="sky"]
 sky_material = SubResource("sky_mat")
@@ -20,10 +24,8 @@ background_mode = 2
 sky = SubResource("sky")
 ambient_light_source = 3
 reflected_light_source = 2
-ambient_light_color = Color(0.4, 0.42, 0.5, 1)
-ambient_light_energy = 0.55
 tonemap_mode = 2
-tonemap_exposure = 1.4
+tonemap_exposure = 0.89
 tonemap_white = 6.0
 fog_enabled = true
 fog_light_color = Color(0.3, 0.32, 0.4, 1)

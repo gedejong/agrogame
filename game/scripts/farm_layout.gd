@@ -94,6 +94,8 @@ static func assign_fields(
 		tile["patch_idx"] = patch_idx
 		tile["soil_type"] = soil_type
 		tile["soil_name"] = patches[patch_idx].get("soil_name", "")
+		tile["soil_profile_key"] = patches[patch_idx].get("soil_profile_key", "")
+		tile["climate_key"] = patches[patch_idx].get("climate_key", "")
 		var paths: Dictionary = SOIL_TEXTURES[soil_type]
 		materials[i].set_shader_parameter("albedo_texture", load(paths["albedo"]))
 		materials[i].set_shader_parameter("normal_texture", load(paths["normal"]))

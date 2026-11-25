@@ -96,6 +96,16 @@ func _day(crop: String, theta: float, som: float) -> Dictionary:
 		"lai": 10.0 * theta,
 		"soil_theta_surface": theta,
 		"som_total_c_g_m2": som,
+		"soil_state":
+		{
+			"layer_thickness_cm": [25.0],
+			"texture": ["loam"],
+			"soc_pct": [som / 2000.0],
+			"water_theta": [theta],
+			"field_capacity": [0.3],
+			"wilting_point": [0.1],
+			"porosity": [0.5],
+		},
 	}
 
 
@@ -187,11 +197,16 @@ func test_each_tile_shows_its_own_field_and_patch_after_a_step() -> void:
 			var key: Array = _owner(i)
 			var want: Dictionary = patches[key[0]][key[1]]
 			assert_eq(view._tile_data[i]["lai"], want["lai"], "tile %d, step %d" % [i, step])
+			# #680: the top's colour and gloss come from its own patch's profile.
 			var mat: ShaderMaterial = view._tile_materials[i]
-			var moisture: float = want["soil_theta_surface"] / FarmView.THETA_SATURATED
-			assert_almost_eq(mat.get_shader_parameter("moisture_frac"), moisture, 1e-6)
-			var som: float = want["som_total_c_g_m2"] / FarmView.SOM_MAX_C_G_M2
-			assert_almost_eq(mat.get_shader_parameter("som_frac"), som, 1e-6)
+			var tile: Dictionary = view._tile_data[i]
+			var soil: Dictionary = want["soil_state"]
+			var albedo := SoilFaceColour.surface_albedo(soil, SoilFaceColour.colour_key(tile))
+			var col := FarmView.TOP_COLUMNS.find(tile["soil_type"])
+			var gain := SoilFaceColour.top_gain(albedo, col)
+			assert_almost_eq(mat.get_shader_parameter("colour_gain"), gain, Vector3.ONE * 1e-6)
+			var sat: float = soil["water_theta"][0] / soil["porosity"][0]
+			assert_almost_eq(mat.get_shader_parameter("saturation"), sat, 1e-6)
 	await wait_process_frames(1)  # replaced plants are queue_free'd
 	for i: int in [0, 17, 18, 35]:
 		assert_gt(view._crop_sprites[i][0].get_child_count(), 0, "tile %d draws its crop" % i)

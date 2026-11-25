@@ -11,8 +11,9 @@ uniform sampler2D profile_tex : filter_nearest, repeat_disable;
 uniform sampler2D grain_sandy : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D grain_loam : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D grain_clay : source_color, filter_linear_mipmap, repeat_enable;
-// Emission over albedo: DioramaSlab.FACE_FILL on a face turned from the sun.
-uniform float face_fill = 0.0;
+// Per-depth gain giving the cross texture its soil's cited hue at unchanged
+// luminance (SoilFaceColour.hue_samples, #680), laid out as profile_tex.
+uniform sampler2D hue_tex : filter_nearest, repeat_disable, hint_default_white;
 
 // Style constants (#646): grain repeats and root strands per world unit, the
 // strands' waviness, and the root trace colour (sRGB).
@@ -49,7 +50,8 @@ void fragment() {
 	vec3 loam = texture(grain_loam, g_uv).rgb;
 	vec3 clay = texture(grain_clay, g_uv).rgb;
 	float k = prof.b * 2.0;
-	vec3 col = min((k < 0.5 ? sandy : (k < 1.5 ? loam : clay)) * prof.r, vec3(1.0));
+	vec3 tint = texture(hue_tex, UV).rgb;
+	vec3 col = min((k < 0.5 ? sandy : (k < 1.5 ? loam : clay)) * prof.r * tint, vec3(1.0));
 	// Root traces: wavy near-vertical strands; a strand shows where its random
 	// rank falls under the density at that depth.
 	float x = u * STRANDS_PER_WU;
@@ -58,7 +60,6 @@ void fragment() {
 	float on = step(hash(vec2(floor(x), 7.0)), prof.g) * step(1e-4, prof.g);
 	col = mix(col, ROOT_COLOUR, line * on * 0.85);
 	ALBEDO = col;
-	EMISSION = col * face_fill;
 	ROUGHNESS = 0.95;
 	SPECULAR = 0.2;
 }

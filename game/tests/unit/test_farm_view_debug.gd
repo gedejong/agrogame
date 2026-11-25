@@ -134,12 +134,13 @@ func test_start_stops_on_step_failure() -> void:
 
 
 func test_farm_environment_tonemap_and_ssao() -> void:
-	# #637: white 6.0 leaves headroom before highlights clip; exposure 1.4
-	# brightens the scene under the clear-day sun and sky ambient. SSAO darkens
+	# #637: white 6.0 leaves headroom before highlights clip. #680 (Edwin,
+	# 2026-11-25): Filmic stays, and exposure 1.4 -> 0.89 under the raised sky
+	# ambient holds the NL day-70 canopy's measured L* of 45.2. SSAO darkens
 	# only ambient light, not sunlit foliage.
 	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
 	assert_eq(env.tonemap_mode, Environment.TONE_MAPPER_FILMIC, "Filmic tonemap")
-	assert_almost_eq(env.tonemap_exposure, 1.4, 1e-6, "Exposure")
+	assert_almost_eq(env.tonemap_exposure, 0.89, 1e-6, "Exposure")
 	assert_almost_eq(env.tonemap_white, 6.0, 1e-6, "White point")
 	assert_true(env.ssao_enabled, "SSAO on")
 	assert_almost_eq(env.ssao_intensity, 1.5, 1e-6, "SSAO intensity")
@@ -159,6 +160,39 @@ func test_add_farm_lighting_lights_as_the_farm_view() -> void:
 	assert_eq(envs.size(), 1, "One environment")
 	var world_env: WorldEnvironment = envs[0] as WorldEnvironment
 	assert_eq(world_env.environment, FarmViewDebugRef.FARM_ENVIRONMENT, "The farm environment")
+
+
+func test_the_sky_lights_the_farm_through_its_ambient_gain() -> void:
+	# #680: the ambient is a gain on the sky's radiance map, at the clear-day
+	# value; the sky stays Godot's physical sky otherwise.
+	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
+	assert_eq(env.ambient_light_source, Environment.AMBIENT_SOURCE_SKY, "sky ambient")
+	assert_eq(env.ambient_light_sky_contribution, 1.0, "the sky alone")
+	var sky: ShaderMaterial = env.sky.sky_material
+	assert_eq(sky.shader.resource_path, "res://shaders/farm_sky.gdshader")
+	assert_eq(sky.get_shader_parameter("ambient_gain"), FarmViewDebugRef.AMBIENT_GAIN_CLEAR)
+	assert_eq(sky.get_shader_parameter("exposure"), 1.0, "the background sky unchanged")
+
+
+func test_overcast_raises_the_sky_ambient_and_leaves_the_dead_energy() -> void:
+	var world_env := WorldEnvironment.new()
+	world_env.environment = FarmViewDebugRef.FARM_ENVIRONMENT.duplicate(true)
+	add_child_autofree(world_env)
+	var sun := DirectionalLight3D.new()
+	add_child_autofree(sun)
+	var fog: GPUParticles3D = FogClouds.new()
+	add_child_autofree(fog)
+	var sky: ShaderMaterial = world_env.environment.sky.sky_material
+	assert_ne(sky, FarmViewDebugRef.FARM_ENVIRONMENT.sky.sky_material, "a copy")
+	var clear := FarmViewDebugRef.AMBIENT_GAIN_CLEAR
+	var overcast := clear * FarmViewDebugRef.AMBIENT_OVERCAST_FACTOR
+	for c: Array in [[0.0, clear], [4.2, lerpf(clear, overcast, 0.42)], [20.0, overcast]]:
+		FarmViewDebugRef.update_weather_lighting({"rain_mm": c[0]}, sun, world_env, fog)
+		var gain: float = sky.get_shader_parameter("ambient_gain")
+		assert_almost_eq(gain, c[1], 1e-5, "%.1f mm" % c[0])
+	# The sky is the ambient source, so the energy and colour do nothing; the
+	# weather no longer writes them.
+	assert_eq(world_env.environment.ambient_light_energy, 1.0, "untouched")
 
 
 func test_clear_day_weather_sets_the_clear_sun() -> void:
