@@ -129,6 +129,7 @@ class Patch:
         continues the saved run exactly.
         """
         orch = self.orch
+        potential = orch.potential_canopy
         return {
             "config": {
                 "soil_profile_key": self.config.soil_profile_key,
@@ -138,6 +139,10 @@ class Patch:
             },
             "soil_snapshot": orch.snapshot_soil().to_dict(),
             "canopy_state": orch.canopy.state.to_dict(),
+            # Optional within schema v1 (#660); None on a fallow patch.
+            "potential_canopy_state": (
+                None if potential is None else potential.state.to_dict()
+            ),
             "phenology_state": orch.phenology.state.to_dict(),
             "root_state": orch.root_state.to_dict(),
             # Optional keys within schema v1 (#515), like #284/#285/#371.
@@ -183,11 +188,28 @@ class Patch:
             # Sync canopy module's stage tracking from restored phenology
             orch.canopy._current_stage = phs.stage
             orch.canopy._current_gdd = phs.accumulated_gdd
+        self._restore_potential_canopy(data)
         if data.get("root_state"):
             _copy_fields(orch.root_state, RootState.from_dict(data["root_state"]))
         if data.get("plant_n_state"):
             restored_n = PlantNitrogenState.from_dict(data["plant_n_state"])
             _copy_fields(orch.plant_n_state, restored_n)
+
+    def _restore_potential_canopy(self, data: dict[str, Any]) -> None:
+        """Write the saved shadow canopy and sync its stage and GDD (#660).
+
+        A save without the key seeds the shadow from the actual canopy, so the
+        first ``growth_vs_potential`` after the load starts from 1.0 rather
+        than from an empty potential.
+        """
+        orch = self.orch
+        potential = orch.potential_canopy
+        saved = data.get("potential_canopy_state") or data.get("canopy_state")
+        if potential is None or not saved:
+            return
+        _copy_fields(potential.state, CanopyState.from_dict(saved))
+        potential._current_stage = orch.canopy._current_stage
+        potential._current_gdd = orch.canopy._current_gdd
 
     def harvest(self) -> PatchResult:
         snap = self.orch.harvest()

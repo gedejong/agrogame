@@ -1,29 +1,33 @@
 extends GutTest
 ## #629: the soil gauge has no SOM term, and the soil is named by its preset.
+## #660: it reads root-zone water, not surface theta.
 
 const QSC = preload("res://scripts/quick_status_card.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
 
 
-func test_soil_gauge_ignores_som_and_follows_theta() -> void:
-	# #629: the SOM term is gone, so it neither saturates nor moves the gauge;
-	# theta moves it by 20% around a typical value.
-	var base := {"theta_surface": 0.2, "crop_stage": 0}
-	var low: float = QSC.compute_scores(base)["soil"]
+func test_root_zone_gauge_ignores_som_and_surface_theta() -> void:
+	# #629: SOM is not an input. #660: nor is the uncited surface-theta optimum;
+	# the gauge reads available over total available water in the root zone.
+	var base := {"theta_surface": 0.2, "crop_stage": 0, "root_zone_water_fraction": 0.5}
+	var half: float = QSC.compute_scores(base)["root_zone"]
 	for som: float in [0.0, 7345.0, 73450.0]:
 		base["som_total_c_g_m2"] = som
-		assert_eq(QSC.compute_scores(base)["soil"], low, "SOM %.0f is not an input" % som)
-	var wetter: float = QSC.compute_scores({"theta_surface": 0.24, "crop_stage": 0})["soil"]
-	var drier: float = QSC.compute_scores({"theta_surface": 0.16, "crop_stage": 0})["soil"]
-	assert_gt(wetter, low, "+20% theta moves the gauge")
-	assert_lt(drier, low, "-20% theta moves the gauge")
-	assert_lt(low, 100.0, "no saturation at a typical theta")
+		assert_eq(QSC.compute_scores(base)["root_zone"], half, "SOM %.0f is not an input" % som)
+	for theta: float in [0.0, 0.16, 0.24, 0.5]:
+		base["theta_surface"] = theta
+		assert_eq(QSC.compute_scores(base)["root_zone"], half, "theta %.2f is not an input" % theta)
+	assert_eq(half, 50.0)
+	base["root_zone_water_fraction"] = 0.6
+	assert_eq(QSC.compute_scores(base)["root_zone"], 60.0, "the fraction moves it")
 
 
-func test_soil_gauge_is_labelled_for_what_it_measures() -> void:
+func test_root_zone_gauge_is_labelled_for_what_it_measures() -> void:
 	var labels: Array = QSC.GAUGE_DEFS.map(func(g: Dictionary) -> String: return g["label"])
-	assert_has(labels, "Soil moisture")
+	# "Root-zone water" widens the 200 px card to 208 px with four marks (#660 C4).
+	assert_has(labels, "Root zone")
+	assert_does_not_have(labels, "Soil moisture")
 	assert_does_not_have(labels, "Soil")
 
 

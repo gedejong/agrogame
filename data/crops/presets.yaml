@@ -3,6 +3,9 @@
 crops:
   maize:
     name: "Maize (Zea mays)"
+    # Depletion fraction p for no stress, RAW = p * TAW (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Maize, Field (grain)".
+    depletion_fraction_p: 0.55
     # Tissue nutrient concentrations (kg nutrient / kg DM).
     # DSSAT CERES-Maize: whole-plant N 2.5-3.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.030
@@ -99,6 +102,9 @@ crops:
 
   winter_wheat:
     name: "Winter Wheat (Triticum aestivum)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Winter Wheat".
+    depletion_fraction_p: 0.55
     # APSIM-Wheat: whole-plant N ~2.0-2.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
@@ -163,6 +169,9 @@ crops:
 
   spring_wheat:
     name: "Spring Wheat (Triticum aestivum)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Spring Wheat".
+    depletion_fraction_p: 0.55
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
     tissue_s_conc_kg_kg: 0.0018
@@ -233,6 +242,11 @@ crops:
 
   rice:
     name: "Rice (Oryza sativa)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Rice". Footnote 4 says "0.20 of
+    # saturation", for paddy; this rice is rainfed on the free-draining bucket
+    # (#500, #658), so 0.20 of TAW applies, the only cited value.
+    depletion_fraction_p: 0.20
     # DSSAT CERES-Rice: whole-plant N ~2.0-2.5%; P ~0.25%
     tissue_n_conc_kg_kg: 0.022
     tissue_p_conc_kg_kg: 0.0025
@@ -280,6 +294,9 @@ crops:
 
   sorghum:
     name: "Sorghum (Sorghum bicolor)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Sorghum, grain".
+    depletion_fraction_p: 0.55
     # DSSAT CERES-Sorghum: whole-plant N ~2.5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.025
     tissue_p_conc_kg_kg: 0.003
@@ -326,6 +343,9 @@ crops:
 
   soybean:
     name: "Soybean (Glycine max)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Soybeans".
+    depletion_fraction_p: 0.50
     n_fixation_credit_kg_ha: 60.0  # Peoples et al. (2009): 40-80 kg N/ha
     # Legumes: higher N from fixation, tissue N ~4-5%; P ~0.3%
     tissue_n_conc_kg_kg: 0.045
@@ -379,6 +399,10 @@ crops:
 
   grape:
     name: "Grape (Vitis vinifera)"
+    # Depletion fraction p for no stress (#660), display only:
+    # FAO-56 Table 22 (Allen et al. 1998), "Grapes, Wine": the preset is
+    # parameterised from wine cultivars ("Table or Raisin" is 0.35).
+    depletion_fraction_p: 0.45
     # Perennial vine: lower tissue N ~1.5-2.0%; P ~0.2%
     tissue_n_conc_kg_kg: 0.018
     tissue_p_conc_kg_kg: 0.002
