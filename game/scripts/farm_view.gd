@@ -241,6 +241,7 @@ func _on_game_loaded(success: bool, data: Dictionary) -> void:
 			status_label.text = "Game %s loaded" % _game_id
 		_load_failures = 0
 		_apply_layout(fields)
+		_take_crops(data.get("fields", {}))  # tiles start bare; the scenario is sown (#685)
 		_show_balance(data.get("balance_credits", -1))
 		_set_buttons_disabled(false)
 
@@ -861,11 +862,18 @@ func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) 
 	status_label.text = "%s; credits and crops re-read from the server" % failure
 	_balance_credits = data["balance_credits"]
 	credits_label.text = "%d" % _balance_credits
-	for i: int in FarmTiles.reconcile_crops(data.get("fields", {}), _tile_data):
+	_take_crops(data.get("fields", {}))
+	_refresh_action_costs()
+
+
+## Give each tile its patch's crop from a GET /games/{id} reply's `fields`
+## (FarmTiles.reconcile_crops), then redraw the changed tiles' crops and refresh
+## the Harvest button, the field strip and the selected tile's card.
+func _take_crops(fields: Dictionary) -> void:
+	for i: int in FarmTiles.reconcile_crops(fields, _tile_data):
 		_update_crop_visuals(i)
 	_update_harvest_button()
 	_refresh_cards()
-	_refresh_action_costs()
 
 
 func _on_season_complete(success: bool, data: Dictionary) -> void:
