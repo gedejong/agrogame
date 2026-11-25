@@ -20,10 +20,15 @@ from __future__ import annotations
 from functools import cache
 from typing import Any
 
-from fastapi.testclient import TestClient
+import pytest
 
-from agrogame.api.app import create_app
-from agrogame.api.state import games
+pytest.importorskip("fastapi")
+pytest.importorskip("httpx")
+
+from fastapi.testclient import TestClient  # noqa: E402
+
+from agrogame.api.app import create_app  # noqa: E402
+from agrogame.api.state import games  # noqa: E402
 
 SEEDS = range(42, 52)
 SEASON = 200
