@@ -31,21 +31,34 @@ const TABS := {
 			"color": Color(0.55, 0.40, 0.25)
 		},
 	],
+	# The Quick Status Water and Root zone gauges over time (#669): "gauge"
+	# prints the card's integer on 0-100; "standing_only" prints "—" when the
+	# latest day's crop does not stand, as the card does.
 	"Water":
 	[
 		{
-			"key": "theta_surface",
-			"label": "Soil water",
-			"unit": "m³/m³",
-			"mass_type": "",
-			"color": UiTheme.SUBSTANCE_WATER
-		},
-		{
-			"key": "water_stress",
-			"label": "Water stress",
+			"key": "water",
+			"label": "Water",
 			"unit": "",
 			"mass_type": "",
-			"color": UiTheme.ACCENT_RED
+			"color": UiTheme.SUBSTANCE_WATER,
+			"gauge": true,
+			"standing_only": true,
+		},
+		{
+			"key": "root_zone",
+			"label": "Root zone",
+			"unit": "",
+			"mass_type": "",
+			"color": Color(0.55, 0.40, 0.25),
+			"gauge": true,
+		},
+		{
+			"key": "theta_surface",
+			"label": "Topsoil water",
+			"unit": "m³/m³",
+			"mass_type": "",
+			"color": UiTheme.TEXT_SECONDARY
 		},
 	],
 	"Nutrients":
@@ -103,8 +116,9 @@ const GRAPHS := {
 	"lai": {"label": "LAI"},
 	"grain_g_m2": {"label": "Grain"},
 	"root_depth_cm": {"label": "Root depth"},
-	"theta_surface": {"label": "Soil water"},
-	"water_stress": {"label": "Water stress"},
+	"water": {"label": "Water"},
+	"root_zone": {"label": "Root zone"},
+	"theta_surface": {"label": "Topsoil water"},
 	"n_available": {"label": "N available"},
 	"fe_available_surface": {"label": "Fe avail"},
 	"zn_available_surface": {"label": "Zn avail"},
@@ -175,9 +189,9 @@ func show_history(history: Array, soil_type: String, crop_key: String) -> void:
 			var display_unit: String = cfg.get("unit", "")
 			if cfg.get("mass_type", "") == "mass":
 				display_unit = UiTheme.mass_label()
-			spark.setup(cfg["label"], display_unit, cfg["color"], 36.0)
+			spark.setup(cfg["label"], display_unit, cfg["color"], 36.0, cfg.get("gauge", false))
 			var data := _extract_series(history, cfg["key"])
-			spark.set_data(data, stage_days)
+			spark.set_data(data, stage_days, _value_shown(history, cfg))
 			_sparklines[cfg["key"]] = spark
 			tab_vbox.add_child(spark)
 		_tab_container.add_child(tab_vbox)
@@ -198,7 +212,7 @@ func update_history(history: Array) -> void:
 			var key: String = cfg["key"]
 			if _sparklines.has(key):
 				var data := _extract_series(history, key)
-				_sparklines[key].set_data(data, stage_days)
+				_sparklines[key].set_data(data, stage_days, _value_shown(history, cfg))
 
 
 func hide_panel() -> void:
@@ -216,6 +230,13 @@ func _clear() -> void:
 	for child in get_children():
 		remove_child(child)
 		child.queue_free()
+
+
+## False for a standing-only series once the latest day's crop does not stand.
+static func _value_shown(history: Array, cfg: Dictionary) -> bool:
+	if not cfg.get("standing_only", false) or history.is_empty():
+		return true
+	return String(history[-1].get("crop_stage", "")) in QuickStatusCard.STANDING_STAGES
 
 
 static func _extract_series(history: Array, key: String) -> PackedFloat64Array:
