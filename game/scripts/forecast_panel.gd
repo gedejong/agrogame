@@ -1,16 +1,20 @@
 extends VBoxContainer
 ## 5-day forecast panel: weather plus projected water-stress and mineral-N
-## decision-support trend lines (#318).
+## decision-support trend lines (#318). W is the projected Ta/Tp and N the
+## root-zone mineral N in kg/ha (#689).
 
 const ICON_SIZE := 16
 const ICON_SUN := "res://assets/icons/icon_sun.svg"
 const ICON_CLOUD := "res://assets/icons/icon_cloud.svg"
 const ICON_RAIN := "res://assets/icons/icon_rain.svg"
 
-## Ks below this projected value flags a water-stress risk (amber/red text).
+## Projected Ta/Tp below this flags a water-stress risk (red text) until #691.
 const WATER_STRESS_WARN := 0.6
-## Projected mineral N (kg/ha) below this flags an N-shortfall risk.
-const MINERAL_N_WARN_KG_HA := 30.0
+## Names both projected quantities and their units (#689).
+const PROJECTION_TOOLTIP := (
+	"W: projected transpiration as % of its potential (Ta/Tp).\n"
+	+ "N: projected root-zone mineral N (NO3 + NH4) in kg/ha, at today's rates."
+)
 
 var _days: Array = []
 
@@ -83,16 +87,20 @@ func _rebuild_display() -> void:
 		var soil := Label.new()
 		var water_stress: float = day.get("water_stress", 1.0)
 		var mineral_n: float = day.get("mineral_n_kg_ha", 0.0)
-		soil.text = "\u2022 W%.0f%% N%.0f" % [water_stress * 100.0, mineral_n]
+		soil.text = "\u2022 W%.0f%% N%.1f" % [water_stress * 100.0, mineral_n]
 		soil.add_theme_font_size_override("font_size", 10)
-		soil.add_theme_color_override("font_color", _projection_color(water_stress, mineral_n))
+		soil.add_theme_color_override("font_color", _projection_color(water_stress))
+		soil.tooltip_text = PROJECTION_TOOLTIP
+		# A Label ignores the mouse by default, which would hide the tooltip.
+		soil.mouse_filter = Control.MOUSE_FILTER_PASS
 		row.add_child(soil)
 
 		content.add_child(row)
 
 
-func _projection_color(water_stress: float, mineral_n: float) -> Color:
-	## Amber/red when the projection crosses a water- or N-shortfall threshold.
-	if water_stress < WATER_STRESS_WARN or mineral_n < MINERAL_N_WARN_KG_HA:
+func _projection_color(water_stress: float) -> Color:
+	## Red when the projected water stress crosses its threshold. N does not
+	## colour the row: its 30 kg/ha threshold had no citation (#689).
+	if water_stress < WATER_STRESS_WARN:
 		return UiTheme.ACCENT_RED
 	return UiTheme.ACCENT_GREEN

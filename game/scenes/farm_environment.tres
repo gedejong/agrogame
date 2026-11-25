@@ -14,6 +14,8 @@ shader_parameter/sun_disk_scale = 14.0
 shader_parameter/ground_color = Color(0.2, 0.18, 0.15, 1)
 shader_parameter/exposure = 1.0
 shader_parameter/ambient_gain = 2.95
+shader_parameter/backdrop_gain = 1.5730337
+shader_parameter/backdrop_fog = Vector3(0.097926244, 0.11169304, 0.1776554)
 
 [sub_resource type="Sky" id="sky"]
 sky_material = SubResource("sky_mat")

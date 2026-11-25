@@ -52,8 +52,8 @@ class CascadingBucketWaterModel(SoilWaterModel):
         """
         self.event_bus = event_bus
 
-    def _texture_cn(self, profile: SoilProfileView) -> int:
-        """Return SCS CN derived from the top layer texture."""
+    def texture_cn(self, profile: SoilProfileView) -> int:
+        """Return SCS CN derived from the top layer texture (public for #689)."""
         texture = profile.layers[0].texture
         return TEXTURE_TO_CN.get(texture, 86)
 
@@ -260,7 +260,7 @@ class CascadingBucketWaterModel(SoilWaterModel):
     ) -> WaterFluxes:
         """Run one daily step and return flux diagnostics."""
         incoming = drivers.rainfall_mm + drivers.irrigation_mm
-        cn = self._texture_cn(profile)
+        cn = self.texture_cn(profile)
         runoff, infiltrated = self._compute_runoff(incoming, cn)
 
         storage_before = sum(

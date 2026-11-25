@@ -53,6 +53,16 @@ class ETRuntime(RuntimeMemory):
         self.event_bus.subscribe(DayTick, self._on_day_tick)
         self._stress = StressCalculator("liebig") if self.plant_present else None
 
+    @property
+    def cumulative_evap_mm(self) -> float:
+        """Soil evaporation since the last wetting (mm): the Ritchie stage clock."""
+        return self._evap_state.cumulative_evap_mm
+
+    @property
+    def residue_cover_fraction(self) -> float:
+        """Surface-residue cover (0-1) that reduces both Ritchie stages."""
+        return self._residue.cover_fraction
+
     def _update_wetting_and_residue(self, ev: DayTick) -> None:
         wetting_mm = 0.0
         if ev.drivers is not None:

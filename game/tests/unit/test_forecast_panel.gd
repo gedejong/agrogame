@@ -59,25 +59,67 @@ func test_projection_color_flags_water_stress_risk() -> void:
 	var panel := VBoxContainer.new()
 	panel.set_script(ForecastPanel)
 	add_child_autofree(panel)
-	# Low Ks (below WATER_STRESS_WARN) but ample N -> risk color (red).
-	var risk: Color = panel._projection_color(0.3, 100.0)
+	# Low Ta/Tp (below WATER_STRESS_WARN) -> risk color (red).
+	var risk: Color = panel._projection_color(0.3)
 	assert_eq(risk, UiTheme.ACCENT_RED, "Low water-stress projection flags red")
 
 
-func test_projection_color_flags_low_nitrogen_risk() -> void:
+func _soil_label(panel: VBoxContainer, row: int) -> Label:
+	## The projection label of forecast row ``row`` (header is content child 0).
+	## The background panel also holds the blur ColorRect, so find the content.
+	var content: VBoxContainer = null
+	for child: Node in panel.get_child(0).get_children():
+		if child is VBoxContainer:
+			content = child
+	return content.get_child(row + 1).get_child(2)
+
+
+func test_low_nitrogen_does_not_colour_the_row() -> void:
+	## #689: the uncited 30 kg/ha threshold is gone; in true kg/ha it would
+	## turn every unfertilised row red. Only W colours the row.
 	var panel := VBoxContainer.new()
 	panel.set_script(ForecastPanel)
 	add_child_autofree(panel)
-	# Ample water but N below MINERAL_N_WARN_KG_HA -> risk color (red).
-	var risk: Color = panel._projection_color(1.0, 10.0)
-	assert_eq(risk, UiTheme.ACCENT_RED, "Low mineral-N projection flags red")
+	panel.update_forecast([{"date": "2024-05-15", "water_stress": 1.0, "mineral_n_kg_ha": 0.4}])
+	var soil := _soil_label(panel, 0)
+	assert_eq(soil.get_theme_color("font_color"), UiTheme.ACCENT_GREEN)
+
+
+func test_projection_row_reads_w_percent_and_n_in_kg_ha() -> void:
+	## #689 C12: "• W<%.0f>% N<%.1f>", with N in true kg/ha (one decimal).
+	var panel := VBoxContainer.new()
+	panel.set_script(ForecastPanel)
+	add_child_autofree(panel)
+	var forecast := [
+		{"date": "2024-05-15", "water_stress": 0.954, "mineral_n_kg_ha": 2.46},
+		{"date": "2024-05-16", "water_stress": 0.3, "mineral_n_kg_ha": 0.04},
+	]
+	panel.update_forecast(forecast)
+	var first := _soil_label(panel, 0)
+	var second := _soil_label(panel, 1)
+	assert_eq(first.text, "\u2022 W95% N2.5")
+	assert_eq(second.text, "\u2022 W30% N0.0")
+	assert_eq(second.get_theme_color("font_color"), UiTheme.ACCENT_RED)
+
+
+func test_projection_tooltip_names_both_quantities_and_units() -> void:
+	var panel := VBoxContainer.new()
+	panel.set_script(ForecastPanel)
+	add_child_autofree(panel)
+	panel.update_forecast([{"date": "2024-05-15"}])
+	var soil := _soil_label(panel, 0)
+	assert_string_contains(soil.tooltip_text, "Ta/Tp")
+	assert_string_contains(soil.tooltip_text, "NO3 + NH4")
+	assert_string_contains(soil.tooltip_text, "kg/ha")
+	# A Label ignores the mouse by default, which would hide the tooltip.
+	assert_eq(soil.mouse_filter, Control.MOUSE_FILTER_PASS)
 
 
 func test_projection_color_healthy_is_green() -> void:
 	var panel := VBoxContainer.new()
 	panel.set_script(ForecastPanel)
 	add_child_autofree(panel)
-	var ok: Color = panel._projection_color(1.0, 100.0)
+	var ok: Color = panel._projection_color(1.0)
 	assert_eq(ok, UiTheme.ACCENT_GREEN, "Healthy projection is green")
 
 

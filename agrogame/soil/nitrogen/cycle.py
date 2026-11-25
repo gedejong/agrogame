@@ -92,10 +92,12 @@ class NitrogenCycle(RuntimeMemory):
         "_aerobic_fraction_override",
         "_massflow_supply_by_layer",
         "_pending_h_kmol_ha",
+        "_plant_uptake_kg_ha",
     )
-    # The mass-flow figure is a transpiration diagnostic and resets with the
-    # crop (a fallow would show it stale forever); the rest is soil-owned (#583).
-    _CROP_MEMORY = ("_massflow_supply_by_layer",)
+    # The mass-flow figure and the day's plant uptake are crop diagnostics and
+    # reset with the crop (a fallow would show them stale forever); the rest is
+    # soil-owned (#583).
+    _CROP_MEMORY = ("_massflow_supply_by_layer", "_plant_uptake_kg_ha")
 
     def __init__(
         self,
@@ -151,6 +153,10 @@ class NitrogenCycle(RuntimeMemory):
         # NitrogenRuntime, so it is empty at every step boundary.
         self._pending_h_kmol_ha: list[float] = [0.0] * self._n_layers
 
+        # Plant N taken up on the most recent day (kg/ha); the forecast holds
+        # it over its horizon as the uptake term (#689).
+        self._plant_uptake_kg_ha: float = 0.0
+
     # --- SOM net-mineralisation flux diagnostic (#365) ---------------------
     @property
     def som_mineralized_n_by_layer(self) -> list[float]:
@@ -174,6 +180,11 @@ class NitrogenCycle(RuntimeMemory):
     def som_mineralized_n_total(self) -> float:
         """Whole-profile net SOM→mineral-N flux from the most recent day (kg/ha)."""
         return sum(self._som_mineralized_n)
+
+    @property
+    def plant_uptake_kg_ha(self) -> float:
+        """Plant N uptake on the most recent day (kg/ha): ``PlantNUptakeComputed``."""
+        return self._plant_uptake_kg_ha
 
     @property
     def pending_proton_load_kmol_ha(self) -> list[float]:
@@ -360,6 +371,7 @@ class NitrogenCycle(RuntimeMemory):
         volatilized = self._volatilize_surface(temp_factor, ph_by_layer[0])
 
         plant_uptake = self._take_up_plant(max(0.0, plant_demand_kg_ha), root_fractions)
+        self._plant_uptake_kg_ha = plant_uptake
 
         # Mass balance: inputs - outputs should match Δstorage
         after = self._total_n()
