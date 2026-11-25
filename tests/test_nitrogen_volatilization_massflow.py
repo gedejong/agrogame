@@ -24,6 +24,7 @@ from agrogame.soil.nitrogen import (
     SoilNitrogenState,
     VolatilizationOccurred,
 )
+from agrogame.soil.nitrogen.constants import NH4_UPTAKE_RESIDUAL_MG_KG
 from agrogame.soil.water.events import TranspirationByLayer
 from agrogame.soil.water.state import SoilWaterState
 
@@ -63,6 +64,15 @@ def _cycle(
     state.nh4 = [nh4_top, 0.0, 0.0]
     cycle = NitrogenCycle(EventBus(), state, profile=cast(Any, profile), params=params)
     return cycle, state
+
+
+def _nh4_residual(layer: int = 0) -> float:
+    """NH4-N (kg/ha) uptake leaves in a fixture layer (#694).
+
+    0.5 mg/kg x BD x depth_cm / 10, from the fixture profile.
+    """
+    ly = _profile().layers[layer]
+    return NH4_UPTAKE_RESIDUAL_MG_KG * ly.bulk_density_g_cm3 * ly.depth_cm / 10.0
 
 
 def _day_loss(cycle: NitrogenCycle, state: SoilNitrogenState, ph: list[float]) -> float:
@@ -174,6 +184,12 @@ def test_temperature_scaled_rate_is_capped() -> None:
 @pytest.mark.parametrize("sink", ["uptake", "nitrification"])
 @pytest.mark.parametrize("fraction", [0.25, 1.0])
 def test_ammonium_sinks_remove_the_exposed_share(sink: str, fraction: float) -> None:
+    """A sink takes the exposed share in proportion to the NH4 it removes.
+
+    Uptake stops at the NH4 residual (#694): asked for the whole 200 kg pool,
+    it takes the pool less the residual, and the exposed pool keeps the
+    residual's share. Nitrification is not floored.
+    """
     cycle, state = _cycle(
         nh4_top=100.0,
         params=NitrogenRateParams(
@@ -183,21 +199,32 @@ def test_ammonium_sinks_remove_the_exposed_share(sink: str, fraction: float) -> 
     cycle._env.fungal_fraction_by_layer = [0.0] * N_LAYERS
     cycle.apply_urea(0, 100.0)
     state.no3 = [0.0] * N_LAYERS
+    pool = state.nh4[0]
     initial_total = state.total_nitrogen_kg_ha()
     if sink == "uptake":
-        removed = cycle._take_up_plant(200.0 * fraction, [1.0, 0.0, 0.0])
+        removed = cycle._take_up_plant(pool * fraction, [1.0, 0.0, 0.0])
         assert state.total_nitrogen_kg_ha() + removed == pytest.approx(initial_total)
+        expected = min(pool * fraction, pool - _nh4_residual())
     else:
         removed = cycle._nitrify_layer(0, 1.0, 1.0, 1.0, 1.0)
         assert state.no3[0] == pytest.approx(removed)
         assert state.total_nitrogen_kg_ha() == pytest.approx(initial_total)
-    assert removed == pytest.approx(200.0 * fraction)
-    assert state.nh4[0] == pytest.approx(200.0 * (1.0 - fraction))
-    assert state.surface_fertilizer_nh4_kg_ha == pytest.approx(100.0 * (1.0 - fraction))
+        expected = pool * fraction
+    assert removed == pytest.approx(expected)
+    assert state.nh4[0] == pytest.approx(pool - expected)
+    assert state.surface_fertilizer_nh4_kg_ha == pytest.approx(
+        100.0 * (pool - expected) / pool
+    )
 
 
 @pytest.mark.parametrize("sink", ["uptake", "nitrification"])
-def test_fully_consumed_fertilizer_does_not_expose_mineralized_n(sink: str) -> None:
+def test_consumed_fertilizer_does_not_expose_mineralized_n(sink: str) -> None:
+    """N mineralised after the fertiliser is consumed volatilises as native N.
+
+    Nitrification consumes all of it; uptake consumes it down to the NH4
+    residual (#694), which stays exposed. The 10 kg of mineralised N then
+    volatilises like a native pool beside whatever fertiliser is left.
+    """
     from agrogame.soil.som.events import SOMDecomposed
 
     cycle, state = _cycle(
@@ -211,10 +238,12 @@ def test_fully_consumed_fertilizer_does_not_expose_mineralized_n(sink: str) -> N
     state.no3 = [0.0] * N_LAYERS
     if sink == "uptake":
         cycle._take_up_plant(100.0, [1.0, 0.0, 0.0])
+        left = _nh4_residual()
     else:
         cycle._nitrify_layer(0, 1.0, 1.0, 1.0, 1.0)
-    assert state.nh4[0] == 0.0
-    assert state.surface_fertilizer_nh4_kg_ha == 0.0
+        left = 0.0
+    assert state.nh4[0] == pytest.approx(left, abs=1e-12)
+    assert state.surface_fertilizer_nh4_kg_ha == pytest.approx(left, abs=1e-12)
     cycle.event_bus.emit(
         SOMDecomposed(
             layer=0,
@@ -223,20 +252,23 @@ def test_fully_consumed_fertilizer_does_not_expose_mineralized_n(sink: str) -> N
             mineralized_n_kg_ha=10.0,
         )
     )
-    native, _ = _cycle(nh4_top=10.0)
+    reference, reference_state = _cycle(nh4_top=10.0 + left)
+    reference_state.surface_fertilizer_nh4_kg_ha = left
     assert cycle._volatilize_surface(1.0, 6.8) == pytest.approx(
-        native._volatilize_surface(1.0, 6.8)
+        reference._volatilize_surface(1.0, 6.8)
     )
 
 
 def test_subsoil_uptake_does_not_consume_surface_exposure() -> None:
+    """Layer-1 uptake (down to its NH4 residual, #694) leaves layer 0's exposure."""
     cycle, state = _cycle(nh4_top=0.0)
     cycle.apply_urea(0, 100.0)
     cycle.apply_urea(1, 50.0)
     state.no3 = [0.0] * N_LAYERS
-    assert cycle._take_up_plant(50.0, [0.0, 1.0, 0.0]) == 50.0
+    residual = _nh4_residual(layer=1)
+    assert cycle._take_up_plant(50.0, [0.0, 1.0, 0.0]) == pytest.approx(50.0 - residual)
     assert state.surface_fertilizer_nh4_kg_ha == 100.0
-    assert state.nh4 == [100.0, 0.0, 0.0]
+    assert state.nh4 == pytest.approx([100.0, residual, 0.0])
 
 
 # --- mass flow ------------------------------------------------------------------
