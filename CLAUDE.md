@@ -55,6 +55,7 @@ Key design choices are recorded in `docs/adr/`:
 - [ADR-017](docs/adr/ADR-017-in-season-alerts.md) — Act any day, with fast-forward interrupted by in-season alerts (drought/N/frost latch, opt-in `stop_on_pause`; supersedes ADR-004)
 - [ADR-018](docs/adr/ADR-018-continuous-simulation.md) — Continuous simulation, no automatic season end (per-patch crop lifecycle, Run stops on alerts, harvest-delay loss, calendar-year P&L; amends ADR-003 and ADR-017)
 - [ADR-020](docs/adr/ADR-020-soil-ph-proton-budget.md) — Soil pH as an N-cycle proton budget buffered by pH buffer capacity (part (a) by #492; no relaxation term, per-preset initial pH and calcareous layers by #481)
+- [ADR-022](docs/adr/ADR-022-diorama-presentation.md) — Diorama presentation: simulated soil on the slab's cut faces (true scale, decorative extension below), pit cutaway retired, realistic downloaded CC0 assets, surroundings with relief, 3 ms GPU budget
 
 Read relevant ADRs before working on related code. Propose a new ADR for significant architectural changes.
 
