@@ -64,6 +64,21 @@ class CanopyParams:
     senescence_flowering_fraction: float = 0.5  # moderate senescence at flowering
     senescence_grain_fill_max: float = 2.0  # peak multiplier at end of grain fill
     grain_fill_duration_gdd: float = 900.0  # GDD span over which senescence ramps
+    # Green leaf ends at physiological maturity (#623, ADR-013 amendment
+    # 2026-11-25). True for monocarpic grain crops: the reference models end
+    # the crop at maturity by default, so nothing transpires after it (WOFOST
+    # ``crop_finish`` at DVSEND, PCSE ``phenology.py:473-476``,
+    # ``engine.py:330-333``, ``classic_waterbalance.py:421-422``; DSSAT-CSM
+    # default harvest at maturity, ``IHARI = 'M'``, ``AUTHAR.for:152-154``,
+    # ``IPSIM.for:155``). A crop left standing reaches the same state within
+    # days: CERES-Wheat senesces the last green leaf to zero at LSPHE 6.3,
+    # 60 °C·d after maturity (``CER_Growth.for:818-822``, ``WHCER048.ECO``/
+    # ``.SPE``), and the FAO-56 basal coefficient of field-dried grain maize,
+    # Kcb_end 0.15, is Kc_min for dry bare soil (Allen et al. 1998, Tables 12
+    # and 17, Eq. 76). False for a deciduous perennial whose MATURITY is fruit
+    # ripeness and which keeps its leaves until leaf drop (FAO-56 Table 12,
+    # footnote 18): grape.
+    green_leaf_dies_at_maturity: bool = True
     # Harvest index: fraction of daily biomass allocated to grain during grain fill
     # Typical: maize 0.50, wheat 0.45, rice 0.45, sorghum 0.35 (DSSAT/APSIM)
     # Only used by the legacy fixed-HI path (when grains_per_g_source == 0).

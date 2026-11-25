@@ -234,6 +234,16 @@ class CanopyModule:
             * self.params.senescence_rate_per_day
             * self._senescence_multiplier
         )
+        # #623: a determinate crop carries no green leaf from its first MATURITY
+        # step (citations on ``CanopyParams.green_leaf_dies_at_maturity``). The
+        # gate reads the stage, which a loaded save restores, so a pre-#623 save
+        # with a green mature canopy is zeroed too, with no runtime memory
+        # (#585). ET, rain interception and the client follow LAI.
+        if (
+            self.params.green_leaf_dies_at_maturity
+            and self._current_stage == PhenologyStage.MATURITY
+        ):
+            sen = self.state.lai
         self.state.lai = min(
             self.params.lai_max, max(0.0, self.state.lai + growth - sen)
         )

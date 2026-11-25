@@ -398,6 +398,10 @@ crops:
       sla_m2_per_g: 0.015
       lai_max: 4.0
       senescence_rate_per_day: 0.005
+      # #623: MATURITY is fruit ripeness on a deciduous vine that keeps its
+      # leaves until leaf drop (FAO-56 Table 12, footnote 18: Kc_end is the
+      # coefficient prior to leaf drop), so green leaf outlives it.
+      green_leaf_dies_at_maturity: false
       temp_base_c: 10.0
       temp_opt_c: 25.0         # Mediterranean optimum
       temp_max_c: 35.0
