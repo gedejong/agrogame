@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import copy
 import json
+from dataclasses import fields
 from datetime import date
 from functools import cache
 from pathlib import Path
@@ -25,7 +26,7 @@ from agrogame.game.field import FieldManager, Patch, PatchConfig
 from agrogame.params.phenology import PhenologyStage
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator as Orch
-from agrogame.soil.canopy.events import Harvested
+from agrogame.soil.canopy.events import FrostDamageApplied, Harvested
 from agrogame.soil.canopy.runtime import CanopyRuntime
 from agrogame.soil.phenology import GddAccumulated, StageChanged
 from agrogame.soil.water.types import DailyDrivers
@@ -178,14 +179,48 @@ def _load_without_potential(fm: FieldManager) -> FieldManager:
     return FieldManager.from_dict(copy.deepcopy(saved))
 
 
-def test_old_save_seeds_the_potential_from_the_actual_canopy() -> None:
-    """B4: a save without the key reads 1.0 at the load, 0.99-1.0 a day later.
+def _step_after_old_load(
+    fm: FieldManager, rec: WeatherRecord, monkeypatch: pytest.MonkeyPatch
+) -> list[tuple[float, float]]:
+    """Step one day; return each patch's (ratio, s), s the applied factor.
+
+    Amended B4 (refiner's ruling, #660): one day after a keyless load the
+    ratio lies in [s, 1.0], s = min(canopy.state.last_water_stress, the
+    nutrient minimum) applied that day. Both canopies start the day with the
+    same LAI, light, temperature, VPD factor and root share, so the ratio is
+    (B + s'Δ) / (B + Δ) with s' = s / VPD factor >= s. Frost debits only the
+    actual canopy and waives the floor; these days have none, and say so.
+    """
+    patches = fm.fields["f1"].patches
+    nutrient_min: dict[int, float] = {}
+    frosts: list[FrostDamageApplied] = []
+    for i, patch in enumerate(patches):
+        canopy = patch.orch.canopy
+
+        def _recording(
+            *args: Any, _i: int = i, _orig: Any = canopy.daily_step, **kw: Any
+        ) -> Any:
+            nutrient_min[_i] = kw["n_stress"]
+            return _orig(*args, **kw)
+
+        monkeypatch.setattr(canopy, "daily_step", _recording)
+        patch.orch.event_bus.subscribe(FrostDamageApplied, frosts.append)
+    _step(fm, rec)
+    assert frosts == [], "the floor is waived on a frost day"
+    water = [patch.orch.canopy.state.last_water_stress for patch in patches]
+    factors = [min(w, nutrient_min[i]) for i, w in enumerate(water)]
+    return list(zip(_ratios(fm), factors, strict=True))
+
+
+def test_old_save_seeds_the_potential_from_the_actual_canopy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B4 as amended: a save without the key reads 1.0 at the load, [s, 1] next.
 
     The #660 Validation Plan's game: the default NL maize scenario (three
-    soils), saved mid-season on day 60. The floor is for a crop unstressed
-    that day (loam, clay): seeded from the actual canopy, the ratio a day
-    later is (B + actual growth) / (B + potential growth), so the N-limited
-    sandy patch reads 0.966, a true reading, never 0 and never above 1.
+    soils), saved mid-season on day 60. Seeded from the actual canopy, the
+    ratio a day later is (B + actual growth) / (B + potential growth): the
+    N-limited sandy patch reads 0.966, a true reading above its own s.
     """
     key = "netherlands_temperate"
     nl = load_climate_presets(Path("data/climate/presets.yaml")).climates[key]
@@ -198,25 +233,60 @@ def test_old_save_seeds_the_potential_from_the_actual_canopy() -> None:
         _step(fm, rec)
     loaded = _load_without_potential(fm)
     assert _ratios(loaded) == [1.0, 1.0, 1.0]
-    _step(loaded, weather.records[60])
-    sandy, loam, clay = _ratios(loaded)
-    assert 0.0 < sandy <= 1.0
-    assert 0.99 <= loam <= 1.0 and 0.99 <= clay <= 1.0
+    for ratio, s in _step_after_old_load(loaded, weather.records[60], monkeypatch):
+        assert 0.0 < s <= ratio <= 1.0, (ratio, s)
 
 
-def test_old_save_under_drought_never_reads_zero_or_above_one() -> None:
-    """B4 on the drought: 1.0 at the load, then in (0, 1].
+def test_old_save_under_drought_never_reads_zero_or_above_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """B4 as amended on the drought: 1.0 at the load, then in [s, 1].
 
     One day of unstressed potential growth is large beside a collapsed crop's
-    biomass (Sahel maize, day 45, seed 42: 0.93 after one day), so the
-    0.99 floor is the unstressed game's, not a drought's.
+    biomass (Sahel maize, day 45, seed 42: 0.93 after one day), and the
+    drought's s is lower still.
     """
     fm = _manager()
     _run(SEEDS[0], range(45), fm)
     loaded = _load_without_potential(fm)
     assert _ratios(loaded) == [1.0]
-    _step(loaded, _weather(SEEDS[0])[45])
-    assert 0.0 < _ratios(loaded)[0] <= 1.0
+    [(ratio, s)] = _step_after_old_load(loaded, _weather(SEEDS[0])[45], monkeypatch)
+    assert 0.0 < s <= ratio <= 1.0, (ratio, s)
+
+
+def test_old_save_shadow_shares_no_state_with_the_actual_canopy() -> None:
+    """A keyless load copies the actual canopy's values; it never aliases them.
+
+    PR #673 review: a shadow sharing the actual ``CanopyState`` would step the
+    real canopy twice a day after every legacy load. Mutate either canopy and
+    the other must not move; and the keyless load must then run exactly as a
+    load with the key does, every saved quantity but the shadow.
+    """
+    fm = _manager()
+    _run(SEEDS[0], range(45), fm)
+    loaded = _load_without_potential(fm)
+    orch = _patch(loaded).orch
+    potential = orch.potential_canopy
+    assert potential is not None and potential.state is not orch.canopy.state
+    for one, other in ((orch.canopy, potential), (potential, orch.canopy)):
+        before = other.state.to_dict()
+        for f in fields(one.state):
+            value = getattr(one.state, f.name)
+            setattr(
+                one.state,
+                f.name,
+                value + 7 if not isinstance(value, bool) else not value,
+            )
+        assert other.state.to_dict() == before
+
+    keyed = FieldManager.from_dict(_save(fm))
+    legacy = _load_without_potential(fm)
+    with_key = _run(SEEDS[0], range(45, 52), keyed)
+    without = _run(SEEDS[0], range(45, 52), legacy)
+    for day, (a, b) in enumerate(zip(with_key, without, strict=True), 45):
+        a.pop("potential_canopy_state")
+        b.pop("potential_canopy_state")
+        assert a == b, f"day {day}"
 
 
 def test_fallow_patch_has_no_shadow_and_saves_none() -> None:

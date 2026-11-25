@@ -3,6 +3,10 @@ extends GutTest
 ## FarmTiles.write_patch stores; the frames are the #660 refinement's (seed 42).
 
 const QSC = preload("res://scripts/quick_status_card.gd")
+## Just below, at and just above 40 and 70 (PR #673 review). The thresholds are
+## strict, as ADR-017's drought alert is (Ks < 0.4): 40 reads "!", 70 no mark.
+const BOUNDARY_SCORES: Array[float] = [39.9, 40.0, 40.1, 69.9, 70.0, 70.1]
+const BOUNDARY_MARKS: Array[String] = ["⚠", "!", "!", "!", "", ""]
 
 
 ## A standing maize tile that needs nothing, with `extra` on top.
@@ -188,6 +192,37 @@ func test_value_colour_follows_the_mark() -> void:
 func test_near_one_ks_reads_100_not_99() -> void:
 	# The engine's Ks of an unstressed day is 0.9999999999999998.
 	assert_eq(_card(_tile("vegetative", {"water_ks": 0.9999999999999998}))["water"], ["100", ""])
+
+
+func test_marks_pin_the_40_and_70_boundaries() -> void:
+	var tile := _tile("vegetative")
+	for key: String in ["water", "nutrient", "growth"]:
+		for i: int in BOUNDARY_SCORES.size():
+			var scores := {"water": 100.0, "nutrient": 100.0, "growth": 100.0, "root_zone": 90.0}
+			scores[key] = BOUNDARY_SCORES[i]
+			var why := "%s at %s" % [key, BOUNDARY_SCORES[i]]
+			assert_eq(QSC.gauge_mark(key, tile, scores), BOUNDARY_MARKS[i], why)
+
+
+func test_boundary_marks_from_the_engine_fractions() -> void:
+	# The same six points as the /step fields arrive: Ks, growth and the Liebig
+	# minimum (P here, clear of the N alert's own 0.90 gate) as fractions.
+	var inputs := {
+		"water": ["water_ks", [0.399, 0.40, 0.401, 0.699, 0.70, 0.701]],
+		"growth": ["growth_vs_potential", [0.399, 0.40, 0.401, 0.699, 0.70, 0.701]],
+		"nutrient": ["p_stress", [0.601, 0.60, 0.599, 0.301, 0.30, 0.299]],
+	}
+	for key: String in inputs:
+		var field: String = inputs[key][0]
+		var values: Array = inputs[key][1]
+		for i: int in values.size():
+			var tile := _tile("vegetative", {field: values[i]})
+			var why := "%s %s" % [field, values[i]]
+			assert_eq(QSC.gauge_mark(key, tile, QSC.compute_scores(tile)), BOUNDARY_MARKS[i], why)
+	var shown := [["39", "⚠"], ["40", "!"], ["40", "!"], ["69", "!"], ["70", ""], ["70", ""]]
+	var ks: Array = inputs["water"][1]
+	for i: int in ks.size():
+		assert_eq(_card(_tile("vegetative", {"water_ks": ks[i]}))["water"], shown[i], str(ks[i]))
 
 
 func test_uncited_references_are_gone() -> void:
