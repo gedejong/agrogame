@@ -158,6 +158,11 @@ Each `patches[...]` day result carries what the Quick Status card's gauges read:
 | `root_zone_water_fraction` | Plant-available water over total available water (TAW) in the root zone (FAO-56 Eq. 82), with the root depth floored at the top layer's thickness; 3 dp. Uncapped: above 1 when the profile is wetter than field capacity (peat), 0.0 when TAW is 0. Set on bare patches too. |
 | `depletion_fraction_p` | The crop's FAO-56 Table 22 depletion fraction p for no stress (RAW = p · TAW, Eq. 83): maize, sorghum and both wheats 0.55, soybean 0.50, rice 0.20 (Table 22 footnote 4, applied to TAW), grape 0.45 (wine). `null` on a bare patch. Display only: no engine module reads it. |
 
+`daily_snapshots[]` carries `root_zone_water_fraction` as well, equal to that
+day's `patches[...]` value, so the History panel's Water tab plots the Water and
+Root zone gauges for every stepped day (#669). Each snapshot's Water value is
+the last `WaterStressComputed.stress` in its `events`.
+
 The shadow canopy is saved with the patch (`potential_canopy_state`, optional in
 schema v1); a save without it seeds the potential from the actual canopy. A
 crop change starts a fresh one. It changes no simulated quantity.
