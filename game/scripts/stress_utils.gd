@@ -4,7 +4,7 @@ extends RefCounted
 ## Converts tile_data stress fields into per-type continuous floats.
 
 ## Stress keys used throughout the visualization pipeline.
-const STRESS_KEYS: Array[String] = ["water", "n", "p", "fe", "zn", "frost", "heat"]
+const STRESS_KEYS: Array[String] = ["water", "n", "p", "s", "fe", "zn", "mn", "frost", "heat"]
 
 ## Maximum geometry size reduction from Zn deficiency (30%).
 ## Ref: Marschner 2012 — Zn-deficient cereals show "little leaf" + shortened internodes.
@@ -12,7 +12,7 @@ const ZN_STUNT_MAX: float = 0.3
 
 ## Lodging onset thresholds. Severe drought only lodges a plant once
 ## senescence is advanced; a ripe, senesced crop otherwise stands until
-## harvest. A `water` stress > 0.8 corresponds to water availability < 0.2.
+## harvest. A `water_memory` stress > 0.8 is a growth water factor < 0.2.
 const LODGE_WATER_STRESS_MIN: float = 0.8
 const LODGE_SENESCENCE_MIN: float = 0.7
 
@@ -20,26 +20,33 @@ const LODGE_SENESCENCE_MIN: float = 0.7
 static func parse_stress_data(tile_data: Dictionary) -> Dictionary:
 	"""Extract per-type stress values from tile_data.
 
-	Returns {water, n, p, fe, zn, frost, heat} as floats in [0, 1]
-	(0 = no stress, 1 = severe). Frost/heat are transient damage
-	flags — wired from FrostDamageApplied / HeatDamageApplied events.
-	Note: water_stress is wired end-to-end. Nutrient stress keys
-	(n_stress, p_stress, fe_stress, zn_stress) require API exposure
-	of per-nutrient stress factors — TODO in a follow-up issue.
+	Returns {water, water_memory, n, p, s, fe, zn, mn, frost, heat} as floats
+	in [0, 1] (0 = no stress, 1 = severe). `water` is 1 - today's Ks
+	(`water_ks`), what the Water gauge and the drought icon read (#669);
+	`water_memory` is 1 - the growth water factor (`water_stress`, the
+	running-mean Ta/Tp times the VPD factor), which only lodging reads. The
+	nutrients are the gauge's own per-nutrient values. Frost/heat are
+	transient damage flags from FrostDamageApplied / HeatDamageApplied.
 	"""
-	var water: float = _clamp01(1.0 - tile_data.get("water_stress", 1.0))
+	var water: float = _clamp01(1.0 - tile_data.get("water_ks", 1.0))
+	var water_memory: float = _clamp01(1.0 - tile_data.get("water_stress", 1.0))
 	var n_stress: float = _clamp01(tile_data.get("n_stress", 0.0))
 	var p_stress: float = _clamp01(tile_data.get("p_stress", 0.0))
+	var s_stress: float = _clamp01(tile_data.get("s_stress", 0.0))
 	var fe_stress: float = _clamp01(tile_data.get("fe_stress", 0.0))
 	var zn_stress: float = _clamp01(tile_data.get("zn_stress", 0.0))
+	var mn_stress: float = _clamp01(tile_data.get("mn_stress", 0.0))
 	var frost: float = _clamp01(tile_data.get("frost_damage", 0.0))
 	var heat: float = _clamp01(tile_data.get("heat_damage", 0.0))
 	return {
 		"water": water,
+		"water_memory": water_memory,
 		"n": n_stress,
 		"p": p_stress,
+		"s": s_stress,
 		"fe": fe_stress,
 		"zn": zn_stress,
+		"mn": mn_stress,
 		"frost": frost,
 		"heat": heat,
 	}
@@ -57,11 +64,12 @@ static func calc_lodging_factor(stresses: Dictionary, senescence: float) -> floa
 	"""Stem-lodging severity in [0, 1] for lean/tilt under severe stress.
 	0 = upright, 1 = fully lodged. Real cereals lodge (stems bend, the plant
 	leans) under severe combined stress; ripening alone never lodges a crop,
-	whose dry culms stand until harvest. `stresses['water']` is stress
-	severity (1 = severe drought, i.e. water availability < 0.2 ⟺ water
-	stress > 0.8).
+	whose dry culms stand until harvest. It reads `stresses['water_memory']`,
+	1 - the running-mean growth water factor, not today's Ks: a lodged stand
+	is the outcome of sustained drought, and one wet day does not stand it
+	back up (#669). The VPD factor alone cannot reach the threshold.
 	Ref: Berry et al. 2004, Field Crops Research — cereal lodging mechanics."""
-	var water_stress: float = clampf(stresses.get("water", 0.0), 0.0, 1.0)
+	var water_stress: float = clampf(stresses.get("water_memory", 0.0), 0.0, 1.0)
 	var sen: float = clampf(senescence, 0.0, 1.0)
 	# Drought lodging: severe water stress during late senescence. Graded
 	# product of both over-threshold amounts → smooth onset (no popping).
