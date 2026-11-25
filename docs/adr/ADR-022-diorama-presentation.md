@@ -5,7 +5,12 @@
 Accepted (Edwin, 2026-11-25), with three changes to the proposal:
 - assets are downloaded and realistic, not procedural low-poly (decision 5);
 - the slab is drawn deeper than the simulated profile, for its look (decision 1);
-- the shaded face gets a fill light (decision 1).
+- the shaded face gets a fill light (decision 1). Withdrawn on 2026-11-25 by
+  the lighting amendment below.
+
+**Amended (Edwin, 2026-11-25; #680):** no fill on the shaded face, more sky
+ambient, and one cited soil colour for the tops and the faces (decision 1,
+Lighting).
 
 Edwin chose the direction on 2026-11-24 ("Yes to 1 and 2. Also, would be nice to
 have a bit of elevation").
@@ -53,10 +58,26 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
        weathered rock), artefacts such as stones, old roots and gravel lenses,
        and surface relief through normal or bump maps.
      - The extension is decorative: no simulation value drives it.
-   - **Lighting.** The face that points away from the sun receives a soft fill,
-     in proportion to the soil's albedo. Without it, at real soil albedos
-     (8 to 15 %), the face renders near black. This is the one exception to
-     lighting by `farm_environment.tres` alone.
+   - **Lighting (amended 2026-11-25, #680).** The faces and their decorative
+     extension take the scene's light alone, from `farm_environment.tres`; the
+     fill on the face turned from the sun is withdrawn. Edwin, on the slab with
+     the fill: "I would expect the
+     color of the 'top' of the soil (what you can normally see), to extend
+     normally to the cutout, but now, due to the extra lighting, it seems
+     unrealistic, especially on the left side (where it is in the shadow). I
+     think we need a bit more overall ambient light, and it's ok to make the
+     left side darker to fit the shadows."
+     - The ambient rises instead, as a gain on the sky's radiance map
+       (`farm_sky.gdshader`), so the background sky does not brighten. On a
+       clear day the shaded face reads about 0.40 of the sunlit one in
+       scene-linear light: the upper end of 0.26 to 0.42 for an isotropic sky
+       (Liu & Jordan 1963) at a clear-day diffuse fraction of 0.165 to 0.24
+       (Erbs, Klein & Duffie 1982). The gain rises by a quarter at full
+       overcast. The tone mapper stays Filmic, with its exposure re-balanced so
+       the canopy's lightness holds (#637).
+     - The top and the face's top band take one colour: the Munsell value of
+       the cited mapping, and a cited Munsell hue and chroma per soil preset
+       and layer. Soils differ as much as the cited ones do, and no more.
    - Under decorative land, the face shows a static profile typical of the
      scenario's region.
    - **Soil detail follows the same rule: drawn from the simulation where the

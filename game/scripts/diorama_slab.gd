@@ -17,9 +17,6 @@ const WU_PER_CM := 0.005
 ## Total depth over the simulated section's. Edwin's range is 4 to 8 (ADR-022);
 ## 4 is the deepest whose bottom corner stays above the BottomBar (#646).
 const EXTENSION_FACTOR := 4.0
-## Emission over albedo on a face turned from the sun (ADR-022 decision 1); a
-## style constant from the #646 proof of concept.
-const FACE_FILL := 0.35
 ## Albedo of the closed sides, seen only under the debug orbit (style, sRGB).
 const SIDE_COLOUR := Color(0.24, 0.19, 0.15)
 ## Seed of the extension's artefact placement (#652): fixed, so a farm's stones
@@ -40,7 +37,6 @@ var _extensions: Array[Dictionary] = []
 var _sides: Array[Dictionary] = []
 var _corner := Vector2.ZERO  # the front corner's (x, z)
 var _section_cm := 0.0
-var _to_light := Vector3.UP
 var _extension_material: Material = null
 var _segment_mesh := QuadMesh.new()
 ## The layout's climate key and its regional extension material (#652; null
@@ -48,18 +44,19 @@ var _segment_mesh := QuadMesh.new()
 var _climate := ""
 var _regional: ShaderMaterial = null
 var _u_span := Vector2(INF, -INF)
+var _soil_keys := {}  # patch key -> its PRESET_LCH key (#680)
 
 
-## Build the faces for `fields` laid out on `tile_data` / `tile_meshes`, with the
-## fill decided against `light`. Faces stay hidden until update() sizes them.
-func lay_out(fields: Array, tile_data: Array, tile_meshes: Array, light: Node3D) -> void:
+## Build the faces for `fields` laid out on `tile_data` / `tile_meshes`. The
+## scene's lights alone light them, with no fill on the face turned from the sun
+## (Edwin, 2026-11-25; #680). Faces stay hidden until update() sizes them.
+func lay_out(fields: Array, tile_data: Array, tile_meshes: Array) -> void:
 	for child: Node in get_children():
 		child.free()
 	_segments.clear()
 	_extensions.clear()
 	_sides.clear()
 	_section_cm = 0.0
-	_to_light = light.global_transform.basis.z
 	_climate = _climate_key(fields)
 	_regional = DioramaRegions.material(_climate, WU_PER_CM * 100.0)
 	_extension_material = null
@@ -113,16 +110,22 @@ func update(patches: Dictionary) -> void:
 		_resize()
 		_fit_regional()
 	var textures := {}
+	var hues := {}
+	for seg: Dictionary in _segments:
+		_soil_keys[_key(seg)] = seg["soil_key"]
 	for key: String in states:
 		var patch: Dictionary = states[key]
 		var root_cm: float = patch.get("root_depth_cm", 0.0)
 		var cells := SoilFaceColour.samples(patch["soil_state"], root_cm, _section_cm)
 		textures[key] = _texture(cells, 1, cells.size())
+		var tint := SoilFaceColour.hue_samples(patch["soil_state"], _soil_keys[key], _section_cm)
+		hues[key] = _texture(tint, 1, tint.size())
 	for seg: Dictionary in _segments:
 		if textures.has(_key(seg)):
 			var mesh: MeshInstance3D = seg["mesh"]
 			var mat: ShaderMaterial = mesh.material_override
 			mat.set_shader_parameter("profile_tex", textures[_key(seg)])
+			mat.set_shader_parameter("hue_tex", hues[_key(seg)])
 			mesh.visible = true
 	for ext: Dictionary in _extensions:
 		_update_placeholder(ext, states)  # kept current for set_extension_material(null)
@@ -192,12 +195,13 @@ func _quad(pos: Vector3, rot: Vector3, mesh: Mesh = QuadMesh.new()) -> MeshInsta
 
 func _add_segment(pos: Vector3, rot_y: float, tile: Dictionary) -> String:
 	var mesh := _quad(pos, Vector3(0.0, rot_y, 0.0), _segment_mesh)
-	mesh.material_override = _face_material(_fill(mesh))
+	mesh.material_override = _face_material()
 	var seg := {
 		"mesh": mesh,
 		"side": "+x" if rot_y > 0.0 else "+z",
 		"field_id": tile["field_id"],
 		"patch_idx": tile["patch_idx"],
+		"soil_key": SoilFaceColour.colour_key(tile),
 		"tile": Vector2i(tile["col"], tile["row"]),
 	}
 	_segments.append(seg)
@@ -205,12 +209,9 @@ func _add_segment(pos: Vector3, rot_y: float, tile: Dictionary) -> String:
 
 
 func _add_extension(mesh: MeshInstance3D, width: float, keys: Array[String]) -> void:
-	var ext := {
-		"mesh": mesh, "width": width, "placeholder": _face_material(_fill(mesh)), "keys": keys
-	}
+	var ext := {"mesh": mesh, "width": width, "placeholder": _face_material(), "keys": keys}
 	_extensions.append(ext)
 	mesh.material_override = _extension(ext)
-	mesh.set_instance_shader_parameter("face_fill", _fill(mesh))
 	var u := mesh.position.x - mesh.position.z  # the shader's unfolded face
 	_u_span = Vector2(minf(_u_span.x, u - width / 2.0), maxf(_u_span.y, u + width / 2.0))
 
@@ -219,8 +220,6 @@ func _add_side(pos: Vector3, rot: Vector3, width: float, depth: float) -> void:
 	var mesh := _quad(pos, rot)
 	var plain := StandardMaterial3D.new()
 	plain.albedo_color = SIDE_COLOUR
-	plain.emission_enabled = true
-	plain.emission = SIDE_COLOUR * _fill(mesh)
 	mesh.material_override = plain
 	_sides.append({"mesh": mesh, "width": width, "depth": depth})
 
@@ -250,16 +249,22 @@ func _extension(ext: Dictionary) -> Material:
 ## The placeholder's strip: under each segment, its patch's deepest layer.
 func _update_placeholder(ext: Dictionary, states: Dictionary) -> void:
 	var cells := PackedColorArray()
+	var tints := PackedColorArray()
 	for key: String in ext["keys"]:
 		var cell := Color(0.0, 0.0, 0.0, 1.0)
+		var tint := Color.WHITE
 		if states.has(key):
 			var soil: Dictionary = states[key]["soil_state"]
 			var last: int = (soil["texture"] as Array).size() - 1
-			var b := SoilFaceColour.column(soil["texture"][last]) / 2.0
-			cell = Color(SoilFaceColour.layer_scale(soil, last), 0.0, b, 1.0)
+			var col := SoilFaceColour.column(soil["texture"][last])
+			cell = Color(SoilFaceColour.layer_scale(soil, last), 0.0, col / 2.0, 1.0)
+			var g := SoilFaceColour.face_gain(soil, _soil_keys.get(key, ""), last)
+			tint = Color(g.x, g.y, g.z, 1.0)
 		cells.append(cell)
+		tints.append(tint)
 	var placeholder: ShaderMaterial = ext["placeholder"]
 	placeholder.set_shader_parameter("profile_tex", _texture(cells, cells.size(), 1))
+	placeholder.set_shader_parameter("hue_tex", _texture(tints, tints.size(), 1))
 
 
 ## Slot along `quad`'s UV.x, of `count` one-tile slots, of the tile at `p`.
@@ -268,14 +273,9 @@ func _slot(quad: MeshInstance3D, p: Vector3, count: int) -> int:
 	return clampi(floori(local_x + count / 2.0), 0, count - 1)
 
 
-func _fill(mesh: MeshInstance3D) -> float:
-	return FACE_FILL if mesh.transform.basis.z.dot(_to_light) < 0.0 else 0.0
-
-
-func _face_material(fill: float) -> ShaderMaterial:
+func _face_material() -> ShaderMaterial:
 	var mat := ShaderMaterial.new()
 	mat.shader = FACE_SHADER
-	mat.set_shader_parameter("face_fill", fill)
 	var grains := _grain_textures()
 	mat.set_shader_parameter("grain_sandy", grains[0])
 	mat.set_shader_parameter("grain_loam", grains[1])

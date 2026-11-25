@@ -384,6 +384,10 @@ class DailySnapshot(BaseModel):
     grain_g_m2: float = 0.0
     water_stress: float = 1.0
     soil_theta_surface: float = 0.0
+    root_zone_water_fraction: float = Field(
+        default=0.0,
+        description="That day's PatchDayResponse.root_zone_water_fraction (#669)",
+    )
     n_available_total: float = 0.0
     plant_n_nni: float = 1.0
     plant_n_stock_kg_ha: float = 0.0

@@ -314,6 +314,14 @@ static func advised_gauge(tile_data: Dictionary) -> String:
 	return "root_zone" if _root_zone_dry(tile_data) else ""
 
 
+## The nutrient the advice acts on, "nitrogen" … "manganese", or "" when the
+## advised gauge is not Nutrients. The stress icons draw its icon (#669).
+static func advised_nutrient(tile_data: Dictionary) -> String:
+	if advised_gauge(tile_data) != "nutrient":
+		return ""
+	return _nutrient_candidate(tile_data)["name"]
+
+
 ## Advice naming the true limit (#660 §6). First match wins: no crop, not
 ## emerged, mature, then the advised gauge, then growth behind potential.
 static func compute_recommendation(tile_data: Dictionary) -> String:
@@ -330,7 +338,7 @@ static func compute_recommendation(tile_data: Dictionary) -> String:
 				return "Crop is short of water. Irrigate now."
 			return "Crop is starting to run short of water. Consider irrigating."
 		"nutrient":
-			return _nutrient_advice(_nutrient_candidate(tile_data)["name"], stage)
+			return _nutrient_advice(advised_nutrient(tile_data), stage)
 		"root_zone":
 			return "Root zone is drying. Irrigate before the crop shows stress."
 	var growth: float = tile_data.get("growth_vs_potential", NOT_SHOWN)

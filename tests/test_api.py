@@ -647,6 +647,54 @@ def test_daily_snapshot_root_depth_cm(client) -> None:
     assert bare["daily_snapshots"][0]["root_depth_cm"] == 0.0
 
 
+def _create_nl_default_game(client) -> str:
+    """The client's "Netherlands maize (default)": one field, three soils."""
+    soils = ("sandy_temperate", "loam_temperate", "clay_temperate")
+    patch = {"crop_key": "maize", "climate_key": "netherlands_temperate"}
+    body = {
+        "fields": [
+            {
+                "field_id": "field_1",
+                "patches": [
+                    {**patch, "soil_profile_key": s, "area_fraction": 1.0 / 3.0}
+                    for s in soils
+                ],
+            }
+        ],
+        "starting_credits": 10000,
+    }
+    resp = client.post("/api/v1/games", json=body)
+    assert resp.status_code == 200, resp.text
+    return resp.json()["game_id"]
+
+
+def test_daily_snapshot_root_zone_water_fraction_is_the_days_reply(client) -> None:
+    """DailySnapshot.root_zone_water_fraction (#669) equals that day's
+    PatchDayResponse value, for every field, patch and day of a multi-day step."""
+    single = _create_nl_default_game(client)
+    by_day: dict[tuple[int, str, int], float] = {}
+    for _ in range(14):
+        reply = client.post(f"/api/v1/games/{single}/step?days=1&seed=42").json()
+        for fid, patches in reply["patches"].items():
+            for pi, patch in enumerate(patches):
+                key = (reply["day_number"], fid, pi)
+                by_day[key] = patch["root_zone_water_fraction"]
+    multi = _create_nl_default_game(client)
+    snaps: list[dict] = []
+    for _ in range(2):
+        reply = client.post(f"/api/v1/games/{multi}/step?days=7&seed=42").json()
+        snaps.extend(reply["daily_snapshots"])
+    assert len(snaps) == 14 * 3
+    for s in snaps:
+        key = (s["day_number"], s["field_id"], s["patch_idx"])
+        assert s["root_zone_water_fraction"] == by_day[key], key
+    last = {(s["field_id"], s["patch_idx"]): s for s in snaps[-3:]}
+    for pi, patch in enumerate(reply["patches"]["field_1"]):
+        got = last[("field_1", pi)]["root_zone_water_fraction"]
+        assert got == patch["root_zone_water_fraction"]
+    assert len(set(by_day.values())) > 3, "the fraction moves over 14 days"
+
+
 def test_heat_event_carries_the_crop_heat_threshold(client) -> None:
     """HeatDamageApplied.threshold_c (#630) is the crop's threshold: 35 for maize."""
     game_id = _create_single_patch_game(

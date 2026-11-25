@@ -338,3 +338,27 @@ func test_reconcile_resets_stage_roots_and_damage_of_a_changed_crop() -> void:
 	assert_eq(FarmTiles.reconcile_crops(fields, [tile]), [0])
 	assert_eq([tile["heat_days"], tile["root_depth_cm"], tile["heat_damage"]], [0, 0.0, 0.0])
 	assert_eq(tile["crop_stage_name"], "")
+
+
+func test_write_patch_keeps_the_tops_colour_and_gloss_from_the_profile() -> void:
+	# #680: the top's colour is the face's top band, its gloss the top layer's
+	# degree of saturation; a payload without a profile leaves both alone.
+	var tiles: Array = [
+		{"field_id": "f", "patch_idx": 0, "soil_profile_key": "loam_temperate"},
+	]
+	tiles[0]["climate_key"] = "kenya_highlands"
+	FarmTiles.write_patch({"crop_key": ""}, "f", 0, tiles)
+	assert_false(tiles[0].has("surface_albedo"), "no profile, no colour")
+	var soil := {
+		"layer_thickness_cm": [25.0],
+		"texture": ["loam"],
+		"soc_pct": [1.2],
+		"water_theta": [0.2],
+		"field_capacity": [0.25],
+		"wilting_point": [0.12],
+		"porosity": [0.48],
+	}
+	FarmTiles.write_patch({"crop_key": "", "soil_state": soil}, "f", 0, tiles)
+	var want := SoilFaceColour.surface_albedo(soil, "loam_temperate@kenya_highlands")
+	assert_eq(tiles[0]["surface_albedo"], want, "Kenya's loam, in the Nitisol hue")
+	assert_almost_eq(tiles[0]["surface_saturation"], 0.2 / 0.48, 1e-6)

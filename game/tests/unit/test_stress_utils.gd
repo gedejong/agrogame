@@ -11,16 +11,28 @@ func test_parse_stress_data_all_zeros() -> void:
 	assert_eq(result["p"], 0.0, "No P stress data = 0")
 	assert_eq(result["fe"], 0.0, "No Fe stress data = 0")
 	assert_eq(result["zn"], 0.0, "No Zn stress data = 0")
+	assert_eq(result["water_memory"], 0.0, "No growth water factor = 0")
+	assert_eq(result["s"], 0.0, "No S stress data = 0")
+	assert_eq(result["mn"], 0.0, "No Mn stress data = 0")
 
 
-func test_parse_stress_data_water_stress() -> void:
-	var data := {"water_stress": 0.3}
+func test_parse_stress_data_water_is_ks_and_memory_the_growth_factor() -> void:
+	# #669: the drought tint reads today's Ks, as the Water gauge does; the
+	# running-mean growth water factor is kept apart for lodging.
+	var data := {"water_ks": 0.3, "water_stress": 0.9}
 	var result: Dictionary = SU.parse_stress_data(data)
-	assert_almost_eq(result["water"], 0.7, 0.01, "water_stress 0.3 → stress 0.7")
+	assert_almost_eq(result["water"], 0.7, 0.001, "1 - Ks 0.3")
+	assert_almost_eq(result["water_memory"], 0.1, 0.001, "1 - growth factor 0.9")
+
+
+func test_parse_stress_data_sulfur_and_manganese() -> void:
+	var result: Dictionary = SU.parse_stress_data({"s_stress": 0.4, "mn_stress": 0.2})
+	assert_almost_eq(result["s"], 0.4, 0.001)
+	assert_almost_eq(result["mn"], 0.2, 0.001)
 
 
 func test_parse_stress_data_multiple_stresses() -> void:
-	var data := {"water_stress": 0.5, "n_stress": 0.8, "fe_stress": 0.4}
+	var data := {"water_ks": 0.5, "n_stress": 0.8, "fe_stress": 0.4}
 	var result: Dictionary = SU.parse_stress_data(data)
 	assert_almost_eq(result["water"], 0.5, 0.01, "Water stress 0.5")
 	assert_almost_eq(result["n"], 0.8, 0.01, "N stress 0.8")
@@ -42,21 +54,17 @@ func test_dominant_stress_tie_breaking() -> void:
 
 
 func test_parse_clamps_values() -> void:
-	var data := {"water_stress": -0.5, "n_stress": 2.0}
+	var data := {"water_ks": -0.5, "water_stress": -0.5, "n_stress": 2.0}
 	var result: Dictionary = SU.parse_stress_data(data)
-	assert_eq(result["water"], 1.0, "Negative water_stress → 1.0 stress (clamped)")
+	assert_eq(result["water"], 1.0, "Negative water_ks → 1.0 stress (clamped)")
+	assert_eq(result["water_memory"], 1.0, "Negative water_stress → 1.0 (clamped)")
 	assert_eq(result["n"], 1.0, "n_stress > 1.0 clamped to 1.0")
 
 
 func test_stress_keys_constant() -> void:
-	assert_eq(SU.STRESS_KEYS.size(), 7, "7 stress types defined")
-	assert_has(SU.STRESS_KEYS, "water")
-	assert_has(SU.STRESS_KEYS, "n")
-	assert_has(SU.STRESS_KEYS, "p")
-	assert_has(SU.STRESS_KEYS, "fe")
-	assert_has(SU.STRESS_KEYS, "zn")
-	assert_has(SU.STRESS_KEYS, "frost")
-	assert_has(SU.STRESS_KEYS, "heat")
+	# The Nutrients gauge's six nutrients, in its Liebig order (#669).
+	var keys: Array[String] = ["water", "n", "p", "s", "fe", "zn", "mn", "frost", "heat"]
+	assert_eq(SU.STRESS_KEYS, keys)
 
 
 func test_parse_frost_and_heat() -> void:
@@ -89,25 +97,37 @@ func test_calc_stunt_factor_partial_zn() -> void:
 
 func test_calc_lodging_factor_thresholds() -> void:
 	# Below threshold → no lodging (upright).
-	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.0), 0.0, "Healthy = no lodging")
-	assert_eq(SU.calc_lodging_factor({"water": 1.0}, 0.6), 0.0, "Drought pre-senescence = 0")
-	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 0.8), 0.0, "Senescing but watered = 0")
+	assert_eq(SU.calc_lodging_factor({"water_memory": 0.0}, 0.0), 0.0, "Healthy = no lodging")
+	assert_eq(SU.calc_lodging_factor({"water_memory": 1.0}, 0.6), 0.0, "Drought pre-senescence = 0")
+	assert_eq(SU.calc_lodging_factor({"water_memory": 0.0}, 0.8), 0.0, "Senescing but watered = 0")
 	# Severe drought + late senescence: w=(1.0-0.8)/0.2=1.0,
 	# d=(0.9-0.7)/0.3≈0.667 → ≈0.667.
-	assert_almost_eq(SU.calc_lodging_factor({"water": 1.0}, 0.9), 0.667, 0.02, "Drought lodges")
+	assert_almost_eq(
+		SU.calc_lodging_factor({"water_memory": 1.0}, 0.9), 0.667, 0.02, "Drought lodges"
+	)
 	# Ripening alone never lodges: a fully senesced, watered crop stands.
-	assert_eq(SU.calc_lodging_factor({"water": 0.0}, 1.0), 0.0, "Ripe watered crop stands")
-	assert_eq(SU.calc_lodging_factor({"water": 0.5}, 0.975), 0.0, "Mild stress when ripe = 0")
+	assert_eq(SU.calc_lodging_factor({"water_memory": 0.0}, 1.0), 0.0, "Ripe watered crop stands")
+	assert_eq(
+		SU.calc_lodging_factor({"water_memory": 0.5}, 0.975), 0.0, "Mild stress when ripe = 0"
+	)
+
+
+func test_calc_lodging_factor_reads_the_growth_factor_not_todays_ks() -> void:
+	# #669: one dry day (Ks 0.1) does not lodge a crop whose season was wet,
+	# and one wet day does not stand a drought-lodged crop back up.
+	var lodged := SU.calc_lodging_factor({"water": 0.0, "water_memory": 0.9}, 0.9)
+	assert_gt(lodged, 0.0, "sustained drought lodges")
+	assert_eq(SU.calc_lodging_factor({"water": 0.9, "water_memory": 0.0}, 0.9), 0.0)
 
 
 func test_calc_lodging_factor_graded_and_bounded() -> void:
 	# Graded, not a binary flip: more senescence under drought → more lodging.
-	var mild: float = SU.calc_lodging_factor({"water": 1.0}, 0.75)
-	var strong: float = SU.calc_lodging_factor({"water": 1.0}, 0.9)
+	var mild: float = SU.calc_lodging_factor({"water_memory": 1.0}, 0.75)
+	var strong: float = SU.calc_lodging_factor({"water_memory": 1.0}, 0.9)
 	assert_gt(strong, mild, "Lodging increases with senescence under drought")
 	assert_gt(mild, 0.0, "Above threshold yields positive lean")
 	# Bounded to [0, 1] at the extremes.
-	var extreme: float = SU.calc_lodging_factor({"water": 1.0}, 1.0)
+	var extreme: float = SU.calc_lodging_factor({"water_memory": 1.0}, 1.0)
 	assert_lte(extreme, 1.0, "Lodging never exceeds 1.0")
 	assert_almost_eq(extreme, 1.0, 0.01, "Full stress = full lodging")
 

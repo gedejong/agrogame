@@ -319,12 +319,14 @@ Cross-section textures add a **depth zone** dimension (A/B/C horizon):
 
 The tiles' top faces use the surface texture; the diorama slab's cut faces under the fields use the cross-section texture (#646, ADR-022).
 
+Both textures supply detail only. Each is scaled to one colour per soil layer (#680): the Munsell value from organic carbon, texture and moisture (FAO 2006), and a cited Munsell hue and chroma per soil preset (`SoilFaceColour.PRESET_LCH`). So a top matches its face's top band, and the rendered soil can leave the hue range above where the cited soil does (the Sahel and Kenya soils are 5YR to 2.5YR).
+
 See #201 for cross-section texture generation.
 
 ### Godot Integration
 
 - `StandardMaterial3D` with separate maps or `ORMMaterial3D` with packed ORM
-- Shader selects variant based on simulation state (θ → moisture level, SOM → darkness)
+- Soil colour follows the simulation through `SoilFaceColour` (organic carbon and θ → Munsell value; θ over porosity → wet gloss on the tops)
 - Tile tops use the surface texture; the diorama slab's cut faces use the cross-section texture (#646)
 - Texture arrays for efficient GPU binding across moisture states
 - See #199 for multi-scale shader blending implementation

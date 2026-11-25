@@ -8,17 +8,64 @@ const FarmViewHistoryRef = preload("res://scripts/farm_view_history.gd")
 const LAYOUT: Array = [{"field_id": "field_1", "patches": [{}, {}, {}]}]
 
 
-func test_append_snapshots_records_inverted_water_stress() -> void:
+## A day's WaterStressComputed event: Ks, 1 = no stress.
+static func _ks(value: float) -> Dictionary:
+	return {"event_type": "WaterStressComputed", "module": "t", "data": {"stress": value}}
+
+
+func test_append_snapshots_records_the_water_and_root_zone_gauges() -> void:
+	# Was test_append_snapshots_records_inverted_water_stress: the record now
+	# holds the card's Water (100 x Ks) and Root zone gauges (#669), not
+	# 1 - the growth water factor.
 	var history: Dictionary = {}
 	var snapshots: Array = [
-		{"field_id": "field_1", "patch_idx": 0, "lai": 1.5, "water_stress": 0.8}
+		{
+			"field_id": "field_1",
+			"patch_idx": 0,
+			"lai": 1.5,
+			"water_stress": 0.8,
+			"root_zone_water_fraction": 0.216,
+			"events": [_ks(0.46)],
+		}
 	]
 	FarmViewHistoryRef.append_snapshots(snapshots, history, LAYOUT)
 	assert_true(history.has("field_1/0"), "record filed under its field and patch")
 	var rec: Dictionary = history["field_1/0"][0]
 	assert_almost_eq(rec["lai"], 1.5, 0.001)
-	# API water_stress 0.8 (supply/demand) inverts to 0.2 (stress intensity).
-	assert_almost_eq(rec["water_stress"], 0.2, 0.001)
+	assert_almost_eq(rec["water"], 46.0, 1e-9)
+	assert_almost_eq(rec["root_zone"], 21.6, 1e-9)
+	assert_false(rec.has("water_stress"), "the growth factor is not a History series")
+
+
+func test_append_patch_records_the_water_and_root_zone_gauges() -> void:
+	var history: Dictionary = {}
+	var patch := {"root_zone_water_fraction": 0.216, "events": [_ks(0.46)]}
+	FarmViewHistoryRef.append_patch(patch, "field_1", 0, history)
+	var rec: Dictionary = history["field_1/0"][0]
+	assert_almost_eq(rec["water"], 46.0, 1e-9)
+	assert_almost_eq(rec["root_zone"], 21.6, 1e-9)
+	assert_false(rec.has("water_stress"))
+
+
+func test_water_gauge_is_the_days_last_ks_and_100_without_one() -> void:
+	var history: Dictionary = {}
+	FarmViewHistoryRef.append_patch({"events": [_ks(0.9), _ks(0.3)]}, "field_1", 0, history)
+	FarmViewHistoryRef.append_patch({"events": []}, "field_1", 0, history)
+	FarmViewHistoryRef.append_snapshots([{"field_id": "field_1", "patch_idx": 0}], history, LAYOUT)
+	var water: Array = history["field_1/0"].map(func(r: Dictionary) -> float: return r["water"])
+	assert_eq(water, [30.0, 100.0, 100.0])
+
+
+func test_root_zone_gauge_caps_at_100_from_snapshots_and_patches() -> void:
+	# A profile wetter than field capacity reads above 1 (docs/api.md); the
+	# card caps it at 100, and so does the History.
+	var history: Dictionary = {}
+	var wet := {"field_id": "field_1", "patch_idx": 0, "root_zone_water_fraction": 1.3}
+	FarmViewHistoryRef.append_snapshots([wet], history, LAYOUT)
+	FarmViewHistoryRef.append_patch({"root_zone_water_fraction": 1.3}, "field_1", 0, history)
+	FarmViewHistoryRef.append_patch({"root_zone_water_fraction": -0.1}, "field_1", 0, history)
+	var rz: Array = history["field_1/0"].map(func(r: Dictionary) -> float: return r["root_zone"])
+	assert_eq(rz, [100.0, 100.0, 0.0])
 
 
 func test_append_snapshots_defaults_for_missing_fields() -> void:

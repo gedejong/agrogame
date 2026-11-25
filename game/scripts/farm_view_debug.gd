@@ -18,6 +18,18 @@ const FARM_ENVIRONMENT: Environment = preload("res://scenes/farm_environment.tre
 ## The sun on a clear day, as update_weather_lighting sets it.
 const SUN_COLOR_CLEAR := Color(0.95, 0.9, 0.8)
 const SUN_ENERGY_CLEAR := 1.15
+## The sky's ambient light (#680): farm_sky.gdshader's ambient_gain, which
+## scales the radiance map only (farm_environment.tres holds the clear-day
+## value). With the sky as the ambient source, Environment.ambient_light_energy
+## and ambient_light_color have no effect. 2.95 puts the clear-day shaded/sunlit
+## face luminance ratio at about 0.40 in scene-linear light, the upper end of
+## 0.26 to 0.42 for an isotropic sky (Liu & Jordan 1963) at a clear-day diffuse
+## fraction of 0.165 to 0.24 (Erbs, Klein & Duffie 1982), as Edwin chose on
+## 2026-11-25; measured in #680.
+const AMBIENT_GAIN_CLEAR := 2.95
+## The gain's rise at full overcast (Edwin, 2026-11-25; #680): the ratio of the
+## former 0.4 to 0.5 ambient lerp, made live through the gain. Style.
+const AMBIENT_OVERCAST_FACTOR := 1.25
 
 ## Synthetic stress events injected (behind a project setting) so the stress-icon
 ## overlay can be exercised without waiting for the simulation to produce them.
@@ -53,7 +65,7 @@ var _ctx: Dictionary = {}
 static func update_weather_lighting(
 	weather: Dictionary, sun: DirectionalLight3D, env: WorldEnvironment, fog_clouds: GPUParticles3D
 ) -> void:
-	## Adjust sun, ambient, and fog based on weather conditions.
+	## Adjust sun, sky ambient and fog based on weather conditions.
 	var rain_mm: float = weather.get("rain_mm", 0.0)
 	var tmin: float = weather.get("tmin_c", 10.0)
 	var tmax: float = weather.get("tmax_c", 20.0)
@@ -70,11 +82,12 @@ static func update_weather_lighting(
 	var e := env.environment
 	if not e:
 		return
-	# Ambient: slightly brighter on overcast (diffuse sky), but greyer
-	e.ambient_light_energy = lerpf(0.4, 0.5, overcast)
-	var amb_sunny := Color(0.4, 0.42, 0.5)
-	var amb_overcast := Color(0.3, 0.3, 0.35)
-	e.ambient_light_color = amb_sunny.lerp(amb_overcast, overcast)
+	# Sky ambient: slightly brighter relative to the sun on overcast days. The
+	# sky's radiance already follows the sun's colour and energy.
+	var sky_mat: ShaderMaterial = e.sky.sky_material as ShaderMaterial if e.sky else null
+	if sky_mat:
+		var gain := AMBIENT_GAIN_CLEAR * lerpf(1.0, AMBIENT_OVERCAST_FACTOR, overcast)
+		sky_mat.set_shader_parameter("ambient_gain", gain)
 	# Fog: driven by humidity proxy, not just rain
 	e.fog_density = lerpf(0.001, 0.012, humidity_proxy)
 	# Animated fog wisps

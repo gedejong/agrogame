@@ -21,9 +21,6 @@ uniform float profile_bottom_m = 1.0;
 // for a corestone, its blockiness (0 oval to 1 rounded block).
 uniform sampler2D artefacts : filter_nearest, repeat_disable;
 uniform int artefact_count = 0;
-// Emission over albedo from DioramaSlab._fill(): per quad, since the +x and +z
-// quads share this material but only the one turned from the sun is filled.
-instance uniform float face_fill = 0.0;
 
 // Style constants (#652 refinement): layer boundaries wave by at most 5 cm and
 // blend over 4 cm; old roots wiggle by 3 cm; the seam marks the profile bottom.
@@ -135,5 +132,4 @@ void fragment() {
 	AO = arm.r;
 	ROUGHNESS = arm.g;
 	METALLIC = arm.b;
-	EMISSION = alb * face_fill;
 }

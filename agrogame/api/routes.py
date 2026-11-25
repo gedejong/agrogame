@@ -1287,6 +1287,7 @@ def _build_daily_snapshot(
         grain_g_m2=round(p.orch.canopy.state.grain_biomass_g_m2, 1),
         water_stress=round(p.orch.canopy.state.last_water_stress, 2),
         soil_theta_surface=round(theta_top, 4),
+        root_zone_water_fraction=_root_zone_water_fraction(p, list(snap.water_theta)),
         n_available_total=round(n_total, 1),
         plant_n_nni=round(p.orch.plant_n_nni, 2),
         plant_n_stock_kg_ha=round(p.orch.plant_n_stock_kg_ha, 1),
