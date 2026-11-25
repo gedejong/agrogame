@@ -4,6 +4,7 @@ extends GutTest
 
 const FarmViewDebugRef = preload("res://scripts/farm_view_debug.gd")
 const FogClouds = preload("res://scripts/fog_clouds_3d.gd")
+const PRE_680_EXPOSURE := 1.4  # the farm's tonemap exposure before #680 (#637)
 
 
 ## Records the calls the driver makes so the demo sequence can be asserted.
@@ -193,6 +194,55 @@ func test_overcast_raises_the_sky_ambient_and_leaves_the_dead_energy() -> void:
 	# The sky is the ambient source, so the energy and colour do nothing; the
 	# weather no longer writes them.
 	assert_eq(world_env.environment.ambient_light_energy, 1.0, "untouched")
+	var built: ShaderMaterial = FarmViewDebugRef.FARM_ENVIRONMENT.sky.sky_material
+	for k: String in ["backdrop_gain", "backdrop_fog"]:
+		assert_eq(sky.get_shader_parameter(k), built.get_shader_parameter(k), "weather leaves " + k)
+
+
+func test_the_backdrop_shows_its_pre_680_brightness() -> void:
+	# #692 (Edwin, 2026-11-25): the background the camera sees regains what
+	# #680's exposure drop took, 1.40 / 0.89. Godot fogs it after the sky shader
+	# as mix(C, mix(F, C, a), s) (sky.glsl, 4.7.2), so the fog's share needs
+	# (gain - 1) F s (1 - a) / (1 - s + s a) added. Measured on NL day 1, clear:
+	# backdrop L* 44.9, as before #680, against 35.8 without the terms.
+	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
+	var sky: ShaderMaterial = env.sky.sky_material
+	var gain := PRE_680_EXPOSURE / env.tonemap_exposure
+	assert_almost_eq(sky.get_shader_parameter("backdrop_gain"), gain, 1e-5, "exposure regained")
+	assert_true(env.fog_enabled, "the sky is fogged")
+	assert_eq(env.fog_sun_scatter, 0.0, "no sun glow in the fog, so none to lift")
+	var s := env.fog_sky_affect
+	var a := env.fog_aerial_perspective
+	var f := env.fog_light_color.srgb_to_linear() * env.fog_light_energy
+	var want := Vector3(f.r, f.g, f.b) * (gain - 1.0) * s * (1.0 - a) / (1.0 - s + s * a)
+	var got: Vector3 = sky.get_shader_parameter("backdrop_fog")
+	for i in range(3):
+		assert_almost_eq(got[i], want[i], 1e-5, "the fog's share, channel %d" % i)
+
+
+func test_the_backdrop_terms_leave_the_radiance_and_ambient_alone() -> void:
+	# #692: the terms act outside the cubemap pass, so the radiance map that
+	# lights the scene (ambient and reflections) is untouched. The environment's
+	# background_energy_multiplier would scale the radiance map too (Godot
+	# 4.7.2 hands it to update_radiance_buffers), so it stays 1.
+	var env: Environment = FarmViewDebugRef.FARM_ENVIRONMENT
+	assert_eq(env.background_energy_multiplier, 1.0, "the radiance is not scaled")
+	var code: String = (env.sky.sky_material as ShaderMaterial).shader.code
+	var uses: Array[String] = []
+	for line: String in code.split("\n"):
+		if line.contains("backdrop_") and not line.strip_edges().begins_with("//"):
+			uses.append(line.strip_edges())
+	assert_eq(
+		uses,
+		[
+			"uniform float backdrop_gain = 1.0;",
+			"uniform vec3 backdrop_fog = vec3(0.0);",
+			"COLOR = COLOR * backdrop_gain + backdrop_fog;",
+		],
+		"declared, and used once"
+	)
+	var branch := "if (AT_CUBEMAP_PASS) {\n\t\t\tCOLOR *= ambient_gain;\n\t\t} else {\n"
+	assert_true(code.contains(branch + "\t\t\tCOLOR = COLOR * backdrop_gain"), "background only")
 
 
 func test_clear_day_weather_sets_the_clear_sun() -> void:
