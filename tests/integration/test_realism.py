@@ -839,6 +839,19 @@ def _run_n_trajectory(
     return mineral_n, n_stress
 
 
+def _ceres_residual_kg_ha(soil_key: str) -> float:
+    """Whole-profile CERES uptake residual (kg N/ha) of a soil preset.
+
+    (0.25 mg/kg NO3-N + 0.5 mg/kg NH4-N) x BD x depth_cm / 10 per layer, the
+    inverse of KG2PPM = 10/(BD*DLAYR) (DSSAT-CSM v4.8.6.0 MZ_NUPTAK.for:211-214).
+    """
+    profile = load_soil_presets(Path("soils/presets.yaml")).soils[soil_key]
+    return sum(
+        (0.25 + 0.5) * ly.bulk_density_g_cm3 * ly.depth_cm / 10.0
+        for ly in profile.layers
+    )
+
+
 def test_default_root_zone_mineral_n_in_plausible_band() -> None:
     """An unfertilised run keeps root-zone mineral N in the Nmin band and draws it down.
 
@@ -884,6 +897,16 @@ def test_default_root_zone_mineral_n_in_plausible_band() -> None:
         assert min(mineral_n) < 0.5 * peak, (
             f"{crop_name}: mineral N did not draw down under uptake "
             f"(min {min(mineral_n):.0f}, peak {peak:.0f} kg/ha)"
+        )
+        # CERES-Maize MZ_NUPTAK (DSSAT-CSM v4.8.6.0, lines 211-214): roots cannot
+        # draw NO3-N below 0.25 mg/kg nor NH4-N below 0.5 mg/kg; the unfertilised
+        # profile's in-season minimum stays above half that residual (#694,
+        # authorised by Edwin 2026-11-25). Half leaves room for leaching and
+        # denitrification, which DSSAT does not floor.
+        residual = _ceres_residual_kg_ha("loam_temperate")  # _run_n_trajectory's soil
+        assert min(mineral_n) > 0.5 * residual, (
+            f"{crop_name}: root-zone mineral N fell to {min(mineral_n):.2f} kg/ha, "
+            f"below half the CERES uptake residual of {residual:.2f} kg/ha"
         )
 
 

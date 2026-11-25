@@ -32,7 +32,11 @@ from agrogame.soil.nitrogen import (
     ProtonLoadOccurred,
     SoilNitrogenState,
 )
-from agrogame.soil.nitrogen.constants import N_KG_PER_KMOL
+from agrogame.soil.nitrogen.constants import (
+    N_KG_PER_KMOL,
+    NH4_UPTAKE_RESIDUAL_MG_KG,
+    NO3_UPTAKE_RESIDUAL_MG_KG,
+)
 from agrogame.soil.nitrogen.events import NutrientLeached
 from agrogame.soil.nitrogen.runtime import NitrogenRuntime
 from agrogame.soil.phosphorus.events import PhosphorusFixationOccurred
@@ -100,6 +104,12 @@ def _profile() -> SoilProfile:
     )
 
 
+def _residual(mg_kg: float, layer: int = 0) -> float:
+    """N (kg/ha) uptake leaves in a fixture layer: mg/kg x BD x depth_cm / 10 (#694)."""
+    ly = _profile().layers[layer]
+    return mg_kg * ly.bulk_density_g_cm3 * ly.depth_cm / 10.0
+
+
 class _Budget:
     """A cycle with empty N pools that records every H+ it releases."""
 
@@ -151,14 +161,20 @@ def _som_mineralised(layer: int, n_kg_ha: float) -> SOMDecomposed:
 # --- AC5: N mass and proton consistency --------------------------------------
 
 
-def test_urea_nitrified_then_taken_up_releases_no_net_acid() -> None:
+def test_urea_nitrified_then_taken_up_nets_one_per_residual_nitrate_n() -> None:
+    """The N taken up is acid-neutral; the NO3 residual it leaves (#694) is +1 per N.
+
+    The residual is urea N nitrified and left as nitrate, the identity of
+    ``test_urea_nitrified_and_left_as_nitrate_releases_one_per_n``.
+    """
     b = _Budget()
     b.cycle.apply_urea(0, KMOL_N)  # -1
     b.day(_NITRIFY)  # +2
     assert b.state.no3[0] == pytest.approx(KMOL_N, abs=_EXACT)
-    b.day(_OFF, demand_kg_ha=KMOL_N)  # NO3 uptake -1
-    assert b.state.no3[0] == pytest.approx(0.0, abs=_EXACT)
-    assert b.net() == pytest.approx(0.0, abs=_EXACT)
+    b.day(_OFF, demand_kg_ha=KMOL_N)  # NO3 uptake -1 per N taken
+    no3_left = _residual(NO3_UPTAKE_RESIDUAL_MG_KG)
+    assert b.state.no3[0] == pytest.approx(no3_left, abs=_EXACT)
+    assert b.net() == pytest.approx(no3_left / KMOL_N, abs=_EXACT)
 
 
 def test_urea_nitrified_and_left_as_nitrate_releases_one_per_n() -> None:
@@ -177,24 +193,32 @@ def test_urea_volatilised_releases_no_net_acid() -> None:
     assert b.net() == pytest.approx(0.0, abs=_EXACT)
 
 
-def test_som_n_nitrified_then_taken_up_releases_no_net_acid() -> None:
+def test_som_n_nitrified_then_taken_up_nets_one_per_residual_nitrate_n() -> None:
+    """As for urea: only the NO3 residual uptake leaves (#694) keeps its +1 per N."""
     b = _Budget()
     b.bus.emit(_som_mineralised(0, KMOL_N))  # ammonification -1
     b.cycle.release_proton_budget()
     b.day(_NITRIFY)  # +2
-    b.day(_OFF, demand_kg_ha=KMOL_N)  # -1
-    assert b.net() == pytest.approx(0.0, abs=_EXACT)
+    b.day(_OFF, demand_kg_ha=KMOL_N)  # -1 per N taken
+    no3_left = _residual(NO3_UPTAKE_RESIDUAL_MG_KG)
+    assert b.state.no3[0] == pytest.approx(no3_left, abs=_EXACT)
+    assert b.net() == pytest.approx(no3_left / KMOL_N, abs=_EXACT)
 
 
 # The remaining terms: NH4 uptake, denitrification, self-mineralisation.
 
 
-def test_urea_taken_up_as_ammonium_releases_no_net_acid() -> None:
+def test_urea_taken_up_as_ammonium_nets_minus_one_per_residual_ammonium_n() -> None:
+    """The NH4 taken up is acid-neutral; the NH4 residual (#694) keeps its -1 per N.
+
+    The residual is hydrolysed urea N that NH4 uptake has not yet returned.
+    """
     b = _Budget()
     b.cycle.apply_urea(0, KMOL_N)  # -1
-    b.day(_OFF, demand_kg_ha=KMOL_N)  # NH4 uptake +1
-    assert b.state.nh4[0] == pytest.approx(0.0, abs=_EXACT)
-    assert b.net() == pytest.approx(0.0, abs=_EXACT)
+    b.day(_OFF, demand_kg_ha=KMOL_N)  # NH4 uptake +1 per N taken
+    nh4_left = _residual(NH4_UPTAKE_RESIDUAL_MG_KG)
+    assert b.state.nh4[0] == pytest.approx(nh4_left, abs=_EXACT)
+    assert b.net() == pytest.approx(-nh4_left / KMOL_N, abs=_EXACT)
 
 
 def test_urea_nitrified_then_denitrified_releases_no_net_acid() -> None:
@@ -220,7 +244,8 @@ def test_acidity_stays_where_nitrate_was_produced() -> None:
     """No leaching term: nitrate moved down and taken up there.
 
     Layer 0 keeps the +1 of nitrification without uptake; layer 1 gets the -1
-    of nitrate uptake. The profile total equals that of uptake in place.
+    per N of nitrate uptake, which stops at layer 1's NO3 residual (#694). The
+    profile total equals that of uptake in place: +1 per N of the residual.
     """
     b = _Budget()
     b.cycle.apply_urea(0, KMOL_N)
@@ -229,7 +254,11 @@ def test_acidity_stays_where_nitrate_was_produced() -> None:
     b.bus.emit(WaterDrained(from_layer=0, to_layer=1, amount_mm=100.0))
     assert b.state.no3 == pytest.approx([0.0, KMOL_N, 0.0], abs=_EXACT)
     b.day(_OFF, demand_kg_ha=KMOL_N, root_fractions=(0.0, 1.0, 0.0))
-    assert b.released == pytest.approx([1.0, -1.0, 0.0], abs=_EXACT)
+    no3_left = _residual(NO3_UPTAKE_RESIDUAL_MG_KG, layer=1)
+    assert b.state.no3 == pytest.approx([0.0, no3_left, 0.0], abs=_EXACT)
+    taken = (KMOL_N - no3_left) / KMOL_N
+    assert b.released == pytest.approx([1.0, -taken, 0.0], abs=_EXACT)
+    assert sum(b.released) == pytest.approx(no3_left / KMOL_N, abs=_EXACT)
 
 
 def test_ammonium_nitrate_releases_nothing_at_application() -> None:

@@ -65,6 +65,19 @@ exposed as `NitrogenCycle.massflow_supply_kg_ha`; it debits nothing. Plant uptak
 (ADR-013), so the mass-flow figure says whether convection alone could meet the crop's
 demand or diffusion must contribute.
 
+### Uptake residual
+
+Roots cannot extract a layer's last mineral N (#694). Uptake stops at 0.25 mg/kg
+NO3-N and 0.5 mg/kg NH4-N, the CERES `XMIN` (DSSAT-CSM v4.8.6.0
+`MZ_NUPTAK.for:211-214`, shared by CERES-Sorghum and CROPGRO; Jones et al. 2003,
+Eur. J. Agron. 18:235-265). Per layer that is `0.25 × BD × depth_cm / 10` and
+`0.5 × BD × depth_cm / 10` kg N/ha, about 11–14 kg N/ha over a 1 m profile. A layer
+at or below its residual gives nothing, and its shortfall is not passed to other
+layers. Only uptake is floored: leaching, denitrification, nitrification and
+volatilisation can still take a layer below it, as in DSSAT. On unfertilised maize
+the profile now holds about 10 kg N/ha through the season instead of running to
+0.2–0.6 kg N/ha.
+
 ### Stress signal
 
 After daily uptake, a nutrient stress factor `stress_N = uptake/demand` (clamped to [0, 1]) is emitted via `NutrientStressComputed(nutrient="N")`.

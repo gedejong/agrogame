@@ -40,6 +40,8 @@ from .constants import (
     H_PER_N_VOLATILIZATION,
     N_KG_PER_KMOL,
     NH3_PKA,
+    NH4_UPTAKE_RESIDUAL_MG_KG,
+    NO3_UPTAKE_RESIDUAL_MG_KG,
     UREA_BAND_REFERENCE_PH,
 )
 from .events import (
@@ -54,6 +56,18 @@ from .events import (
 from .params import NitrogenRateParams
 from .state import SoilNitrogenState
 from .types import NitrogenFluxes
+
+
+def _kg_ha_per_mg_kg(profile: SoilProfileView | None, n_layers: int) -> list[float]:
+    """Each layer's kg N/ha per mg N/kg soil: BD x depth_cm / 10 (#694).
+
+    The inverse of DSSAT's ``KG2PPM = 10/(BD*DLAYR)`` (MZ_NUPTAK.for). Without
+    a profile it is 0, so a profile-less cycle (unit tests) has no uptake
+    residual and takes up N exactly as before.
+    """
+    if profile is None:
+        return [0.0] * n_layers
+    return [ly.bulk_density_g_cm3 * ly.depth_cm / 10.0 for ly in profile.layers]
 
 
 def _nh3_fraction(ph: float) -> float:
@@ -99,6 +113,11 @@ class NitrogenCycle(RuntimeMemory):
         self._water_state = water_state
         self._profile = profile
         self._params = params if params is not None else NitrogenRateParams()
+        # Mineral N per layer that roots cannot extract, kg N/ha, fixed by the
+        # profile (#694; the CERES residual concentrations in constants.py).
+        per_mg_kg = _kg_ha_per_mg_kg(profile, self._n_layers)
+        self._uptake_residual_no3 = [NO3_UPTAKE_RESIDUAL_MG_KG * m for m in per_mg_kg]
+        self._uptake_residual_nh4 = [NH4_UPTAKE_RESIDUAL_MG_KG * m for m in per_mg_kg]
 
         # Subscribe to water movement events
         event_bus.subscribe(WaterDrained, self._on_water_drained)
@@ -668,6 +687,18 @@ class NitrogenCycle(RuntimeMemory):
         return taken
 
     def _take_up_plant(self, total_demand: float, root_fractions: list[float]) -> float:
+        """Take the day's plant N demand from the rooted layers (kg N/ha).
+
+        Each layer's share of the demand follows its normalised root fraction
+        and is met from NO3 first, then NH4 (ADR-013 decision point 3). A
+        layer gives up only the mineral N above its residual (#694): roots
+        cannot draw NO3-N below 0.25 mg/kg nor NH4-N below 0.5 mg/kg, the
+        CERES ``XMIN`` (DSSAT-CSM ``MZ_NUPTAK.for:211-214``). A shortfall is
+        not passed on to other layers. Only uptake is floored; leaching,
+        denitrification, nitrification and volatilisation are not, as in
+        DSSAT. A cycle built without a profile has no residual and takes up
+        N exactly as it did before #694.
+        """
         if total_demand <= 0.0:
             return 0.0
         s = sum(x for x in root_fractions if x > 0.0) or 1.0
@@ -677,12 +708,14 @@ class NitrogenCycle(RuntimeMemory):
         for i, want in enumerate(wants):
             if want <= 0.0:
                 continue
-            take_no3 = min(self.state.no3[i], want)
+            no3_above = max(0.0, self.state.no3[i] - self._uptake_residual_no3[i])
+            take_no3 = min(no3_above, want)
             self.state.no3[i] -= take_no3
             remaining = want - take_no3
             take_nh4 = 0.0
             if remaining > 0.0:
-                take_nh4 = self._remove_nh4(i, remaining)
+                nh4_above = max(0.0, self.state.nh4[i] - self._uptake_residual_nh4[i])
+                take_nh4 = self._remove_nh4(i, min(nh4_above, remaining))
             self._accrue_protons(i, take_no3, H_PER_N_NO3_UPTAKE)
             self._accrue_protons(i, take_nh4, H_PER_N_NH4_UPTAKE)
             taken += take_no3 + take_nh4

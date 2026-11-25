@@ -16,6 +16,16 @@ NH3_PKA: float = 9.25
 # the volatilisation base rate applies (Sommer, Schjoerring & Denmead 2004)
 UREA_BAND_REFERENCE_PH: float = 9.0
 
+# --- Uptake residual (#694, ADR-013 amendment 2026-11-25) -------------------
+# Roots cannot draw a layer's mineral N below a residual concentration, in mg N
+# per kg soil. CERES-Maize caps each layer's uptake at SNO3 - 0.25/KG2PPM and
+# SNH4 - 0.5/KG2PPM, with KG2PPM = 10/(BD*DLAYR) (DSSAT-CSM v4.8.6.0
+# Plant/CERES-Maize/MZ_NUPTAK.for:211-214, the XMIN terms). CERES-Sorghum
+# (SG_NUPTAK.for:207-210) and CROPGRO (Plant/CROPGRO/NUPTAK.for:170-177) use
+# the same values. Jones et al. 2003, Eur. J. Agron. 18:235-265.
+NO3_UPTAKE_RESIDUAL_MG_KG: float = 0.25
+NH4_UPTAKE_RESIDUAL_MG_KG: float = 0.5
+
 # Molar mass of nitrogen, kg N per kmol N: the IUPAC conventional standard
 # atomic weight 14.007 (Meija et al. 2016, Pure Appl. Chem. 88:265-291).
 N_KG_PER_KMOL: float = 14.007

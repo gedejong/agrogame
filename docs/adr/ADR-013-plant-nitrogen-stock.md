@@ -16,6 +16,9 @@ pool nor credits the plant stock. Debiting it removed nitrate that no plant
 stock ever received (of the order of 100 kg N/ha per season under a full maize
 canopy), and crediting it would double-count the demand-driven uptake.
 
+> **Amended 2026-11-25 (#694, below):** uptake is capped by the mineral N in
+> each rooted layer *above a residual*, below which roots cannot extract it.
+
 ### Amendment 2026-11-18 — no N uptake before emergence; no demand floor ([#578](https://github.com/gedejong/agrogame/issues/578))
 
 Decision point 4 makes the N demand the deficit to critical, and the
@@ -110,6 +113,47 @@ resown Sahel crop starts on stored subsoil water (resown maize grain about
 +60% median, sorghum about +12%); #662 checks that carry-over against the
 model's dry-season soil evaporation.
 
+### Amendment 2026-11-25 — uptake stops at a residual ([#694](https://github.com/gedejong/agrogame/issues/694))
+
+Decision point 3 and the 2026-09-07 amendment now read: soil N uptake is
+demand-driven and capped by the mineral N in each rooted layer above a residual
+of 0.25 mg/kg NO3-N and 0.5 mg/kg NH4-N (CERES `MZ_NUPTAK` `XMIN`), below which
+roots cannot extract it. Edwin accepted this on 2026-11-25 (Option 1 of the
+#694 refinement).
+
+Before this, `_take_up_plant` removed `min(pool, share)` down to an empty
+pool, and the demand is the whole deficit to critical (decision point 4), so
+unfertilised maize drained the whole profile to 0.2-0.6 kg N/ha from day
+38-86 (by soil) to maturity (seeds 42-51) and NNI settled wherever the day's
+mineralisation put it. CERES-Maize caps each layer's uptake at
+`SNO3 - 0.25/KG2PPM` and `SNH4 - 0.5/KG2PPM`, with `KG2PPM = 10/(BD*DLAYR)`
+(DSSAT-CSM v4.8.6.0 `Plant/CERES-Maize/MZ_NUPTAK.for:211-214`; Jones et al.
+2003, *Eur. J. Agron.* 18:235-265). CERES-Sorghum (`SG_NUPTAK.for:207-210`)
+and CROPGRO (`Plant/CROPGRO/NUPTAK.for:170-177`) use the same values, and
+CERES-Wheat documents both as its original `XMIN`
+(`Plant/CERES-Wheat_Barley/CER_Growth.for:1344, 1348`). In kg N/ha per layer the residual is
+`0.25 × BD × depth_cm / 10` (NO3) and `0.5 × BD × depth_cm / 10` (NH4), 11-14
+kg N/ha over the 1 m presets.
+
+- Only uptake is floored. Leaching, denitrification, nitrification and
+  volatilisation are not, as in DSSAT, where `XMIN` appears only in the
+  uptake routine.
+- Above the residual, uptake is unchanged: demand-driven, split by root
+  fraction, NO3 before NH4, with no redistribution of a layer's shortfall.
+  CERES's first-order concentration and soil-moisture terms are not adopted;
+  the refinement found the first-order term non-binding on these soils and
+  the moisture term crop-specific across the DSSAT families.
+- Consequences, measured at seeds 42-51: standing-season Nmin on unfertilised
+  NL and Kenya maize rises from 0.2-0.6 to 9.8-10.4 kg N/ha; unfertilised
+  grain falls 3-24 % (the crop no longer mines the last ~10 kg N/ha);
+  fertilised grain is unchanged within 2 %. The residual carried past
+  maturity is exposed to winter leaching, which leaves its nitrification H+
+  (ADR-020), so the five-year 0 kg N pH drift of ADR-020 A4(b) is 0.011;
+  its test tolerance moved from 0.01 to 0.02 with the same ruling.
+- No state or runtime memory is added (#585): the residual is computed from
+  the profile when the cycle is built. A save taken with pools below the
+  residual simply pauses uptake until mineralisation lifts them above it.
+
 ## Context
 
 Before this change the crop's N-stress signal was **flow-based**: the
@@ -142,7 +186,8 @@ against a **critical-N dilution curve**, as in DSSAT (CERES) and APSIM.
    the flow-based `NutrientStressComputed` and instead emits
    `PlantNUptakeComputed(uptake, demand)`. `PlantNitrogenRuntime` consumes it,
    accumulates the stock, computes the N nutrition index, and emits the single
-   graded `NutrientStressComputed(N)` the canopy reads.
+   graded `NutrientStressComputed(N)` the canopy reads. (Uptake limitation
+   amended 2026-09-07 and 2026-11-25; see the amendments above.)
 
 4. **Stock-based N demand.** The N *demand* handed to the nitrogen cycle is
    now the deficit between the stock and the critical-N target for the
