@@ -75,6 +75,10 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
        (Erbs, Klein & Duffie 1982). The gain rises by a quarter at full
        overcast. The tone mapper stays Filmic, with its exposure re-balanced so
        the canopy's lightness holds (#637).
+     - **Amended 2026-11-25 (Edwin; #692):** the background sky the camera
+       sees returns to its brightness before #680. It alone regains the
+       exposure #680 took away (1.40 / 0.89), its fog's share included; the
+       radiance map, and so the light on the scene, is unchanged.
      - The top and the face's top band take one colour: the Munsell value of
        the cited mapping, and a cited Munsell hue and chroma per soil preset
        and layer. Soils differ as much as the cited ones do, and no more.
