@@ -414,7 +414,7 @@ def test_ac9_save_without_new_keys_loads_and_steps(runs: dict) -> None:
         for key in ("plant_n_state", "management_plan", "day_counter"):
             del pdata[key]
         del pdata["harvested_grain_g_m2"], pdata["harvested_crop_key"]
-        del pdata["runtime_memory"]
+        del pdata["runtime_memory"], pdata["potential_canopy_state"]  # #660
         for key in (
             "grain_fill_start_gdd",
             "lag_start_biomass_g_m2",

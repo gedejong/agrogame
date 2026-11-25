@@ -27,6 +27,11 @@ const STAGE_MAP := {
 ## retired; its strength is a taste call (#641).
 const HEAT_PRESENCE_SEVERITY: float = 0.5
 
+## Per-patch reply fields the Quick Status gauges read (#660, docs/api.md).
+const GAUGE_FIELDS: Array[String] = [
+	"growth_vs_potential", "root_zone_water_fraction", "depletion_fraction_p"
+]
+
 
 ## Build a grid.x by grid.y tile grid: a soil-shaded plane per tile under
 ## `tile_root`, each with a StaticBody3D carrying tile_col and tile_row metas for
@@ -102,19 +107,26 @@ static func build_grid(
 	}
 
 
-## Per-nutrient stress (#262) and transient morphological damage (#259) from one
-## patch's events, each the maximum over the events, 0 = none and 1 = severe.
-## Keys: n_stress, p_stress, fe_stress, zn_stress, frost_damage, heat_damage.
+## Per-nutrient stress (#262, S and Mn #660) and transient morphological damage
+## (#259) from one patch's events, each the maximum over the events, 0 = none and
+## 1 = severe. Keys: n_stress, p_stress, s_stress, fe_stress, zn_stress,
+## mn_stress, frost_damage, heat_damage, and water_ks, today's Ks: the last
+## WaterStressComputed stress (1 = none), as the ADR-017 drought alert reads it.
 static func stress_from_events(events: Array) -> Dictionary:
 	var n_stress: float = 0.0
 	var p_stress: float = 0.0
+	var s_stress: float = 0.0
 	var fe_stress: float = 0.0
 	var zn_stress: float = 0.0
+	var mn_stress: float = 0.0
 	var frost_dmg: float = 0.0
 	var heat_dmg: float = 0.0
+	var water_ks: float = 1.0
 	for evt: Dictionary in events:
 		var et: String = evt.get("event_type", "")
-		if et == "NutrientStressComputed":
+		if et == "WaterStressComputed":
+			water_ks = clampf(float(evt.get("data", {}).get("stress", 1.0)), 0.0, 1.0)
+		elif et == "NutrientStressComputed":
 			var d: Dictionary = evt.get("data", {})
 			# API: stress=1 healthy, 0=severe. Invert for display.
 			var s: float = clampf(1.0 - d.get("stress", 1.0), 0.0, 1.0)
@@ -123,10 +135,14 @@ static func stress_from_events(events: Array) -> Dictionary:
 					n_stress = maxf(n_stress, s)
 				"P":
 					p_stress = maxf(p_stress, s)
+				"S":
+					s_stress = maxf(s_stress, s)
 				"Fe":
 					fe_stress = maxf(fe_stress, s)
 				"Zn":
 					zn_stress = maxf(zn_stress, s)
+				"Mn":
+					mn_stress = maxf(mn_stress, s)
 		elif et == "FrostDamageApplied":
 			var fs: float = clampf(float(evt.get("data", {}).get("severity", 0.5)), 0.0, 1.0)
 			frost_dmg = maxf(frost_dmg, fs)
@@ -135,10 +151,13 @@ static func stress_from_events(events: Array) -> Dictionary:
 	return {
 		"n_stress": n_stress,
 		"p_stress": p_stress,
+		"s_stress": s_stress,
 		"fe_stress": fe_stress,
 		"zn_stress": zn_stress,
+		"mn_stress": mn_stress,
 		"frost_damage": frost_dmg,
 		"heat_damage": heat_dmg,
+		"water_ks": water_ks,
 	}
 
 
@@ -187,12 +206,12 @@ static func write_patch(
 		tile["lai_peak"] = lai_peak
 		tile["water_stress"] = patch.get("water_stress", 1.0)
 		tile["grain_g_m2"] = grain
-		tile["n_stress"] = stress["n_stress"]
-		tile["p_stress"] = stress["p_stress"]
-		tile["fe_stress"] = stress["fe_stress"]
-		tile["zn_stress"] = stress["zn_stress"]
-		tile["frost_damage"] = stress["frost_damage"]
-		tile["heat_damage"] = stress["heat_damage"]
+		for key: String in stress:
+			tile[key] = stress[key]
+		# The Quick Status gauges (#660); -1 = not in the reply (JSON null).
+		for key: String in GAUGE_FIELDS:
+			var value: Variant = patch.get(key)
+			tile[key] = -1.0 if value == null else float(value)
 	return written
 
 
@@ -266,8 +285,7 @@ static func _start_crop(tile: Dictionary, crop_key: String) -> void:
 	tile["lai_peak"] = 0.0
 	tile["dev_stage"] = -1.0  # no DVS yet: the visuals take the stage's nominal one
 	tile["grain_g_m2"] = 0.0
-	for key: String in ["n_stress", "p_stress", "fe_stress", "zn_stress"]:
-		tile[key] = 0.0
-	tile["frost_damage"] = 0.0
-	tile["heat_damage"] = 0.0
+	tile.merge(stress_from_events([]), true)
+	tile["growth_vs_potential"] = -1.0
+	tile["depletion_fraction_p"] = -1.0
 	CropStatus.reset_tally(tile)

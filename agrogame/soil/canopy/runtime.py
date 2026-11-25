@@ -8,6 +8,8 @@ from agrogame.events import EventBus
 from agrogame.events.calendar import DayTick
 from agrogame.params.memory import RuntimeMemory
 from agrogame.params.phenology import PhenologyStage
+from agrogame.soil.phenology import GddAccumulated, StageChanged
+from .events import Harvested
 from .module import CanopyModule
 from .params import cardinal_temp_factor
 from agrogame.plant.events import WaterStressComputed, NutrientStressComputed
@@ -26,7 +28,23 @@ FROST_VULNERABLE_STAGES: frozenset[PhenologyStage] = frozenset(
 
 @dataclass
 class CanopyRuntime(RuntimeMemory):
-    """Wire CanopyModule to the EventBus; subscribes to DayTick + stress events."""
+    """Wire CanopyModule to the EventBus; subscribes to DayTick + stress events.
+
+    It also steps a read-only **potential-production shadow canopy** (#660):
+    the same ``CanopyModule`` and params, with no event bus, so it emits nothing
+    and nothing reads it but the API's ``growth_vs_potential``. Production
+    levels follow van Ittersum & Rabbinge (1997, Field Crops Res. 52:197-208):
+    the shadow keeps the *defining* factors (radiation, temperature, and the
+    VPD RUE factor, which acts with water unlimited), drops the *limiting*
+    factors (water and nutrients: ``water_stress`` is the VPD factor alone and
+    ``n_stress`` is 1) and the *reducing* factors (no frost, waterlogging or
+    drought-senescence damage). It follows the actual canopy's stage and GDD
+    and its harvest, so the emergence bootstrap, the grain-fill anchors and a
+    harvest cut match. Actual over potential shoot biomass is then the
+    season's realised share of potential (van Ittersum et al. 2003, Eur. J.
+    Agron. 18:201-234). The shadow is saved by ``Patch.to_dict`` and rebuilt
+    with the runtime on a crop change.
+    """
 
     event_bus: EventBus
     canopy: CanopyModule
@@ -49,6 +67,8 @@ class CanopyRuntime(RuntimeMemory):
     # Live rooting depth (cm) tracked from RootDepthChanged; drives the
     # FAO-56 TAW ∝ Zr rate modifier for drought senescence (#373).
     _root_depth_cm: float = field(init=False)
+    # Potential-production shadow canopy (#660); see the class docstring.
+    _potential: CanopyModule = field(init=False)
     # Saved with the patch (#577): yesterday's stresses, the running-mean
     # window, the wilt/waterlog counters and the live rooting depth.
     _MEMORY = (
@@ -81,6 +101,26 @@ class CanopyRuntime(RuntimeMemory):
         # Default to the reference depth so the modifier is neutral (factor 1.0)
         # until the root module reports a live depth.
         self._root_depth_cm = self.canopy.params.drought_senescence_ref_depth_cm
+        # No bus: the shadow must never emit BiomassAccumulated (N/P demand)
+        # or LAIUpdated. The runtime relays the events it follows.
+        self._potential = CanopyModule(self.canopy.params, event_bus=None)
+        self.event_bus.subscribe(StageChanged, self._on_potential_stage)
+        self.event_bus.subscribe(GddAccumulated, self._on_potential_gdd)
+        self.event_bus.subscribe(Harvested, self._on_potential_harvest)
+
+    @property
+    def potential(self) -> CanopyModule:
+        """The read-only potential-production shadow canopy (#660)."""
+        return self._potential
+
+    def _on_potential_stage(self, ev: StageChanged) -> None:
+        self._potential._on_stage_changed(ev)
+
+    def _on_potential_gdd(self, ev: GddAccumulated) -> None:
+        self._potential._on_gdd_accumulated(ev)
+
+    def _on_potential_harvest(self, ev: Harvested) -> None:
+        self._potential._on_harvest(ev)
 
     def _on_water_stress(self, ev: WaterStressComputed) -> None:
         self._last_water = max(0.0, min(1.0, float(ev.stress)))
@@ -322,3 +362,12 @@ class CanopyRuntime(RuntimeMemory):
         tmin = float(ev.tmin_c) if ev.tmin_c is not None else 10.0
         self._check_frost_damage(tmin)
         self._check_waterlogging_damage()
+        # Potential production (#660): the same day's light, temperature and
+        # VPD factor, water and nutrients unlimited, no damage applied.
+        self._potential.daily_step(
+            incident_shortwave_mj_m2=par,
+            temp_factor=tf,
+            water_stress=vpd_factor,
+            n_stress=1.0,
+            root_allocation_fraction=self.root_allocation_fraction,
+        )

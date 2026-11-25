@@ -26,12 +26,40 @@ func test_nutrient_stress_is_max_of_inverted_clamped_value() -> void:
 		_nutrient("Fe", {"stress": 0.75}),
 		_nutrient("Zn", {}),  # missing stress is healthy
 		_nutrient("Zn", {"stress": 0.9}),
-		_nutrient("Mn", {"stress": 0.0}),  # not displayed
+		_nutrient("Mn", {"stress": 0.0}),  # read since #660, see the next test
 		{"event_type": "WaterStressComputed", "data": {"nutrient": "N", "stress": 0.0}},
 	]
 	var keys := ["n_stress", "p_stress", "fe_stress", "zn_stress", "frost_damage"]
 	assert_eq(_stress(events, keys), [800, 1000, 250, 100, 0])
 	assert_eq(_stress([], keys), [0, 0, 0, 0, 0], "no events, no stress")
+
+
+func test_sulfur_manganese_and_todays_ks_are_read() -> void:
+	# #660: the Nutrients gauge takes all six nutrients; Water reads the last Ks.
+	var events: Array = [
+		_nutrient("S", {"stress": 0.49}),
+		_nutrient("Mn", {"stress": 0.8}),
+		{"event_type": "WaterStressComputed", "data": {"stress": 0.2}},
+		{"event_type": "WaterStressComputed", "data": {"stress": 0.7}},  # the last wins
+	]
+	var keys := ["s_stress", "mn_stress", "water_ks"]
+	assert_eq(_stress(events, keys), [510, 200, 700])
+	assert_eq(_stress([], keys), [0, 0, 1000], "no events: no stress, Ks 1")
+
+
+func test_write_patch_stores_the_gauge_fields_and_null_as_minus_one() -> void:
+	var tiles: Array = [{"field_id": "f", "patch_idx": 0, "crop_key": ""}]
+	var ks0 := {"event_type": "WaterStressComputed", "data": {"stress": 0.0}}
+	var patch := {"crop_key": "rice", "crop_stage": "grain_fill", "events": [ks0]}
+	patch.merge({"growth_vs_potential": 0.499, "root_zone_water_fraction": 1.3})
+	patch["depletion_fraction_p"] = 0.2
+	FarmTiles.write_patch(patch, "f", 0, tiles)
+	var keys := ["growth_vs_potential", "root_zone_water_fraction", "depletion_fraction_p"]
+	keys.append("water_ks")
+	assert_eq(keys.map(func(k: String) -> float: return tiles[0][k]), [0.499, 1.3, 0.2, 0.0])
+	var bare := {"crop_key": "", "growth_vs_potential": null, "depletion_fraction_p": null}
+	FarmTiles.write_patch(bare, "f", 0, tiles)
+	assert_eq(keys.map(func(k: String) -> float: return tiles[0][k]), [-1.0, -1.0, -1.0, 1.0])
 
 
 func test_frost_and_heat_severity_default_half_clamp_and_max() -> void:
@@ -278,6 +306,12 @@ func test_clear_and_sow_reset_the_crop_and_only_that_patch() -> void:
 					"n_stress": 0.3,
 					"heat_days": 4,
 					"dev_stage": 1.5,
+					"s_stress": 0.5,
+					"mn_stress": 0.2,
+					"water_ks": 0.1,
+					"growth_vs_potential": 0.4,
+					"depletion_fraction_p": 0.55,
+					"root_zone_water_fraction": 0.3,
 				}
 			)
 		)
@@ -287,6 +321,10 @@ func test_clear_and_sow_reset_the_crop_and_only_that_patch() -> void:
 	assert_eq([t0["crop_key"], t0["crop_stage"], t0["crop_stage_name"]], ["", 0, ""])
 	assert_eq([t0["root_depth_cm"], t0["heat_damage"], t0["frost_damage"]], [0.0, 0.0, 0.0])
 	assert_eq([t0["n_stress"], t0["heat_days"], t0["dev_stage"]], [0.0, 0, -1.0])
+	# #660: the gauges start afresh; root-zone water is the soil's and stays.
+	assert_eq([t0["s_stress"], t0["mn_stress"], t0["water_ks"]], [0.0, 0.0, 1.0])
+	assert_eq([t0["growth_vs_potential"], t0["depletion_fraction_p"]], [-1.0, -1.0])
+	assert_eq(t0["root_zone_water_fraction"], 0.3)
 	assert_eq(tiles[1]["heat_days"], 4, "the other patch is untouched")
 	assert_eq(FarmTiles.sow_crop("rice", "f", 1, tiles), [1])
 	assert_eq([tiles[1]["crop_key"], tiles[1]["crop_stage"]], ["rice", 1])

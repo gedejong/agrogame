@@ -146,6 +146,21 @@ interrupting ones.
 `HeatDamageApplied` and `FrostDamageApplied` events carry `threshold_c` (°C), the
 crop's heat or frost threshold, so a client can say what a damage day crossed (#630).
 
+## Crop gauges (#660)
+
+Each `patches[...]` day result carries what the Quick Status card's gauges read:
+
+| Field | Meaning |
+|---|---|
+| `water_stress` | The **growth water factor**, not Ks: the running mean of daily Ta/Tp over the crop's `stress_memory_days` times the VPD RUE factor; 2 dp. Today's Ks is the last `WaterStressComputed.stress` in `events`, the value the ADR-017 drought alert reads. |
+| `growth_vs_potential` | Shoot biomass so far over the biomass of a read-only **potential-production shadow canopy**: the same crop, same light, temperature and VPD factor, with water and nutrients unlimited and no frost, waterlogging or drought-senescence damage (van Ittersum & Rabbinge 1997, *Field Crops Res.* 52:197-208). 0 to 1, 3 dp; `null` on a bare patch and before the potential has any biomass (before emergence). It freezes at maturity as the season's realised share of potential. |
+| `root_zone_water_fraction` | Plant-available water over total available water (TAW) in the root zone (FAO-56 Eq. 82), with the root depth floored at the top layer's thickness; 3 dp. Uncapped: above 1 when the profile is wetter than field capacity (peat), 0.0 when TAW is 0. Set on bare patches too. |
+| `depletion_fraction_p` | The crop's FAO-56 Table 22 depletion fraction p for no stress (RAW = p · TAW, Eq. 83): maize, sorghum and both wheats 0.55, soybean 0.50, rice 0.20 (Table 22 footnote 4, applied to TAW), grape 0.45 (wine). `null` on a bare patch. Display only: no engine module reads it. |
+
+The shadow canopy is saved with the patch (`potential_canopy_state`, optional in
+schema v1); a save without it seeds the potential from the actual canopy. A
+crop change starts a fresh one. It changes no simulated quantity.
+
 ## Event payloads (#562)
 
 `/step` lists each day's simulation events in `patches[...].events` and

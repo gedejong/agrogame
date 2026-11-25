@@ -174,8 +174,8 @@ only types and `data` fields it reads. It does not read `EvapotranspirationCompu
 
 | Event | `data` fields read | Script | Drives |
 |-------|--------------------|--------|--------|
-| `NutrientStressComputed` | `nutrient`, `stress`, `uptake_kg_ha` | `farm_tiles.gd`, `stress_icons.gd`, `flow_overlay.gd` | Crop stress visuals, deficiency icons (`stress` < 0.5), N and P uptake tubes |
-| `WaterStressComputed` | `stress` | `stress_icons.gd` | Drought icon (`stress` < 0.5) |
+| `NutrientStressComputed` | `nutrient`, `stress`, `uptake_kg_ha` | `farm_tiles.gd`, `quick_status_card.gd`, `stress_icons.gd`, `flow_overlay.gd` | Crop stress visuals, the Quick Status Nutrients gauge (minimum over all six nutrients, N, P, S, Fe, Zn and Mn, naming the limiting one) and its advice, deficiency icons (`stress` < 0.5), N and P uptake tubes |
+| `WaterStressComputed` | `stress` (the last one of the day) | `farm_tiles.gd`, `quick_status_card.gd`, `stress_icons.gd` | The Quick Status Water gauge (today's Ks, #660) and its advice, drought icon (`stress` < 0.5) |
 | `FrostDamageApplied` | `severity`, `lai_loss` (snapshots: summed per crop), `threshold_c` (latest, for the row's wording) | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
 | `HeatDamageApplied` | presence (the heat icon and tint show whenever the event appears, #664), and `threshold_c` (snapshots: days counted per crop, latest threshold). A missing `threshold_c` drops the threshold clause from the status row | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
 | `WaterloggingDetected` | none; its presence shows the icon | `stress_icons.gd` | Waterlogging icon |

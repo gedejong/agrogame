@@ -335,8 +335,27 @@ class PatchDayResponse(BaseModel):
         description="Total SOM carbon, all layers (g C/m²; the kg C/ha pools ÷10)"
     )
     water_stress: float = Field(
-        description="Plant water stress: transpiration supply/demand"
-        " (0=severe, 1=none)"
+        description="Growth water factor, not Ks: the running mean of daily"
+        " Ta/Tp over stress_memory_days times the VPD RUE factor (0=severe,"
+        " 1=none). Today's Ks is WaterStressComputed.stress in events."
+    )
+    growth_vs_potential: float | None = Field(
+        default=None,
+        description="Shoot biomass so far over the potential-production shadow"
+        " canopy's (water and nutrients unlimited; van Ittersum & Rabbinge 1997),"
+        " 0..1, 3 dp. None on a fallow patch or while potential biomass is 0",
+    )
+    root_zone_water_fraction: float = Field(
+        default=0.0,
+        description="Plant-available water over TAW in the root zone (FAO-56"
+        " Eq. 82), root depth floored at the top layer's thickness; uncapped"
+        " (above 1 when wetter than field capacity), 0.0 when TAW is 0, 3 dp",
+    )
+    depletion_fraction_p: float | None = Field(
+        default=None,
+        description="The crop's FAO-56 Table 22 depletion fraction p (RAW ="
+        " p x TAW); None on a fallow patch. Display only: no engine module"
+        " reads it",
     )
     soil_state: SoilStateResponse | None = Field(
         default=None, description="Full per-layer soil state for 3D view"
