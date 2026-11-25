@@ -28,7 +28,7 @@ expect() {
 
 # Both liveness lines (first build, then the identical refresh) precede every
 # error case, so those cases fail on the error and not on missing liveness.
-LIVE=$'[FLOW] tubes=13\n[FLOW] tubes=13'
+LIVE=$'[SOIL] panel field=field_1 patch=1 layers=3\n[SOIL] panel field=field_1 patch=1 layers=3'
 expect clean 0 "$LIVE"
 expect plain_error 1 "$LIVE"$'\nERROR: Condition "det == 0" is true.'
 expect script_error 1 "$LIVE"$'\nSCRIPT ERROR: Invalid call.'
@@ -41,11 +41,11 @@ ${ESC}]0;godot${ESC}\\ERROR: Condition \"det == 0\" is true."
 # Colon-separated SGR (ECMA-48 / ITU T.416 true-colour form, #499 review).
 expect colon_sgr_error 1 "$LIVE
 ${ESC}[38:5:196mERROR:${ESC}[0m Condition \"det == 0\" is true."
-expect colour_liveness_clean 0 "${ESC}[32m[FLOW] tubes=13${ESC}[0m
-${ESC}[32m[FLOW] tubes=13${ESC}[0m"
+expect colour_liveness_clean 0 "${ESC}[32m[SOIL] panel field=field_1 patch=1 layers=3${ESC}[0m
+${ESC}[32m[SOIL] panel field=field_1 patch=1 layers=3${ESC}[0m"
 expect no_liveness 1 "ERROR-free but never reached the cutaway"
 # First build only: the refresh never ran, so the run proves nothing about it (#520).
-expect first_build_only 1 "[FLOW] tubes=13"
+expect first_build_only 1 "[SOIL] panel field=field_1 patch=1 layers=3"
 expect error_mid_line_is_not_an_error 0 "$LIVE"$'\nlabel text mentions ERROR: harmlessly'
 
 if [ "$failures" -gt 0 ]; then

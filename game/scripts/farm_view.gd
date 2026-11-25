@@ -45,7 +45,7 @@ var _crop_sprites: Array[Array] = []
 var _crop_popup: CropPopup = null
 var _fertilizer_popup: PopupMenu = null
 var _lime_popup: LimePopup = null
-var _cutaway := SoilCutawayController.new()
+var _soil_panel := SoilPanelController.new()  # View Soil's Soil Analysis panel (#647)
 var _quick_status: QuickStatusCard = null
 var _previews: ActionPreviews = null
 var _active: ActiveField = null
@@ -154,8 +154,7 @@ func _ready() -> void:
 	status_label.text = "3D view \u2014 click tile to select"
 	if not _game_id.is_empty():
 		_load_layout()
-	var debug_auto: bool = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
-	if debug_auto:
+	if ProjectSettings.get_setting("agrogame/debug/auto_soil_view", false):
 		_start_debug_driver()
 
 
@@ -258,8 +257,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey:
 		var ke := event as InputEventKey
 		if ke.pressed and ke.keycode == KEY_ESCAPE:
-			_cutaway.hide_cutaway(_tile_meshes, _crop_sprites, _update_crop_visuals)
-			_deselect()
+			_deselect()  # also closes the Soil Analysis panel
 		elif ke.pressed and ke.keycode == KEY_QUOTELEFT:
 			_debug_console.toggle()
 
@@ -283,7 +281,7 @@ func _handle_click(screen_pos: Vector2) -> void:
 
 
 func _select_tile(col: int, row: int) -> void:
-	_deselect()
+	_deselect(true)
 	_selected_tile = Vector2i(col, row)
 	var idx := row * GRID_COLS + col
 	_tile_materials[idx].set_shader_parameter("selected", 1.0)
@@ -306,6 +304,8 @@ func _select_tile(col: int, row: int) -> void:
 	# Show Quick Status card instead of full sparkline panel
 	_show_quick_status(data, FarmLayout.soil_label(data))
 	_update_harvest_button()
+	if _soil_panel.is_open():  # the open panel follows the selection (#647)
+		_show_soil_panel()
 
 
 func _activate(field_id: String) -> void:
@@ -327,13 +327,16 @@ static func _som_text(som_g_m2: float) -> String:
 	return out
 
 
-func _deselect() -> void:
+## Clear the selection and its panels; a new one keeps Soil Analysis open (#647).
+func _deselect(keep_soil_panel: bool = false) -> void:
 	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 		_tile_materials[idx].set_shader_parameter("selected", 0.0)
 	_selected_tile = Vector2i(-1, -1)
 	_hide_quick_status()
-	_cutaway.hide_tile_info()
+	_soil_panel.hide_tile_info()
+	if not keep_soil_panel:
+		_soil_panel.hide_nutrient_panel()
 	_update_harvest_button()
 
 
@@ -369,7 +372,7 @@ func _on_quick_status_history() -> void:
 	var data: Dictionary = _tile_data[idx]
 	var history: Array = _daily_history.get(FarmLayout.tile_key(data), [])
 	var soil := FarmLayout.soil_label(data)
-	_cutaway.show_tile_info(
+	_soil_panel.show_tile_info(
 		soil, data.get("crop_key", ""), history, $UILayer, QuickStatusCard.history_position()
 	)
 
@@ -506,8 +509,8 @@ func _on_step_complete(success: bool, data: Dictionary) -> void:
 	_apply_day_result(data)
 	_active.request_forecast(_game_id)
 	_refresh_action_costs()
-	if _cutaway.is_active() and _selected_tile.x >= 0:
-		_show_soil_cutaway()
+	if _soil_panel.is_open() and _selected_tile.x >= 0:
+		_show_soil_panel()
 
 
 func _refresh_action_costs() -> void:
@@ -605,7 +608,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes)
 	if _selected_tile.x >= 0:
 		var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
-		_cutaway.update_tile_info(_daily_history.get(FarmLayout.tile_key(_tile_data[idx]), []))
+		_soil_panel.update_tile_info(_daily_history.get(FarmLayout.tile_key(_tile_data[idx]), []))
 	# Crop stage may have changed (e.g. reached maturity or was cleared).
 	_update_harvest_button()
 	_refresh_quick_status()
@@ -851,27 +854,23 @@ func _on_season_complete(success: bool, data: Dictionary) -> void:
 
 
 func _on_soil_view() -> void:
+	if _soil_panel.is_open():
+		_soil_panel.hide_nutrient_panel()
+		return
 	if _selected_tile.x < 0:
 		status_label.text = "Select a tile first to view soil"
 		return
 	if _last_step_data.is_empty():
 		status_label.text = "Step at least 1 day to see soil data"
 		return
-	_show_soil_cutaway()
+	_show_soil_panel()
 
 
-func _show_soil_cutaway() -> void:
-	var ctx := {
-		"selected": _selected_tile,
-		"tile_data": _tile_data,
-		"tile_meshes": _tile_meshes,
-		"crop_sprites": _crop_sprites,
-		"patches": _last_step_data.get("patches", {}),
-		"grid_cols": GRID_COLS,
-		"grid_rows": GRID_ROWS,
-		"update_crop_fn": _update_crop_visuals,
-	}
-	if not _cutaway.show_cutaway(ctx, self, $UILayer):
+## The selected tile's patch in the last /step, in the panel above the bottom bar.
+func _show_soil_panel() -> void:
+	var tile: Dictionary = _tile_data[_selected_tile.y * GRID_COLS + _selected_tile.x]
+	var patches: Dictionary = _last_step_data.get("patches", {})
+	if not _soil_panel.show_panel(patches, tile, $UILayer, $UILayer/BottomBar):
 		status_label.text = "No soil data available"
 
 
@@ -884,7 +883,7 @@ func _start_debug_driver() -> void:
 			"ensure_game_fn": _ensure_game,
 			"apply_step_fn": _apply_debug_step,
 			"select_tile_fn": _select_tile,
-			"show_cutaway_fn": _show_soil_cutaway,
+			"show_soil_fn": _show_soil_panel,
 			"field_id_fn": func() -> String: return _active.id,
 		}
 	)

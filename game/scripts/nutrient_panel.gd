@@ -2,9 +2,6 @@ extends PanelContainer
 ## 2D UI panel showing per-layer soil nutrient bars.
 ## Styled per art guide: glassmorphism dark slate-navy panels.
 
-## Emitted when user clicks a cycle filter or toggle button.
-signal flow_filter_changed(filter_name: String)
-signal flow_toggle_changed(visible: bool)
 signal layer_selected(layer_idx: int)
 
 const OrganicCarbonSummary = preload("res://scripts/organic_carbon_summary.gd")
@@ -197,17 +194,83 @@ const EH_RANGE_MV := EH_MAX_MV - EH_MIN_MV
 const EH_OXIC_THRESHOLD := 200.0
 const EH_ANOXIC_THRESHOLD := 0.0
 
-var _flow_visible := true
-var _cycle_label: Label = null
-var _filter_buttons: Dictionary = {}
-var _active_filter: String = "all"
+## The rows a layer shows by default: the ones the player's actions move (#647),
+## N fertiliser (NO₃, NH₄), TSP (P), irrigation (Water) and lime (pH), with the
+## organic carbon summary after P. The other eight wait behind Expand All.
+const HEADLINE_ROWS: Array[String] = ["NO₃", "NH₄", "P", "Water", "pH"]
+
+## The tallest the panel may grow, in pixels; past it the layer list scrolls.
+## 0 leaves it uncapped.
+var max_height: float = 0.0
 var _layer_bodies: Array[VBoxContainer] = []
+var _layer_details: Array[VBoxContainer] = []
 var _layer_headers: Array[Button] = []
+## Which layers are open, and whether Expand All is on. Both outlive a rebuild,
+## so a refresh or another tile's data keeps what the player opened (#647).
+var _open: Array[bool] = []
 var _all_expanded := false
+var _biomass: VBoxContainer = null
+var _scroll: ScrollContainer = null
+var _list: VBoxContainer = null
 
 
 func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> void:
+	# The frame is built once. Styling the panel again on a refresh would size it
+	# to its momentarily empty minimum, and nothing would size it back (#647).
+	if _list == null:
+		_build_frame()
 	_clear()
+	# Plant biomass split — root vs stem (#317)
+	_biomass.visible = not biomass.is_empty()
+	if not biomass.is_empty():
+		_build_biomass_row(_biomass, biomass)
+		_add_separator(_biomass)
+	while _open.size() < layers_data.size():
+		_open.append(_open.is_empty())  # layer 0 opens first
+	for i in range(layers_data.size()):
+		if i > 0:
+			_add_separator(_list)
+		var layer: Dictionary = layers_data[i]
+		var depth: String = layer.get("depth_label", "Layer %d" % (i + 1))
+		# Clickable layer header
+		var header := Button.new()
+		header.text = depth
+		header.add_theme_font_size_override("font_size", 11)
+		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
+		header.flat = true
+		header.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		header.pressed.connect(_on_layer_header.bind(i))
+		_layer_headers.append(header)
+		_list.add_child(header)
+		# Layer body (bars) — collapsible; the non-headline rows sit in Details
+		var body := VBoxContainer.new()
+		body.add_theme_constant_override("separation", 2)
+		var details := VBoxContainer.new()
+		details.name = "Details"
+		details.add_theme_constant_override("separation", 2)
+		var vals: Dictionary = layer.get("values", {})
+		var acc: String = layer.get("dominant_acceptor", "O2")
+		for key: String in NUTRIENT_BARS:
+			var cfg: Dictionary = NUTRIENT_BARS[key]
+			var val: float = vals.get(key, 0.0)
+			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
+			_add_bar_row(body if key in HEADLINE_ROWS else details, key, val, cfg, suffix)
+			if key == "P":
+				var carbon_summary := VBoxContainer.new()
+				carbon_summary.name = "OrganicCarbonSummary"
+				carbon_summary.set_script(OrganicCarbonSummary)
+				carbon_summary.show_pools(layer.get("carbon_pools", {}))
+				body.add_child(carbon_summary)
+		body.add_child(details)
+		_layer_bodies.append(body)
+		_layer_details.append(details)
+		_list.add_child(body)
+	_apply_open()
+
+
+## The panel's style, title row, biomass slot and the layer list, which scrolls
+## past max_height (#647).
+func _build_frame() -> void:
 	var style := UiTheme.create_panel_style(true)
 	style.content_margin_left = 5
 	style.content_margin_right = 5
@@ -244,80 +307,44 @@ func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> vo
 	expand_btn.pressed.connect(_on_expand_all)
 	title_row.add_child(expand_btn)
 	vbox.add_child(title_row)
-
-	# Plant biomass split — root vs stem (#317)
-	if not biomass.is_empty():
-		_build_biomass_row(vbox, biomass)
-		_add_separator(vbox)
-
-	# Flow cycle filter row
-	_build_cycle_row(vbox)
-	_add_separator(vbox)
-
-	# Accordion layers — only layer 0 expanded by default
-	_layer_bodies.clear()
-	_layer_headers.clear()
-	for i in range(layers_data.size()):
-		if i > 0:
-			_add_separator(vbox)
-		var layer: Dictionary = layers_data[i]
-		var depth: String = layer.get("depth_label", "Layer %d" % (i + 1))
-		# Clickable layer header
-		var header := Button.new()
-		header.text = "▾ %s" % depth if i == 0 else "▸ %s" % depth
-		header.add_theme_font_size_override("font_size", 11)
-		header.add_theme_color_override("font_color", UiTheme.HEADER_COLOR)
-		header.flat = true
-		header.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		header.pressed.connect(_on_layer_header.bind(i))
-		_layer_headers.append(header)
-		vbox.add_child(header)
-		# Layer body (bars) — collapsible
-		var body := VBoxContainer.new()
-		body.add_theme_constant_override("separation", 2)
-		body.visible = (i == 0)  # only top layer expanded
-		var vals: Dictionary = layer.get("values", {})
-		var acc: String = layer.get("dominant_acceptor", "O2")
-		for key: String in NUTRIENT_BARS:
-			var cfg: Dictionary = NUTRIENT_BARS[key]
-			var val: float = vals.get(key, 0.0)
-			var suffix: String = "  " + _format_acceptor(acc) if key == "Eh" else ""
-			_add_bar_row(body, key, val, cfg, suffix)
-			if key == "P":
-				var carbon_summary := VBoxContainer.new()
-				carbon_summary.name = "OrganicCarbonSummary"
-				carbon_summary.set_script(OrganicCarbonSummary)
-				carbon_summary.show_pools(layer.get("carbon_pools", {}))
-				body.add_child(carbon_summary)
-		_layer_bodies.append(body)
-		vbox.add_child(body)
-
-
-func expand_layer(layer_idx: int) -> void:
-	"""Expand a specific layer (e.g. from cutaway click)."""
-	if layer_idx < 0 or layer_idx >= _layer_bodies.size():
-		return
-	_layer_bodies[layer_idx].visible = true
-	_layer_headers[layer_idx].text = ("▾ " + _layer_headers[layer_idx].text.substr(2))
+	_biomass = VBoxContainer.new()
+	_biomass.add_theme_constant_override("separation", 6)
+	vbox.add_child(_biomass)
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(_scroll)
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 6)
+	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_list)
 
 
 func _on_layer_header(layer_idx: int) -> void:
-	var body: VBoxContainer = _layer_bodies[layer_idx]
-	var header: Button = _layer_headers[layer_idx]
-	var label_text: String = header.text.substr(2)  # strip arrow
-	body.visible = not body.visible
-	header.text = ("▾ " if body.visible else "▸ ") + label_text
-	if body.visible:
+	_open[layer_idx] = not _open[layer_idx]
+	_apply_open()
+	if _open[layer_idx]:
 		layer_selected.emit(layer_idx)
 
 
 func _on_expand_all() -> void:
 	_all_expanded = not _all_expanded
+	_open.fill(_all_expanded)
+	_apply_open()
+
+
+## Show each layer as _open and _all_expanded say, then size the list to its
+## rows, up to max_height less the title and biomass rows above it.
+func _apply_open() -> void:
 	for i in range(_layer_bodies.size()):
-		_layer_bodies[i].visible = _all_expanded
-		var label_text: String = _layer_headers[i].text.substr(2)
-		var arrow: String = "▾ " if _all_expanded else "▸ "
-		_layer_headers[i].text = arrow + label_text
+		_layer_bodies[i].visible = _open[i]
+		_layer_details[i].visible = _all_expanded
+		var label_text: String = _layer_headers[i].text.trim_prefix("▾ ").trim_prefix("▸ ")
+		_layer_headers[i].text = ("▾ " if _open[i] else "▸ ") + label_text
+	var rows: float = _list.get_combined_minimum_size().y
+	if max_height > 0.0:
+		var above: float = get_combined_minimum_size().y - _scroll.get_combined_minimum_size().y
+		rows = minf(rows, maxf(max_height - above, 0.0))
+	_scroll.custom_minimum_size.y = rows
 
 
 func hide_panel() -> void:
@@ -327,9 +354,12 @@ func hide_panel() -> void:
 
 func _clear() -> void:
 	_layer_bodies.clear()
+	_layer_details.clear()
 	_layer_headers.clear()
-	for child in get_children():
-		remove_child(child)
+	if _list == null:
+		return
+	for child in _biomass.get_children() + _list.get_children():
+		child.get_parent().remove_child(child)
 		child.queue_free()
 
 
@@ -578,84 +608,6 @@ func _build_biomass_row(parent: VBoxContainer, biomass: Dictionary) -> void:
 	lbl.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
 	row.add_child(lbl)
 	parent.add_child(row)
-
-
-func _build_cycle_row(parent: VBoxContainer) -> void:
-	# Cycle view label
-	_cycle_label = Label.new()
-	_cycle_label.text = "ALL FLOWS"
-	_cycle_label.uppercase = true
-	_cycle_label.add_theme_font_size_override("font_size", 9)
-	_cycle_label.add_theme_color_override("font_color", UiTheme.TEXT_MUTED)
-	_cycle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	parent.add_child(_cycle_label)
-	# Button row
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	parent.add_child(row)
-	var colors := {
-		"all": UiTheme.TEXT_PRIMARY,
-		"water": UiTheme.SUBSTANCE_WATER,
-		"nitrogen": UiTheme.SUBSTANCE_NO3,
-		"carbon": UiTheme.SUBSTANCE_CARBON,
-		"phosphorus": UiTheme.SUBSTANCE_PHOSPHORUS,
-	}
-	var labels := {
-		"all": "All",
-		"water": "H\u2082O",
-		"nitrogen": "N",
-		"carbon": "C",
-		"phosphorus": "P",
-	}
-	_filter_buttons.clear()
-	for fkey: String in FlowOverlay.CYCLE_FILTERS:
-		var btn := Button.new()
-		btn.text = labels.get(fkey, fkey)
-		btn.custom_minimum_size = Vector2(36, 22)
-		UiTheme.style_button(btn)
-		btn.add_theme_font_size_override("font_size", 10)
-		var col: Color = colors.get(fkey, UiTheme.TEXT_PRIMARY)
-		btn.add_theme_color_override("font_color", col)
-		btn.add_theme_color_override("font_hover_color", col.lightened(0.3))
-		btn.pressed.connect(_on_filter_btn.bind(fkey))
-		_filter_buttons[fkey] = btn
-		row.add_child(btn)
-	_update_button_highlight()
-	# Toggle visibility
-	var toggle := Button.new()
-	toggle.text = "EYE"
-	toggle.tooltip_text = "Toggle flow overlay"
-	toggle.custom_minimum_size = Vector2(36, 22)
-	UiTheme.style_button(toggle)
-	toggle.add_theme_font_size_override("font_size", 9)
-	toggle.pressed.connect(_on_toggle_btn)
-	row.add_child(toggle)
-
-
-func _on_filter_btn(filter_name: String) -> void:
-	_active_filter = filter_name
-	_update_button_highlight()
-	if _cycle_label:
-		_cycle_label.text = FlowOverlay.CYCLE_LABELS.get(filter_name, "ALL FLOWS")
-	if not _flow_visible:
-		_flow_visible = true
-		flow_toggle_changed.emit(true)
-	flow_filter_changed.emit(filter_name)
-
-
-func _on_toggle_btn() -> void:
-	_flow_visible = not _flow_visible
-	flow_toggle_changed.emit(_flow_visible)
-
-
-func _update_button_highlight() -> void:
-	for fkey: String in _filter_buttons:
-		var btn: Button = _filter_buttons[fkey]
-		if fkey == _active_filter:
-			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("hover"))
-		else:
-			btn.add_theme_stylebox_override("normal", UiTheme.create_button_style("normal"))
 
 
 static func _format_acceptor(acc: String) -> String:

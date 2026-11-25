@@ -1,7 +1,7 @@
 class_name FarmViewHistory
 extends RefCounted
-## Builds the per-patch daily history used by the sparkline and soil-cutaway
-## panels. Pure data transforms over API step payloads — no scene coupling — so
+## Builds the per-patch daily history used by the sparkline (tile-info)
+## panel. Pure data transforms over API step payloads — no scene coupling — so
 ## it lives outside farm_view.gd (keeping it under the gdlint file-length cap).
 ##
 ## History is keyed by (field, patch), as FarmLayout.patch_key gives it: never

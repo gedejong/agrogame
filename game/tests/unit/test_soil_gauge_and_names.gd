@@ -72,7 +72,7 @@ func test_status_line_shows_soil_name_and_som_with_unit() -> void:
 	assert_eq(view.status_label.text, "[0,0] Loam - Temperate | maize | SOM 7,345 gC/m² | θ 0.11")
 	assert_eq(view._quick_status._tile_label.text, "Maize — Loam - Temperate")
 	view._on_quick_status_history()
-	var panel: PanelContainer = view._cutaway._tile_info_panel
+	var panel: PanelContainer = view._soil_panel._tile_info_panel
 	var titles: Array = panel.find_children("*", "Label", true, false).filter(
 		func(n: Label) -> bool: return n.text.contains("Loam - Temperate")
 	)

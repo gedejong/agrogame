@@ -12,7 +12,7 @@ const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const ApiClientTest = preload("res://tests/unit/test_api_client.gd")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
 
-var _auto_cutaway: bool
+var _auto_soil_view: bool
 
 
 ## StubClient over a server that applies each /action as the backend does and
@@ -49,12 +49,12 @@ class ApplyingStub:
 
 func before_each() -> void:
 	# The debug demo driver would plant and step on its own; keep the view idle.
-	_auto_cutaway = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", false)
+	_auto_soil_view = ProjectSettings.get_setting("agrogame/debug/auto_soil_view", false)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", false)
 
 
 func after_each() -> void:
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", _auto_cutaway)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", _auto_soil_view)
 	GameState.game_id = ""
 
 

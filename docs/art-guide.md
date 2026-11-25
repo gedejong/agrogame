@@ -310,14 +310,14 @@ The game renders soil in two contexts that require different texture sets:
 | Context | View | Texture Type | Features |
 |---------|------|-------------|----------|
 | **Tile surface** | Top-down (ground plane) | Surface | Weathered crust, cracks, litter, surface grains |
-| **Cutaway interior** | Side face (vertical cut) | Cross-section | Horizon banding, aggregate interiors, root channels, pores |
+| **Slab cut face** | Side face (vertical cut) | Cross-section | Horizon banding, aggregate interiors, root channels, pores |
 
 Cross-section textures add a **depth zone** dimension (A/B/C horizon):
 - **A (topsoil)**: darkest, most organic, most roots
 - **B (subsoil)**: lighter, clay/mineral accumulation, fewer roots
 - **C (parent material)**: lightest, least weathered, coarsest
 
-The cutaway shader selects texture by face normal: top face → surface texture, side faces → cross-section texture.
+The tiles' top faces use the surface texture; the diorama slab's cut faces under the fields use the cross-section texture (#646, ADR-022).
 
 See #201 for cross-section texture generation.
 
@@ -325,7 +325,7 @@ See #201 for cross-section texture generation.
 
 - `StandardMaterial3D` with separate maps or `ORMMaterial3D` with packed ORM
 - Shader selects variant based on simulation state (θ → moisture level, SOM → darkness)
-- Cutaway shader: top face uses surface texture, side faces use cross-section texture (selected by face normal)
+- Tile tops use the surface texture; the diorama slab's cut faces use the cross-section texture (#646)
 - Texture arrays for efficient GPU binding across moisture states
 - See #199 for multi-scale shader blending implementation
 

@@ -170,28 +170,31 @@ The client reads events from `patches[field_id][i].events`, the last stepped
 day, and, for the crop-status damage tally (#630), the `HeatDamageApplied` and
 `FrostDamageApplied` events of `daily_snapshots[].events`. The tally reads the
 snapshots only, so the last day, which both carry, counts once. These are the
-only types and `data` fields it reads. It does not read `EvapotranspirationComputed`.
+only types and `data` fields it reads, apart from the rows marked "none
+(client)": those fed the pit cutaway's flow tubes, which ADR-022 retired
+(#647), and no client script reads them now. It does not read
+`EvapotranspirationComputed`.
 
 | Event | `data` fields read | Script | Drives |
 |-------|--------------------|--------|--------|
-| `NutrientStressComputed` | `nutrient`, `stress`, `uptake_kg_ha` | `farm_tiles.gd`, `quick_status_card.gd`, `stress_icons.gd`, `flow_overlay.gd` | Crop stress visuals, the Quick Status Nutrients gauge (minimum over all six nutrients, N, P, S, Fe, Zn and Mn, naming the limiting one) and its advice, deficiency icons (`stress` < 0.5), N and P uptake tubes |
+| `NutrientStressComputed` | `nutrient`, `stress` | `farm_tiles.gd`, `quick_status_card.gd`, `stress_icons.gd` | Crop stress visuals, the Quick Status Nutrients gauge (minimum over all six nutrients, N, P, S, Fe, Zn and Mn, naming the limiting one) and its advice, deficiency icons (`stress` < 0.5) |
 | `WaterStressComputed` | `stress` (the last one of the day) | `farm_tiles.gd`, `quick_status_card.gd`, `stress_icons.gd` | The Quick Status Water gauge (today's Ks, #660) and its advice, drought icon (`stress` < 0.5) |
 | `FrostDamageApplied` | `severity`, `lai_loss` (snapshots: summed per crop), `threshold_c` (latest, for the row's wording) | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
 | `HeatDamageApplied` | presence (the heat icon and tint show whenever the event appears, #664), and `threshold_c` (snapshots: days counted per crop, latest threshold). A missing `threshold_c` drops the threshold clause from the status row | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
 | `WaterloggingDetected` | none; its presence shows the icon | `stress_icons.gd` | Waterlogging icon |
 | `RedoxChanged` | `eh_mv` | `stress_icons.gd` | Anaerobic icon (`eh_mv` < −100) |
-| `WaterInfiltrated` | `amounts_mm` (summed), `layer_indices` | `flow_overlay.gd` | Infiltration tubes, rain connector, pulse above 5 mm |
-| `WaterDrained` | `amount_mm`, `from_layer`, `to_layer` | `flow_overlay.gd` | Drainage tubes |
-| `TranspirationByLayer` | `total_mm`, `layer_indices` | `flow_overlay.gd` | Transpiration tube |
-| `EvaporationTaken`, `RunoffGenerated` | `amount_mm` | `flow_overlay.gd` | Evaporation and runoff tubes |
-| `NitrificationOccurred`, `MineralizationOccurred`, `DenitrificationOccurred`, `VolatilizationOccurred`, `NutrientLeached` | `amount_kg_ha`, `layer` | `flow_overlay.gd` | Nitrogen tubes |
-| `PhosphorusFixationOccurred` | `amount_fixed_kg_ha`, `layer` | `flow_overlay.gd` | P fixation tube |
-| `SOMDecomposed` | `decomposed_c_kg_ha`, `layer` | `flow_overlay.gd` | Decomposition tube |
-| `CO2Respired` | `co2_c_kg_ha`, `layer` | `flow_overlay.gd` | Respiration tube |
-| `N2OEmitted` | `amount_kg_n_ha`, `layer` | `flow_overlay.gd` | N2O tube |
-| `CH4Emitted`, `CH4Oxidized` | `amount_kg_c_ha`, `layer` | `flow_overlay.gd` | Methane tubes |
-| `TillageApplied` | `macro_destroyed_frac` | `flow_overlay.gd` | Tillage tube |
-| `AggregateStructureUpdated` | `mwd_mm`, `layer` | `flow_overlay.gd` | Aggregation tube |
+| `WaterInfiltrated` | none | none (client) | nothing since #647 |
+| `WaterDrained` | none | none (client) | nothing since #647 |
+| `TranspirationByLayer` | none | none (client) | nothing since #647 |
+| `EvaporationTaken`, `RunoffGenerated` | none | none (client) | nothing since #647 |
+| `NitrificationOccurred`, `MineralizationOccurred`, `DenitrificationOccurred`, `VolatilizationOccurred`, `NutrientLeached` | none | none (client) | nothing since #647 |
+| `PhosphorusFixationOccurred` | none | none (client) | nothing since #647 |
+| `SOMDecomposed` | none | none (client) | nothing since #647 |
+| `CO2Respired` | none | none (client) | nothing since #647 |
+| `N2OEmitted` | none | none (client) | nothing since #647 |
+| `CH4Emitted`, `CH4Oxidized` | none | none (client) | nothing since #647 |
+| `TillageApplied` | none | none (client) | nothing since #647 |
+| `AggregateStructureUpdated` | none | none (client) | nothing since #647 |
 
 ## Multi-day Event Duplication
 

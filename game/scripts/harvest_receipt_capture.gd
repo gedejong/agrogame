@@ -39,7 +39,7 @@ var view: Node3D = null
 
 
 func _ready() -> void:
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", false)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", false)
 	view = FarmViewScene.instantiate()
 	view._api_client = Node.new()
 	add_child(view)

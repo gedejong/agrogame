@@ -7,7 +7,7 @@ extends RefCounted
 ##   * Weather/wind visual helpers — pure functions over the view's scene nodes
 ##     and crop sprites (no hidden state), called every simulated day.
 ##   * A debug demo driver — auto-plants crops, fast-forwards the sim, and opens
-##     the soil cutaway for screenshots. It drives FarmView through injected
+##     the Soil Analysis panel for screenshots. It drives FarmView through injected
 ##     callables (start ctx) so it never reaches into private view members.
 
 const CropRenderer3D = preload("res://scripts/crop_renderer_3d.gd")
@@ -46,7 +46,7 @@ const FAKE_STRESS_EVENTS: Array = [
 
 ## Callables/handles supplied by FarmView so the driver can act without touching
 ## private members. Keys: api, game_id_fn, ensure_game_fn, apply_step_fn,
-## select_tile_fn, show_cutaway_fn.
+## select_tile_fn, show_soil_fn.
 var _ctx: Dictionary = {}
 
 
@@ -117,9 +117,9 @@ static func inject_debug_stress_events(patches: Dictionary) -> void:
 
 
 func start(ctx: Dictionary) -> void:
-	## Kick off the auto-cutaway demo: ensure a game exists, then plant crops.
+	## Kick off the auto soil-view demo: ensure a game exists, then plant crops.
 	## ctx keys: api, game_id_fn, ensure_game_fn, apply_step_fn, select_tile_fn, field_id_fn,
-	## show_cutaway_fn (see _ctx docstring).
+	## show_soil_fn (see _ctx docstring).
 	_ctx = ctx
 	var ensure_game_fn: Callable = ctx["ensure_game_fn"]
 	ensure_game_fn.call(func() -> void: _plant_crops())
@@ -151,7 +151,7 @@ func _step_and_show() -> void:
 	var game_id_fn: Callable = _ctx["game_id_fn"]
 	var apply_step_fn: Callable = _ctx["apply_step_fn"]
 	var select_tile_fn: Callable = _ctx["select_tile_fn"]
-	var show_cutaway_fn: Callable = _ctx["show_cutaway_fn"]
+	var show_soil_fn: Callable = _ctx["show_soil_fn"]
 	api.step_day(
 		game_id_fn.call(),
 		21,
@@ -160,5 +160,5 @@ func _step_and_show() -> void:
 				return
 			apply_step_fn.call(data)
 			select_tile_fn.call(1, 3)
-			show_cutaway_fn.call()
+			show_soil_fn.call()
 	)

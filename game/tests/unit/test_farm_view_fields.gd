@@ -1,7 +1,7 @@
 extends GutTest
 ## The farm view with every field on the map (#600, #472 C-b): fields are row
 ## bands of the 6x6 grid with FarmLayout.FIELD_GAP between them, and day
-## results, Plant and Harvest, stress icons, history, the soil cutaway and a
+## results, Plant and Harvest, stress icons, history, the soil panel and a
 ## reconcile all map by (field, patch). Kept apart from test_farm_view.gd, which
 ## is at gdlint's public-method cap.
 
@@ -9,7 +9,7 @@ const FarmView = preload("res://scripts/farm_view.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
 
-var _auto_cutaway: bool
+var _auto_soil_view: bool
 
 
 ## FarmViewTest's stub, also recording cost previews and report fetches; it
@@ -28,12 +28,12 @@ class Stub:
 
 func before_each() -> void:
 	# The debug demo driver would plant and step on its own; keep the view idle.
-	_auto_cutaway = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", false)
+	_auto_soil_view = ProjectSettings.get_setting("agrogame/debug/auto_soil_view", false)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", false)
 
 
 func after_each() -> void:
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", _auto_cutaway)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", _auto_soil_view)
 	GameState.game_id = ""
 
 
@@ -265,7 +265,9 @@ func test_snapshots_file_each_field_and_patch_apart() -> void:
 	assert_eq(FarmLayout.tile_key(view._tile_data[0]), "field_1/0")
 
 
-func test_the_cutaway_column_reads_its_tiles_own_field_and_patch() -> void:
+func test_the_soil_panel_reads_its_tiles_own_field_and_patch() -> void:
+	var unit: Variant = ProjectSettings.get_setting("agrogame/display/mass_unit")
+	ProjectSettings.set_setting("agrogame/display/mass_unit", UiTheme.MASS_UNIT_GM2)
 	var view := _enter(_fields())
 	var soil := func(no3: float) -> Dictionary:
 		return {"soil_state": {"n_no3": [no3]}, "events": []}
@@ -274,17 +276,22 @@ func test_the_cutaway_column_reads_its_tiles_own_field_and_patch() -> void:
 		"field_2": [soil.call(2.0)],
 		"field_1": [soil.call(10.0), soil.call(11.0), soil.call(12.0)],
 	}
-	var column := func(tile: Vector2i) -> Dictionary:
-		return view._cutaway._get_soil_column(
-			tile, patches, true, view._tile_data, view._tile_meshes, FarmView.GRID_COLS
-		)
-	var lower: Dictionary = column.call(Vector2i(0, 4))
-	assert_eq(lower["soil_state"], {"n_no3": [2.0]}, "tile (0, 4) is field_2's patch 0")
-	assert_eq(lower["pos"], view._tile_meshes[24].position)
-	assert_eq(column.call(Vector2i(5, 0))["soil_state"], {"n_no3": [12.0]}, "field_1's patch 2")
-	# A patch the payload lacks has no column, never another field's or index's.
+	view._last_step_data = {"patches": patches}
+	# NO₃ is the first row of the first layer: its value label.
+	var no3 := func() -> String:
+		var row: Node = view._soil_panel._nutrient_panel._layer_bodies[0].get_child(0)
+		return (row.get_child(3) as Label).text
+	view._select_tile(0, 4)
+	view._on_soil_view()
+	assert_eq(no3.call(), "2.0 g/m²", "tile (0, 4) is field_2's patch 0")
+	view._select_tile(5, 0)
+	assert_eq(no3.call(), "12.0 g/m²", "field_1's patch 2")
+	# A patch the payload lacks has no panel, never another field's or index's.
 	patches["field_2"] = []
-	assert_eq(column.call(Vector2i(0, 4)), {}, "no fallback")
+	view._select_tile(0, 4)
+	assert_false(view._soil_panel.is_open(), "no fallback")
+	assert_eq(view.status_label.text, "No soil data available")
+	ProjectSettings.set_setting("agrogame/display/mass_unit", unit)
 
 
 func test_a_reconcile_changing_field_2_updates_its_rows_only() -> void:
@@ -411,6 +418,6 @@ func test_history_panel_clears_the_card() -> void:
 	view._select_tile(0, 0)
 	view._on_quick_status_history()
 	await wait_process_frames(2)
-	var panel: Control = view._cutaway._tile_info_panel
+	var panel: Control = view._soil_panel._tile_info_panel
 	assert_false(view._quick_status.get_global_rect().intersects(panel.get_global_rect()))
 	assert_eq(panel.position.x, view._quick_status.position.x + QuickStatusCard.WIDTH + 8.0)

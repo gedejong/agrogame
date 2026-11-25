@@ -7,7 +7,7 @@ const FarmView = preload("res://scripts/farm_view.gd")
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
 
-var _auto_cutaway: bool
+var _auto_soil_view: bool
 
 
 ## Records previews and actions, and answers each at once.
@@ -28,12 +28,12 @@ class Stub:
 
 
 func before_each() -> void:
-	_auto_cutaway = ProjectSettings.get_setting("agrogame/debug/auto_cutaway", false)
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", false)
+	_auto_soil_view = ProjectSettings.get_setting("agrogame/debug/auto_soil_view", false)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", false)
 
 
 func after_each() -> void:
-	ProjectSettings.set_setting("agrogame/debug/auto_cutaway", _auto_cutaway)
+	ProjectSettings.set_setting("agrogame/debug/auto_soil_view", _auto_soil_view)
 	GameState.game_id = ""
 
 

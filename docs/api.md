@@ -63,9 +63,10 @@ external automation. In-memory game sessions are keyed by `game_id`.
   `clay_loam`, `clay` or `peat`) and `soc_pct`, the soil organic carbon in %
   by mass: 100 × (labile + intermediate + stable kg C/ha) / (bulk density
   g/cm³ × thickness cm × 1e5), the inverse of the OM % to kg C/ha conversion
-  in `SOMPools.initialize_from_profile`. The slab reads these; the pit
-  cutaway still assumes each texture's thicknesses, which puts 25/35/40 cm on
-  the Sahel profile's 20/40/50 cm layers, until #647 retires it.
+  in `SOMPools.initialize_from_profile`. The slab reads these, and the Soil
+  Analysis panel (View Soil) labels each layer's depth from
+  `layer_thickness_cm`: the Sahel profile's 20/40/50 cm layers read 0–20,
+  20–60 and 60–110 cm. A payload without it shows "Layer 1" and so on (#647).
 - `POST /api/v1/games/{game_id}/action` — apply a management action (plant,
   irrigate, fertilize, harvest, …). `plant` and `harvest` take an optional
   `patch_idx` (default `-1`: every patch). An index at or past the field's
