@@ -251,3 +251,11 @@ func test_advised_nutrient_is_the_one_the_advice_acts_on() -> void:
 	assert_eq(QSC.advised_nutrient(_tile("vegetative", {"water_ks": 0.32, "n_stress": 0.4})), "")
 	assert_eq(QSC.advised_nutrient(_tile("maturity", {"n_stress": 0.74})), "")
 	assert_eq(QSC.advised_nutrient(_tile("vegetative", {"root_zone_water_fraction": 0.4})), "")
+	# A scarcest nutrient below 0.70 outranks the N alert: Zn 0.50 over N 0.80.
+	assert_eq(
+		QSC.advised_nutrient(_tile("vegetative", {"n_stress": 0.2, "zn_stress": 0.5})), "zinc"
+	)
+	# The N alert outranks a scarcer nutrient that is still >= 0.70: N 0.85 over S 0.75.
+	assert_eq(
+		QSC.advised_nutrient(_tile("vegetative", {"n_stress": 0.15, "s_stress": 0.25})), "nitrogen"
+	)
