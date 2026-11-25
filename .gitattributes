@@ -1,2 +1,8 @@
 # Vendored dependencies — exclude from GitHub language stats
 game/addons/gut/** linguist-vendored
+game/assets/materials/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+game/assets/materials/**/*.png filter=lfs diff=lfs merge=lfs -text
+game/assets/models/**/*.glb filter=lfs diff=lfs merge=lfs -text
+game/assets/models/**/*.bin filter=lfs diff=lfs merge=lfs -text
+game/assets/models/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+game/assets/models/**/*.png filter=lfs diff=lfs merge=lfs -text

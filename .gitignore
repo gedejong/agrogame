@@ -69,4 +69,8 @@ game/override.cfg
 !game/assets/icons/icon_anaerobic.svg.import
 !game/assets/icons/icon_ch4.svg.import
 !game/assets/icons/icon_n2o.svg.import
+# Un-ignore downloaded asset imports: their VRAM compression, mipmap and
+# normal-map settings are part of the asset convention (#652)
+!game/assets/materials/**/*.import
+!game/assets/models/**/*.import
 jira_export.csv
