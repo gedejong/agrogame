@@ -56,6 +56,16 @@ external automation. In-memory game sessions are keyed by `game_id`.
   `som_total_c_g_m2` (on `soil_state`, each patch's day result and `/report`) is
   the whole-profile SOM carbon in g C/m²: the pool arrays are kg C/ha and the
   field is their sum ÷ 10. Before #629 it carried the kg C/ha sum, 10× high.
+  `soil_state` also carries the profile layout the diorama slab's cut faces
+  draw (#646, ADR-022), additive, per layer top-down and each the length of
+  `water_theta`: `layer_thickness_cm` (cm), `field_capacity` and
+  `wilting_point` (m³/m³), `texture` (`sand`, `sandy_loam`, `loam`,
+  `clay_loam`, `clay` or `peat`) and `soc_pct`, the soil organic carbon in %
+  by mass: 100 × (labile + intermediate + stable kg C/ha) / (bulk density
+  g/cm³ × thickness cm × 1e5), the inverse of the OM % to kg C/ha conversion
+  in `SOMPools.initialize_from_profile`. The slab reads these; the pit
+  cutaway still assumes each texture's thicknesses, which puts 25/35/40 cm on
+  the Sahel profile's 20/40/50 cm layers, until #647 retires it.
 - `POST /api/v1/games/{game_id}/action` — apply a management action (plant,
   irrigate, fertilize, harvest, …). `plant` and `harvest` take an optional
   `patch_idx` (default `-1`: every patch). An index at or past the field's

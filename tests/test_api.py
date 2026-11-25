@@ -1880,6 +1880,82 @@ def test_forecast_mineral_n_trend_matches_engine_sign(client) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Profile layout for the diorama slab's faces (#646, ADR-022)
+# ---------------------------------------------------------------------------
+_PROFILE_KEYS = (
+    "layer_thickness_cm",
+    "field_capacity",
+    "wilting_point",
+    "texture",
+    "soc_pct",
+)
+
+
+def test_step_soil_state_carries_the_profile_layout(client) -> None:
+    """Thickness, FC, WP and texture per layer come from the preset (#646)."""
+    game_id = _create_multi_patch_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    for p in patches:
+        soil = p["soil_state"]
+        for key in _PROFILE_KEYS:
+            assert len(soil[key]) == len(soil["water_theta"]), key
+    loam = patches[1]["soil_state"]
+    assert loam["layer_thickness_cm"] == [25, 35, 40]
+    assert loam["field_capacity"] == [0.25, 0.24, 0.22]
+    assert loam["wilting_point"] == [0.12, 0.12, 0.11]
+    assert loam["texture"] == ["loam"] * 3
+
+
+def test_step_soil_state_soc_pct_inverts_the_pool_initialisation(client) -> None:
+    """SOC % after one day is the preset's OM % x 0.58, van Bemmelen (#646)."""
+    game_id = _create_multi_patch_game(client)
+    resp = client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    assert resp.status_code == 200
+    patches = resp.json()["patches"]["f1"]
+    # data/soils/presets.yaml organic_matter_pct x 0.58: sandy 1.2/0.8/0.5,
+    # loam 2.0/1.5/1.0, clay 3.0/2.2/1.5.
+    expected = {
+        0: [0.70, 0.46, 0.29],
+        1: [1.16, 0.87, 0.58],
+        2: [1.74, 1.28, 0.87],
+    }
+    for idx, soc in expected.items():
+        got = patches[idx]["soil_state"]["soc_pct"]
+        assert got == pytest.approx(soc, abs=0.01), (idx, got)
+
+
+def test_step_soil_state_sahel_layers(client) -> None:
+    """The Sahel preset's own thicknesses, not the loam's 25/35/40 (#646)."""
+    resp = client.post(
+        "/api/v1/games",
+        json={
+            "fields": [
+                {
+                    "field_id": "f1",
+                    "patches": [
+                        {
+                            "soil_profile_key": "sandy_subsaharan",
+                            "crop_key": "sorghum",
+                            "climate_key": "sahel_arid",
+                            "area_fraction": 1.0,
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 200
+    game_id = resp.json()["game_id"]
+    step = client.post(f"/api/v1/games/{game_id}/step?seed=42")
+    assert step.status_code == 200
+    soil = step.json()["patches"]["f1"][0]["soil_state"]
+    assert soil["layer_thickness_cm"] == [20, 40, 50]
+    assert soil["texture"] == ["sand"] * 3
+
+
+# ---------------------------------------------------------------------------
 # Soil-response expansion — biology (#317), pore network (#274),
 # dynamic soil properties (#253)
 # ---------------------------------------------------------------------------

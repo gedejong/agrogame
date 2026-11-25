@@ -190,6 +190,29 @@ class SoilStateResponse(BaseModel):
         ),
     )
 
+    # Profile layout for the diorama slab's cut faces (#646, ADR-022), top-down
+    # and each the length of water_theta.
+    layer_thickness_cm: list[float] = Field(
+        default_factory=list, description="Layer thickness per layer (cm)"
+    )
+    field_capacity: list[float] = Field(
+        default_factory=list, description="Field capacity per layer (m³/m³)"
+    )
+    wilting_point: list[float] = Field(
+        default_factory=list, description="Wilting point per layer (m³/m³)"
+    )
+    texture: list[str] = Field(
+        default_factory=list, description="Texture class per layer (SoilTexture)"
+    )
+    soc_pct: list[float] = Field(
+        default_factory=list,
+        description=(
+            "Soil organic carbon per layer (% by mass): 100 × (labile + "
+            "intermediate + stable kg C/ha) / (bulk density g/cm³ × thickness "
+            "cm × 1e5), the inverse of SOMPools.initialize_from_profile."
+        ),
+    )
+
     # Aggregates
     som_total_c_g_m2: float = Field(
         description="Total SOM carbon, all layers (g C/m²; the kg C/ha pools ÷10)"

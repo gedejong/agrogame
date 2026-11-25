@@ -184,6 +184,30 @@ def _dynamic_ksat_mm_day(patch: Patch) -> list[float]:
     return ksat_mm_day
 
 
+def _profile_fields(patch: Patch, snap: SoilSnapshot) -> dict:
+    """Per-layer profile layout and SOC % for the diorama slab's faces (#646).
+
+    SOC % by mass is the pools' total C over the layer's soil mass,
+    bulk density (g/cm³) × thickness (cm) × 1e5 kg/ha: the inverse of the
+    OM % to kg C/ha conversion in ``SOMPools.initialize_from_profile``.
+    """
+    layers = patch.orch.profile.layers
+    pools = zip(
+        snap.som_labile_c, snap.som_intermediate_c, snap.som_stable_c, strict=True
+    )
+    soc_pct = [
+        round(100.0 * sum(c) / (ly.bulk_density_g_cm3 * ly.depth_cm * 1.0e5), 4)
+        for c, ly in zip(pools, layers, strict=True)
+    ]
+    return {
+        "layer_thickness_cm": [ly.depth_cm for ly in layers],
+        "field_capacity": [ly.field_capacity for ly in layers],
+        "wilting_point": [ly.wilting_point for ly in layers],
+        "texture": [ly.texture for ly in layers],
+        "soc_pct": soc_pct,
+    }
+
+
 def _micronutrient_fields(snap: SoilSnapshot) -> dict:
     """Per-layer micronutrient availability (#274)."""
     return {
@@ -286,6 +310,7 @@ def _build_soil_state(patch: Patch) -> SoilStateResponse:
         **_aggregate_fields(snap),
         **_biology_fields(snap),
         **_pore_fields(snap.pore_network or {}),
+        **_profile_fields(patch, snap),
         ksat_mm_day=ksat_mm_day,
         porosity=porosity,
         root_biomass_g_m2=round(root_state.biomass_g_m2, 2),
