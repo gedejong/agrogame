@@ -2,14 +2,14 @@ class_name StressIcons
 extends Node3D
 ## Floating warning icons above tiles for crop stress conditions.
 ## Uses SVG icon sprites. Label shown on hover or close camera zoom.
-## Detects both event-based stress (frost/heat/waterlogging) and
-## threshold-based stress (drought, N/P deficiency).
+## Event icons (frost, heat, waterlogging, anaerobic soil) mark what happened;
+## each tile's one threshold icon (drought or a nutrient deficiency) is the
+## Quick Status card's advice, so the map and the card say the same (#669).
 
 const ICON_Y := 0.5
 const ICON_SIZE := Vector2(0.08, 0.08)
 const ICON_SPACING := 0.14
 const LABEL_ZOOM_THRESHOLD := 2.5
-const STRESS_THRESHOLD := 0.5
 
 ## Event-based stress: icon shown when event is present in day's events.
 const EVENT_STRESS := {
@@ -33,7 +33,8 @@ const EVENT_STRESS := {
 	},
 }
 
-## Threshold-based stress: icon shown when stress factor < STRESS_THRESHOLD.
+## Threshold-based stress: drought and the deficiencies follow the card's
+## advice (threshold_icon); anaerobic marks redox below -100 mV.
 const THRESHOLD_STRESS := {
 	"drought":
 	{
@@ -52,6 +53,12 @@ const THRESHOLD_STRESS := {
 		"texture": "res://assets/icons/icon_p_deficiency.svg",
 		"label": "P deficiency",
 		"color": UiTheme.SUBSTANCE_PHOSPHORUS,
+	},
+	"s_deficiency":
+	{
+		"texture": "res://assets/icons/icon_s_deficiency.svg",
+		"label": "S deficiency",
+		"color": Color(0.90, 0.80, 0.20, 0.8),
 	},
 	"fe_deficiency":
 	{
@@ -102,8 +109,25 @@ func _process(_delta: float) -> void:
 			lbl.visible = close
 
 
-## Stresses map to tiles by (field_id, patch_idx): never by soil name (#516),
-## nor by patch index alone, which every field has (#600).
+## The tile's one threshold icon, the card's advice (#669): "drought" when
+## QuickStatusCard.advised_gauge is "water", the advised nutrient's
+## "<x>_deficiency" when it is "nutrient", else "" (root zone, growth, bare,
+## sown, mature, nothing limiting).
+static func threshold_icon(tile: Dictionary) -> String:
+	match QuickStatusCard.advised_gauge(tile):
+		"water":
+			return "drought"
+		"nutrient":
+			var nutrient := QuickStatusCard.advised_nutrient(tile)
+			for key: String in QuickStatusCard.NUTRIENT_NAMES:
+				if QuickStatusCard.NUTRIENT_NAMES[key] == nutrient:
+					return key + "_deficiency"
+	return ""
+
+
+## Event stresses map to tiles by (field_id, patch_idx): never by soil name
+## (#516), nor by patch index alone, which every field has (#600). The
+## threshold icon reads each tile's own data, which write_patch has filled.
 func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Array) -> void:
 	var active_stresses: Dictionary = {}
 	for field_key: String in patches:
@@ -112,42 +136,10 @@ func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Arr
 			var patch: Dictionary = patch_list[pi]
 			var events: Array = patch.get("events", [])
 			var pkey := FarmLayout.patch_key(field_key, pi)  # per (field, patch) (#600)
-			# Event-based stress
 			for evt: Dictionary in events:
 				var etype: String = evt.get("event_type", "")
 				if EVENT_STRESS.has(etype):
 					active_stresses[pkey + "_" + etype] = {"pkey": pkey, "stress_key": etype}
-				# Threshold-based: water stress
-				if etype == "WaterStressComputed":
-					var stress: float = float(evt.get("data", {}).get("stress", 1.0))
-					if stress < STRESS_THRESHOLD:
-						active_stresses[pkey + "_drought"] = {"pkey": pkey, "stress_key": "drought"}
-				# Threshold-based: nutrient stress
-				if etype == "NutrientStressComputed":
-					var data: Dictionary = evt.get("data", {})
-					var nutrient: String = str(data.get("nutrient", ""))
-					var stress: float = float(data.get("stress", 1.0))
-					if stress < STRESS_THRESHOLD:
-						if nutrient == "N":
-							active_stresses[pkey + "_n_deficiency"] = {
-								"pkey": pkey, "stress_key": "n_deficiency"
-							}
-						elif nutrient == "P":
-							active_stresses[pkey + "_p_deficiency"] = {
-								"pkey": pkey, "stress_key": "p_deficiency"
-							}
-						elif nutrient == "Fe":
-							active_stresses[pkey + "_fe_deficiency"] = {
-								"pkey": pkey, "stress_key": "fe_deficiency"
-							}
-						elif nutrient == "Zn":
-							active_stresses[pkey + "_zn_deficiency"] = {
-								"pkey": pkey, "stress_key": "zn_deficiency"
-							}
-						elif nutrient == "Mn":
-							active_stresses[pkey + "_mn_deficiency"] = {
-								"pkey": pkey, "stress_key": "mn_deficiency"
-							}
 				# Redox: anaerobic stress when Eh < -100 mV
 				if etype == "RedoxChanged":
 					var eh: float = float(evt.get("data", {}).get("eh_mv", 400.0))
@@ -166,6 +158,12 @@ func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Arr
 				var sk: String = info["stress_key"]
 				if sk not in tile_stresses[i]:
 					tile_stresses[i].append(sk)
+	for i in range(tile_data.size()):
+		var advised := threshold_icon(tile_data[i])
+		if not advised.is_empty():
+			if not tile_stresses.has(i):
+				tile_stresses[i] = []
+			tile_stresses[i].append(advised)
 	# Remove stale icons
 	var to_remove: Array = []
 	for icon_key: String in _icons:
