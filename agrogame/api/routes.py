@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from fastapi import APIRouter, HTTPException
 
 if TYPE_CHECKING:
-    from agrogame.sim.orchestrator import FullSimulationOrchestrator, SoilSnapshot
+    from agrogame.sim.orchestrator import SoilSnapshot
 
 from agrogame.api.models import (
     ActionPreviewResponse,
@@ -54,7 +54,6 @@ from agrogame.api.forecast import (
     stage_depth_multiplier,
 )
 from agrogame.api.state import GameSession, games
-from agrogame.atmosphere.et.params import EtParams
 from agrogame.game.economy import EconomicLedger, PriceTable
 from agrogame.game.field import (
     AREA_FRACTION_SUM_TOLERANCE,
@@ -1662,7 +1661,6 @@ class _ProjectionInputs:
     cumulative_evap_mm: float
     residue_cover_fraction: float
     curve_number: int
-    et_params: EtParams
     depletion_fraction_p: float | None
     mineral_n_kg_ha: float
     lai: float
@@ -1685,28 +1683,18 @@ class _ProjectionInputs:
 def _projection_inputs(
     patch: Patch, anchor_temp_c: float | None = None
 ) -> _ProjectionInputs:
-    """Extract the anchor-day projection inputs for a patch, with its crop's p."""
-    return _orch_projection_inputs(
-        patch.orch, _depletion_fraction_p(patch), anchor_temp_c
-    )
-
-
-def _orch_projection_inputs(
-    orch: FullSimulationOrchestrator,
-    depletion_fraction_p: float | None,
-    anchor_temp_c: float | None,
-) -> _ProjectionInputs:
-    """Extract the anchor-day projection inputs from an orchestrator.
+    """Extract the anchor-day projection inputs for a patch.
 
     Water (#689): the bucket and layer 0's store, the ``ETRuntime``'s stage clock
-    and residue cover, the engine's layer-0 CN and ET parameters, and the crop's
-    FAO-56 p (None on a fallow patch). Mineral N
-    (#689): the root-zone weighting of the anchor day's SOM net mineralisation,
+    and residue cover, the engine's layer-0 CN, and the crop's FAO-56 p (None on
+    a fallow patch). Mineral N (#689): the root-zone weighting of the anchor
+    day's SOM net mineralisation,
     the day's plant N uptake, the zone's NO3 share and the bucket's
     field-capacity storage. Deepening (#366/#383): the per-layer mineral N, the
     root-growth params and the aggregate-penetration factor. A crop at MATURITY
     takes up no N in the engine, so its projection drops the uptake (#539).
     """
+    orch = patch.orch
     snap = orch.snapshot_soil()
     layers = orch.profile.layers
     depths = [ly.depth_cm for ly in layers]
@@ -1742,8 +1730,7 @@ def _orch_projection_inputs(
         cumulative_evap_mm=cumulative_evap,
         residue_cover_fraction=residue_cover,
         curve_number=orch.water_model.texture_cn(orch.profile),
-        et_params=orch.et.params,
-        depletion_fraction_p=depletion_fraction_p,
+        depletion_fraction_p=_depletion_fraction_p(patch),
         mineral_n_kg_ha=mineral_n,
         lai=orch.canopy.state.lai,
         som_mineralization_kg_ha_day=root_zone_sum(

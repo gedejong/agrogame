@@ -599,7 +599,7 @@ def test_ac11_two_seasons_with_mid_season_and_boundary_saves(runs: dict) -> None
 def test_689_forecast_is_the_same_after_a_load() -> None:
     """The forecast's anchor inputs travel with the save, so its rows do (#689)."""
     from agrogame.api.forecast import project_soil_forecast
-    from agrogame.api.routes import _orch_projection_inputs
+    from agrogame.api.routes import _projection_inputs
 
     fm = _new_manager()
     _step(fm, 0, 60)
@@ -610,9 +610,10 @@ def test_689_forecast_is_the_same_after_a_load() -> None:
         ((r.tmin_c + r.tmax_c) / 2.0, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
         for r in records[60:65]
     ]
-    for got, want in zip(_orchs(loaded), _orchs(fm), strict=True):
-        before = vars(_orch_projection_inputs(want, 0.55, anchor_temp))
-        after = vars(_orch_projection_inputs(got, 0.55, anchor_temp))
+    pairs = zip(loaded.fields["f1"].patches, fm.fields["f1"].patches, strict=True)
+    for got, want in pairs:
+        before = vars(_projection_inputs(want, anchor_temp))
+        after = vars(_projection_inputs(got, anchor_temp))
         assert before["plant_n_uptake_kg_ha_day"] > 0.0
         assert before["cumulative_evap_mm"] > 0.0
         assert after == before

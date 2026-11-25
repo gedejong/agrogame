@@ -9,7 +9,7 @@ indicator that would cue a player to fertilise exactly when soil N is building.
 This test establishes maize on ``loam_temperate`` for ~20 days, then compares a
 5-day forecast against 5 real no-action engine steps on the *same* weather. The
 core assertion is sign agreement. Since #689 the projection's inputs are the
-route's own (``_orch_projection_inputs``): the anchor day's engine fluxes (SOM
+route's own (``_projection_inputs``): the anchor day's engine fluxes (SOM
 net mineralisation scaled by Q10 = 2, plant N uptake) held over the horizon,
 NO3 leaching by the engine's mixing-cell rule, and the engine's soil
 evaporation in the water bucket. The constant-depth projection holds the anchor
@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 from weakref import WeakKeyDictionary
 
 import pytest
@@ -31,7 +32,7 @@ from agrogame.api.forecast import (
     root_zone_mineral_n_kg_ha,
     stage_depth_multiplier,
 )
-from agrogame.api.routes import _orch_projection_inputs
+from agrogame.api.routes import _projection_inputs
 from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.aggregation.dynamic_state import root_penetration_factor
@@ -110,14 +111,14 @@ def _root_zone_mineral_n(orch: FullSimulationOrchestrator) -> float:
 def _forecast_inputs(orch: FullSimulationOrchestrator) -> dict[str, object]:
     """The route's constant-depth projection inputs for this anchor (#689).
 
-    The same extraction as ``GET /forecast`` (``_orch_projection_inputs``), with
-    the maize preset's p and the last stepped day's mean air temperature, less
-    the deepening inputs that ``_deepening_kwargs`` adds.
+    The same extraction as ``GET /forecast`` (``_projection_inputs``) on a
+    stand-in for the maize patch, with the last stepped day's mean air
+    temperature, less the deepening inputs that ``_deepening_kwargs`` adds.
     """
-    crops = load_crop_presets(Path("data/crops/presets.yaml"))
-    p = crops.get_preset("maize", "netherlands_temperate").depletion_fraction_p
+    config = SimpleNamespace(crop_key="maize", climate_key="netherlands_temperate")
+    patch = SimpleNamespace(orch=orch, config=config)
     anchor = _RECORDS[orch][orch.day_counter - 1]
-    inputs = _orch_projection_inputs(orch, p, (anchor.tmin_c + anchor.tmax_c) / 2.0)
+    inputs = _projection_inputs(patch, (anchor.tmin_c + anchor.tmax_c) / 2.0)
     return {k: v for k, v in vars(inputs).items() if k not in _DEEPENING_KEYS}
 
 

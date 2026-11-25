@@ -37,7 +37,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from agrogame.atmosphere.et.module import Evapotranspiration
-from agrogame.atmosphere.et.params import EtParams
 from agrogame.atmosphere.et.types import EtState
 from agrogame.params.phenology import PhenologyStage
 from agrogame.soil.water.scs import scs_runoff_mm
@@ -370,29 +369,6 @@ def _n_day(n: _NPool, d: _NDrivers, temp_mean_c: float, drainage_mm: float) -> N
         n.mineral_n -= n.mineral_n * d.no3_share * moved
 
 
-def _deepening_layers(
-    growth_rate_cm_per_day: float,
-    n_no3_by_layer: list[float] | None,
-    n_nh4_by_layer: list[float] | None,
-    layer_depths_cm: list[float] | None,
-    root_depth_cm: float | None,
-) -> tuple[list[float], list[float], list[float]] | None:
-    """The deepening inputs as one narrowed tuple, or None to hold the depth.
-
-    Binding them once keeps the per-day step flat and lets mypy see the arrays
-    as non-optional (#366).
-    """
-    if (
-        growth_rate_cm_per_day > 0.0
-        and n_no3_by_layer is not None
-        and n_nh4_by_layer is not None
-        and layer_depths_cm is not None
-        and root_depth_cm is not None
-    ):
-        return n_no3_by_layer, n_nh4_by_layer, layer_depths_cm
-    return None
-
-
 def project_soil_forecast(
     *,
     available_water_mm: float,
@@ -407,7 +383,6 @@ def project_soil_forecast(
     cumulative_evap_mm: float = 0.0,
     residue_cover_fraction: float = 0.0,
     curve_number: int | None = None,
-    et_params: EtParams | None = None,
     som_mineralization_kg_ha_day: float = 0.0,
     anchor_temp_c: float | None = None,
     plant_n_uptake_kg_ha_day: float = 0.0,
@@ -463,7 +438,7 @@ def project_soil_forecast(
     threaded (see ``_advance_root_depth``). The water channel reads none of the
     deepening inputs.
     """
-    et = Evapotranspiration(et_params)
+    et = Evapotranspiration()
     stage1, coef = et.residue_adjusted_params(
         et.params.stage1_limit_mm,
         et.params.ritchie_coef,
@@ -494,13 +469,17 @@ def project_soil_forecast(
         ),
     )
 
-    deepen_layers = _deepening_layers(
-        root_growth_rate_cm_per_day,
-        n_no3_by_layer,
-        n_nh4_by_layer,
-        layer_depths_cm,
-        root_depth_cm,
-    )
+    # Bind the deepening inputs as a single narrowed tuple (or None) so the
+    # per-day step stays flat and mypy sees the arrays as non-optional.
+    deepen_layers: tuple[list[float], list[float], list[float]] | None = None
+    if (
+        root_growth_rate_cm_per_day > 0.0
+        and n_no3_by_layer is not None
+        and n_nh4_by_layer is not None
+        and layer_depths_cm is not None
+        and root_depth_cm is not None
+    ):
+        deepen_layers = (n_no3_by_layer, n_nh4_by_layer, layer_depths_cm)
     # Fold the aggregate-penetration constraint (#383) into the daily increment
     # once: clamped to [0, 1], the 1.0 default reproduces the cf-omitted path.
     cf = max(0.0, min(1.0, root_penetration_factor))
