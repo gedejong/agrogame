@@ -123,6 +123,7 @@ func test_the_panel_stays_above_the_bottom_bar_and_scrolls_when_expanded() -> vo
 		"layer 1 open": func() -> void: panel._on_layer_header(1),
 		"layers 0 to 2 open": func() -> void: panel._on_layer_header(2),
 		"Expand All": func() -> void: panel._on_expand_all(),
+		"a day tick with Expand All": func() -> void: view._on_step_complete(true, _step(6.0)),
 	}
 	for state: String in steps:
 		(steps[state] as Callable).call()
@@ -130,6 +131,9 @@ func test_the_panel_stays_above_the_bottom_bar_and_scrolls_when_expanded() -> vo
 		var bottom: float = panel.get_global_rect().end.y
 		assert_lt(bottom, bar.get_global_rect().position.y, "%s: above the bar" % state)
 		assert_almost_eq(panel.get_global_rect().position.y, 16.0, 0.5, "%s: top" % state)
+		assert_almost_eq(panel.get_global_rect().end.x, 1264.0, 0.5, "%s: right" % state)
+		# A refresh must not leave the frame at its empty minimum (#647).
+		assert_eq(panel.size, panel.get_combined_minimum_size(), "%s: hugs its rows" % state)
 	assert_lt(panel._scroll.size.y, panel._list.get_combined_minimum_size().y, "the list scrolls")
 
 

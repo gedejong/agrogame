@@ -209,63 +209,22 @@ var _layer_headers: Array[Button] = []
 ## so a refresh or another tile's data keeps what the player opened (#647).
 var _open: Array[bool] = []
 var _all_expanded := false
+var _biomass: VBoxContainer = null
 var _scroll: ScrollContainer = null
 var _list: VBoxContainer = null
 
 
 func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> void:
+	# The frame is built once. Styling the panel again on a refresh would size it
+	# to its momentarily empty minimum, and nothing would size it back (#647).
+	if _list == null:
+		_build_frame()
 	_clear()
-	var style := UiTheme.create_panel_style(true)
-	style.content_margin_left = 5
-	style.content_margin_right = 5
-	style.content_margin_top = 5
-	style.content_margin_bottom = 5
-	add_theme_stylebox_override("panel", style)
-	UiTheme.add_blur_bg(self)
-
-	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_bottom", 8)
-	add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 6)
-	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margin.add_child(vbox)
-
-	# Title row with Expand All button
-	var title_row := HBoxContainer.new()
-	var title := Label.new()
-	title.text = "Soil Analysis"
-	title.uppercase = true
-	title.add_theme_font_size_override("font_size", 11)
-	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	title_row.add_child(title)
-	var expand_btn := Button.new()
-	expand_btn.text = "Expand All"
-	expand_btn.add_theme_font_size_override("font_size", 9)
-	UiTheme.style_button(expand_btn)
-	expand_btn.pressed.connect(_on_expand_all)
-	title_row.add_child(expand_btn)
-	vbox.add_child(title_row)
-
 	# Plant biomass split — root vs stem (#317)
+	_biomass.visible = not biomass.is_empty()
 	if not biomass.is_empty():
-		_build_biomass_row(vbox, biomass)
-		_add_separator(vbox)
-
-	# Accordion layers in a list that scrolls past max_height (#647). A layer
-	# shows its headline rows when open, and every row with Expand All on.
-	_scroll = ScrollContainer.new()
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(_scroll)
-	_list = VBoxContainer.new()
-	_list.add_theme_constant_override("separation", 6)
-	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_scroll.add_child(_list)
+		_build_biomass_row(_biomass, biomass)
+		_add_separator(_biomass)
 	while _open.size() < layers_data.size():
 		_open.append(_open.is_empty())  # layer 0 opens first
 	for i in range(layers_data.size()):
@@ -309,6 +268,57 @@ func show_layers(layers_data: Array[Dictionary], biomass: Dictionary = {}) -> vo
 	_apply_open()
 
 
+## The panel's style, title row, biomass slot and the layer list, which scrolls
+## past max_height (#647).
+func _build_frame() -> void:
+	var style := UiTheme.create_panel_style(true)
+	style.content_margin_left = 5
+	style.content_margin_right = 5
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
+	add_theme_stylebox_override("panel", style)
+	UiTheme.add_blur_bg(self)
+
+	var margin := MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 10)
+	margin.add_theme_constant_override("margin_right", 10)
+	margin.add_theme_constant_override("margin_top", 8)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	add_child(margin)
+
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 6)
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(vbox)
+
+	# Title row with Expand All button
+	var title_row := HBoxContainer.new()
+	var title := Label.new()
+	title.text = "Soil Analysis"
+	title.uppercase = true
+	title.add_theme_font_size_override("font_size", 11)
+	title.add_theme_color_override("font_color", UiTheme.TEXT_SECONDARY)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title_row.add_child(title)
+	var expand_btn := Button.new()
+	expand_btn.text = "Expand All"
+	expand_btn.add_theme_font_size_override("font_size", 9)
+	UiTheme.style_button(expand_btn)
+	expand_btn.pressed.connect(_on_expand_all)
+	title_row.add_child(expand_btn)
+	vbox.add_child(title_row)
+	_biomass = VBoxContainer.new()
+	_biomass.add_theme_constant_override("separation", 6)
+	vbox.add_child(_biomass)
+	_scroll = ScrollContainer.new()
+	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vbox.add_child(_scroll)
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 6)
+	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_scroll.add_child(_list)
+
+
 func _on_layer_header(layer_idx: int) -> void:
 	_open[layer_idx] = not _open[layer_idx]
 	_apply_open()
@@ -346,8 +356,10 @@ func _clear() -> void:
 	_layer_bodies.clear()
 	_layer_details.clear()
 	_layer_headers.clear()
-	for child in get_children():
-		remove_child(child)
+	if _list == null:
+		return
+	for child in _biomass.get_children() + _list.get_children():
+		child.get_parent().remove_child(child)
 		child.queue_free()
 
 
