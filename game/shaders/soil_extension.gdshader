@@ -89,9 +89,15 @@ void fragment() {
 		vec3 info = texelFetch(artefacts, ivec2(i, 1), 0).rgb;
 		vec2 q = (p - box.xy) / box.zw;
 		float aa = px / box.z;
+		// Each kind first skips a fragment it cannot reach (exact bounds; this
+		// keeps the cost to two fetches per body for most of the face).
 		if (info.x < 0.5) {
 			// A superellipse from oval (n = 2) to rounded joint block (n = 4),
-			// with a lumpy outline.
+			// with a lumpy outline: never below the larger of |q.x| and |q.y|,
+			// less at most 0.06.
+			if (max(abs(q.x), abs(q.y)) > 1.06 + aa) {
+				continue;
+			}
 			float n = mix(2.0, 4.0, info.z);
 			float r = pow(pow(abs(q.x), n) + pow(abs(q.y), n), 1.0 / n);
 			r += 0.06 * vnoise(atan(q.y, q.x) * 2.0 + info.y * 60.0);
@@ -101,11 +107,17 @@ void fragment() {
 			dome += inside * q * smoothstep(0.2, 1.0, r);
 		} else if (info.x < 1.5) {
 			// Biconvex: thickest at the middle, pinching out at both ends.
+			if (abs(q.x) > 1.0 || abs(q.y) > 1.0 + aa) {
+				continue;
+			}
 			float half_t = max(1.0 - q.x * q.x, 0.0);
 			body = max(body, 1.0 - smoothstep(half_t - aa, half_t + aa, abs(q.y)));
 		} else {
 			// An old root: a dark, wavy trace at least 1.5 px wide, from its top
 			// (q.y = -1), fading out over its lower half to none at its tip.
+			if (abs(q.y) > 1.0 || abs(p.x - box.x) > ROOT_WIGGLE_M + box.z + 1.25 * px) {
+				continue;
+			}
 			float dx = abs(p.x - box.x - ROOT_WIGGLE_M * vnoise(p.y * 9.0 + info.y * 40.0));
 			float half_w = max(box.z, px * 0.75);
 			float line = 1.0 - smoothstep(half_w - px * 0.5, half_w + px * 0.5, dx);
