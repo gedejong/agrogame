@@ -6,8 +6,11 @@ extends PanelContainer
 ## band. Pressing a card asks the view to make that field active; the view's
 ## active field (ActiveField) decides which card is highlighted.
 ##
-## The attention text reuses QuickStatusCard.compute_scores and GOOD_THRESHOLD,
-## so the strip and the card agree on what needs attention (#472 G3).
+## The attention names the gauge the Quick Status card's advice acts on
+## (QuickStatusCard.advised_gauge, which compute_recommendation also calls), with
+## the value the card shows, so the strip and the card cannot disagree (#472 G3;
+## #602 amendment of 2026-11-25). Growth never appears: a field whose only
+## problem is growth behind potential reads OK, as its advice asks for no action.
 
 ## Emitted when the player presses `field_id`'s card.
 signal field_pressed(field_id: String)
@@ -129,25 +132,42 @@ static func _stage_of(tile: Dictionary) -> String:
 	return "planted" if stage.is_empty() else stage
 
 
-## The lowest Quick Status gauge over `tiles` as "<gauge> <int>" ("Water 32") when
-## it is below QuickStatusCard.GOOD_THRESHOLD, else "OK". A gauge that does not
-## apply (NOT_SHOWN) is skipped, and a tie goes to the earlier gauge, as on the
-## card, where a water and nutrient tie goes to water.
+## The gauge the card advises on, over the field's `tiles`, as "<label> <int>"
+## ("Water 32") with the card's label and displayed value, else "OK" when no
+## tile's advice asks for an action. Water or Nutrients come before Root zone,
+## as in the card's advice; within that the lowest value wins, a tie going to
+## Water, then to the earlier tile.
 static func attention_text(tiles: Array) -> String:
-	var scores: Array = tiles.map(
-		func(t: Dictionary) -> Dictionary: return QuickStatusCard.compute_scores(t)
-	)
-	var worst_label := ""
-	var worst := QuickStatusCard.GOOD_THRESHOLD
-	for def: Dictionary in QuickStatusCard.GAUGE_DEFS:
-		for tile_scores: Dictionary in scores:
-			var score: float = tile_scores[def["key"]]
-			if score >= 0.0 and score < worst:
-				worst = score
-				worst_label = def["label"]
-	if worst_label.is_empty():
+	var best_key := ""
+	var best := 0.0
+	for tile: Dictionary in tiles:
+		var key := QuickStatusCard.advised_gauge(tile)
+		if key.is_empty():
+			continue
+		var score: float = QuickStatusCard.compute_scores(tile)[key]
+		if best_key.is_empty() or _outranks(key, score, best_key, best):
+			best_key = key
+			best = score
+	if best_key.is_empty():
 		return "OK"
-	return "%s %d" % [worst_label, floori(worst + 1e-6)]  # the card's rounding
+	return "%s %d" % [_label_of(best_key), floori(best + 1e-6)]  # the card's rounding
+
+
+## True when advice on `key` at `score` comes before advice on `other` at `other_score`.
+static func _outranks(key: String, score: float, other: String, other_score: float) -> bool:
+	var root_zone_last := int(key == "root_zone") - int(other == "root_zone")
+	if root_zone_last != 0:
+		return root_zone_last < 0
+	if score != other_score:
+		return score < other_score
+	return key == "water" and other != "water"
+
+
+static func _label_of(key: String) -> String:
+	for def: Dictionary in QuickStatusCard.GAUGE_DEFS:
+		if def["key"] == key:
+			return def["label"]
+	return key
 
 
 static func _distinct(values: Array) -> Array:
