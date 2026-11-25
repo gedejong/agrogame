@@ -425,6 +425,7 @@ def test_frost_gate_is_the_canopy_damage_gate() -> None:
             tmin=[threshold - 3.0],
         )
         assert bool(damaged) == bool(notice), stage
+        assert all(e.threshold_c == threshold for e in damaged)  # #630
 
 
 def test_n_depleted_soil_raises_one_n_alert() -> None:

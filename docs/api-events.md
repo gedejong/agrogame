@@ -112,8 +112,8 @@ payload.
 | `WaterStressComputed` | `supply_mm: float`, `demand_mm: float`, `stress: float` | Water stress ratio (1=none, 0=severe) |
 | `NutrientStressComputed` | `nutrient: str`, `uptake_kg_ha: float`, `demand_kg_ha: float`, `stress: float` | Nutrient limitation |
 | `PlantNUptakeComputed` | `uptake_kg_ha: float`, `demand_kg_ha: float` (kg N/ha) | Diagnostic: the day's soil N uptake and demand, handed to whole-shoot plant-N accounting (#360) |
-| `FrostDamageApplied` | `lai_loss: float` (m²/m²), `biomass_loss_g_m2: float`, `tmin_c: float` (°C), `severity: float` (0–1) | Frost cut leaf area and biomass |
-| `HeatDamageApplied` | `grain_reduction_factor: float`, `tmax_c: float` (°C) | Heat above the crop's threshold at flowering or grain fill; that day's grain growth is multiplied by `grain_reduction_factor`. There is no `severity` field; the client derives one ([below](#what-the-godot-client-reads)) |
+| `FrostDamageApplied` | `lai_loss: float` (m²/m²), `biomass_loss_g_m2: float`, `tmin_c: float` (°C), `severity: float` (0–1), `threshold_c: float` (°C, the crop's frost threshold) | Tmin fell below the threshold in the emerged, vegetative or flowering stage and cut leaf area and biomass |
+| `HeatDamageApplied` | `grain_reduction_factor: float`, `tmax_c: float` (°C), `threshold_c: float` (°C, the crop's heat threshold) | Tmax above the threshold on a flowering or grain-fill day. `grain_reduction_factor` caps the current-assimilate share of that day's grain demand; on the sink-source path, stem and leaf reserves refill the gap (#434). There is no `severity` field; the client derives one ([below](#what-the-godot-client-reads)) |
 | `WaterloggingDetected` | `layer: int`, `theta: float`, `saturation: float` (m³/m³) | Top layer at or above 95 % of saturation, on each such day |
 
 ### Soil Biology
@@ -176,8 +176,8 @@ only types and `data` fields it reads. It does not read `EvapotranspirationCompu
 |-------|--------------------|--------|--------|
 | `NutrientStressComputed` | `nutrient`, `stress`, `uptake_kg_ha` | `farm_tiles.gd`, `stress_icons.gd`, `flow_overlay.gd` | Crop stress visuals, deficiency icons (`stress` < 0.5), N and P uptake tubes |
 | `WaterStressComputed` | `stress` | `stress_icons.gd` | Drought icon (`stress` < 0.5) |
-| `FrostDamageApplied` | `severity`, `lai_loss` (snapshots: summed per crop) | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
-| `HeatDamageApplied` | `grain_reduction_factor` (snapshots: days counted per crop, latest factor): severity is `1 − grain_reduction_factor`, the share of that day's grain growth lost, clamped to [0, 1] (#569). If the field is missing, the client logs a warning and uses 0.5 | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
+| `FrostDamageApplied` | `severity`, `lai_loss` (snapshots: summed per crop), `threshold_c` (latest, for the row's wording) | `farm_tiles.gd`, `stress_icons.gd` | Crop frost visuals and icon |
+| `HeatDamageApplied` | `grain_reduction_factor` (icon severity is `1 − grain_reduction_factor`, clamped to [0, 1], #569), and `threshold_c` (snapshots: days counted per crop, latest threshold). If `grain_reduction_factor` is missing, the client logs a warning and uses 0.5; a missing `threshold_c` drops the threshold clause from the status row | `farm_tiles.gd`, `stress_icons.gd` | Crop heat visuals and icon |
 | `WaterloggingDetected` | none; its presence shows the icon | `stress_icons.gd` | Waterlogging icon |
 | `RedoxChanged` | `eh_mv` | `stress_icons.gd` | Anaerobic icon (`eh_mv` < −100) |
 | `WaterInfiltrated` | `amounts_mm` (summed), `layer_indices` | `flow_overlay.gd` | Infiltration tubes, rain connector, pulse above 5 mm |

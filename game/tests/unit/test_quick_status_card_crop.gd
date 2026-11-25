@@ -30,15 +30,16 @@ func test_card_shows_stage_roots_and_damage_rows() -> void:
 		"dev_stage": 0.141,
 		"root_depth_cm": 12.7,
 		"heat_days": 24,
-		"heat_factor": 0.5,
+		"heat_threshold": 35.0,
 		"frost_days": 2,
 		"frost_lai": 0.4,
+		"frost_threshold": 0.0,
 	}
 	var texts := _texts(_show(tile))
 	assert_has(texts, "Vegetative · DVS 0.14")
 	assert_has(texts, "Roots 13 cm")
-	assert_has(texts, "Heat: 24 days, grain growth −50% on those days")
-	assert_has(texts, "Frost: 2 days, LAI −0.40")
+	assert_has(texts, "Heat: 24 days above 35 °C during flowering or grain fill")
+	assert_has(texts, "Frost: 2 days below 0 °C, LAI −0.40")
 
 
 func test_card_for_a_bare_tile_reads_dashes_and_no_damage_row() -> void:
@@ -59,7 +60,9 @@ func test_stage_row_carries_the_bbch_tooltip() -> void:
 
 
 func test_damage_rows_are_tinted_like_their_icons() -> void:
-	var card := _show({"crop_key": "maize", "heat_days": 1, "heat_factor": 0.5, "frost_days": 1})
+	var card := _show(
+		{"crop_key": "maize", "heat_days": 1, "heat_threshold": 35.0, "frost_days": 1}
+	)
 	var colors: Dictionary = {}
 	for lbl: Label in card.find_children("*", "Label", true, false):
 		colors[lbl.text.get_slice(":", 0)] = lbl.get_theme_color("font_color")
@@ -75,7 +78,7 @@ func test_card_width_is_fixed_narrow_or_wide() -> void:
 			"crop_stage_name": "maturity",
 			"root_depth_cm": 100.0,
 			"heat_days": 24,
-			"heat_factor": 0.7,
+			"heat_threshold": 38.0,
 			"frost_days": 11,
 			"frost_lai": 2.03,
 		},

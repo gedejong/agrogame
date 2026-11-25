@@ -172,6 +172,7 @@ class CanopyRuntime(RuntimeMemory):
                     biomass_loss_g_m2=biomass_loss,
                     tmin_c=tmin_c,
                     severity=severity,
+                    threshold_c=p.frost_threshold_c,
                 )
             )
 
@@ -196,7 +197,11 @@ class CanopyRuntime(RuntimeMemory):
         from agrogame.soil.canopy.events import HeatDamageApplied
 
         self.event_bus.emit(
-            HeatDamageApplied(grain_reduction_factor=factor, tmax_c=tmax_c)
+            HeatDamageApplied(
+                grain_reduction_factor=factor,
+                tmax_c=tmax_c,
+                threshold_c=p.heat_damage_threshold_c,
+            )
         )
         return factor
 

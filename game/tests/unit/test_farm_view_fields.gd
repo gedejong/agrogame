@@ -312,7 +312,10 @@ func _heat_step(n: int, heat_day: int, first: int = 1) -> Dictionary:
 			var events: Array = []
 			if field == "field_1" and d == heat_day:
 				events.append(
-					{"event_type": "HeatDamageApplied", "data": {"grain_reduction_factor": 0.5}}
+					{
+						"event_type": "HeatDamageApplied",
+						"data": {"grain_reduction_factor": 0.5, "threshold_c": 35.0}
+					}
 				)
 			(
 				snaps
@@ -365,7 +368,7 @@ func test_card_follows_the_selected_tiles_field_and_patch() -> void:
 	view._apply_day_result(_heat_step(7, 3))
 	view._select_tile(0, 0)
 	var f1 := _card_texts(view)
-	assert_has(f1, "Heat: 1 day, grain growth −50% that day")
+	assert_has(f1, "Heat: 1 day above 35 °C during flowering or grain fill")
 	assert_has(f1, "Roots 17 cm")
 	view._select_tile(0, 4)
 	var f2 := _card_texts(view)

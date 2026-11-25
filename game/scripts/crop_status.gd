@@ -15,10 +15,10 @@ extends RefCounted
 ## dough) or BBCH 89 (grapevine, ripe for harvest). DVS is the WOFOST
 ## development stage (Van Diepen et al. 1989; Supit et al. 1994).
 ##
-## Damage: a heat day's P = 1 - grain_reduction_factor, the per-day multiplier
-## on grain growth in CanopyRuntime._check_heat_damage (DSSAT CERES heat stress
-## on grain set; Hatfield & Prueger 2015). A frost day's lai_loss is that
-## method's loss of leaf area (DSSAT CERES frost kill).
+## Damage: a heat day is Tmax above the crop's threshold in flowering or grain
+## fill (CanopyRuntime._check_heat_damage; DSSAT CERES heat stress on grain set,
+## Hatfield & Prueger 2015). A frost day removes lai_loss of leaf area when Tmin
+## is below the threshold (_check_frost_damage; DSSAT CERES frost kill).
 
 const NO_VALUE := "—"
 const HEAT_KEY := "HeatDamageApplied"
@@ -67,27 +67,45 @@ static func root_text(root_depth_cm: float, crop_key: String) -> String:
 
 
 ## The damage rows, each {"kind": "heat" or "frost", "text": ...}: only those
-## with a count above 0, from the tile's tally since its crop was sown.
+## with a count above 0, from the tile's tally since its crop was sown. They
+## state what the model does and no more: days above the heat threshold in the
+## stages where the check runs, and days below the frost threshold with the
+## leaf area lost. A frost threshold above 0 C (rice 10, sorghum 2) is chilling,
+## so that row says Cold. The thresholds are the events' own `threshold_c`; a
+## missing one drops the clause, and no default is invented.
 static func damage_lines(tile: Dictionary) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var heat_days: int = tile.get("heat_days", 0)
 	if heat_days > 0:
-		var pct := roundi(100.0 * (1.0 - float(tile.get("heat_factor", 1.0))))
-		var what := "fruit" if tile.get("crop_key", "") == "grape" else "grain"
-		var when := "that day" if heat_days == 1 else "on those days"
+		var late := "berry growth" if tile.get("crop_key", "") == "grape" else "grain fill"
+		var above := _clause("above", tile.get("heat_threshold"))
 		(
 			out
 			. append(
 				{
 					"kind": "heat",
-					"text": "Heat: %s, %s growth −%d%% %s" % [_days(heat_days), what, pct, when],
+					"text": "Heat: %s%s during flowering or %s" % [_days(heat_days), above, late],
 				}
 			)
 		)
 	var frost_days: int = tile.get("frost_days", 0)
 	if frost_days > 0:
+		var limit: Variant = tile.get("frost_threshold")
+		var word := "Cold" if limit != null and float(limit) > 0.0 else "Frost"
 		var loss: float = tile.get("frost_lai", 0.0)
-		out.append({"kind": "frost", "text": "Frost: %s, LAI −%.2f" % [_days(frost_days), loss]})
+		(
+			out
+			. append(
+				{
+					"kind": "frost",
+					"text":
+					(
+						"%s: %s%s, LAI −%.2f"
+						% [word, _days(frost_days), _clause("below", limit), loss]
+					),
+				}
+			)
+		)
 	return out
 
 
@@ -116,19 +134,31 @@ static func tally_step(snapshots: Array, tile_data: Array) -> void:
 ## Zero a tile's damage tally.
 static func reset_tally(tile: Dictionary) -> void:
 	tile["heat_days"] = 0
-	tile["heat_factor"] = 1.0
+	tile["heat_threshold"] = null
 	tile["frost_days"] = 0
 	tile["frost_lai"] = 0.0
+	tile["frost_threshold"] = null
 	tile["tally_dvs"] = -1.0
 
 
 static func _count(tile: Dictionary, event_type: String, data: Dictionary) -> void:
 	if event_type == HEAT_KEY:
 		tile["heat_days"] = int(tile.get("heat_days", 0)) + 1
-		tile["heat_factor"] = float(data.get("grain_reduction_factor", 0.5))
+		tile["heat_threshold"] = data.get("threshold_c")
 	elif event_type == FROST_KEY:
 		tile["frost_days"] = int(tile.get("frost_days", 0)) + 1
 		tile["frost_lai"] = float(tile.get("frost_lai", 0.0)) + float(data.get("lai_loss", 0.0))
+		tile["frost_threshold"] = data.get("threshold_c")
+
+
+## " above 35 °C", or "" when the event carried no threshold. A whole number
+## prints whole, else to 1 dp; a negative one uses the minus sign.
+static func _clause(word: String, threshold: Variant) -> String:
+	if threshold == null:
+		return ""
+	var t: float = float(threshold)
+	var text := "%d" % roundi(t) if is_equal_approx(t, roundf(t)) else "%.1f" % t
+	return " %s %s °C" % [word, text.replace("-", "−")]
 
 
 static func _col(crop_key: String) -> int:

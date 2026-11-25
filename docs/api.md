@@ -133,6 +133,8 @@ interrupting ones.
 
 `daily_snapshots[]` also carries `root_depth_cm` (cm, 1 dp), the same value as
 `patches[...].root_depth_cm` on that day; 0.0 for a bare patch (#630).
+`HeatDamageApplied` and `FrostDamageApplied` events carry `threshold_c` (°C), the
+crop's heat or frost threshold, so a client can say what a damage day crossed (#630).
 
 ## Event payloads (#562)
 
