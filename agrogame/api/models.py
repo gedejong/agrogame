@@ -511,12 +511,13 @@ class ForecastDayResponse(BaseModel):
     # older clients that only read weather fields backward-compatible.
     water_stress: float = Field(
         default=1.0,
-        description="Projected FAO-56 water-stress coefficient"
-        " (1.0 = none, 0.0 = severe)",
+        description="Projected Ta/Tp of the day, transpiration over its"
+        " potential (1.0 = none, 0.0 = severe)",
     )
     mineral_n_kg_ha: float = Field(
         default=0.0,
-        description="Projected root-zone mineral N (NO3 + NH4), kg/ha",
+        description="Projected root-zone mineral N (NO3 + NH4), kg/ha, from"
+        " the anchor day's engine fluxes",
     )
 
 

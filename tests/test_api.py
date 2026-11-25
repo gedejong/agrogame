@@ -1855,7 +1855,7 @@ def test_forecast_mineral_n_trend_matches_engine_sign(client) -> None:
 
     def _profile_mineral_n(step_resp: dict) -> float:
         soil = step_resp["patches"]["f1"][0]["soil_state"]
-        return sum(soil["n_no3"]) + sum(soil["n_nh4"])  # whole-profile g/m²
+        return sum(soil["n_no3"]) + sum(soil["n_nh4"])  # whole-profile kg/ha
 
     # Establish ~20 days; the final step response gives the anchor soil state.
     before = _profile_mineral_n(
