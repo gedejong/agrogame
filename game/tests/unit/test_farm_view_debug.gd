@@ -96,7 +96,7 @@ func test_start_runs_plant_then_step_then_show_sequence() -> void:
 			"ensure_game_fn": func(cb: Callable) -> void: cb.call(),
 			"apply_step_fn": func(data: Dictionary) -> void: applied.append(data),
 			"select_tile_fn": func(col: int, row: int) -> void: selected.append(Vector2i(col, row)),
-			"show_cutaway_fn": func() -> void: shown.append(true),
+			"show_soil_fn": func() -> void: shown.append(true),
 		}
 	)
 	# StubApi resolves callbacks synchronously, so the demo runs to completion.
@@ -108,7 +108,7 @@ func test_start_runs_plant_then_step_then_show_sequence() -> void:
 	assert_eq(api.step_calls[0]["days"], 21, "steps 21 days")
 	assert_eq(applied.size(), 1, "applies the stepped result")
 	assert_eq(selected[0], Vector2i(1, 3), "selects the demo tile")
-	assert_eq(shown.size(), 1, "opens the soil cutaway")
+	assert_eq(shown.size(), 1, "opens the Soil Analysis panel")
 
 
 func test_start_stops_on_step_failure() -> void:
@@ -125,12 +125,12 @@ func test_start_stops_on_step_failure() -> void:
 			"ensure_game_fn": func(cb: Callable) -> void: cb.call(),
 			"apply_step_fn": func(_d: Dictionary) -> void: pass,
 			"select_tile_fn": func(_c: int, _r: int) -> void: pass,
-			"show_cutaway_fn": func() -> void: shown.append(true),
+			"show_soil_fn": func() -> void: shown.append(true),
 		}
 	)
-	# Planting still happens, but a failed step must not open the cutaway.
+	# Planting still happens, but a failed step must not open the soil panel.
 	assert_eq(api.plant_calls.size(), 3, "crops still planted before the step")
-	assert_eq(shown.size(), 0, "cutaway not opened when the step fails")
+	assert_eq(shown.size(), 0, "soil panel not opened when the step fails")
 
 
 func test_farm_environment_tonemap_and_ssao() -> void:
