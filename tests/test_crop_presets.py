@@ -171,3 +171,45 @@ def test_harvest_product_rejects_out_of_range_fraction(dmf: float) -> None:
     }
     with pytest.raises(ValidationError):
         validate_data({"crops": {"x": crop}}, "crop_preset")
+
+
+def test_only_grape_keeps_green_leaf_after_maturity() -> None:
+    """#623 AC4: every determinate crop drops its leaf; grape, cited, does not.
+
+    FAO-56 grape rows: Kc_end 0.45 (Table 12) and Kcb_end 0.40 (Table 17),
+    above Kc_min 0.15-0.20 (Eq. 76), so the vine still transpires at the
+    season's end. Climate overrides inherit the flag from the base preset.
+    """
+    _load_crop_presets_cached.cache_clear()
+    lib = load_crop_presets(Path("data/crops/presets.yaml"))
+    for key, crop in lib.crops.items():
+        presets = [crop, *lib.climate_overrides.get(key, {}).values()]
+        for preset in presets:
+            assert preset.canopy.green_leaf_dies_at_maturity is (key != "grape")
+
+
+def test_schema_rejects_a_non_boolean_maturity_leaf_flag() -> None:
+    """#623: ``green_leaf_dies_at_maturity`` is a boolean in the preset schema."""
+    from agrogame.config.validation import ValidationError, validate_data
+
+    canopy = {
+        "extinction_coefficient_k": 0.5,
+        "rue_g_per_mj": 1.5,
+        "sla_m2_per_g": 0.02,
+        "lai_max": 4,
+    }
+    crop = {
+        "name": "x",
+        "phenology": {
+            "base_temperature_c": 10,
+            "max_temperature_c": 35,
+            "emergence_gdd": 50,
+            "flowering_gdd": 400,
+            "maturity_gdd": 1800,
+        },
+        "canopy": {**canopy, "green_leaf_dies_at_maturity": False},
+    }
+    validate_data({"crops": {"x": crop}}, "crop_preset")
+    crop["canopy"] = {**canopy, "green_leaf_dies_at_maturity": "no"}
+    with pytest.raises(ValidationError):
+        validate_data({"crops": {"x": crop}}, "crop_preset")

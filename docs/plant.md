@@ -43,8 +43,10 @@ Root turnover continues at `turnover_rate_per_day` while the crop stands, as
 in APSIM's daily root senescence, and still emits `RootTurnoverOccurred`.
 N, P, S and micronutrient uptake stop at maturity as well
 ([ADR-013](adr/ADR-013-plant-nitrogen-stock.md), amendment 2026-11-24).
-Water uptake does not: transpiration follows the senescing green LAI, as the
-FAO-56 late-season crop coefficient falls to Kc_end (Allen et al. 1998).
+Water uptake stops too, through the canopy: a determinate crop has no green
+leaf from its first MATURITY step, so it transpires nothing while it stands;
+grape keeps a transpiring canopy, as the FAO-56 grape rows end the season
+above Kc_min (#623, ADR-013 amendment 2026-11-25, [Canopy](canopy.md)).
 
 ## Related
 
