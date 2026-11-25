@@ -337,8 +337,7 @@ func _deselect() -> void:
 func _show_quick_status(tile_data: Dictionary, soil_type: String) -> void:
 	_hide_quick_status()
 	_quick_status = QuickStatusCard.new()
-	_quick_status.position = Vector2(16, 40)
-	_quick_status.size = Vector2(180, 0)
+	_quick_status.position = QuickStatusCard.ORIGIN
 	_quick_status.show_status(tile_data, soil_type)
 	_quick_status.history_requested.connect(_on_quick_status_history)
 	_quick_status.soil_view_requested.connect(_on_soil_view)
@@ -366,8 +365,9 @@ func _on_quick_status_history() -> void:
 	var idx := _selected_tile.y * GRID_COLS + _selected_tile.x
 	var data: Dictionary = _tile_data[idx]
 	var history: Array = _daily_history.get(FarmLayout.tile_key(data), [])
+	var soil := FarmLayout.soil_label(data)
 	_cutaway.show_tile_info(
-		FarmLayout.soil_label(data), data.get("crop_key", ""), history, $UILayer
+		soil, data.get("crop_key", ""), history, $UILayer, QuickStatusCard.history_position()
 	)
 
 
@@ -574,10 +574,12 @@ func _apply_day_result(data: Dictionary) -> void:
 
 	var snapshots: Array = data.get("daily_snapshots", [])
 	FarmViewHistory.append_snapshots(snapshots, _daily_history, _layout)
+	CropStatus.tally_step(snapshots, _tile_data)
 
 	var patches: Dictionary = data.get("patches", {})
 	if ProjectSettings.get_setting("agrogame/debug/stress_events", false):
 		FarmViewDebug.inject_debug_stress_events(patches)
+	FarmTiles.latch_step_damage(snapshots, patches)
 	_apply_patch_data(patches, not snapshots.is_empty())
 
 
@@ -726,11 +728,9 @@ func _on_harvest_complete(
 	credits_label.text = "%d" % data.get("balance_credits", 0)
 	var where := ActiveField.display_name(field_id)
 	# Backend really settled + cleared the crop, so this clear survives /step.
-	for i: int in FarmLayout.tiles_of(field_id, patch_idx, _tile_data):
-		_tile_data[i]["crop_key"] = ""
-		_tile_data[i]["crop_stage"] = 0
-		_tile_data[i]["lai"] = 0.0
-		_tile_data[i]["grain_g_m2"] = 0.0
+	var cleared := FarmTiles.clear_crop(field_id, patch_idx, _tile_data)
+	_stress_icons.clear_tiles(cleared)
+	for i: int in cleared:
 		_update_crop_visuals(i)
 	_refresh_quick_status()
 	# The receipt carries the yield and price; the line keeps the net and farm profit.
@@ -798,10 +798,9 @@ func _on_plant_complete(
 		return
 	var cost: int = data.get("cost_credits", 0)
 	credits_label.text = "%d" % data.get("balance_credits", 0)
-	for i: int in FarmLayout.tiles_of(field_id, patch_idx, _tile_data):
-		_tile_data[i]["crop_key"] = crop_key
-		_tile_data[i]["crop_stage"] = 1
-		_tile_data[i]["lai"] = 0.0
+	var sown := FarmTiles.sow_crop(crop_key, field_id, patch_idx, _tile_data)
+	_stress_icons.clear_tiles(sown)
+	for i: int in sown:
 		_update_crop_visuals(i)
 	_refresh_quick_status()
 	status_label.text = (

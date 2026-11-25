@@ -172,6 +172,7 @@ static func write_patch(
 	# Continuous development stage (WOFOST DVS); -1 when the API omits
 	# it, in which case the visuals fall back to a per-stage nominal value.
 	var dev_stage: float = float(patch.get("dev_stage", -1.0))
+	var root_cm: float = float(patch.get("root_depth_cm", 0.0))
 	var stress := stress_from_events(patch.get("events", []))
 	var written := FarmLayout.tiles_of(field_id, patch_idx, tile_data)
 	for i: int in written:
@@ -187,6 +188,8 @@ static func write_patch(
 			lai_peak = maxf(prev_peak, lai)
 		tile["crop_key"] = crop_key
 		tile["crop_stage"] = stage
+		tile["crop_stage_name"] = stage_name
+		tile["root_depth_cm"] = root_cm
 		tile["lai"] = lai
 		tile["dev_stage"] = dev_stage
 		tile["lai_peak"] = lai_peak
@@ -220,11 +223,59 @@ static func reconcile_crops(fields: Dictionary, tile_data: Array) -> Array[int]:
 		var crop_key: String = patches[patch_idx].get("crop_key", "")
 		if crop_key == tile["crop_key"]:
 			continue
-		tile["crop_key"] = crop_key
-		tile["crop_stage"] = 0 if crop_key.is_empty() else 1
-		tile["lai"] = 0.0
-		tile["lai_peak"] = 0.0
-		tile["dev_stage"] = -1.0  # no DVS yet: the visuals take the stage's nominal one
-		tile["grain_g_m2"] = 0.0
+		_start_crop(tile, crop_key)
 		changed.append(i)
 	return changed
+
+
+## Bare `field_id`'s patch `patch_idx` after a Harvest reply, so no growth,
+## stress icon input or damage tally outlives the crop. Returns its tiles.
+static func clear_crop(field_id: String, patch_idx: int, tile_data: Array) -> Array[int]:
+	return sow_crop("", field_id, patch_idx, tile_data)
+
+
+## `crop_key` freshly sown on `field_id`'s patch `patch_idx`, as a Plant reply
+## writes it. Returns its tiles' indices, ascending.
+static func sow_crop(
+	crop_key: String, field_id: String, patch_idx: int, tile_data: Array
+) -> Array[int]:
+	var tiles := FarmLayout.tiles_of(field_id, patch_idx, tile_data)
+	for i: int in tiles:
+		_start_crop(tile_data[i], crop_key)
+	return tiles
+
+
+## Fold the earlier days of a multi-day step's damage into each patch's
+## `events`, which hold the last day only, so the 3D heat and frost icons and the
+## tile's damage severity latch over the whole step (#630). Drought, nutrient and
+## the other stresses keep reading the last day. A last-day event is then in the
+## list twice, which the maximum and the icon set do not mind.
+static func latch_step_damage(snapshots: Array, patches: Dictionary) -> void:
+	for snap: Dictionary in snapshots:
+		var patch_list: Array = patches.get(snap.get("field_id", ""), [])
+		var idx: int = snap.get("patch_idx", -1)
+		if idx < 0 or idx >= patch_list.size():
+			continue
+		var events: Array = patch_list[idx].get("events", [])
+		for evt: Dictionary in snap.get("events", []):
+			if evt.get("event_type", "") in [CropStatus.HEAT_KEY, CropStatus.FROST_KEY]:
+				events.append(evt)
+		patch_list[idx]["events"] = events
+
+
+## One tile's crop as freshly sown (`crop_key`) or bare (""): no growth, stage,
+## roots, stress, damage or tally carried over from the crop it replaces.
+static func _start_crop(tile: Dictionary, crop_key: String) -> void:
+	tile["crop_key"] = crop_key
+	tile["crop_stage"] = 0 if crop_key.is_empty() else 1
+	tile["crop_stage_name"] = ""
+	tile["root_depth_cm"] = 0.0
+	tile["lai"] = 0.0
+	tile["lai_peak"] = 0.0
+	tile["dev_stage"] = -1.0  # no DVS yet: the visuals take the stage's nominal one
+	tile["grain_g_m2"] = 0.0
+	for key: String in ["n_stress", "p_stress", "fe_stress", "zn_stress"]:
+		tile[key] = 0.0
+	tile["frost_damage"] = 0.0
+	tile["heat_damage"] = 0.0
+	CropStatus.reset_tally(tile)

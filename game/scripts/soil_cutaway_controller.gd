@@ -96,13 +96,13 @@ func restore_hidden_tiles(
 
 
 func show_tile_info(
-	soil_type: String, crop_key: String, history: Array, ui_layer: CanvasLayer
+	soil_type: String, crop_key: String, history: Array, ui_layer: CanvasLayer, pos: Vector2
 ) -> void:
 	hide_tile_info()
 	var TileInfoPanel := preload("res://scripts/tile_info_panel.gd")
 	_tile_info_panel = PanelContainer.new()
 	_tile_info_panel.set_script(TileInfoPanel)
-	_tile_info_panel.position = Vector2(16, 40)
+	_tile_info_panel.position = pos
 	_tile_info_panel.size = Vector2(240, 0)
 	_tile_info_panel.show_history(history, soil_type, crop_key)
 	ui_layer.add_child(_tile_info_panel)

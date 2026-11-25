@@ -52,20 +52,22 @@ class Harvested(BaseEvent):
 
 @dataclass(frozen=True)
 class FrostDamageApplied(BaseEvent):
-    """Frost caused LAI and biomass loss."""
+    """Frost caused LAI and biomass loss (Tmin below ``threshold_c``)."""
 
     lai_loss: float
     biomass_loss_g_m2: float
     tmin_c: float
     severity: float
+    threshold_c: float
 
 
 @dataclass(frozen=True)
 class HeatDamageApplied(BaseEvent):
-    """Heat stress reduced grain allocation."""
+    """Tmax above the crop's heat threshold on a flowering or grain-fill day."""
 
     grain_reduction_factor: float
     tmax_c: float
+    threshold_c: float
 
 
 @dataclass(frozen=True)

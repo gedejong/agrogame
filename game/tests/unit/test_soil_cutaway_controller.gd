@@ -71,3 +71,13 @@ func test_inspector_wires_each_layers_three_carbon_pools() -> void:
 	)
 	ctrl.hide_nutrient_panel()
 	ProjectSettings.set_setting("agrogame/display/mass_unit", previous_unit)
+
+
+func test_tile_info_panel_opens_where_it_is_told() -> void:
+	var ctrl := ControllerRef.new()
+	var layer := CanvasLayer.new()
+	add_child_autofree(layer)
+	var pos := Vector2(224, 40)
+	ctrl.show_tile_info("Loam", "maize", [], layer, pos)
+	assert_eq(layer.get_child(0).position, pos)
+	ctrl.hide_tile_info()

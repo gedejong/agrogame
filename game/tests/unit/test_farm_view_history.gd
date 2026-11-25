@@ -89,3 +89,16 @@ func test_append_patch_caps_at_retention_window() -> void:
 	for _day in range(cap + 3):
 		FarmViewHistoryRef.append_patch({"soil_state": {}}, "field_1", 1, history)
 	assert_eq(history["field_1/1"].size(), cap, "patch series capped at MAX_HISTORY_DAYS")
+
+
+func test_root_depth_is_recorded_from_snapshots_and_patches() -> void:
+	var history: Dictionary = {}
+	FarmViewHistoryRef.append_snapshots(
+		[{"field_id": "field_1", "patch_idx": 0, "root_depth_cm": 5.3}], history, LAYOUT
+	)
+	FarmViewHistoryRef.append_snapshots([{"field_id": "field_1", "patch_idx": 0}], history, LAYOUT)
+	FarmViewHistoryRef.append_patch({"root_depth_cm": 107.6}, "field_1", 0, history)
+	var roots: Array = history["field_1/0"].map(
+		func(r: Dictionary) -> float: return r["root_depth_cm"]
+	)
+	assert_eq(roots, [5.3, 0.0, 107.6], "a snapshot lacking it reads 0")

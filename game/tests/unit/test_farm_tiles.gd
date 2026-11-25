@@ -234,3 +234,72 @@ func test_reconcile_crops_matches_tiles_by_field_and_patch() -> void:
 	assert_eq(FarmTiles.reconcile_crops({"field_2": [{"crop_key": ""}]}, tiles), [])
 	assert_eq(FarmTiles.reconcile_crops({"field_1": [{"crop_key": "rice"}]}, tiles), [0, 1])
 	assert_eq(_column(tiles, "crop_key"), ["rice", "rice", "", "", "sorghum", "sorghum"])
+
+
+func _snap(day: int, events: Array, field: String = "f", patch: int = 0) -> Dictionary:
+	return {"day_number": day, "field_id": field, "patch_idx": patch, "events": events}
+
+
+func test_latch_step_damage_appends_earlier_days_damage_only() -> void:
+	# A 7-day step: heat on day 3 only. The patch holds day 7's events (none).
+	var heat := {"event_type": "HeatDamageApplied", "data": {"grain_reduction_factor": 0.5}}
+	var other := {"event_type": "WaterStressComputed", "data": {"stress": 0.1}}
+	var snaps: Array = []
+	for d in range(1, 8):
+		snaps.append(_snap(d, [heat, other] if d == 3 else []))
+	snaps.append(_snap(7, [heat], "f", 9))  # a patch the payload lacks: skipped
+	snaps.append(_snap(7, [heat], "x", 0))  # a field it lacks: skipped
+	var patches := {"f": [{"events": []}]}
+	FarmTiles.latch_step_damage(snaps, patches)
+	assert_eq(patches["f"][0]["events"], [heat], "damage only, not the drought event")
+	assert_eq(FarmTiles.stress_from_events(patches["f"][0]["events"])["heat_damage"], 0.5)
+	var bare := {"f": [{}]}
+	FarmTiles.latch_step_damage([_snap(1, [heat])], bare)
+	assert_eq(bare["f"][0]["events"], [heat], "a patch without an events list gets one")
+
+
+func test_write_patch_stores_stage_name_and_roots() -> void:
+	var tiles: Array = [{"field_id": "f", "patch_idx": 0, "crop_key": ""}]
+	var patch := {"crop_key": "maize", "crop_stage": "grain_fill", "root_depth_cm": 107.6}
+	FarmTiles.write_patch(patch, "f", 0, tiles)
+	assert_eq(tiles[0]["crop_stage_name"], "grain_fill")
+	assert_eq(tiles[0]["root_depth_cm"], 107.6)
+
+
+func test_clear_and_sow_reset_the_crop_and_only_that_patch() -> void:
+	var tiles: Array = []
+	for pi in [0, 1]:
+		var t := {"field_id": "f", "patch_idx": pi, "crop_key": "maize"}
+		(
+			t
+			. merge(
+				{
+					"crop_stage_name": "grain_fill",
+					"root_depth_cm": 80.0,
+					"heat_damage": 0.5,
+					"frost_damage": 0.4,
+					"n_stress": 0.3,
+					"heat_days": 4,
+					"dev_stage": 1.5,
+				}
+			)
+		)
+		tiles.append(t)
+	assert_eq(FarmTiles.clear_crop("f", 0, tiles), [0])
+	var t0: Dictionary = tiles[0]
+	assert_eq([t0["crop_key"], t0["crop_stage"], t0["crop_stage_name"]], ["", 0, ""])
+	assert_eq([t0["root_depth_cm"], t0["heat_damage"], t0["frost_damage"]], [0.0, 0.0, 0.0])
+	assert_eq([t0["n_stress"], t0["heat_days"], t0["dev_stage"]], [0.0, 0, -1.0])
+	assert_eq(tiles[1]["heat_days"], 4, "the other patch is untouched")
+	assert_eq(FarmTiles.sow_crop("rice", "f", 1, tiles), [1])
+	assert_eq([tiles[1]["crop_key"], tiles[1]["crop_stage"]], ["rice", 1])
+	assert_eq(tiles[1]["heat_days"], 0)
+
+
+func test_reconcile_resets_stage_roots_and_damage_of_a_changed_crop() -> void:
+	var tile := {"field_id": "f", "patch_idx": 0, "crop_key": "maize", "heat_days": 3}
+	tile.merge({"root_depth_cm": 50.0, "heat_damage": 0.5, "crop_stage_name": "vegetative"})
+	var fields := {"f": [{"crop_key": "sorghum"}]}
+	assert_eq(FarmTiles.reconcile_crops(fields, [tile]), [0])
+	assert_eq([tile["heat_days"], tile["root_depth_cm"], tile["heat_damage"]], [0, 0.0, 0.0])
+	assert_eq(tile["crop_stage_name"], "")

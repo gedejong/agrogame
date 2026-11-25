@@ -7,6 +7,14 @@ extends PanelContainer
 signal history_requested
 signal soil_view_requested
 
+## Fixed card width (px), at least its widest content (four gauges each with a
+## warning mark is about 194), so the History panel can sit beside it and never
+## on it (#630).
+const WIDTH := 200.0
+## Where the card sits, and the gap the History panel keeps from it.
+const ORIGIN := Vector2(16, 40)
+const HISTORY_GAP := 8.0
+
 const GAUGE_DEFS: Array[Dictionary] = [
 	{"key": "water", "icon": "💧", "label": "Water"},
 	{"key": "nutrient", "icon": "🌿", "label": "Nutrients"},
@@ -39,8 +47,14 @@ var _recommendation_label: Label = null
 var _tile_label: Label = null
 
 
+## Where the History panel opens: right of the card, never over it.
+static func history_position() -> Vector2:
+	return ORIGIN + Vector2(WIDTH + HISTORY_GAP, 0.0)
+
+
 func show_status(tile_data: Dictionary, soil_type: String) -> void:
 	_clear()
+	custom_minimum_size.x = WIDTH
 	var style := UiTheme.create_panel_style()
 	style.content_margin_left = 12
 	style.content_margin_right = 12
@@ -62,6 +76,7 @@ func show_status(tile_data: Dictionary, soil_type: String) -> void:
 	_tile_label.add_theme_color_override("font_color", UiTheme.TEXT_PRIMARY)
 	_tile_label.uppercase = true
 	_tile_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tile_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # a long soil name wraps (#630)
 	vbox.add_child(_tile_label)
 
 	_add_separator(vbox)
@@ -72,6 +87,9 @@ func show_status(tile_data: Dictionary, soil_type: String) -> void:
 		var score: float = scores.get(def["key"], 0.0)
 		_add_gauge_row(vbox, def, score)
 
+	_add_separator(vbox)
+
+	_add_crop_status(vbox, tile_data)
 	_add_separator(vbox)
 
 	# Recommendation
@@ -99,6 +117,34 @@ func show_status(tile_data: Dictionary, soil_type: String) -> void:
 	soil_btn.pressed.connect(func() -> void: soil_view_requested.emit())
 	btn_row.add_child(soil_btn)
 	vbox.add_child(btn_row)
+
+
+## Stage, roots and damage rows (#630). Labels wrap, so a long line never widens
+## the card.
+func _add_crop_status(parent: VBoxContainer, tile_data: Dictionary) -> void:
+	var crop_key: String = tile_data.get("crop_key", "")
+	var stage_name: String = tile_data.get("crop_stage_name", "")
+	var stage := _add_status_label(
+		parent, CropStatus.stage_text(stage_name, tile_data.get("dev_stage", -1.0), crop_key)
+	)
+	stage.tooltip_text = CropStatus.stage_tooltip(stage_name, crop_key)
+	stage.mouse_filter = Control.MOUSE_FILTER_STOP
+	_add_status_label(parent, CropStatus.root_text(tile_data.get("root_depth_cm", 0.0), crop_key))
+	for line: Dictionary in CropStatus.damage_lines(tile_data):
+		var tint: Color = (
+			UiTheme.SUBSTANCE_HEAT if line["kind"] == "heat" else UiTheme.SUBSTANCE_FROST
+		)
+		_add_status_label(parent, line["text"]).add_theme_color_override("font_color", tint)
+
+
+func _add_status_label(parent: VBoxContainer, text: String) -> Label:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 11)
+	lbl.add_theme_color_override("font_color", UiTheme.TEXT_PRIMARY)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(lbl)
+	return lbl
 
 
 func _add_gauge_row(parent: VBoxContainer, def: Dictionary, score: float) -> void:

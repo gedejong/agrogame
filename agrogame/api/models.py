@@ -334,6 +334,10 @@ class DailySnapshot(BaseModel):
     patch_idx: int
     crop_stage: str = ""
     dev_stage: float = 0.0
+    root_depth_cm: float = Field(
+        default=0.0,
+        description="Root penetration depth (cm), as PatchDayResponse.root_depth_cm",
+    )
     lai: float = 0.0
     grain_g_m2: float = 0.0
     water_stress: float = 1.0

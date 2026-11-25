@@ -632,6 +632,32 @@ def test_step_events_in_patch_response(client) -> None:
     assert len(patch["events"]) > 0
 
 
+def test_daily_snapshot_root_depth_cm(client) -> None:
+    """DailySnapshot.root_depth_cm (#630) matches the patch's, and is 0 once bare."""
+    game_id = _create_game(client)
+    data = client.post(f"/api/v1/games/{game_id}/step?days=7&seed=42").json()
+    snaps = data["daily_snapshots"]
+    assert snaps[0]["root_depth_cm"] > 0.0
+    assert snaps[-1]["root_depth_cm"] == data["patches"]["f1"][0]["root_depth_cm"]
+    client.post(
+        f"/api/v1/games/{game_id}/action",
+        json={"field_id": "f1", "action": "harvest", "params": {"patch_idx": 0}},
+    )
+    bare = client.post(f"/api/v1/games/{game_id}/step?days=1").json()
+    assert bare["daily_snapshots"][0]["root_depth_cm"] == 0.0
+
+
+def test_heat_event_carries_the_crop_heat_threshold(client) -> None:
+    """HeatDamageApplied.threshold_c (#630) is the crop's threshold: 35 for maize."""
+    game_id = _create_single_patch_game(
+        client, "sandy_subsaharan", "maize", "sahel_arid"
+    )
+    data = client.post(f"/api/v1/games/{game_id}/step?days=80&seed=42").json()
+    heat = [e for e in _step_events(data) if e["event_type"] == "HeatDamageApplied"]
+    assert heat, "the Sahel maize season has heat days"
+    assert {e["data"]["threshold_c"] for e in heat} == {35.0}
+
+
 def _step_events(data) -> list:
     """Flatten all events across a /step response's daily_snapshots."""
     events: list = []

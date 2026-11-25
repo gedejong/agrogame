@@ -199,6 +199,17 @@ func update_from_patches(patches: Dictionary, tile_data: Array, tile_meshes: Arr
 		_collect_labels(node)
 
 
+## Drop the icons of the tiles at `indices`, for a crop that is gone (#630).
+func clear_tiles(indices: Array[int]) -> void:
+	for i: int in indices:
+		if _icons.has(str(i)):
+			_animate_remove(_icons[str(i)])
+			_icons.erase(str(i))
+	_labels.clear()
+	for key: String in _icons:
+		_collect_labels(_icons[key])
+
+
 func clear_icons() -> void:
 	for key: String in _icons:
 		_icons[key].queue_free()
