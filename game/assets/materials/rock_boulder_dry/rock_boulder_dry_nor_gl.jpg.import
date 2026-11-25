@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c28g6ywe3bywh"
-path.s3tc="res://.godot/imported/rock_wall_08_nor_gl.jpg-513f63e844a61f0be7d4e571613a38fc.s3tc.ctex"
+uid="uid://8vs2tvoh7f4t"
+path.s3tc="res://.godot/imported/rock_boulder_dry_nor_gl.jpg-4329aca90bc5e9eac0551657e2bcb0e1.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/materials/rock_wall_08/rock_wall_08_nor_gl.jpg"
-dest_files=["res://.godot/imported/rock_wall_08_nor_gl.jpg-513f63e844a61f0be7d4e571613a38fc.s3tc.ctex"]
+source_file="res://assets/materials/rock_boulder_dry/rock_boulder_dry_nor_gl.jpg"
+dest_files=["res://.godot/imported/rock_boulder_dry_nor_gl.jpg-4329aca90bc5e9eac0551657e2bcb0e1.s3tc.ctex"]
 
 [params]
 

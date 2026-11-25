@@ -19,18 +19,12 @@ Poly Haven states CC0 1.0 for every asset (<https://polyhaven.com/license>); eac
 | `materials/sand_01/sand_01_diff.jpg` | <https://polyhaven.com/a/sand_01> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
 | `materials/sand_01/sand_01_nor_gl.jpg` | <https://polyhaven.com/a/sand_01> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
 | `materials/sand_01/sand_01_arm.jpg` | <https://polyhaven.com/a/sand_01> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
-| `materials/sandy_gravel/sandy_gravel_diff.jpg` | <https://polyhaven.com/a/sandy_gravel> | Charlotte Baglioni | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
-| `materials/sandy_gravel/sandy_gravel_nor_gl.jpg` | <https://polyhaven.com/a/sandy_gravel> | Charlotte Baglioni | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
-| `materials/sandy_gravel/sandy_gravel_arm.jpg` | <https://polyhaven.com/a/sandy_gravel> | Charlotte Baglioni | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
 | `materials/red_mud_stones/red_mud_stones_diff.jpg` | <https://polyhaven.com/a/red_mud_stones> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
 | `materials/red_mud_stones/red_mud_stones_nor_gl.jpg` | <https://polyhaven.com/a/red_mud_stones> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
 | `materials/red_mud_stones/red_mud_stones_arm.jpg` | <https://polyhaven.com/a/red_mud_stones> | Rob Tuytel | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
 | `materials/rock_face/rock_face_diff.jpg` | <https://polyhaven.com/a/rock_face> | Greg Zaal, Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
 | `materials/rock_face/rock_face_nor_gl.jpg` | <https://polyhaven.com/a/rock_face> | Greg Zaal, Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
 | `materials/rock_face/rock_face_arm.jpg` | <https://polyhaven.com/a/rock_face> | Greg Zaal, Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
-| `materials/rock_wall_08/rock_wall_08_diff.jpg` | <https://polyhaven.com/a/rock_wall_08> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
-| `materials/rock_wall_08/rock_wall_08_nor_gl.jpg` | <https://polyhaven.com/a/rock_wall_08> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
-| `materials/rock_wall_08/rock_wall_08_arm.jpg` | <https://polyhaven.com/a/rock_wall_08> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
 | `materials/gravelly_sand/gravelly_sand_diff.jpg` | <https://polyhaven.com/a/gravelly_sand> | Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
 | `materials/gravelly_sand/gravelly_sand_nor_gl.jpg` | <https://polyhaven.com/a/gravelly_sand> | Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
 | `materials/gravelly_sand/gravelly_sand_arm.jpg` | <https://polyhaven.com/a/gravelly_sand> | Dario Barresi | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
@@ -40,3 +34,9 @@ Poly Haven states CC0 1.0 for every asset (<https://polyhaven.com/license>); eac
 | `materials/dense_sand/dense_sand_diff.jpg` | <https://polyhaven.com/a/dense_sand> | Dimitrios Savva | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
 | `materials/dense_sand/dense_sand_nor_gl.jpg` | <https://polyhaven.com/a/dense_sand> | Dimitrios Savva | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
 | `materials/dense_sand/dense_sand_arm.jpg` | <https://polyhaven.com/a/dense_sand> | Dimitrios Savva | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
+| `materials/rock_boulder_dry/rock_boulder_dry_diff.jpg` | <https://polyhaven.com/a/rock_boulder_dry> | Dimitrios Savva, Rico Cilliers | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
+| `materials/rock_boulder_dry/rock_boulder_dry_nor_gl.jpg` | <https://polyhaven.com/a/rock_boulder_dry> | Dimitrios Savva, Rico Cilliers | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
+| `materials/rock_boulder_dry/rock_boulder_dry_arm.jpg` | <https://polyhaven.com/a/rock_boulder_dry> | Dimitrios Savva, Rico Cilliers | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |
+| `materials/dry_river_pebbles/dry_river_pebbles_diff.jpg` | <https://polyhaven.com/a/dry_river_pebbles> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:2:0 |
+| `materials/dry_river_pebbles/dry_river_pebbles_nor_gl.jpg` | <https://polyhaven.com/a/dry_river_pebbles> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (2x2 mean of the unit normals, renormalised); JPEG q90, 4:4:4 |
+| `materials/dry_river_pebbles/dry_river_pebbles_arm.jpg` | <https://polyhaven.com/a/dry_river_pebbles> | Amal Kumar | CC0 1.0 | 2026-11-25 | 1k JPG resized to 512 px (Lanczos); JPEG q90, 4:4:4 |

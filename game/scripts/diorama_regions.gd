@@ -46,12 +46,14 @@ const STACKS := {
 		["Mottled and pallid zone", 2.8, INF, "dense_sand", ""],
 	],
 }
-## The set each region's artefacts are drawn with: gravel lenses in the Dutch
-## sand, corestones in the Kenyan saprolite, and in the Sahel sand lenses of the
-## ironstone gravel below it.
+## The set each region's artefacts are drawn with: river-gravel lenses in the
+## Dutch sand, weathered boulders for the corestones in the Kenyan saprolite,
+## and in the Sahel sand lenses of the ironstone gravel below it. (Swapped in
+## PR #682's review: the refined rock_wall_08 put masonry joints inside the
+## corestones, and sandy_gravel read as smears.)
 const ARTEFACT_SET := {
-	"netherlands_temperate": "sandy_gravel",
-	"kenya_highlands": "rock_wall_08",
+	"netherlands_temperate": "dry_river_pebbles",
+	"kenya_highlands": "rock_boulder_dry",
 	"sahel_arid": "red_laterite_soil_stones",
 }
 ## Side of each set's scanned square, m: Poly Haven API /info/<id>,
@@ -60,13 +62,13 @@ const SET_SIZE_M := {
 	"brown_mud": 1.30,
 	"mud_forest": 2.35,
 	"sand_01": 1.50,
-	"sandy_gravel": 2.10,
 	"red_mud_stones": 1.50,
 	"rock_face": 2.38,
-	"rock_wall_08": 1.80,
 	"gravelly_sand": 2.48,
 	"red_laterite_soil_stones": 2.00,
 	"dense_sand": 1.80,
+	"rock_boulder_dry": 1.80,
+	"dry_river_pebbles": 2.00,
 }
 
 

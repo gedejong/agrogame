@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://d0ywigxr2ti5u"
-path.s3tc="res://.godot/imported/rock_wall_08_diff.jpg-b7d062ae676ac6dca480aad3980f5e4c.s3tc.ctex"
+uid="uid://d3ct3f8fpvijx"
+path.s3tc="res://.godot/imported/dry_river_pebbles_diff.jpg-1c0a1bb528364f60edce6bd6d4b6d7a4.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/materials/rock_wall_08/rock_wall_08_diff.jpg"
-dest_files=["res://.godot/imported/rock_wall_08_diff.jpg-b7d062ae676ac6dca480aad3980f5e4c.s3tc.ctex"]
+source_file="res://assets/materials/dry_river_pebbles/dry_river_pebbles_diff.jpg"
+dest_files=["res://.godot/imported/dry_river_pebbles_diff.jpg-1c0a1bb528364f60edce6bd6d4b6d7a4.s3tc.ctex"]
 
 [params]
 

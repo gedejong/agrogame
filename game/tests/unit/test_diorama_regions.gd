@@ -58,7 +58,9 @@ func test_material_carries_the_stack_and_its_artefact_set() -> void:
 	var deep := DioramaRegions.DEEP_M
 	_assert_floats(kenya.get_shader_parameter("layer_bottom_m"), [2.6, deep, deep], "unused: deep")
 	var arm: Array = kenya.get_shader_parameter("set_arm")
-	assert_eq(arm[4].resource_path, DioramaRegions.map_path("rock_wall_08", "arm"), "corestones")
+	assert_eq(
+		arm[4].resource_path, DioramaRegions.map_path("rock_boulder_dry", "arm"), "corestones"
+	)
 
 
 ## Packed float32 `got` against `want`, element by element.
@@ -136,8 +138,8 @@ func test_every_set_repeats_at_its_real_world_size() -> void:
 	var sizes: PackedFloat32Array = mat.get_shader_parameter("set_size_m")
 	var wu_per_m: float = mat.get_shader_parameter("wu_per_m")
 	# Poly Haven's scanned sides: brown_mud, mud_forest, sand_01 (sand_01 pads
-	# the empty fourth slot), and the sandy_gravel lenses.
-	var want_m := [1.30, 2.35, 1.50, 1.50, 2.10]
+	# the empty fourth slot), and the dry_river_pebbles lenses.
+	var want_m := [1.30, 2.35, 1.50, 1.50, 2.00]
 	for i in range(5):
 		var repeat_wu: float = sizes[i] * wu_per_m  # one texture tile in world units
 		assert_almost_eq(repeat_wu / (want_m[i] * 0.5), 1.0, 0.1, "slot %d within 10 %%" % i)

@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dfqmf8qh0l6f3"
-path.s3tc="res://.godot/imported/sandy_gravel_arm.jpg-9aa18838c98de836eea01f7a33091b26.s3tc.ctex"
+uid="uid://bf2ygsa2dpjdq"
+path.s3tc="res://.godot/imported/dry_river_pebbles_arm.jpg-4561d4f5a2a7e3e581911ccf53c30146.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/materials/sandy_gravel/sandy_gravel_arm.jpg"
-dest_files=["res://.godot/imported/sandy_gravel_arm.jpg-9aa18838c98de836eea01f7a33091b26.s3tc.ctex"]
+source_file="res://assets/materials/dry_river_pebbles/dry_river_pebbles_arm.jpg"
+dest_files=["res://.godot/imported/dry_river_pebbles_arm.jpg-4561d4f5a2a7e3e581911ccf53c30146.s3tc.ctex"]
 
 [params]
 

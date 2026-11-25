@@ -17,7 +17,8 @@ uniform float layer_bottom_m[3];
 uniform float wu_per_m = 0.5;
 uniform float profile_bottom_m = 1.0;
 // Per artefact, row 0: centre u, centre d, half width, half height (m);
-// row 1: kind (0 corestone, 1 gravel lens, 2 old root) and a phase in [0, 1).
+// row 1: kind (0 corestone, 1 gravel lens, 2 old root), a phase in [0, 1) and,
+// for a corestone, its blockiness (0 oval to 1 rounded block).
 uniform sampler2D artefacts : filter_nearest, repeat_disable;
 uniform int artefact_count = 0;
 // Emission over albedo from DioramaSlab._fill(): per quad, since the +x and +z
@@ -30,6 +31,8 @@ const float WAVE_M = 0.05;
 const float WAVES_PER_M = 1.3;
 const float BLEND_M = 0.02;
 const float ROOT_WIGGLE_M = 0.03;
+// How far a corestone's normal tilts outward towards its rim: rounded relief.
+const float DOME = 0.25;
 const vec3 ROOT_COLOUR = vec3(0.025, 0.018, 0.012);  // linear, a dark organic fill
 const float SEAM_M = 0.015;
 
@@ -80,17 +83,22 @@ void fragment() {
 	float body = 0.0;  // inside a corestone or a lens
 	float rim = 0.0;  // a corestone's darker weathering rind
 	float root = 0.0;
+	vec2 dome = vec2(0.0);
 	for (int i = 0; i < artefact_count; i++) {
 		vec4 box = texelFetch(artefacts, ivec2(i, 0), 0);
-		vec2 info = texelFetch(artefacts, ivec2(i, 1), 0).rg;
+		vec3 info = texelFetch(artefacts, ivec2(i, 1), 0).rgb;
 		vec2 q = (p - box.xy) / box.zw;
 		float aa = px / box.z;
 		if (info.x < 0.5) {
-			// Rounded, with a lumpy outline.
-			float r = length(q) + 0.06 * vnoise(atan(q.y, q.x) * 2.0 + info.y * 60.0);
+			// A superellipse from oval (n = 2) to rounded joint block (n = 4),
+			// with a lumpy outline.
+			float n = mix(2.0, 4.0, info.z);
+			float r = pow(pow(abs(q.x), n) + pow(abs(q.y), n), 1.0 / n);
+			r += 0.06 * vnoise(atan(q.y, q.x) * 2.0 + info.y * 60.0);
 			float inside = 1.0 - smoothstep(1.0 - aa, 1.0 + aa, r);
 			body = max(body, inside);
 			rim = max(rim, inside * smoothstep(0.75, 1.0, r));
+			dome += inside * q * smoothstep(0.2, 1.0, r);
 		} else if (info.x < 1.5) {
 			// Biconvex: thickest at the middle, pinching out at both ends.
 			float half_t = max(1.0 - q.x * q.x, 0.0);
@@ -106,6 +114,7 @@ void fragment() {
 	}
 	alb = mix(alb, a_alb * (1.0 - 0.35 * rim), body);
 	nor = mix(nor, a_nor, body);
+	nor.xy += vec2(dome.x, -dome.y) * DOME;  // OpenGL convention: +y is up
 	arm = mix(arm, a_arm, body);
 	alb = mix(alb, ROOT_COLOUR, root * 0.9);
 	alb *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, SEAM_M, p.y - profile_bottom_m));

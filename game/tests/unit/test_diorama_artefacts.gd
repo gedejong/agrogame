@@ -45,6 +45,34 @@ func test_corestones_only_in_the_kenyan_saprolite() -> void:
 		assert_eq(_of(_place(c[0], c[1]), K.CORESTONE), [], c[0])
 
 
+func test_corestones_grow_larger_more_frequent_and_blockier_downwards() -> void:
+	# Ruxton & Berry (1957), over 40 seeds. Each stone's blockiness is its depth
+	# share in the saprolite (2.65 to 4.0 m) and caps its diameter; the lower
+	# half holds more and larger stones; each farm mixes sizes. The bounds sit
+	# below the least of 300 simulated batches of 40 seeds (count ratio 2.22,
+	# size ratio 1.12, largest over smallest diameter 1.69 in any one farm).
+	var upper := []
+	var lower := []
+	for seed_value in range(1, 41):
+		var stones := _of(_place("kenya_highlands", 1.0, seed_value), K.CORESTONE)
+		var sizes: Array[float] = []
+		for a: Dictionary in stones:
+			(lower if a["d"] > 3.325 else upper).append(a)
+			var t: float = (a["d"] - a["half_h"] - 2.65) / (1.35 - 2.0 * a["half_h"])
+			assert_almost_eq(a["block"], t, 1e-4, "block is the depth share")
+			var share := lerpf(DioramaArtefacts.CORESTONE_TOP_SHARE, 1.0, t)
+			assert_lte(a["half_w"] * 2.0, 0.2 * pow(4.0, share) + 1e-5, "deeper allows larger")
+			sizes.append(a["half_w"] * 2.0)
+		assert_gt(sizes.max() / sizes.min(), 1.5, "seed %d: mixed sizes" % seed_value)
+	var mean := func(list: Array) -> float:
+		return (
+			list.reduce(func(acc: float, a: Dictionary) -> float: return acc + a["half_w"], 0.0)
+			/ list.size()
+		)
+	assert_gt(float(lower.size()), upper.size() * 2.0, "more stones deeper")
+	assert_gt(mean.call(lower), mean.call(upper) * 1.1, "larger stones deeper")
+
+
 func test_lenses_only_in_the_dutch_and_sahel_sand() -> void:
 	var hosts := {"netherlands_temperate": Vector2(2.8, 4.2), "sahel_arid": Vector2(1.1, 1.6)}
 	for c: Array in [CASES[0], CASES[2]]:
@@ -101,6 +129,7 @@ func test_texture_holds_one_column_per_artefact() -> void:
 		for c in range(4):
 			assert_almost_eq(box[c], want[c], 1e-4, "box %d [%d]" % [i, c])
 		assert_eq(img.get_pixel(i, 1).r, float(a["kind"]), "kind %d" % i)
+		assert_almost_eq(img.get_pixel(i, 1).b, a["block"], 1e-4, "block %d" % i)
 		assert_almost_eq(img.get_pixel(i, 1).g, a["phase"], 1e-4, "phase %d" % i)
 	var empty: Array[Dictionary] = []
 	assert_eq(DioramaArtefacts.texture(empty).get_image().get_size(), Vector2i(1, 2))

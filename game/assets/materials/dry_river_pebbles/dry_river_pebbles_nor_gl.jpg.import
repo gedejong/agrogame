@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c24p3fclq66lb"
-path.s3tc="res://.godot/imported/sandy_gravel_diff.jpg-451dd7d623066c5f39ea49ac6a7a969c.s3tc.ctex"
+uid="uid://bc6o61ib5r6ng"
+path.s3tc="res://.godot/imported/dry_river_pebbles_nor_gl.jpg-0bbbca6f9349d0d716c1e901c396e33b.s3tc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/materials/sandy_gravel/sandy_gravel_diff.jpg"
-dest_files=["res://.godot/imported/sandy_gravel_diff.jpg-451dd7d623066c5f39ea49ac6a7a969c.s3tc.ctex"]
+source_file="res://assets/materials/dry_river_pebbles/dry_river_pebbles_nor_gl.jpg"
+dest_files=["res://.godot/imported/dry_river_pebbles_nor_gl.jpg-0bbbca6f9349d0d716c1e901c396e33b.s3tc.ctex"]
 
 [params]
 
@@ -22,7 +22,7 @@ compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1
