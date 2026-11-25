@@ -143,8 +143,10 @@ const SCENARIOS: Array = [
 	},
 	{
 		# Two fields on one farm, one climate (weather is farm-level, ADR-002):
-		# the Kenya-highland maize field and the Kenya rice field (#601).
-		"label": "Kenya highlands: maize and rice",
+		# the Kenya-highland maize field and a spring-wheat field (#658). Sowing
+		# 2024-04-01 and the 2024-10-18 replant lie in the FAO Crop Calendar windows
+		# for Kenya, Wheat bread, AEZ LH1-LH4 (1 Mar-30 Apr; LH4 31 Jul-31 Oct), 2021.
+		"label": "Kenya highlands: maize and wheat",
 		"fields":
 		[
 			{
@@ -165,7 +167,7 @@ const SCENARIOS: Array = [
 				[
 					{
 						"soil_profile_key": "clay_temperate",
-						"crop_key": "rice",
+						"crop_key": "spring_wheat",
 						"climate_key": "kenya_highlands",
 						"area_fraction": 1.0,
 					},
