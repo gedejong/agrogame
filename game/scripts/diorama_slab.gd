@@ -22,6 +22,9 @@ const EXTENSION_FACTOR := 4.0
 const FACE_FILL := 0.35
 ## Albedo of the closed sides, seen only under the debug orbit (style, sRGB).
 const SIDE_COLOUR := Color(0.24, 0.19, 0.15)
+## Seed of the extension's artefact placement (#652): fixed, so a farm's stones
+## and lenses stay put from day to day and across reloads.
+const ARTEFACT_SEED := 652
 
 ## The cross-section textures with mipmaps, built once (_grain_textures).
 static var _grains: Array[Texture2D] = []
@@ -40,6 +43,11 @@ var _section_cm := 0.0
 var _to_light := Vector3.UP
 var _extension_material: Material = null
 var _segment_mesh := QuadMesh.new()
+## The layout's climate key and its regional extension material (#652; null
+## for an unknown key), and the extension's span along the unfolded face (wu).
+var _climate := ""
+var _regional: ShaderMaterial = null
+var _u_span := Vector2(INF, -INF)
 
 
 ## Build the faces for `fields` laid out on `tile_data` / `tile_meshes`, with the
@@ -52,6 +60,10 @@ func lay_out(fields: Array, tile_data: Array, tile_meshes: Array, light: Node3D)
 	_sides.clear()
 	_section_cm = 0.0
 	_to_light = light.global_transform.basis.z
+	_climate = _climate_key(fields)
+	_regional = DioramaRegions.material(_climate, WU_PER_CM * 100.0)
+	_extension_material = null
+	_u_span = Vector2(INF, -INF)
 	var last_col := 0
 	for tile: Dictionary in tile_data:
 		last_col = maxi(last_col, tile["col"])
@@ -99,6 +111,7 @@ func update(patches: Dictionary) -> void:
 	if deepest != _section_cm:
 		_section_cm = deepest
 		_resize()
+		_fit_regional()
 	var textures := {}
 	for key: String in states:
 		var patch: Dictionary = states[key]
@@ -112,8 +125,7 @@ func update(patches: Dictionary) -> void:
 			mat.set_shader_parameter("profile_tex", textures[_key(seg)])
 			mesh.visible = true
 	for ext: Dictionary in _extensions:
-		if _extension_material == null:
-			_update_placeholder(ext, states)
+		_update_placeholder(ext, states)  # kept current for set_extension_material(null)
 		(ext["mesh"] as MeshInstance3D).visible = true
 	for side: Dictionary in _sides:
 		(side["mesh"] as MeshInstance3D).visible = true
@@ -198,6 +210,9 @@ func _add_extension(mesh: MeshInstance3D, width: float, keys: Array[String]) -> 
 	}
 	_extensions.append(ext)
 	mesh.material_override = _extension(ext)
+	mesh.set_instance_shader_parameter("face_fill", _fill(mesh))
+	var u := mesh.position.x - mesh.position.z  # the shader's unfolded face
+	_u_span = Vector2(minf(_u_span.x, u - width / 2.0), maxf(_u_span.y, u + width / 2.0))
 
 
 func _add_side(pos: Vector3, rot: Vector3, width: float, depth: float) -> void:
@@ -208,6 +223,24 @@ func _add_side(pos: Vector3, rot: Vector3, width: float, depth: float) -> void:
 	plain.emission = SIDE_COLOUR * _fill(mesh)
 	mesh.material_override = plain
 	_sides.append({"mesh": mesh, "width": width, "depth": depth})
+
+
+## Complete the regional material from the section's depth, where its first
+## layer and its artefacts start, and put it on the extension unless the hook
+## already holds a material (#652).
+func _fit_regional() -> void:
+	if _regional == null:
+		return
+	var bottom_m := _section_cm / 100.0
+	var span_m := _u_span / (WU_PER_CM * 100.0)
+	var placed := DioramaArtefacts.place(
+		_climate, ARTEFACT_SEED, bottom_m, bottom_m * EXTENSION_FACTOR, span_m
+	)
+	_regional.set_shader_parameter("profile_bottom_m", bottom_m)
+	_regional.set_shader_parameter("artefacts", DioramaArtefacts.texture(placed))
+	_regional.set_shader_parameter("artefact_count", placed.size())
+	if _extension_material == null:
+		set_extension_material(_regional)
 
 
 func _extension(ext: Dictionary) -> Material:
@@ -271,6 +304,15 @@ func _resize() -> void:
 		else:
 			quad.size = Vector2(side["width"], total)
 			quad.center_offset = Vector3(0.0, -total / 2.0, 0.0)
+
+
+## The climate key the layout's patches carry (create_game rejects mixed
+## climates); "" without one.
+static func _climate_key(fields: Array) -> String:
+	for field: Dictionary in fields:
+		for patch: Dictionary in field.get("patches", []):
+			return patch.get("climate_key", "")
+	return ""
 
 
 static func _key(seg: Dictionary) -> String:
