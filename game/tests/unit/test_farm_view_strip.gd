@@ -2,7 +2,8 @@ extends GutTest
 ## The field strip in the farm view (#602, #472 C-d) on the two-field map: a
 ## card per field under UILayer, pressing one makes its field active as
 ## selecting a tile does, the highlight follows the active field, and the cards
-## refresh after a step, a Plant and a Harvest.
+## refresh after a step, a Plant and a Harvest. On load they, the tiles and the
+## Quick Status card already show the scenario's sown crops (#685).
 
 const FarmViewScene = preload("res://scenes/farm_view.tscn")
 const FarmViewTest = preload("res://tests/unit/test_farm_view.gd")
@@ -23,10 +24,12 @@ func after_each() -> void:
 
 ## The farm view on game "g", whose GET /games/{id} carries `fields`
 ## ({field_id: patches}), with a stub that answers previews and actions at once.
-func _enter(fields: Dictionary) -> Node3D:
+## With `defer`, the load stays unanswered for the test to drive.
+func _enter(fields: Dictionary, defer: bool = false) -> Node3D:
 	GameState.game_id = "g"
 	var api := ActiveTest.Stub.new()
 	api.game_reply = [true, {"game_id": "g", "fields": fields}]
+	api.defer_game = defer
 	add_child_autofree(api)
 	var view: Node3D = FarmViewScene.instantiate()
 	view._api_client = api
@@ -132,3 +135,37 @@ func test_the_strip_clears_the_status_line_and_the_quick_status_card() -> void:
 	assert_false(strip.intersects(view._quick_status.get_global_rect()), "beside the card")
 	var centre: float = view.get_viewport().get_visible_rect().size.x / 2.0
 	assert_almost_eq(strip.get_center().x, centre, 1.0, "centred")
+
+
+func test_the_loaded_scenarios_crops_show_before_any_step() -> void:
+	# #685: the tiles take their patches' crops from the load reply, freshly sown.
+	var view := _enter(_two_fields(), true)
+	view._select_tile(0, 0)
+	assert_eq(view._quick_status._recommendation_label.text, "No crop planted. Consider planting.")
+	view._on_game_loaded(true, {"game_id": "g", "fields": _two_fields()})
+	for tile: Dictionary in view._tile_data:
+		var crop: String = "maize" if tile["field_id"] == "field_1" else "spring_wheat"
+		assert_eq([tile["crop_key"], tile["crop_stage"], tile["crop_stage_name"]], [crop, 1, ""])
+	var planted := ["Field 1 · maize\nplanted · OK", "Field 2 · spring wheat\nplanted · OK"]
+	assert_eq(_texts(view), planted)
+	assert_true(view._quick_status._tile_label.text.begins_with("Maize"), "the card names it")
+	assert_eq(view._quick_status._recommendation_label.text, "Sown, not yet emerged.")
+	assert_false(view.harvest_btn.disabled, "a standing crop")
+	var api: ActiveTest.Stub = view._api_client
+	var loads: Array = api.calls.filter(func(c: Array) -> bool: return c[0] == "get_game")
+	assert_eq(loads.size(), 1, "the load reply is reused, not re-asked")
+
+
+func test_a_bare_patch_stays_bare_and_only_sown_tiles_are_redrawn() -> void:
+	var view := _enter(_two_fields(), true)
+	for plants: Array in view._crop_sprites:
+		(plants[0] as Node3D).add_child(Node3D.new())  # freed by a crop redraw
+	var fields := _two_fields()
+	fields["field_2"][0]["crop_key"] = ""
+	view._on_game_loaded(true, {"game_id": "g", "fields": fields})
+	for i in range(view._tile_data.size()):
+		var sown: bool = view._tile_data[i]["field_id"] == "field_1"
+		assert_eq(view._tile_data[i]["crop_key"], "maize" if sown else "", "tile %d" % i)
+		var marker: Node = (view._crop_sprites[i][0] as Node3D).get_child(0)
+		assert_eq(marker.is_queued_for_deletion(), sown, "tile %d redrawn only if sown" % i)
+	assert_eq(_texts(view)[1], "Field 2 · bare\nOK")
