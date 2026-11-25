@@ -1,70 +1,54 @@
-"""Soil/crop forecast projection for decision support (#318).
+"""Soil/crop forecast projection for decision support (#318, #689).
 
-The game's ``/forecast`` surface historically exposed weather only. This
-module adds a *lightweight, transparent* projection of the two state
-variables that most often drive a player's next action: root-zone plant
-**water-stress** and **mineral-nitrogen** availability.
+The ``/forecast`` surface projects the two quantities that most often drive a
+player's next action: the crop's water stress and the root-zone mineral N. It
+does not shadow-run the engine. It advances a root-zone water bucket and a
+mineral-N pool over the forecast weather, and every flux it computes calls the
+engine's own function, so forecast and engine cannot drift apart (#689).
 
-This is deliberately a cheap heuristic projector, not a shadow run of the
-full Richards/RothC engine. It advances a single-bucket root-zone water
-balance and a mineral-N pool over the forecast horizon using the upcoming
-weather. It is intended for "what is likely to happen if I do nothing"
-guidance, and is labelled as an estimate in the UI.
+Water, per day, in the engine's phase order (water, then et; ADR-010):
 
-The mineral-N pool is driven by a **net-mineralisation source** (from soil
-organic matter) as well as the crop-uptake and drainage-leaching sinks.
-Without the source term the projection was sink-only and trended *opposite*
-to the engine in early-season temperate soils, where SOM mineralisation is
-the dominant N flux and the real root-zone mineral N accumulates (#353). The
-source term mirrors the engine's labile-SOM kinetics so forecast and engine
-agree in sign — after #351/#357 the three-pool SOM module is the single
-authoritative net-mineralisation source in the engine.
+* ET0 by Priestley & Taylor (1972) on Rn = 0.6 Rs (ADR-014), split into
+  potential E and T by Beer's law (``Evapotranspiration.potential_components``);
+  the anchor LAI is held over the horizon.
+* Rain of ``EtParams.wetting_reset_threshold_mm`` or more resets the Ritchie
+  stage clock, as ``ETRuntime._update_wetting_and_residue`` does.
+* SCS curve-number runoff (USDA-SCS NEH-4) with the engine's layer-0 texture CN.
+  Water above the bucket's total available water (TAW) drains.
+* Soil evaporation is Ritchie's (1972) two-stage drying of the topsoil, residue
+  adjusted (``Evapotranspiration.ritchie_evaporation`` and
+  ``residue_adjusted_params``).
+* Transpiration is Tp × Ks with the crop's p (FAO-56, Allen et al. 1998,
+  Eq. 82-84, Table 22). The row reports Ta/Tp, the quantity the Water gauge
+  reads (``WaterStressComputed.stress``).
 
-References
-----------
-* Water-stress coefficient Ks: FAO-56 Irrigation & Drainage Paper
-  (Allen et al. 1998), Eq. 84 — Ks scales transpiration linearly once
-  root-zone depletion exceeds the readily-available fraction.
-* Peak crop N uptake magnitude (~2-4 kg N ha⁻¹ d⁻¹ for maize during rapid
-  vegetative growth): Bender et al. 2013, Agronomy Journal 105(1).
-* Nitrate mobility / drainage-driven leaching: standard mass-flow argument
-  (nitrate travels with drainage water; leaching rises with deep drainage).
-* Net N mineralisation from labile SOM: RothC three-pool kinetics
-  (Coleman & Jenkinson 1996) with a Q10=2 temperature response and the
-  Linn & Doran (1984) moisture response; net rate ~1-3 kg N ha⁻¹ d⁻¹ in
-  early-season temperate loam (Stanford & Smith 1972). This mirrors
-  ``agrogame.soil.som.pools.ThreePoolSOM`` so the two stay in sign agreement.
+Mineral N, in kg/ha as the engine holds its pools, per day: root-zone deepening
+(#366/#383); the anchor day's SOM net mineralisation, scaled by the engine's
+Q10 = 2 temperature response (Coleman & Jenkinson 1996); the anchor day's plant N
+uptake; and NO3 leaching by the engine's mixing-cell rule
+(``NitrogenCycle._on_water_drained``; Burns 1974, J. Soil Sci. 25:155; CERES-N,
+Godwin & Singh 1998). Holding the anchor day's fluxes over the horizon is the
+persistence forecast, the standard reference forecast (Wilks 2011, Statistical
+Methods in the Atmospheric Sciences, 3rd ed.).
 """
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 
 from agrogame.atmosphere.et.module import Evapotranspiration
+from agrogame.atmosphere.et.types import EtState
 from agrogame.params.phenology import PhenologyStage
-from agrogame.soil.som.pools import SOMPoolParams
+from agrogame.soil.water.scs import scs_runoff_mm
 from agrogame.weather.constants import NET_RAD_FRACTION
 
-# --- Heuristic projection constants (documented above) ---------------------
-_DEPLETION_FRACTION_P = 0.5  # FAO-56 readily-available fraction (generic p)
-_PEAK_N_UPTAKE_KG_HA_DAY = 3.0  # maize-scale peak uptake (Bender et al. 2013)
-_CANOPY_EXTINCTION_K = 0.6  # Beer's-law light-extinction coefficient
-_LEACH_DRAINAGE_HALF_MM = 200.0  # drainage scale for the leaching fraction
-_LEACH_MAX_FRACTION = 0.3  # cap on daily mineral-N loss to leaching
+# FAO-56 depletion fraction p for a caller with no crop: "a value of 0.50 for p
+# is commonly used for many crops" (Allen et al. 1998, ch. 8, readily available
+# water).
+# The route passes the anchor crop's own Table 22 p.
+_DEPLETION_FRACTION_P = 0.5
+_SOM_Q10_REF_C = 25.0  # RothC Q10=2 reference temperature (°C), as ThreePoolSOM
 
-# --- Net-mineralisation constants (mirror ThreePoolSOM; see module docstring)
-# The rate constant and humification fraction are read from the engine's own
-# ``SOMPoolParams`` so any recalibration of the SOM module flows through to the
-# forecast automatically and the two cannot silently drift apart.
-_SOM_PARAMS = SOMPoolParams()
-_SOM_K_LABILE = _SOM_PARAMS.k_labile  # labile SOM decay (1/day), RothC-scale
-_SOM_HUMIFICATION_LABILE = _SOM_PARAMS.humification_labile_to_inter
-_SOM_Q10_REF_C = 25.0  # RothC Q10=2 reference temperature (°C)
-_SOM_MOISTURE_OPTIMUM_WFPS = 0.6  # Linn & Doran (1984) decomposition optimum
-
-# g/m² of N-in-a-layer converts to kg/ha by ×10 (1 g/m² = 10 kg/ha).
-_G_M2_TO_KG_HA = 10.0
 # theta (m³/m³) over a layer of thickness d (cm) is theta·d·10 mm of water.
 _THETA_CM_TO_MM = 10.0
 
@@ -91,8 +75,11 @@ _DEFAULT_STAGE_DEPTH_MULTIPLIER = 0.3  # planted/grain fill
 class SoilForecastPoint:
     """One projected day of soil/crop decision-support state."""
 
-    water_stress: float  # FAO-56 Ks proxy: 1.0 = no stress, 0.0 = severe
-    mineral_n_kg_ha: float  # projected root-zone mineral N (NO3 + NH4)
+    water_stress: float  # the day's projected Ta/Tp: 1.0 = no stress, 0.0 = severe
+    mineral_n_kg_ha: float  # projected root-zone mineral N (NO3 + NH4), kg/ha
+    # Available over total available water at the end of the day, capped at 1
+    # (#689); internal until #691 shows it as the Root zone gauge.
+    root_zone_water_fraction: float
 
 
 def _root_zone_layer_fractions(
@@ -143,71 +130,34 @@ def root_zone_water_mm(
     return available, taw
 
 
+def root_zone_sum(
+    per_layer: list[float],
+    layer_depths_cm: list[float],
+    root_depth_cm: float,
+) -> float:
+    """Root-zone total of a per-layer quantity, the last rooted layer partial.
+
+    A layer contributes its rooted fraction; layers with no value (a shorter
+    list, such as an absent SOM module's) contribute nothing.
+    """
+    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
+    return sum(v * f for v, f in zip(per_layer, fractions, strict=False) if f > 0.0)
+
+
 def root_zone_mineral_n_kg_ha(
     n_no3: list[float],
     n_nh4: list[float],
     layer_depths_cm: list[float],
     root_depth_cm: float,
 ) -> float:
-    """Sum root-zone mineral N (NO3 + NH4), converting g/m² layers to kg/ha."""
-    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
-    total_g_m2 = 0.0
-    for i, frac in enumerate(fractions):
-        if frac <= 0.0:
-            continue
-        total_g_m2 += (n_no3[i] + n_nh4[i]) * frac
-    return total_g_m2 * _G_M2_TO_KG_HA
+    """Root-zone mineral N (NO3 + NH4), kg/ha.
 
-
-def root_zone_som_labile_n_kg_ha(
-    som_labile_n: list[float],
-    layer_depths_cm: list[float],
-    root_depth_cm: float,
-) -> float:
-    """Sum root-zone labile SOM organic N (kg/ha).
-
-    This is the pool the engine mineralises from after #351/#357 (the labile
-    RothC pool dominates the daily net-mineralisation flux). Unlike mineral N,
-    SOM pools are already stored per layer in kg/ha, so no g/m² conversion is
-    applied — only the root-zone layer weighting.
+    The engine's pools are kg/ha per layer (``SoilNitrogenState``), so the
+    root-zone total needs only the layer weighting (#689 removed a ×10 that read
+    them as g/m²).
     """
-    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
-    total = 0.0
-    for i, frac in enumerate(fractions):
-        if frac <= 0.0 or i >= len(som_labile_n):
-            continue
-        total += som_labile_n[i] * frac
-    return total
-
-
-def root_zone_wfps(
-    theta: list[float],
-    saturation: list[float],
-    layer_depths_cm: list[float],
-    root_depth_cm: float,
-    default: float = _SOM_MOISTURE_OPTIMUM_WFPS,
-) -> float:
-    """Root-zone-weighted water-filled pore space (theta/saturation), 0-1.
-
-    Feeds the moisture factor of the mineralisation source term. Layers with
-    non-positive saturation are skipped; if no rooted layer has usable
-    saturation, the neutral ``default`` (the decomposition optimum) is returned
-    so the moisture factor neither zeroes out nor inflates the source term.
-    """
-    fractions = _root_zone_layer_fractions(layer_depths_cm, root_depth_cm)
-    weighted = 0.0
-    total_frac = 0.0
-    for i, frac in enumerate(fractions):
-        if frac <= 0.0 or i >= len(theta) or i >= len(saturation):
-            continue
-        sat = saturation[i]
-        if sat <= 0.0:
-            continue
-        weighted += (theta[i] / sat) * frac
-        total_frac += frac
-    if total_frac <= 0.0:
-        return default
-    return weighted / total_frac
+    totals = [a + b for a, b in zip(n_no3, n_nh4, strict=True)]
+    return root_zone_sum(totals, layer_depths_cm, root_depth_cm)
 
 
 def _som_temperature_factor(temp_c: float) -> float:
@@ -218,19 +168,6 @@ def _som_temperature_factor(temp_c: float) -> float:
     engine.
     """
     return float(2.0 ** ((temp_c - _SOM_Q10_REF_C) / 10.0))
-
-
-def _som_moisture_factor(wfps: float) -> float:
-    """Decomposition moisture response, optimum at 60 % WFPS.
-
-    Mirrors ``ThreePoolSOM._moisture_factor`` (Linn & Doran 1984): rises
-    linearly to the optimum, then declines toward saturation.
-    """
-    if wfps <= 0.0:
-        return 0.0
-    if wfps <= _SOM_MOISTURE_OPTIMUM_WFPS:
-        return min(1.0, wfps / _SOM_MOISTURE_OPTIMUM_WFPS)
-    return max(0.0, 1.0 - (wfps - _SOM_MOISTURE_OPTIMUM_WFPS) / 0.4)
 
 
 def water_stress_coefficient(
@@ -300,7 +237,7 @@ def _advance_root_depth(
     soil-mechanical state into a decision-support heuristic is disproportionate
     (#383). The residual — a projected zone that deepens past a hardpan/water-table
     the engine would have hit — is a documented, rarely-binding divergence,
-    symmetric with how WFPS and per-layer MWD are already held constant.
+    symmetric with how the anchor-day fluxes and per-layer MWD are held constant.
     """
     return min(max_depth_cm, root_depth_cm + max(0.0, daily_increment_cm))
 
@@ -323,6 +260,115 @@ def _newly_rooted_mineral_n_kg_ha(
     return max(0.0, new - prev)
 
 
+@dataclass
+class _Bucket:
+    """Root-zone water bucket in mm of water above wilting point (#689)."""
+
+    available: float
+    taw: float
+    topsoil: float  # layer 0's share, the store soil evaporation draws on
+    topsoil_capacity: float
+    topsoil_root_fraction: float  # share of transpiration drawn from layer 0
+    cumulative_evap_mm: float  # the Ritchie stage clock
+
+
+@dataclass(frozen=True)
+class _WaterDrivers:
+    """Water inputs held at their anchor values over the horizon."""
+
+    et: Evapotranspiration
+    lai: float
+    curve_number: int | None
+    stage1_limit_mm: float
+    ritchie_coef: float
+    depletion_fraction_p: float
+
+
+def _water_day(
+    b: _Bucket, w: _WaterDrivers, temp_mean_c: float, shortwave: float, rain: float
+) -> tuple[float, float]:
+    """Advance the bucket one day; return (drainage mm, Ta/Tp).
+
+    The water phase (runoff, infiltration, drainage) runs before the et phase
+    (wetting reset, evaporation, transpiration), as in the engine (ADR-010).
+    """
+    et = w.et
+    rain = max(0.0, rain)
+    runoff = scs_runoff_mm(rain, w.curve_number) if w.curve_number is not None else 0.0
+    b.topsoil = min(b.topsoil_capacity, b.topsoil + rain - runoff)
+    b.available += rain - runoff
+    drainage = max(0.0, b.available - b.taw)
+    b.available = min(b.available, b.taw)
+
+    if rain >= et.params.wetting_reset_threshold_mm:
+        b.cumulative_evap_mm = 0.0
+    et0 = et.priestley_taylor(temp_mean_c, NET_RAD_FRACTION * shortwave)
+    comps = et.potential_components(et0, w.lai)
+    clock = EtState(cumulative_evap_mm=b.cumulative_evap_mm)
+    evap = et.ritchie_evaporation(
+        clock,
+        comps.potential_evap_mm,
+        min(b.topsoil, b.available),
+        stage1_limit_mm=w.stage1_limit_mm,
+        ritchie_coef=w.ritchie_coef,
+    )
+    b.cumulative_evap_mm = clock.cumulative_evap_mm
+    b.topsoil -= evap
+    b.available -= evap
+
+    tp = comps.potential_transp_mm
+    ks = water_stress_coefficient(b.available, b.taw, w.depletion_fraction_p)
+    transp = min(tp * ks, b.available)
+    b.topsoil = max(0.0, b.topsoil - transp * b.topsoil_root_fraction)
+    b.available -= transp
+    return drainage, (transp / tp if tp > 0.0 else 1.0)
+
+
+@dataclass
+class _NPool:
+    """Root-zone mineral N (kg/ha) and the root depth that bounds the zone."""
+
+    mineral_n: float
+    root_depth: float
+
+
+@dataclass(frozen=True)
+class _NDrivers:
+    """Mineral-N inputs held at their anchor values over the horizon (#689)."""
+
+    deepen_layers: tuple[list[float], list[float], list[float]] | None
+    daily_depth_inc: float
+    max_depth_cm: float
+    mineralization_kg_ha_day: float
+    anchor_temp_c: float | None
+    uptake_kg_ha_day: float
+    no3_share: float
+    fc_storage_mm: float
+
+
+def _n_day(n: _NPool, d: _NDrivers, temp_mean_c: float, drainage_mm: float) -> None:
+    """Advance mineral N one day: deepening, source, uptake, then leaching."""
+    if d.deepen_layers is not None:
+        new_depth = _advance_root_depth(n.root_depth, d.daily_depth_inc, d.max_depth_cm)
+        n.mineral_n += _newly_rooted_mineral_n_kg_ha(
+            *d.deepen_layers, n.root_depth, new_depth
+        )
+        n.root_depth = new_depth
+    temp_f = 1.0
+    if d.anchor_temp_c is not None:
+        temp_f = _som_temperature_factor(temp_mean_c) / _som_temperature_factor(
+            d.anchor_temp_c
+        )
+    n.mineral_n += d.mineralization_kg_ha_day * temp_f
+    n.mineral_n = max(0.0, n.mineral_n - d.uptake_kg_ha_day)
+    if drainage_mm > 0.0:
+        # Mixing cell: the drainage carries D / W_fc of the zone's NO3.
+        moved = 1.0
+        if d.fc_storage_mm > 0.0:
+            moved = min(1.0, drainage_mm / d.fc_storage_mm)
+        n.mineral_n -= n.mineral_n * d.no3_share * moved
+
+
 def project_soil_forecast(
     *,
     available_water_mm: float,
@@ -330,9 +376,18 @@ def project_soil_forecast(
     mineral_n_kg_ha: float,
     lai: float,
     weather: list[tuple[float, float, float]],
-    som_labile_n_kg_ha: float = 0.0,
-    root_zone_wfps_frac: float = _SOM_MOISTURE_OPTIMUM_WFPS,
-    depletion_fraction_p: float = _DEPLETION_FRACTION_P,
+    depletion_fraction_p: float | None = None,
+    topsoil_available_mm: float | None = None,
+    topsoil_capacity_mm: float | None = None,
+    topsoil_root_fraction: float = 1.0,
+    cumulative_evap_mm: float = 0.0,
+    residue_cover_fraction: float = 0.0,
+    curve_number: int | None = None,
+    som_mineralization_kg_ha_day: float = 0.0,
+    anchor_temp_c: float | None = None,
+    plant_n_uptake_kg_ha_day: float = 0.0,
+    no3_share: float = 1.0,
+    root_zone_fc_mm: float | None = None,
     n_no3_by_layer: list[float] | None = None,
     n_nh4_by_layer: list[float] | None = None,
     layer_depths_cm: list[float] | None = None,
@@ -343,80 +398,79 @@ def project_soil_forecast(
     root_penetration_factor: float = 1.0,
     crop_n_uptake: bool = True,
 ) -> list[SoilForecastPoint]:
-    """Project water-stress and mineral-N ``len(weather)`` days ahead.
+    """Project water stress and root-zone mineral N ``len(weather)`` days ahead.
 
-    ``weather`` is a list of ``(temp_mean_c, shortwave_mj_m2, rain_mm)`` tuples
-    for the forecast days. LAI is held constant over the short horizon (a
-    reasonable approximation for a ~5-7 day outlook).
+    ``weather`` holds ``(temp_mean_c, shortwave_mj_m2, rain_mm)`` per forecast
+    day. The anchor LAI is held over the short horizon.
 
-    **Root-zone deepening (#366).** When per-layer mineral N
+    **Water (#689).** ``available_water_mm`` and ``total_available_water_mm``
+    describe the bucket: the route floors its depth at layer 0, as
+    ``_root_zone_water_fraction`` does. ``topsoil_available_mm`` and
+    ``topsoil_capacity_mm`` are layer 0's available water and FC − WP storage;
+    ``None`` makes the topsoil the whole bucket. ``topsoil_root_fraction`` is the
+    share of transpiration taken from layer 0 (``root_state.layer_fractions[0]``).
+    ``cumulative_evap_mm`` and ``residue_cover_fraction`` are the ``ETRuntime``'s
+    stage clock and residue cover; ``curve_number`` is the engine's layer-0 CN
+    (``None``: no runoff). ``depletion_fraction_p`` is the crop's FAO-56 p
+    (``None``: the generic 0.5, for a caller with no crop).
+
+    **Mineral N (#689).** All in kg/ha. ``som_mineralization_kg_ha_day`` is the
+    root-zone total of the engine's ``som_mineralized_n_by_layer`` on the anchor
+    day, scaled each day by 2^((T − ``anchor_temp_c``)/10) (``None``: unscaled).
+    ``plant_n_uptake_kg_ha_day`` is the anchor day's plant N uptake, dropped when
+    ``crop_n_uptake`` is False (a crop at MATURITY takes up no N; #539).
+    Leaching removes ``no3_share`` × min(1, D / ``root_zone_fc_mm``) of the pool,
+    where D is the bucket's drainage and ``root_zone_fc_mm`` its field-capacity
+    storage (``None``: the TAW, a lower bound on it); with no FC storage, drainage
+    flushes all the NO3.
+
+    **Root-zone deepening (#366/#383).** When the per-layer mineral N
     (``n_no3_by_layer`` / ``n_nh4_by_layer``), ``layer_depths_cm``,
     ``root_depth_cm`` and a positive ``root_growth_rate_cm_per_day`` are all
-    supplied, the root depth is grown each projected day by
+    supplied, the root depth grows each projected day by
     ``root_growth_rate_cm_per_day × root_stage_multiplier × root_penetration_factor``
-    (capped at ``root_max_depth_cm``), mirroring ``RootModule._update_depth``.
-    Each day the newly rooted soil contributes its (anchor-day) mineral N to the
-    pool, capturing the early-season rise the engine gets from the zone deepening
-    into deeper, mineral-N-bearing layers. Omit these params (the default) to keep
-    the prior **constant-depth** behaviour, mirroring #363's zero-default source
-    term. The water channel does not read any of the deepening inputs and is
-    unaffected.
-
-    ``root_penetration_factor`` (#383) is the engine's **aggregate-penetration**
-    constraint — ``root_penetration_factor(agg_state.mwd(0))`` — a single
-    top-layer, depth-independent scalar in ``[0, 1]``. It evolves only via slow
-    aggregation dynamics, so held constant over the horizon it *mirrors* the
-    engine's agg-penetration channel exactly (it is folded once into the daily
-    increment before the loop, like ``root_zone_wfps_frac``). The default ``1.0``
-    reproduces the pre-#383 cf-omitted deepening path. The engine's two
-    depth-triggered constraint multipliers (hardpan, water-table) are
-    deliberately **not** threaded — see ``_advance_root_depth``.
-
-    Mineral N gains a **net-mineralisation source** from the labile SOM pool
-    (``som_labile_n_kg_ha``, the root-zone labile organic N) and loses N to
-    crop uptake and drainage leaching. ``root_zone_wfps_frac`` sets the moisture
-    factor for decomposition and is held constant over the horizon (moisture
-    swings slowly relative to temperature; temperature drives the daily
-    variation via a Q10=2 response). When ``som_labile_n_kg_ha`` is zero the
-    projection is sink-only, preserving the pre-#353 behaviour for callers
-    that do not supply an SOM pool.
-
-    Scope and accuracy. With the aggregate-penetration factor now threaded (#383),
-    the deepening term deepens the projected zone at the engine's constrained rate
-    rather than the old cf-omitted overshoot (~2.1× the engine Δ). Because
-    ``root_penetration_factor`` is folded once and held constant over the
-    horizon, the **depth-side** gap closes exactly: the projected zone deepens
-    at the engine's constrained rate on every realisation. The remaining
-    residual is **source-side** and out of scope here: the net-mineralisation
-    source reproduces only the labile-pool RothC kinetics, omitting rhizosphere
-    priming (up to +50 % on ``k_labile`` in rooted layers, arguably the largest
-    omitted contributor) and aggregate protection. That source-side divergence
-    — the mineral-N distribution × rhizosphere-priming / aggregate-protection
-    interaction — is weather-dependent: on the pinned scenario (maize /
-    loam_temperate / NL, seed 42, input-fed SOM prior without the #435 fallow)
-    the net mineral-N Δ lands within ±20 % of the
-    engine's, but on other weather realisations (other seeds) it can push the
-    forecast/engine ratio outside that band. The forecast thus targets *sign*
-    agreement, with the close ±20 % magnitude match scoped to the pinned
-    historical input-fed scenario rather than holding in general. With the
-    fallow-conditioned default the five-day delta can differ by more than
-    20%; the deepening path retains sign agreement in its regression scenario.
-
-    ``crop_n_uptake=False`` drops the crop-uptake sink, leaving only the SOM
-    source and leaching, as for a fallow anchor's LAI 0. The route passes it for
-    a crop at MATURITY, which takes up no N in the engine (#539).
+    (capped at ``root_max_depth_cm``), mirroring ``RootModule._update_depth``, and
+    the newly rooted soil adds its anchor-day mineral N. Omit them to hold the
+    depth constant. ``root_penetration_factor`` is the engine's
+    aggregate-penetration constraint, ``root_penetration_factor(agg_state.mwd(0))``,
+    a single top-layer scalar in [0, 1] that held constant mirrors the engine
+    exactly; the depth-triggered hardpan and water-table multipliers are not
+    threaded (see ``_advance_root_depth``). The water channel reads none of the
+    deepening inputs.
     """
     et = Evapotranspiration()
-    canopy_cover = 1.0 - math.exp(-_CANOPY_EXTINCTION_K * max(0.0, lai))
-
+    stage1, coef = et.residue_adjusted_params(
+        et.params.stage1_limit_mm,
+        et.params.ritchie_coef,
+        residue_cover_fraction,
+        et.params.residue_stage1_reduction,
+        et.params.residue_stage2_reduction,
+    )
     available = max(0.0, available_water_mm)
     taw = max(0.0, total_available_water_mm)
-    mineral_n = max(0.0, mineral_n_kg_ha)
-    labile_n = max(0.0, som_labile_n_kg_ha)
-    moist_f = _som_moisture_factor(max(0.0, root_zone_wfps_frac))
+    bucket = _Bucket(
+        available=available,
+        taw=taw,
+        topsoil=available if topsoil_available_mm is None else topsoil_available_mm,
+        topsoil_capacity=taw if topsoil_capacity_mm is None else topsoil_capacity_mm,
+        topsoil_root_fraction=topsoil_root_fraction,
+        cumulative_evap_mm=cumulative_evap_mm,
+    )
+    water = _WaterDrivers(
+        et=et,
+        lai=lai,
+        curve_number=curve_number,
+        stage1_limit_mm=stage1,
+        ritchie_coef=coef,
+        depletion_fraction_p=(
+            _DEPLETION_FRACTION_P
+            if depletion_fraction_p is None
+            else depletion_fraction_p
+        ),
+    )
 
     # Bind the deepening inputs as a single narrowed tuple (or None) so the
-    # per-day loop stays flat and mypy sees the arrays as non-optional.
+    # per-day step stays flat and mypy sees the arrays as non-optional.
     deepen_layers: tuple[list[float], list[float], list[float]] | None = None
     if (
         root_growth_rate_cm_per_day > 0.0
@@ -426,74 +480,39 @@ def project_soil_forecast(
         and root_depth_cm is not None
     ):
         deepen_layers = (n_no3_by_layer, n_nh4_by_layer, layer_depths_cm)
-    root_depth = root_depth_cm if root_depth_cm is not None else 0.0
     # Fold the aggregate-penetration constraint (#383) into the daily increment
-    # once, before the loop. It is a single top-layer, depth-independent scalar
-    # (``root_penetration_factor(agg_state.mwd(0))``) that evolves only via slow
-    # aggregation dynamics, so holding it constant over the ~5-day horizon
-    # *mirrors* the engine's agg-penetration channel exactly (like WFPS above).
-    # Clamped to [0, 1]; the 1.0 default reproduces the pre-#383 cf-omitted path.
+    # once: clamped to [0, 1], the 1.0 default reproduces the cf-omitted path.
     cf = max(0.0, min(1.0, root_penetration_factor))
-    daily_depth_inc = root_growth_rate_cm_per_day * max(0.0, root_stage_multiplier) * cf
+    nitrogen = _NDrivers(
+        deepen_layers=deepen_layers,
+        daily_depth_inc=root_growth_rate_cm_per_day
+        * max(0.0, root_stage_multiplier)
+        * cf,
+        max_depth_cm=root_max_depth_cm,
+        mineralization_kg_ha_day=som_mineralization_kg_ha_day,
+        anchor_temp_c=anchor_temp_c,
+        uptake_kg_ha_day=plant_n_uptake_kg_ha_day if crop_n_uptake else 0.0,
+        no3_share=no3_share,
+        fc_storage_mm=taw if root_zone_fc_mm is None else root_zone_fc_mm,
+    )
+    pool = _NPool(
+        mineral_n=max(0.0, mineral_n_kg_ha),
+        root_depth=root_depth_cm if root_depth_cm is not None else 0.0,
+    )
 
     points: list[SoilForecastPoint] = []
     for temp_mean_c, shortwave_mj_m2, rain_mm in weather:
-        ks = water_stress_coefficient(available, taw, depletion_fraction_p)
-
-        # --- Root-zone deepening source (#366): as the zone grows into deeper
-        # layers each day, their pre-existing (anchor-day) mineral N enters the
-        # pool. Capped at max_depth_cm inside _advance_root_depth.
-        if deepen_layers is not None:
-            new_depth = _advance_root_depth(
-                root_depth, daily_depth_inc, root_max_depth_cm
-            )
-            mineral_n += _newly_rooted_mineral_n_kg_ha(
-                *deepen_layers, root_depth, new_depth
-            )
-            root_depth = new_depth
-
-        # Actual ET: transpiration is throttled by Ks under canopy; the
-        # uncovered fraction keeps a reference-rate evaporative demand.
-        et0 = et.priestley_taylor(temp_mean_c, NET_RAD_FRACTION * shortwave_mj_m2)
-        et_actual = et0 * (1.0 - canopy_cover * (1.0 - ks))
-
-        # Root-zone water bucket: rain in, ET out, excess above TAW drains.
-        water_after = available + max(0.0, rain_mm) - et_actual
-        if taw > 0.0:
-            drainage = max(0.0, water_after - taw)
-            available = max(0.0, min(water_after, taw))
-        else:
-            drainage = max(0.0, water_after)
-            available = max(0.0, water_after)
-
-        # --- Net N mineralisation source (labile SOM pool) -----------------
-        # #351/#357 made the three-pool SOM module the single authoritative
-        # net-mineralisation source. Mirror its labile-pool kinetics:
-        #   decomposed_N = labile_N · k_labile · f(T) · f(moisture)
-        # of which the humified fraction stays in SOM and the remainder is
-        # released to the mineral pool. Draining the labile pool as it
-        # mineralises reproduces the engine's gentle day-to-day deceleration.
-        # Without this source the projection trended opposite to the engine in
-        # early-season loam (#353). Coleman & Jenkinson (1996); Linn & Doran
-        # (1984); net rate ~1-3 kg N/ha/day (Stanford & Smith 1972).
-        decomposed_n = labile_n * _SOM_K_LABILE * _som_temperature_factor(temp_mean_c)
-        decomposed_n *= moist_f
-        labile_n = max(0.0, labile_n - decomposed_n)
-        mineral_n += decomposed_n * (1.0 - _SOM_HUMIFICATION_LABILE)
-
-        # Mineral-N sinks: crop uptake (canopy- and stress-scaled) then leaching.
-        # A mature crop takes up no N (#539; ADR-013 amendment 2026-11-24).
-        uptake = _PEAK_N_UPTAKE_KG_HA_DAY * canopy_cover * ks if crop_n_uptake else 0.0
-        mineral_n = max(0.0, mineral_n - uptake)
-        leach_fraction = min(
-            _LEACH_MAX_FRACTION, drainage / (drainage + _LEACH_DRAINAGE_HALF_MM)
+        drainage, ta_over_tp = _water_day(
+            bucket, water, temp_mean_c, shortwave_mj_m2, rain_mm
         )
-        mineral_n = max(0.0, mineral_n - mineral_n * leach_fraction)
-
+        _n_day(pool, nitrogen, temp_mean_c, drainage)
         points.append(
             SoilForecastPoint(
-                water_stress=round(ks, 3),
-                mineral_n_kg_ha=round(mineral_n, 1),
+                water_stress=round(ta_over_tp, 3),
+                mineral_n_kg_ha=round(pool.mineral_n, 2),
+                root_zone_water_fraction=(
+                    round(bucket.available / taw, 3) if taw > 0.0 else 0.0
+                ),
             )
         )
     return points

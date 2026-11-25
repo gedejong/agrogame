@@ -596,6 +596,32 @@ def test_ac11_two_seasons_with_mid_season_and_boundary_saves(runs: dict) -> None
     _assert_identical(_end_values(resumed), _end_values(fm), "season 2, boundary")
 
 
+def test_689_forecast_is_the_same_after_a_load() -> None:
+    """The forecast's anchor inputs travel with the save, so its rows do (#689)."""
+    from agrogame.api.forecast import project_soil_forecast
+    from agrogame.api.routes import _projection_inputs
+
+    fm = _new_manager()
+    _step(fm, 0, 60)
+    loaded = FieldManager.from_dict(_save(fm))
+    records = _weather(42, 2024)
+    anchor_temp = (records[59].tmin_c + records[59].tmax_c) / 2.0
+    weather = [
+        ((r.tmin_c + r.tmax_c) / 2.0, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
+        for r in records[60:65]
+    ]
+    pairs = zip(loaded.fields["f1"].patches, fm.fields["f1"].patches, strict=True)
+    for got, want in pairs:
+        before = vars(_projection_inputs(want, anchor_temp))
+        after = vars(_projection_inputs(got, anchor_temp))
+        assert before["plant_n_uptake_kg_ha_day"] > 0.0
+        assert before["cumulative_evap_mm"] > 0.0
+        assert after == before
+        assert project_soil_forecast(weather=weather, **after) == project_soil_forecast(
+            weather=weather, **before
+        )
+
+
 @pytest.mark.parametrize("bad", [-1, 1.5, True, "60"])
 def test_day_counter_rejects_invalid_values(bad: Any) -> None:
     orch = _orchs(_new_manager())[0]

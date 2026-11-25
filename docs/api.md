@@ -101,10 +101,22 @@ external automation. In-memory game sessions are keyed by `game_id`.
   until the client's active field (#601). `GET /status` carries the same
   member. An unknown `game_id` is a 404.
 - `GET /api/v1/games/{game_id}/forecast?field_id=<id>` — short-range forecast:
-  weather plus a projected water-stress (FAO-56 Ks) and mineral-N trajectory
-  for decision support, anchored on patch 0 of `field_id` (#547). Without
-  `field_id` it projects the first field, exactly as before. An unknown
-  `field_id` is a 404. The weather part is the same for every field.
+  weather plus a projected water-stress and mineral-N trajectory for decision
+  support, anchored on patch 0 of `field_id` (#547). Without `field_id` it
+  projects the first field, exactly as before. An unknown `field_id` is a 404.
+  The weather part is the same for every field. Each row's projection (#689):
+  - `water_stress` is the day's projected Ta/Tp, the quantity the Water gauge
+    reads (1.0 when there is no potential transpiration). The bucket is the
+    root zone floored at layer 0; the projection calls the engine's
+    Priestley-Taylor ET0, Beer's-law E/T split, SCS runoff, Ritchie (1972)
+    soil evaporation with the patch's stage clock and residue cover, and
+    FAO-56 Ks with the crop's p.
+  - `mineral_n_kg_ha` is root-zone NO3 + NH4 in kg/ha, as the engine holds its
+    pools, rounded to 0.01. The anchor day's engine fluxes are held over the
+    horizon: SOM net mineralisation (scaled by Q10 = 2 to each day's
+    temperature) and plant N uptake, plus root-zone deepening and NO3 leaching
+    by the engine's mixing-cell rule. Until #693 the Soil panel's NO3 and NH4
+    read ten times higher than this.
 - `GET /api/v1/games/{game_id}/report` — end-of-season harvest report
 
 ## One day loop (#487)

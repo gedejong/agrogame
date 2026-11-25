@@ -183,7 +183,7 @@ _CLASSIFICATION: dict[str, tuple[str, str]] = {
     "NitrogenRuntime": ("_eh_by_layer", ""),
     "NitrogenCycle": (
         "_env _som_mineralized_n _aerobic_fraction_override _pending_h_kmol_ha",
-        "_massflow_supply_by_layer",
+        "_massflow_supply_by_layer _plant_uptake_kg_ha",
     ),
     "RedoxRuntime": ("_pre_drainage_theta", "_root_fractions"),
     "EnvironmentalCache": (

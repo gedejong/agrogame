@@ -46,11 +46,11 @@ from agrogame.api.models import (
     SoilStateResponse,
 )
 from agrogame.api.forecast import (
+    SoilForecastPoint,
     project_soil_forecast,
     root_zone_mineral_n_kg_ha,
-    root_zone_som_labile_n_kg_ha,
+    root_zone_sum,
     root_zone_water_mm,
-    root_zone_wfps,
     stage_depth_multiplier,
 )
 from agrogame.api.state import GameSession, games
@@ -1646,21 +1646,30 @@ def preview_action(game_id: str, req: ActionRequest) -> ActionPreviewResponse:
 
 @dataclass(frozen=True)
 class _ProjectionInputs:
-    """Anchor-day inputs threaded into ``project_soil_forecast``.
+    """Anchor-day inputs to ``project_soil_forecast``, named as its keywords.
 
-    (#318/#353/#366/#383.) Beyond the collapsed root-zone scalars, this carries
-    the **per-layer** mineral N arrays, layer depths, current root depth and the
-    engine root-growth params so the forecast can project root-zone deepening
-    (#366), plus the aggregate-penetration constraint scalar that throttles that
-    deepening to the engine's constrained rate (#383).
+    (#318/#353/#366/#383/#689.) The water bucket is the root zone floored at
+    layer 0, as the Root zone gauge reads it; the mineral-N zone is the unfloored
+    root zone, deepening from the anchor depth. The N fluxes are the engine's own
+    on the anchor day.
     """
 
     available_water_mm: float
     total_available_water_mm: float
+    topsoil_available_mm: float
+    topsoil_capacity_mm: float
+    topsoil_root_fraction: float
+    cumulative_evap_mm: float
+    residue_cover_fraction: float
+    curve_number: int
+    depletion_fraction_p: float | None
     mineral_n_kg_ha: float
     lai: float
-    som_labile_n_kg_ha: float
-    root_zone_wfps_frac: float
+    som_mineralization_kg_ha_day: float
+    anchor_temp_c: float | None
+    plant_n_uptake_kg_ha_day: float
+    no3_share: float
+    root_zone_fc_mm: float
     n_no3_by_layer: list[float]
     n_nh4_by_layer: list[float]
     layer_depths_cm: list[float]
@@ -1672,43 +1681,39 @@ class _ProjectionInputs:
     crop_n_uptake: bool
 
 
-def _projection_inputs(patch: Patch) -> _ProjectionInputs:
-    """Extract anchor-day projection inputs for a patch.
+def _projection_inputs(
+    patch: Patch, anchor_temp_c: float | None = None
+) -> _ProjectionInputs:
+    """Extract the anchor-day projection inputs for a patch.
 
-    The labile SOM N and WFPS feed the net-mineralisation source term (#353);
-    the per-layer mineral N, layer depths, root depth and root-growth params
-    (from ``orch.roots.params`` / ``orch.phenology.state.stage``) feed the
-    root-zone deepening source (#366); the aggregate-penetration factor from
-    ``orch.agg_state.mwd(0)`` throttles that deepening to the engine's
-    constrained rate (#383). A crop at MATURITY takes up no N in the engine,
-    so its projection drops the crop-uptake sink (#539).
+    Water (#689): the bucket and layer 0's store, the ``ETRuntime``'s stage clock
+    and residue cover, the engine's layer-0 CN, and the crop's FAO-56 p (None on
+    a fallow patch). Mineral N (#689): the root-zone weighting of the anchor
+    day's SOM net mineralisation,
+    the day's plant N uptake, the zone's NO3 share and the bucket's
+    field-capacity storage. Deepening (#366/#383): the per-layer mineral N, the
+    root-growth params and the aggregate-penetration factor. A crop at MATURITY
+    takes up no N in the engine, so its projection drops the uptake (#539).
     """
     orch = patch.orch
     snap = orch.snapshot_soil()
     layers = orch.profile.layers
     depths = [ly.depth_cm for ly in layers]
+    fc = [ly.field_capacity for ly in layers]
+    wp = [ly.wilting_point for ly in layers]
+    theta = list(snap.water_theta)
     root_depth = orch.root_state.current_depth_cm
+    bucket_depth = max(root_depth, depths[0])
+    available, taw = root_zone_water_mm(theta, depths, fc, wp, bucket_depth)
+    topsoil, topsoil_capacity = root_zone_water_mm(theta, depths, fc, wp, depths[0])
+    # Field-capacity storage per layer, θ_fc (m³/m³) × d (cm) × 10 = mm.
+    fc_storage = [f * d * 10.0 for f, d in zip(fc, depths, strict=True)]
     n_no3 = list(snap.n_no3)
     n_nh4 = list(snap.n_nh4)
-    available, taw = root_zone_water_mm(
-        list(snap.water_theta),
-        depths,
-        [ly.field_capacity for ly in layers],
-        [ly.wilting_point for ly in layers],
-        root_depth,
-    )
     mineral_n = root_zone_mineral_n_kg_ha(n_no3, n_nh4, depths, root_depth)
-    som = orch.som
-    labile_n_by_layer = (
-        [ly.labile.n_kg_ha for ly in som.state.layers] if som is not None else []
-    )
-    som_labile_n = root_zone_som_labile_n_kg_ha(labile_n_by_layer, depths, root_depth)
-    wfps = root_zone_wfps(
-        list(snap.water_theta),
-        [ly.saturation for ly in layers],
-        depths,
-        root_depth,
-    )
+    no3 = root_zone_sum(n_no3, depths, root_depth)
+    cumulative_evap, residue_cover = orch.soil_evaporation_memory
+    root_fractions = orch.root_state.layer_fractions
     root_params = orch.roots.params
     # Aggregate-penetration constraint on root elongation (#383): the engine's
     # single top-layer, depth-independent channel of RootModule._constraint_factor
@@ -1720,10 +1725,22 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
     return _ProjectionInputs(
         available_water_mm=available,
         total_available_water_mm=taw,
+        topsoil_available_mm=topsoil,
+        topsoil_capacity_mm=topsoil_capacity,
+        topsoil_root_fraction=root_fractions[0] if root_fractions else 0.0,
+        cumulative_evap_mm=cumulative_evap,
+        residue_cover_fraction=residue_cover,
+        curve_number=orch.water_model.texture_cn(orch.profile),
+        depletion_fraction_p=_depletion_fraction_p(patch),
         mineral_n_kg_ha=mineral_n,
         lai=orch.canopy.state.lai,
-        som_labile_n_kg_ha=som_labile_n,
-        root_zone_wfps_frac=wfps,
+        som_mineralization_kg_ha_day=root_zone_sum(
+            orch.n_cycle.som_mineralized_n_by_layer, depths, root_depth
+        ),
+        anchor_temp_c=anchor_temp_c,
+        plant_n_uptake_kg_ha_day=orch.n_cycle.plant_uptake_kg_ha,
+        no3_share=no3 / mineral_n if mineral_n > 0.0 else 1.0,
+        root_zone_fc_mm=root_zone_sum(fc_storage, depths, bucket_depth),
         n_no3_by_layer=n_no3,
         n_nh4_by_layer=n_nh4,
         layer_depths_cm=depths,
@@ -1739,6 +1756,25 @@ def _projection_inputs(patch: Patch) -> _ProjectionInputs:
         root_penetration_factor=penetration_factor,
         crop_n_uptake=orch.phenology.state.stage is not PhenologyStage.MATURITY,
     )
+
+
+def _project_patch(
+    s: GameSession, patch: Patch, window: Sequence[WeatherRecord]
+) -> list[SoilForecastPoint]:
+    """Project ``patch`` over ``window`` from today's state (#318, #689).
+
+    The anchor temperature is the mean air temperature of the last simulated
+    day, which drove the anchor day's mineralisation; day 0 has none.
+    """
+    prev = s.weather[s.day_index - 1] if s.day_index > 0 else None
+    anchor_temp = (prev.tmin_c + prev.tmax_c) / 2.0 if prev is not None else None
+    inputs = _projection_inputs(patch, anchor_temp)
+    weather = [
+        ((r.tmin_c + r.tmax_c) / 2.0, r.shortwave_mj_m2 or 12.0, r.precip_mm or 0.0)
+        for r in window
+    ]
+    # The dataclass fields are named as the projection's keywords.
+    return project_soil_forecast(weather=weather, **vars(inputs))
 
 
 @router.get("/games/{game_id}/forecast", response_model=ForecastResponse)
@@ -1766,32 +1802,7 @@ def get_forecast(
     end = min(s.day_index + days, len(s.weather))
     window = s.weather[s.day_index : end]
 
-    pi = _projection_inputs(field.patches[0])
-    projection = project_soil_forecast(
-        available_water_mm=pi.available_water_mm,
-        total_available_water_mm=pi.total_available_water_mm,
-        mineral_n_kg_ha=pi.mineral_n_kg_ha,
-        lai=pi.lai,
-        weather=[
-            (
-                (rec.tmin_c + rec.tmax_c) / 2.0,
-                rec.shortwave_mj_m2 or 12.0,
-                rec.precip_mm or 0.0,
-            )
-            for rec in window
-        ],
-        som_labile_n_kg_ha=pi.som_labile_n_kg_ha,
-        root_zone_wfps_frac=pi.root_zone_wfps_frac,
-        n_no3_by_layer=pi.n_no3_by_layer,
-        n_nh4_by_layer=pi.n_nh4_by_layer,
-        layer_depths_cm=pi.layer_depths_cm,
-        root_depth_cm=pi.root_depth_cm,
-        root_growth_rate_cm_per_day=pi.root_growth_rate_cm_per_day,
-        root_max_depth_cm=pi.root_max_depth_cm,
-        root_stage_multiplier=pi.root_stage_multiplier,
-        root_penetration_factor=pi.root_penetration_factor,
-        crop_n_uptake=pi.crop_n_uptake,
-    )
+    projection = _project_patch(s, field.patches[0], window)
 
     forecast: list[ForecastDayResponse] = []
     for rec, point in zip(window, projection, strict=True):
