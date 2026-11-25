@@ -294,9 +294,28 @@ static func gauge_mark(key: String, tile_data: Dictionary, scores: Dictionary) -
 	return ""
 
 
+## The gauge the advice acts on: "water", "nutrient", "root_zone", or "" when
+## the advice asks for no action (#660 §6; the field strip's attention, #602).
+## First match wins: no gauge on a crop that does not stand (bare, sown, mature),
+## then the lower of Ks < 0.70 and the nutrient limit (a tie goes to water),
+## then a drying root zone. Growth behind potential is never one: it is the
+## outcome of earlier limits, and its advice asks for no action.
+static func advised_gauge(tile_data: Dictionary) -> String:
+	if String(tile_data.get("crop_key", "")).is_empty():
+		return ""
+	if not String(tile_data.get("crop_stage_name", "")) in STANDING_STAGES:
+		return ""
+	var ks: float = tile_data.get("water_ks", 1.0)
+	var nut := _nutrient_candidate(tile_data)
+	if ks < GOOD_THRESHOLD / 100.0 and (nut.is_empty() or ks <= nut["value"]):
+		return "water"
+	if not nut.is_empty():
+		return "nutrient"
+	return "root_zone" if _root_zone_dry(tile_data) else ""
+
+
 ## Advice naming the true limit (#660 §6). First match wins: no crop, not
-## emerged, mature, then the lower of Ks < 0.70 and the nutrient limit (a tie
-## goes to water), a drying root zone, growth behind potential.
+## emerged, mature, then the advised gauge, then growth behind potential.
 static func compute_recommendation(tile_data: Dictionary) -> String:
 	if String(tile_data.get("crop_key", "")).is_empty():
 		return "No crop planted. Consider planting."
@@ -305,16 +324,15 @@ static func compute_recommendation(tile_data: Dictionary) -> String:
 		return "Mature: ready to harvest."
 	if not stage in STANDING_STAGES:
 		return "Sown, not yet emerged."
-	var ks: float = tile_data.get("water_ks", 1.0)
-	var nut := _nutrient_candidate(tile_data)
-	if ks < GOOD_THRESHOLD / 100.0 and (nut.is_empty() or ks <= nut["value"]):
-		if ks < WARN_THRESHOLD / 100.0:
-			return "Crop is short of water. Irrigate now."
-		return "Crop is starting to run short of water. Consider irrigating."
-	if not nut.is_empty():
-		return _nutrient_advice(nut["name"], stage)
-	if _root_zone_dry(tile_data):
-		return "Root zone is drying. Irrigate before the crop shows stress."
+	match advised_gauge(tile_data):
+		"water":
+			if float(tile_data.get("water_ks", 1.0)) < WARN_THRESHOLD / 100.0:
+				return "Crop is short of water. Irrigate now."
+			return "Crop is starting to run short of water. Consider irrigating."
+		"nutrient":
+			return _nutrient_advice(_nutrient_candidate(tile_data)["name"], stage)
+		"root_zone":
+			return "Root zone is drying. Irrigate before the crop shows stress."
 	var growth: float = tile_data.get("growth_vs_potential", NOT_SHOWN)
 	if growth >= 0.0 and growth < GOOD_THRESHOLD / 100.0:
 		return "Growth is behind its potential after earlier stress or damage."

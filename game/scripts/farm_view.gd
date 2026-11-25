@@ -49,6 +49,7 @@ var _soil_panel := SoilPanelController.new()  # View Soil's Soil Analysis panel 
 var _quick_status: QuickStatusCard = null
 var _previews: ActionPreviews = null
 var _active: ActiveField = null
+var _strip := FieldStrip.new()  # one card per field, top-centre (#602)
 var _stress_icons: StressIcons = null
 var _api_client: Node
 var _last_step_data: Dictionary = {}
@@ -132,6 +133,8 @@ func _ready() -> void:
 		func() -> bool: return _bar_held,
 	)
 	_active = ActiveField.new(active_field_label, _api_client, _on_forecast_received)
+	_strip.field_pressed.connect(_on_field_card)
+	$UILayer.add_child(_strip)
 	_setup_crop_popup()
 	_setup_fertilizer_popup()
 	_setup_lime_popup()
@@ -205,6 +208,7 @@ func _apply_layout(fields: Array) -> void:
 		_tile_meshes[i].position.z = row_z[_tile_data[i]["row"]]
 		(_crop_sprites[i][0] as Node3D).position = _tile_meshes[i].position
 	_slab.lay_out(fields, _tile_data, _tile_meshes)
+	_strip.lay_out(fields, _tile_data, _active.id)
 
 
 func _load_layout() -> void:
@@ -314,6 +318,16 @@ func _activate(field_id: String) -> void:
 	if _active.select(field_id) and not _game_id.is_empty():
 		_active.request_forecast(_game_id)
 		_refresh_action_costs()
+	_strip.highlight(_active.id)  # a reselect re-presses a card the click released
+
+
+## A field card makes its field active through the tile path (#602). A selected
+## tile of another field is let go, so Plant and Harvest, which act on the
+## selected tile's field, never act on a field the action bar does not name.
+func _on_field_card(field_id: String) -> void:
+	if _selected_tile.x >= 0 and _selected_field() != field_id:
+		_deselect()
+	_activate(field_id)
 
 
 ## SOM carbon (API g C/m²) in the display unit, thousands separated: "7,345".
@@ -350,9 +364,11 @@ func _show_quick_status(tile_data: Dictionary, soil_type: String) -> void:
 	$UILayer.add_child(_quick_status)
 
 
-## Rebuild the card from the selected tile's current data, so it never outlives a
-## crop or status change from a step, action reply or reconcile (#582).
-func _refresh_quick_status() -> void:
+## Rebuild the field strip and the selected tile's card from the tiles' current
+## data, so neither outlives a crop or status change from a step, action reply
+## or reconcile (#582, #602).
+func _refresh_cards() -> void:
+	_strip.refresh(_tile_data)
 	if _selected_tile.x < 0:
 		return
 	var data: Dictionary = _tile_data[_selected_tile.y * GRID_COLS + _selected_tile.x]
@@ -615,7 +631,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 		_soil_panel.update_tile_info(_daily_history.get(FarmLayout.tile_key(_tile_data[idx]), []))
 	# Crop stage may have changed (e.g. reached maturity or was cleared).
 	_update_harvest_button()
-	_refresh_quick_status()
+	_refresh_cards()
 
 
 ## Every /action goes out here, holding the bar until its reply, and for all
@@ -743,7 +759,7 @@ func _on_harvest_complete(
 	_stress_icons.clear_tiles(cleared)
 	for i: int in cleared:
 		_update_crop_visuals(i)
-	_refresh_quick_status()
+	_refresh_cards()
 	# The receipt carries the yield and price; the line keeps the net and farm profit.
 	var net: int = int(data.get("revenue_credits", 0)) - cost
 	status_label.text = (
@@ -813,7 +829,7 @@ func _on_plant_complete(
 	_stress_icons.clear_tiles(sown)
 	for i: int in sown:
 		_update_crop_visuals(i)
-	_refresh_quick_status()
+	_refresh_cards()
 	status_label.text = (
 		"Planted %s on %s — %d credits" % [crop_key, ActiveField.display_name(field_id), cost]
 	)
@@ -848,7 +864,7 @@ func _on_reconciled(ok: bool, data: Dictionary, failure: String, releases: int) 
 	for i: int in FarmTiles.reconcile_crops(data.get("fields", {}), _tile_data):
 		_update_crop_visuals(i)
 	_update_harvest_button()
-	_refresh_quick_status()
+	_refresh_cards()
 	_refresh_action_costs()
 
 
