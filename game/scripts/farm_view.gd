@@ -100,6 +100,7 @@ var _load_retry_s: float = 1.0  # the first layout-load retry's delay; doubles p
 @onready var harvest_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/HarvestButton
 @onready var soil_view_btn: Button = $UILayer/BottomBar/BottomVBox/ActionBar/SoilViewButton
 @onready var forecast_panel: VBoxContainer = $UILayer/ForecastPanel
+@onready var _slab := DioramaSlab.new()  # the soil under the fields' cut edges (#646)
 
 
 func _ready() -> void:
@@ -136,6 +137,7 @@ func _ready() -> void:
 	_setup_lime_popup()
 	_apply_ui_theme()
 	_build_tile_grid()
+	add_child(_slab)
 	_apply_layout(ScenarioCatalog.default_fields())
 	_stress_icons = StressIcons.new()
 	add_child(_stress_icons)
@@ -203,6 +205,7 @@ func _apply_layout(fields: Array) -> void:
 	for i in range(_tile_data.size()):
 		_tile_meshes[i].position.z = row_z[_tile_data[i]["row"]]
 		(_crop_sprites[i][0] as Node3D).position = _tile_meshes[i].position
+	_slab.lay_out(fields, _tile_data, _tile_meshes, sun)
 
 
 func _load_layout() -> void:
@@ -596,6 +599,7 @@ func _apply_patch_data(patches: Dictionary, skip_history: bool = false) -> void:
 			for i: int in written:
 				_update_tile_shader(i)
 				_update_crop_visuals(i)
+	_slab.update(patches)
 	# Update stress icons from patch events
 	if _stress_icons:
 		_stress_icons.update_from_patches(patches, _tile_data, _tile_meshes)
