@@ -971,6 +971,16 @@ class FullSimulationOrchestrator(RuntimeMemory):
         return None
 
     @property
+    def soil_evaporation_memory(self) -> tuple[float, float]:
+        """Read-only (cumulative soil evaporation mm, residue cover) for the forecast.
+
+        The Ritchie (1972) stage clock and the residue cover held by the
+        ``ETRuntime`` (#689), which every patch wires, fallow or not.
+        """
+        et = next(rt for rt in self._runtimes if isinstance(rt, ETRuntime))
+        return et.cumulative_evap_mm, et.residue_cover_fraction
+
+    @property
     def plant_n_nni(self) -> float:
         """Current whole-shoot N nutrition index (NNI); 1.0 = at critical N."""
         return self.plant_n_state.nni

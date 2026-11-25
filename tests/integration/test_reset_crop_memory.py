@@ -36,6 +36,7 @@ from test_save_continuation import (
 from agrogame.atmosphere.et.runtime import ETRuntime
 from agrogame.game.field import FieldManager
 from agrogame.params.memory import RuntimeMemory, to_json_native
+from agrogame.plant.events import PlantNUptakeComputed
 from agrogame.plant.presets import load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator as Orch
 from agrogame.soil.aggregation.runtime import AggregationRuntime
@@ -257,6 +258,34 @@ def test_ac4_s_and_p_conserved_across_harvest_fallow_sowing(
             assert abs(value) <= 1e-6, f"{nutrient} ledger off by {value} on day {day}"
             worst[nutrient] = max(worst[nutrient], abs(value))
     print(f"worst ledger residual (kg/ha): S {worst['S']:.1e}, P {worst['P']:.1e}")
+
+
+def test_689_stored_uptake_is_the_days_event_and_resets_with_the_crop() -> None:
+    """The forecast's uptake input is each day's ``PlantNUptakeComputed`` (#689).
+
+    Two seasons, harvest, 45 fallow days and a sowing on one patch, as AC4. The
+    stored uptake is crop memory, so each crop change restarts it at zero.
+    """
+    soil, climate, crop = LOAM_NL_MAIZE
+    orch = _orch(soil, climate, crop)
+    seen: list[float] = []
+
+    def listen() -> None:
+        orch.event_bus.subscribe(
+            PlantNUptakeComputed, lambda ev: seen.append(ev.uptake_kg_ha)
+        )
+
+    listen()
+    for day in range(_DAYS):
+        if day in (150, 195):
+            if day == 150:
+                orch.harvest()
+            _reset(orch, None if day == 150 else crop, climate)
+            assert orch.n_cycle.plant_uptake_kg_ha == 0.0
+            listen()  # the bus was cleared
+        _run(orch, climate, day, day + 1)
+        assert orch.n_cycle.plant_uptake_kg_ha == seen[-1]
+    assert max(seen[:150]) > 0.0 and max(seen[195:]) > 0.0
 
 
 def _field_memory(fm: FieldManager) -> list[tuple[float, float]]:
