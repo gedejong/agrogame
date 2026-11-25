@@ -32,6 +32,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Smoke matcher self-test
         # Proves the error matcher survives ANSI escapes (#497); no backend needed.

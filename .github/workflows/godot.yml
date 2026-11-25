@@ -48,6 +48,8 @@ jobs:
     needs: [lint, coverage]
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Install Godot
         uses: chickensoft-games/setup-godot@v2
