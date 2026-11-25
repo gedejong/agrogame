@@ -38,51 +38,46 @@ func test_frost_and_heat_severity_default_half_clamp_and_max() -> void:
 	var keys := ["frost_damage", "heat_damage", "n_stress"]
 	var frost := "FrostDamageApplied"
 	var heat := "HeatDamageApplied"
-	# Frost reads its severity; heat derives it as 1 - grain_reduction_factor
-	# (#569). A heat event without the factor takes the 0.5 fallback.
+	# Frost reads its severity; heat is presence-only (#664): the constant, and
+	# the event's fields do not move it.
 	var defaults: Array = [{"event_type": frost}, {"event_type": heat, "data": {"x": 1}}]
 	assert_eq(_stress(defaults, keys), [500, 500, 0], "default 0.5")
 	# Above 1 clamps to 1. Below 0 reads as 0 either way: the max starts at 0.
 	var high: Array = [
 		{"event_type": frost, "data": {"severity": 3.0}},
-		{"event_type": heat, "data": {"grain_reduction_factor": -0.2}},  # 1.2
-		{"event_type": heat, "data": {"grain_reduction_factor": 3.0}},  # -2.0
 	]
-	assert_eq(_stress(high, keys), [1000, 1000, 0], "clamped to [0, 1]")
+	assert_eq(_stress(high, keys), [1000, 0, 0], "frost clamped to [0, 1]")
 	var many: Array = [
 		{"event_type": frost, "data": {"severity": 0.2}},
 		{"event_type": frost, "data": {"severity": 0.7}},
-		{"event_type": heat, "data": {"grain_reduction_factor": 0.7}},  # 0.3
+		{"event_type": heat, "data": {"tmax_c": 39.0, "threshold_c": 35.0}},
 		{"event_type": heat},
 	]
 	assert_eq(_stress(many, keys), [700, 500, 0], "max over events")
 
 
-## A HeatDamageApplied as /step sends it: the engine's two fields, no severity.
-func _heat(factor: float, tmax_c: float) -> Dictionary:
+## A HeatDamageApplied as /step sends it: tmax_c and threshold_c, no severity.
+func _heat(tmax_c: float, threshold_c: float) -> Dictionary:
 	return {
 		"event_type": "HeatDamageApplied",
 		"module": "agrogame.soil.canopy.events",
-		"data": {"grain_reduction_factor": factor, "tmax_c": tmax_c},
+		"data": {"tmax_c": tmax_c, "threshold_c": threshold_c},
 	}
 
 
-func test_heat_severity_is_one_minus_the_grain_reduction_factor() -> void:
-	# #569: the engine sends factor = 1 - heat_grain_reduction_fraction, so the
-	# severity is that fraction (data/crops/presets.yaml): maize 0.5, wheat 0.6.
+func test_heat_severity_is_presence_only() -> void:
+	# #664: the event carries exposure (tmax_c, threshold_c), no grain factor, and
+	# the tint is the same constant whatever it carries.
 	var keys := ["heat_damage"]
-	assert_eq(_stress([_heat(0.5, 36.0)], keys), [500], "maize, factor 0.5")
-	assert_eq(_stress([_heat(0.4, 34.0)], keys), [600], "wheat, factor 0.4")
-	assert_eq(_stress([_heat(0.7, 39.0)], keys), [300], "sorghum, factor 0.7")
-	# A severity key, which the engine never sends, does not override the factor.
-	var stray := _heat(0.4, 34.0)
-	stray["data"]["severity"] = 0.1
-	assert_eq(_stress([stray], keys), [600], "severity ignored")
-	var missing: Dictionary = {"event_type": "HeatDamageApplied", "data": {"tmax_c": 34.0}}
-	assert_eq(
-		FarmTiles.heat_severity(missing["data"]), FarmTiles.HEAT_SEVERITY_FALLBACK, "fallback"
-	)
-	assert_eq(_stress([missing], keys), [500], "the fallback is 0.5")
+	var constant := int(FarmTiles.HEAT_PRESENCE_SEVERITY * 1000)
+	assert_eq(FarmTiles.heat_severity(), FarmTiles.HEAT_PRESENCE_SEVERITY, "the UI constant")
+	assert_eq(_stress([_heat(36.0, 35.0)], keys), [constant], "maize day")
+	assert_eq(_stress([_heat(44.0, 32.0)], keys), [constant], "a much hotter day, same tint")
+	var bare: Dictionary = {"event_type": "HeatDamageApplied", "data": {"tmax_c": 34.0}}
+	assert_eq(_stress([bare], keys), [constant], "threshold_c is not needed to set it")
+	var stale := _heat(34.0, 32.0)
+	stale["data"]["grain_reduction_factor"] = 0.1
+	assert_eq(_stress([stale], keys), [constant], "a grain factor is ignored")
 
 
 func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
@@ -98,9 +93,10 @@ func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
 	assert_eq(debug_heat.size(), 1, "one debug heat event")
 	var fields: Array = (debug_heat[0]["data"] as Dictionary).keys()
 	fields.sort()
-	assert_eq(fields, ["grain_reduction_factor", "tmax_c"], "the engine's fields, no more")
+	assert_eq(fields, ["threshold_c", "tmax_c"], "the engine's fields, no more")
 	var real_events: Array = debug_events.map(
-		func(e: Dictionary) -> Dictionary: return _heat(0.4, 34.0) if e["event_type"] == heat else e
+		func(e: Dictionary) -> Dictionary:
+			return _heat(34.0, 32.0) if e["event_type"] == heat else e
 	)
 	var tiles: Array = [
 		[{"field_id": "field_1", "patch_idx": 0}], [{"field_id": "field_1", "patch_idx": 0}]
@@ -108,7 +104,7 @@ func test_debug_heat_event_writes_the_tile_the_engine_event_does() -> void:
 	FarmTiles.write_patch({"events": debug_events}, "field_1", 0, tiles[0])
 	FarmTiles.write_patch({"events": real_events}, "field_1", 0, tiles[1])
 	assert_eq(tiles[0][0], tiles[1][0], "same tile state")
-	assert_eq(roundi(float(tiles[0][0]["heat_damage"]) * 1000.0), 600, "not the 0.5 fallback")
+	assert_eq(tiles[0][0]["heat_damage"], FarmTiles.HEAT_PRESENCE_SEVERITY, "the presence tint")
 
 
 func test_writes_reach_only_tiles_with_matching_patch_idx() -> void:
@@ -242,7 +238,7 @@ func _snap(day: int, events: Array, field: String = "f", patch: int = 0) -> Dict
 
 func test_latch_step_damage_appends_earlier_days_damage_only() -> void:
 	# A 7-day step: heat on day 3 only. The patch holds day 7's events (none).
-	var heat := {"event_type": "HeatDamageApplied", "data": {"grain_reduction_factor": 0.5}}
+	var heat := {"event_type": "HeatDamageApplied", "data": {"tmax_c": 36.0, "threshold_c": 35.0}}
 	var other := {"event_type": "WaterStressComputed", "data": {"stress": 0.1}}
 	var snaps: Array = []
 	for d in range(1, 8):
@@ -252,7 +248,8 @@ func test_latch_step_damage_appends_earlier_days_damage_only() -> void:
 	var patches := {"f": [{"events": []}]}
 	FarmTiles.latch_step_damage(snaps, patches)
 	assert_eq(patches["f"][0]["events"], [heat], "damage only, not the drought event")
-	assert_eq(FarmTiles.stress_from_events(patches["f"][0]["events"])["heat_damage"], 0.5)
+	var latched: Dictionary = FarmTiles.stress_from_events(patches["f"][0]["events"])
+	assert_eq(latched["heat_damage"], FarmTiles.HEAT_PRESENCE_SEVERITY)
 	var bare := {"f": [{}]}
 	FarmTiles.latch_step_damage([_snap(1, [heat])], bare)
 	assert_eq(bare["f"][0]["events"], [heat], "a patch without an events list gets one")

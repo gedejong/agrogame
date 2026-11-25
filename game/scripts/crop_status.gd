@@ -16,9 +16,10 @@ extends RefCounted
 ## development stage (Van Diepen et al. 1989; Supit et al. 1994).
 ##
 ## Damage: a heat day is Tmax above the crop's threshold in flowering or grain
-## fill (CanopyRuntime._check_heat_damage; DSSAT CERES heat stress on grain set,
-## Hatfield & Prueger 2015). A frost day removes lai_loss of leaf area when Tmin
-## is below the threshold (_check_frost_damage; DSSAT CERES frost kill).
+## fill (CanopyRuntime._check_heat_damage, an exposure count that changes no
+## growth, #664; threshold after Hatfield & Prueger 2015). A frost day removes
+## lai_loss of leaf area when Tmin is below the threshold (_check_frost_damage;
+## DSSAT CERES frost kill).
 
 const NO_VALUE := "—"
 const HEAT_KEY := "HeatDamageApplied"

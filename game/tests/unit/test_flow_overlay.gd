@@ -340,7 +340,7 @@ func test_weather_events_ignored_by_flow_overlay() -> void:
 		{
 			"event_type": "HeatDamageApplied",
 			"module": "agrogame.soil.canopy.events",
-			"data": {"grain_reduction_factor": 0.5},
+			"data": {"tmax_c": 36.0, "threshold_c": 35.0},
 		},
 	]
 	overlay.update_from_events(events, TEST_PROFILE, Vector3.ZERO)

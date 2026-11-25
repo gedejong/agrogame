@@ -74,13 +74,10 @@ CERES-style model so harvest index becomes an *emergent*, bounded outcome:
    this is `G3` × fill duration) is met from current assimilate first, then
    topped up from remobilised stem (`remobilization_fraction`) and
    senescing-leaf (`leaf_remob_fraction`) reserves (Gebbing & Schnyder 1999;
-   Blum 1998). **Post-anthesis heat scales
-   only the *current-assimilate* share, not the reserve draw** (#434): stem
-   reserves exist precisely to buffer terminal heat/drought, so a senescing
-   crop mobilises them toward the genotypic potential fill rate rather than
-   having them heat-suppressed to a no-op. When `heat_grain_factor == 1`
-   (well-watered/cool crops) the split is inert and behaviour is unchanged.
-   Realised kernel weight (`grain / grain_number`) still drops under stress —
+   Blum 1998). There is no
+   per-day heat term in this split: a cap on the current-assimilate share was
+   refilled from the stem reserve and never changed yield, so it was retired
+   (#664). Realised kernel weight (`grain / grain_number`) still drops under stress —
    via lower current assimilate and a finite reserve pool — just not to zero.
    The sink cap normally binds before grain fill ends: at 9 mg/kernel/d a
    290 mg maize kernel is full about 42 days into a 94-111-day Kenya fill,

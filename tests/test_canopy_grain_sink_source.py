@@ -16,7 +16,7 @@ from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.soil.phenology import StageChanged, PhenologyStage
 from agrogame.soil.phenology.events import GddAccumulated
 from agrogame.soil.canopy import CanopyModule, CanopyParams
-from agrogame.soil.canopy.events import Harvested, GrainNumberSet
+from agrogame.soil.canopy.events import GrainNumberSet, Harvested, HeatDamageApplied
 from agrogame.soil.canopy.types import CanopyState
 
 
@@ -101,10 +101,23 @@ def test_kernel_weight_bounded_by_potential() -> None:
     assert kernel_weight_mg <= 40.0 + 1e-6
 
 
-def test_heat_reduces_grain_fill() -> None:
-    """heat_grain_factor < 1 during fill lowers accumulated grain."""
+def test_daily_step_takes_no_heat_grain_factor() -> None:
+    """The per-day heat grain cap is retired (#664): the argument is gone."""
+    import inspect
 
-    def run(heat_factor: float) -> float:
+    for fn in (
+        CanopyModule.daily_step,
+        CanopyModule.daily_step_with_transpiration,
+        CanopyModule._partition_grain,
+        CanopyModule._partition_grain_legacy,
+    ):
+        assert "heat_grain_factor" not in inspect.signature(fn).parameters
+
+
+def test_heat_event_does_not_change_grain_fill() -> None:
+    """A HeatDamageApplied on the bus leaves grain fill untouched (#664)."""
+
+    def run(heat_events: bool) -> float:
         bus = EventBus()
         canopy = CanopyModule(_sink_params(), event_bus=bus)
         canopy.state.lai = 5.0
@@ -113,19 +126,20 @@ def test_heat_reduces_grain_fill() -> None:
         # Set grain number in an unstressed window first.
         for i in range(3):
             _step(canopy, bus, total_gdd=950.0 + i * 20.0)
-        # Then fill with a heat factor for a few days.
+        # Then fill for a few days, with or without heat exposure events.
         for i in range(10):
             bus.emit(GddAccumulated(daily_gdd=1.0, total_gdd=1050.0 + i * 20.0))
+            if heat_events:
+                bus.emit(HeatDamageApplied(tmax_c=40.0, threshold_c=35.0))
             canopy.daily_step(
                 incident_shortwave_mj_m2=10.0,
                 temp_factor=1.0,
                 water_stress=1.0,
                 n_stress=1.0,
-                heat_grain_factor=heat_factor,
             )
         return canopy.state.grain_biomass_g_m2
 
-    assert run(0.4) < run(1.0)
+    assert run(True) == run(False) > 0.0
 
 
 def test_reserves_fill_grain_when_source_is_low() -> None:

@@ -31,7 +31,7 @@ func _days(n: int, events: Dictionary, first: int = 1, dvs0: float = 0.5) -> Arr
 
 
 func _heat(threshold: Variant = 35.0) -> Array:
-	var data := {"grain_reduction_factor": 0.5}
+	var data := {"tmax_c": 36.0}
 	if threshold != null:
 		data["threshold_c"] = threshold
 	return [{"event_type": HEAT, "data": data}]

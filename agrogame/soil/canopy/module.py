@@ -276,28 +276,26 @@ class CanopyModule:
                     )
                 )
 
-    def _partition_grain(
-        self, biomass_inc: float, leaf_fraction: float, heat_grain_factor: float
-    ) -> None:
+    def _partition_grain(self, biomass_inc: float, leaf_fraction: float) -> None:
         """Partition the day's non-leaf increment (and reserves) into grain/stem.
 
         Sink-source model (``grains_per_g_source > 0``): a daily genotypic fill
         *potential* (single-kernel rate x grain number, bounded by the
         remaining total sink = number x potential kernel weight) is met from
         current assimilate first, then topped up from remobilised reserves.
-        Post-anthesis heat slows only the *current-assimilate* share; reserves
-        buffer grain fill toward the full potential rate under stress (#434 —
-        Blum 1998; Yang & Zhang 2006). Grain number thus sets total yield, the
-        fill rate governs kernel weight, and stress lowers grain via a shorter
-        fill window and depleted reserves (CERES-style; Andrade et al. 1999;
-        Fischer 1985). Falls back to the legacy fixed-HI split for non-grain /
+        Stress lowers grain via a shorter fill window and depleted reserves
+        (CERES-style; Andrade et al. 1999; Fischer 1985). Grain number sets
+        total yield and the fill rate governs kernel weight. There is no heat
+        term here: a per-day cap on the current-assimilate share was refilled
+        from reserves (#434; Blum 1998) and was retired in #664.
+        Falls back to the legacy fixed-HI split for non-grain /
         un-migrated presets. Mutates grain and stem in place.
         """
         p = self.params
         nonleaf = biomass_inc * (1.0 - leaf_fraction)
         in_grain_fill = self._current_stage == PhenologyStage.GRAIN_FILL
         if p.grains_per_g_source <= 0.0:
-            self._partition_grain_legacy(biomass_inc, nonleaf, heat_grain_factor)
+            self._partition_grain_legacy(biomass_inc, nonleaf)
             return
         if not in_grain_fill:
             self.state.stem_biomass_g_m2 += nonleaf
@@ -311,26 +309,16 @@ class CanopyModule:
             self.state.grain_number * p.kernel_fill_rate_mg_per_grain_day * 1e-3,
             remaining_total,
         )
-        # Post-anthesis heat stress slows *current-assimilate* grain filling,
-        # but pre-anthesis reserves are not equally impaired: pre-formed
-        # stem/leaf carbohydrate keeps translocating to grain even when
-        # heat/drought crush current photosynthesis. This terminal-stress
-        # buffering by reserves is the whole reason cereals store stem reserves
-        # (Blum 1998; Yang & Zhang 2006; Gebbing & Schnyder 1999). So heat caps
-        # only the source-met share; remobilised reserves then top grain up
-        # toward the full potential rate. With no heat stress
-        # (heat_grain_factor == 1) source_demand == potential_demand and this
-        # reduces to the prior source-first, reserves-fill-the-gap behaviour.
-        source_demand = potential_demand * heat_grain_factor
-        from_source = min(nonleaf, source_demand)
+        # Current assimilate meets the potential first; remobilised reserves
+        # top grain up toward the full potential rate (Blum 1998; Yang & Zhang
+        # 2006; Gebbing & Schnyder 1999).
+        from_source = min(nonleaf, potential_demand)
         self.state.stem_biomass_g_m2 += nonleaf - from_source
         deficit = potential_demand - from_source
         remob = self._draw_reserves(deficit) if deficit > 0.0 else 0.0
         self.state.grain_biomass_g_m2 += from_source + remob
 
-    def _partition_grain_legacy(
-        self, biomass_inc: float, nonleaf: float, heat_grain_factor: float
-    ) -> None:
+    def _partition_grain_legacy(self, biomass_inc: float, nonleaf: float) -> None:
         """Legacy fixed harvest-index allocation (grains_per_g_source == 0).
 
         A fixed share of the daily increment goes to grain during grain fill,
@@ -340,9 +328,7 @@ class CanopyModule:
         """
         p = self.params
         in_grain_fill = self._current_stage == PhenologyStage.GRAIN_FILL
-        grain_inc = (
-            biomass_inc * p.harvest_index * heat_grain_factor if in_grain_fill else 0.0
-        )
+        grain_inc = biomass_inc * p.harvest_index if in_grain_fill else 0.0
         stem = nonleaf - grain_inc
         if stem < 0.0:  # keep stem >= 0 when HI > (1 - leaf_fraction)
             grain_inc += stem
@@ -414,7 +400,6 @@ class CanopyModule:
         temp_factor: float,
         water_stress: float,
         n_stress: float,
-        heat_grain_factor: float = 1.0,
         root_allocation_fraction: float = 0.0,
     ) -> CanopyFluxes:
         """Grow the canopy for one day from a single finite assimilate pool.
@@ -456,7 +441,7 @@ class CanopyModule:
         # growth gate above (DSSAT/APSIM physiological-maturity convention).
         leaf_fraction = self._leaf_fraction
         leaf_biomass = biomass_inc * leaf_fraction
-        self._partition_grain(biomass_inc, leaf_fraction, heat_grain_factor)
+        self._partition_grain(biomass_inc, leaf_fraction)
         self._apply_harvest_index_cap()
         self.update_lai(new_leaf_biomass_g_m2=leaf_biomass)
         if self.event_bus is not None and gross_inc > 0.0:
@@ -480,7 +465,6 @@ class CanopyModule:
         actual_transpiration_mm: float,
         potential_transpiration_mm: float,
         n_stress: float,
-        heat_grain_factor: float = 1.0,
         root_allocation_fraction: float = 0.0,
     ) -> CanopyFluxes:
         """Variant that derives water stress from ET supply/demand.
@@ -494,6 +478,5 @@ class CanopyModule:
             temp_factor=temp_factor,
             water_stress=ws,
             n_stress=n_stress,
-            heat_grain_factor=heat_grain_factor,
             root_allocation_fraction=root_allocation_fraction,
         )
