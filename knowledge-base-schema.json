@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/gedejong/agrogame/blob/main/docs/knowledge-base-schema.json",
+  "title": "AgroGame Knowledge Base Page",
+  "description": "Frontmatter schema for docs/<dotted-path>.md pages that document an agrogame package. Validated by scripts/check_docs_coverage.py (#295).",
+  "type": "object",
+  "required": ["module", "doc_type"],
+  "additionalProperties": false,
+  "properties": {
+    "module": {
+      "type": "string",
+      "pattern": "^agrogame(\\.[a-z_][a-z0-9_]*)+$",
+      "description": "Fully qualified dotted module path (e.g. 'agrogame.soil.water')."
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": ["module", "topic"],
+      "description": "'module' = page binds to a Python package; 'topic' = freeform topic page."
+    },
+    "references": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Literature references (free-form citations, e.g. 'FAO-56 (Allen et al. 1998), §3')."
+    },
+    "key_classes": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Public class names that must be importable from `module` (e.g. 'WaterParams')."
+    },
+    "key_events": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Domain-event class names emitted or consumed by this module."
+    },
+    "primary_tests": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Pytest paths or node-ids that exercise the module (e.g. 'tests/test_soil_water.py' or 'tests/integration/test_realism.py::test_water_balance')."
+    },
+    "related_adrs": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^ADR-\\d{3}$"},
+      "description": "Architectural Decision Records relevant to this module (e.g. 'ADR-006')."
+    }
+  }
+}

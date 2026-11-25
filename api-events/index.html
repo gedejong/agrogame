@@ -1,0 +1,3394 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../dashboard/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>API Events Reference - AgroGame Docs</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#simulation-event-api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="AgroGame Docs" class="md-header__button md-logo" aria-label="AgroGame Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            AgroGame Docs
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Events Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/databuildcompany/agrogame" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    databuildcompany/agrogame
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="AgroGame Docs" class="md-nav__button md-logo" aria-label="AgroGame Docs" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    AgroGame Docs
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/databuildcompany/agrogame" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    databuildcompany/agrogame
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Knowledge Base
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Knowledge Base
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../knowledge-base/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Index
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../atmosphere/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Atmosphere
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../game/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sim/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sim
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soil/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../weather/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Weather
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quick Context
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Quick Context
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../water/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../et/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ET (PT/PM + VPD)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../evaporation-residue/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Evaporation & Residue
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../interception/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interception
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../nitrogen/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nitrogen
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phosphorus/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phosphorus
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sulfur/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sulfur
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../soil-gas-redox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil Gas & Redox
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../microbial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Microbial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../microbial_tutorial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Microbial Tutorial
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../phenology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Phenology
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../canopy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Canopy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../plots/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diagnostics & Plots
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Events Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Events Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-types-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Types Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event Types Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simulation-clock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simulation Clock
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#water-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Water Cycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Water Cycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evapotranspirationcomputed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvapotranspirationComputed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nitrogen-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nitrogen Cycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plant-growth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plant Growth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plant-stress-and-damage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plant Stress and Damage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-biology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Biology
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-chemistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Chemistry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-gas-and-redox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Gas and Redox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#every-other-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every Other Type
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-godot-client-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Godot Client Reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-day-event-duplication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-day Event Duplication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filtering-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering Tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture (compressed)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../quality-bar/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Quality Bar
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../conventions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Conventions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/soil-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil Module
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/water_model_abstraction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water Model Abstraction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/plant-module/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plant Module
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/data-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/ports-and-events/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ports & Events
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/event-driven-scheduling/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Event-driven Scheduling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/water-balance/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Water Balance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/nutrient-cycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Nutrient Cycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/crop-growth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Crop Growth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ADRs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    ADRs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-001-game-state-persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game State Persistence
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-002-multi-field-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-field Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-003-economic-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Economic Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-004-game-loop-turn-system/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Game Loop & Turns (superseded)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-005-frontend-architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Frontend Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-006-performance-strategy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Performance Strategy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-007-3d-rendering-migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    3D Rendering Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-008-import-layering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Import Layering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-009-biopore-calibration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biopore Calibration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-010-pore-chain-phase-ordering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pore-chain Phase Ordering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-011-dashboard-facade/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard Façade
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-012-biomass-partitioning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biomass Partitioning
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-013-plant-nitrogen-stock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Whole-shoot Plant-N Accounting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-014-radiation-convention/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Radiation Convention
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-015-som-steady-state-initialisation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SOM Steady-State Initialisation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-016-preferential-flow-retirement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preferential Flow Retirement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-017-in-season-alerts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    In-season Alerts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-018-continuous-simulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Continuous Simulation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-020-soil-ph-proton-budget/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Soil pH Proton Budget
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../adr/ADR-022-diorama-presentation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Diorama Presentation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../validation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Validation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../research-correctness/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#event-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-types-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event Types Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Event Types Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#simulation-clock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Simulation Clock
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#water-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Water Cycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Water Cycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evapotranspirationcomputed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EvapotranspirationComputed
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nitrogen-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Nitrogen Cycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plant-growth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plant Growth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plant-stress-and-damage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plant Stress and Damage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-biology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Biology
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-chemistry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Chemistry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-gas-and-redox" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Gas and Redox
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#soil-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Soil Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#every-other-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Every Other Type
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-godot-client-reads" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Godot Client Reads
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-day-event-duplication" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-day Event Duplication
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#filtering-tips" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Filtering Tips
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="simulation-event-api-reference">Simulation Event API Reference<a class="headerlink" href="#simulation-event-api-reference" title="Permanent link">&para;</a></h1>
+<p>The AgroGame API exposes simulation events in two places:</p>
+<ul>
+<li><strong><code>PatchDayResponse.events</code></strong> — events from the most recent day step</li>
+<li><strong><code>DailySnapshot.events</code></strong> — per-day events when stepping multiple days</li>
+</ul>
+<h2 id="event-schema">Event Schema<a class="headerlink" href="#event-schema" title="Permanent link">&para;</a></h2>
+<p>Each event is a JSON object with three fields. This one is from a real <code>/step</code>
+response:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;WaterInfiltrated&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;module&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agrogame.soil.water.events&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">&quot;layer_indices&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="nt">&quot;amounts_mm&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">4.167671291363939</span><span class="p">]}</span>
+<span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>event_type</code></td>
+<td>string</td>
+<td>Event class name (see table below)</td>
+</tr>
+<tr>
+<td><code>module</code></td>
+<td>string</td>
+<td>Python module path where the event is defined</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>object</td>
+<td>The event's dataclass fields, one key each (varies by type)</td>
+</tr>
+</tbody>
+</table>
+<p>Each patch's <code>EventRecorder</code> subscribes to <code>BaseEvent</code>, so every event emitted
+on the patch's bus reaches <code>/step</code>, <code>*Computed</code> diagnostics included; no type
+is opted in. How <code>data</code> values are encoded (records, dates, enums, no
+wall-clock <code>timestamp</code>) is specified once, in
+<a href="../api/#event-payloads-562">API § Event payloads</a>.</p>
+<h2 id="event-types-reference">Event Types Reference<a class="headerlink" href="#event-types-reference" title="Permanent link">&para;</a></h2>
+<h3 id="simulation-clock">Simulation Clock<a class="headerlink" href="#simulation-clock" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DayTick</code></td>
+<td><code>sim_date: str</code> (ISO date), <code>phase: str</code>, <code>drivers: object \| null</code>, <code>target_ph</code>, <code>tmin_c</code>, <code>tmax_c</code> (°C), <code>shortwave_mj_m2</code> (MJ m⁻² d⁻¹), <code>plant_n_demand_kg_ha</code>, <code>plant_p_demand_kg_ha</code>, <code>plant_s_demand_kg_ha</code>: <code>float \| null</code></td>
+<td>The day's clock and drivers, once per phase (<code>day_start</code> … <code>day_end</code>). <code>drivers</code> is set on the <code>water</code> and <code>et</code> phases only: <code>{rainfall_mm, irrigation_mm, evaporation_mm: float (mm), rainfall_intensity_mm_hr: float \| null (mm/hr)}</code>. <code>/step</code> sets only <code>rainfall_mm</code>, the day's precipitation; irrigation arrives through the <code>irrigate</code> action, so the others are 0.0 and <code>null</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="water-cycle">Water Cycle<a class="headerlink" href="#water-cycle" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WaterInfiltrated</code></td>
+<td><code>layer_indices: int[]</code>, <code>amounts_mm: float[]</code></td>
+<td>Water entering soil layers from rainfall</td>
+</tr>
+<tr>
+<td><code>WaterDrained</code></td>
+<td><code>from_layer: int</code>, <code>to_layer: int</code>, <code>amount_mm: float</code></td>
+<td>Percolation between layers</td>
+</tr>
+<tr>
+<td><code>RunoffGenerated</code></td>
+<td><code>amount_mm: float</code>, <code>curve_number: int</code></td>
+<td>Surface runoff (SCS method)</td>
+</tr>
+<tr>
+<td><code>EvaporationTaken</code></td>
+<td><code>amount_mm: float</code></td>
+<td>Soil surface evaporation</td>
+</tr>
+<tr>
+<td><code>TranspirationByLayer</code></td>
+<td><code>layer_indices: int[]</code>, <code>amounts_mm: float[]</code>, <code>total_mm: float</code></td>
+<td>Root water uptake per layer</td>
+</tr>
+<tr>
+<td><code>CanopyIntercepted</code></td>
+<td><code>amount_mm: float</code></td>
+<td>Rainfall intercepted by canopy</td>
+</tr>
+<tr>
+<td><code>CanopyEvaporated</code></td>
+<td><code>amount_mm: float</code></td>
+<td>Evaporation from canopy surface</td>
+</tr>
+<tr>
+<td><code>EvapotranspirationComputed</code></td>
+<td><code>et0_mm</code>, <code>evaporation_mm</code>, <code>transpiration_mm</code>: <code>float</code> (mm)</td>
+<td>Diagnostic: the day's reference ET0 and actual soil evaporation and transpiration, once per day (<a href="#evapotranspirationcomputed">fields</a>)</td>
+</tr>
+</tbody>
+</table>
+<h4 id="evapotranspirationcomputed"><code>EvapotranspirationComputed</code><a class="headerlink" href="#evapotranspirationcomputed" title="Permanent link">&para;</a></h4>
+<p>A diagnostic (<code>*Computed</code>, see <a href="../conventions/">conventions</a>): <code>ETRuntime</code>
+emits it once per patch per simulated day on the <code>et</code> phase, and it drives no
+state. A real <code>/step</code> event (maize on <code>loam_temperate</code>, <code>netherlands_temperate</code>,
+seed 42, day 40, 2024-05-10); values are sent unrounded:</p>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;event_type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;EvapotranspirationComputed&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;module&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;agrogame.atmosphere.et.events&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;data&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;et0_mm&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">3.858278176723572</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;evaporation_mm&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.5737359349491402</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;transpiration_mm&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1.264908793959829</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Unit</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>et0_mm</code></td>
+<td>mm d⁻¹</td>
+<td>Reference evapotranspiration ET0, the evaporative demand of the FAO-56 reference grass surface (Allen et al. 1998). Computed by Priestley–Taylor (Priestley &amp; Taylor 1972; α = 1.26, <code>EtParams.pt_alpha</code>) from mean air temperature and net radiation Rn = 0.6·Rs (ADR-014; FAO-56 Eqs. 38–40), not by the FAO-56 Penman–Monteith Eq. 6, so it has no wind or vapour-pressure-deficit term. It does not depend on the crop.</td>
+</tr>
+<tr>
+<td><code>evaporation_mm</code></td>
+<td>mm d⁻¹</td>
+<td>Actual soil evaporation E. Its potential is the share of ET0 the canopy does not cover, ET0·exp(−k·LAI) with k = 0.6 (<code>EtParams.extinction_coefficient_k</code>), limited by Ritchie (1972) two-stage drying, surface residue and the topsoil water above wilting point. FAO-56 counterpart: Ke·ET0 (Eq. 69). Equals the day's <code>EvaporationTaken.amount_mm</code>.</td>
+</tr>
+<tr>
+<td><code>transpiration_mm</code></td>
+<td>mm d⁻¹</td>
+<td>Actual crop transpiration T: root uptake across the rooted layers toward the potential Tp = ET0·(1 − exp(−k·LAI)), never above it. FAO-56 counterpart: Ks·Kcb·ET0 (Eq. 80). Equals the day's <code>TranspirationByLayer.total_mm</code> and <code>WaterStressComputed.supply_mm</code>, whose <code>demand_mm</code> is Tp.</td>
+</tr>
+</tbody>
+</table>
+<p><code>evaporation_mm + transpiration_mm</code> is the day's actual crop
+evapotranspiration, the model's counterpart of FAO-56's
+ETc adj = (Ks·Kcb + Ke)·ET0 (Eq. 80). The engine partitions ET0 by canopy
+cover rather than by crop coefficients, so no Kc or Kcb appears in the
+payload.</p>
+<h3 id="nitrogen-cycle">Nitrogen Cycle<a class="headerlink" href="#nitrogen-cycle" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NitrificationOccurred</code></td>
+<td><code>layer: int</code>, <code>amount_kg_ha: float</code></td>
+<td>NH4 converted to NO3</td>
+</tr>
+<tr>
+<td><code>MineralizationOccurred</code></td>
+<td><code>layer: int</code>, <code>amount_kg_ha: float</code></td>
+<td>Organic N released as mineral N</td>
+</tr>
+<tr>
+<td><code>DenitrificationOccurred</code></td>
+<td><code>layer: int</code>, <code>amount_kg_ha: float</code></td>
+<td>NO3 lost as N2 gas (anaerobic)</td>
+</tr>
+<tr>
+<td><code>VolatilizationOccurred</code></td>
+<td><code>layer: int</code>, <code>amount_kg_ha: float</code></td>
+<td>NH3 lost to atmosphere</td>
+</tr>
+<tr>
+<td><code>NutrientLeached</code></td>
+<td><code>nutrient: str</code>, <code>amount_kg_ha: float</code>, <code>layer: int</code></td>
+<td>Nutrient lost below root zone</td>
+</tr>
+<tr>
+<td><code>ProtonLoadOccurred</code></td>
+<td><code>layer: int</code>, <code>h_kmol_ha: float</code></td>
+<td>Net H+ released (+) or consumed (-) by the N transformations; drives soil pH (ADR-020)</td>
+</tr>
+<tr>
+<td><code>MassFlowNSupplyComputed</code></td>
+<td><code>total_kg_ha: float</code>, <code>by_layer: float[]</code> (kg/ha, one per layer)</td>
+<td>Diagnostic: potential NO3 supply to roots by transpiration mass flow; neither debited from the soil nor credited to the plant</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plant-growth">Plant Growth<a class="headerlink" href="#plant-growth" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LightIntercepted</code></td>
+<td><code>fraction: float</code>, <code>intercepted_par_mj_m2: float</code></td>
+<td>PAR captured by canopy</td>
+</tr>
+<tr>
+<td><code>BiomassAccumulated</code></td>
+<td><code>increment_g_m2: float</code>, <code>total_g_m2: float</code></td>
+<td>Daily biomass production</td>
+</tr>
+<tr>
+<td><code>LAIUpdated</code></td>
+<td><code>previous_lai: float</code>, <code>new_lai: float</code></td>
+<td>Leaf area change</td>
+</tr>
+<tr>
+<td><code>GddAccumulated</code></td>
+<td><code>daily_gdd: float</code>, <code>total_gdd: float</code></td>
+<td>Growing degree-day accumulation</td>
+</tr>
+<tr>
+<td><code>StageChanged</code></td>
+<td><code>from_stage: str</code>, <code>to_stage: str</code>, <code>at_gdd: float</code></td>
+<td>Phenology stage transition; stages are <code>planted</code>, <code>emerged</code>, <code>vegetative</code>, <code>flowering</code>, <code>grain_fill</code>, <code>maturity</code>, as in <code>crop_stage</code></td>
+</tr>
+<tr>
+<td><code>RootDepthChanged</code></td>
+<td><code>previous_cm: float</code>, <code>new_cm: float</code></td>
+<td>Root penetration depth change</td>
+</tr>
+</tbody>
+</table>
+<h3 id="plant-stress-and-damage">Plant Stress and Damage<a class="headerlink" href="#plant-stress-and-damage" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>WaterStressComputed</code></td>
+<td><code>supply_mm: float</code>, <code>demand_mm: float</code>, <code>stress: float</code></td>
+<td>Water stress ratio (1=none, 0=severe)</td>
+</tr>
+<tr>
+<td><code>NutrientStressComputed</code></td>
+<td><code>nutrient: str</code>, <code>uptake_kg_ha: float</code>, <code>demand_kg_ha: float</code>, <code>stress: float</code></td>
+<td>Nutrient limitation</td>
+</tr>
+<tr>
+<td><code>PlantNUptakeComputed</code></td>
+<td><code>uptake_kg_ha: float</code>, <code>demand_kg_ha: float</code> (kg N/ha)</td>
+<td>Diagnostic: the day's soil N uptake and demand, handed to whole-shoot plant-N accounting (#360)</td>
+</tr>
+<tr>
+<td><code>FrostDamageApplied</code></td>
+<td><code>lai_loss: float</code> (m²/m²), <code>biomass_loss_g_m2: float</code>, <code>tmin_c: float</code> (°C), <code>severity: float</code> (0–1), <code>threshold_c: float</code> (°C, the crop's frost threshold)</td>
+<td>Tmin fell below the threshold in the emerged, vegetative or flowering stage and cut leaf area and biomass</td>
+</tr>
+<tr>
+<td><code>HeatDamageApplied</code></td>
+<td><code>tmax_c: float</code> (°C), <code>threshold_c: float</code> (°C, the crop's heat threshold)</td>
+<td>Tmax above the crop's <code>threshold_c</code> on a flowering or grain-fill day; no effect on growth</td>
+</tr>
+<tr>
+<td><code>WaterloggingDetected</code></td>
+<td><code>layer: int</code>, <code>theta: float</code>, <code>saturation: float</code> (m³/m³)</td>
+<td>Top layer at or above 95 % of saturation, on each such day</td>
+</tr>
+</tbody>
+</table>
+<h3 id="soil-biology">Soil Biology<a class="headerlink" href="#soil-biology" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SOMDecomposed</code></td>
+<td><code>layer: int</code>, <code>pool: str</code>, <code>decomposed_c_kg_ha: float</code></td>
+<td>Organic matter breakdown</td>
+</tr>
+<tr>
+<td><code>CO2Respired</code></td>
+<td><code>layer: int</code>, <code>co2_c_kg_ha: float</code></td>
+<td>Microbial respiration</td>
+</tr>
+<tr>
+<td><code>MicrobialGrowthOccurred</code></td>
+<td><code>layer: int</code>, <code>delta_c_kg_ha: float</code></td>
+<td>Microbial biomass increase</td>
+</tr>
+<tr>
+<td><code>MicrobialMortalityOccurred</code></td>
+<td><code>layer: int</code>, <code>c_to_som_kg_ha: float</code></td>
+<td>Microbial turnover</td>
+</tr>
+<tr>
+<td><code>MicrobialActivityComputed</code></td>
+<td><code>layer: int</code>, <code>activity_index: float</code>, <code>wfps: float</code> (0–1), <code>ph: float</code>, <code>temperature_c: float</code> (°C)</td>
+<td>Diagnostic: a layer's microbial activity index and the moisture, pH and temperature it was computed from</td>
+</tr>
+<tr>
+<td><code>EnzymeGroupTotalsComputed</code></td>
+<td><code>totals_c_kg_ha_by_group: object</code> (group → kg C/ha)</td>
+<td>Diagnostic: the day's profile-wide enzyme production cost per enzyme group</td>
+</tr>
+</tbody>
+</table>
+<h3 id="soil-chemistry">Soil Chemistry<a class="headerlink" href="#soil-chemistry" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SoilPHUpdated</code></td>
+<td><code>layer: int</code>, <code>ph: float</code></td>
+<td>pH change from the N-cycle proton load, lime or buffering</td>
+</tr>
+<tr>
+<td><code>PhosphorusFixationOccurred</code></td>
+<td><code>layer: int</code>, <code>amount_fixed_kg_ha: float</code></td>
+<td>P locked into minerals</td>
+</tr>
+</tbody>
+</table>
+<h3 id="soil-gas-and-redox">Soil Gas and Redox<a class="headerlink" href="#soil-gas-and-redox" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RedoxChanged</code></td>
+<td><code>layer: int</code>, <code>eh_mv: float</code> (mV), <code>dominant_acceptor: str</code></td>
+<td>A layer's redox potential Eh, once per layer per day</td>
+</tr>
+<tr>
+<td><code>N2OEmitted</code></td>
+<td><code>layer: int</code>, <code>amount_kg_n_ha: float</code> (N2O-N), <code>n2_amount_kg_n_ha: float</code> (N2-N), kg N/ha</td>
+<td>Gaseous N from denitrification</td>
+</tr>
+<tr>
+<td><code>CH4Emitted</code></td>
+<td><code>layer: int</code>, <code>amount_kg_c_ha: float</code> (kg CH4-C/ha)</td>
+<td>Methane produced under strongly reducing conditions</td>
+</tr>
+<tr>
+<td><code>CH4Oxidized</code></td>
+<td><code>layer: int</code>, <code>amount_kg_c_ha: float</code> (kg CH4-C/ha)</td>
+<td>Methane oxidised in an aerobic layer</td>
+</tr>
+</tbody>
+</table>
+<h3 id="soil-structure">Soil Structure<a class="headerlink" href="#soil-structure" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th>Key Fields</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AggregateStructureUpdated</code></td>
+<td><code>layer: int</code>, <code>micro</code>, <code>meso</code>, <code>macro: float</code> (fractions summing to 1), <code>mwd_mm: float</code> (mm)</td>
+<td>A layer's aggregate size distribution and mean weight diameter</td>
+</tr>
+<tr>
+<td><code>TillageApplied</code></td>
+<td><code>intensity: float</code> (0–1), <code>macro_destroyed_frac: float</code> (0–1)</td>
+<td>Tillage broke up macroaggregates</td>
+</tr>
+<tr>
+<td><code>PoreNetworkComputed</code></td>
+<td><code>layer: int</code>, <code>macro</code>, <code>meso</code>, <code>micro</code>, <code>crypto: float</code> (m³/m³, summing to the layer's porosity), <code>connectivity: float</code> (0–1)</td>
+<td>Diagnostic: a layer's pore-size distribution, derived from texture and aggregation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="every-other-type">Every Other Type<a class="headerlink" href="#every-other-type" title="Permanent link">&para;</a></h3>
+<p>The tables above cover every <code>*Computed</code> diagnostic, every type the client
+reads and the main flows; they are not the full list. Every type that reaches
+<code>/step</code> is a frozen dataclass in the module its <code>module</code> names
+(<code>agrogame.soil.biopores.events</code> is <code>agrogame/soil/biopores/events.py</code>), and
+its fields are exactly the <code>data</code> keys. That source is the complete list:
+<code>tests/unit/test_api_event_serialisation.py</code> discovers every <code>BaseEvent</code>
+subclass under <code>agrogame</code> and checks each serialises through <code>/step</code> with
+those keys. <code>event_type</code> alone is not unique: <code>CanopyIntercepted</code> and
+<code>CanopyEvaporated</code> are each defined in both <code>agrogame.soil.canopy.events</code> and
+<code>agrogame.soil.water.events</code>, and <code>module</code> tells them apart.</p>
+<h2 id="what-the-godot-client-reads">What the Godot Client Reads<a class="headerlink" href="#what-the-godot-client-reads" title="Permanent link">&para;</a></h2>
+<p>The client reads events from <code>patches[field_id][i].events</code>, the last stepped
+day, and, for the crop-status damage tally (#630), the <code>HeatDamageApplied</code> and
+<code>FrostDamageApplied</code> events of <code>daily_snapshots[].events</code>. The tally reads the
+snapshots only, so the last day, which both carry, counts once. These are the
+only types and <code>data</code> fields it reads, apart from the rows marked "none
+(client)": those fed the pit cutaway's flow tubes, which ADR-022 retired
+(#647), and no client script reads them now. It does not read
+<code>EvapotranspirationComputed</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Event</th>
+<th><code>data</code> fields read</th>
+<th>Script</th>
+<th>Drives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NutrientStressComputed</code></td>
+<td><code>nutrient</code>, <code>stress</code></td>
+<td><code>farm_tiles.gd</code>, <code>quick_status_card.gd</code>, <code>stress_icons.gd</code></td>
+<td>Crop stress visuals, the Quick Status Nutrients gauge (minimum over all six nutrients, N, P, S, Fe, Zn and Mn, naming the limiting one) and its advice, deficiency icons (<code>stress</code> &lt; 0.5)</td>
+</tr>
+<tr>
+<td><code>WaterStressComputed</code></td>
+<td><code>stress</code> (the last one of the day)</td>
+<td><code>farm_tiles.gd</code>, <code>quick_status_card.gd</code>, <code>stress_icons.gd</code></td>
+<td>The Quick Status Water gauge (today's Ks, #660) and its advice, drought icon (<code>stress</code> &lt; 0.5)</td>
+</tr>
+<tr>
+<td><code>FrostDamageApplied</code></td>
+<td><code>severity</code>, <code>lai_loss</code> (snapshots: summed per crop), <code>threshold_c</code> (latest, for the row's wording)</td>
+<td><code>farm_tiles.gd</code>, <code>stress_icons.gd</code></td>
+<td>Crop frost visuals and icon</td>
+</tr>
+<tr>
+<td><code>HeatDamageApplied</code></td>
+<td>presence (the heat icon and tint show whenever the event appears, #664), and <code>threshold_c</code> (snapshots: days counted per crop, latest threshold). A missing <code>threshold_c</code> drops the threshold clause from the status row</td>
+<td><code>farm_tiles.gd</code>, <code>stress_icons.gd</code></td>
+<td>Crop heat visuals and icon</td>
+</tr>
+<tr>
+<td><code>WaterloggingDetected</code></td>
+<td>none; its presence shows the icon</td>
+<td><code>stress_icons.gd</code></td>
+<td>Waterlogging icon</td>
+</tr>
+<tr>
+<td><code>RedoxChanged</code></td>
+<td><code>eh_mv</code></td>
+<td><code>stress_icons.gd</code></td>
+<td>Anaerobic icon (<code>eh_mv</code> &lt; −100)</td>
+</tr>
+<tr>
+<td><code>WaterInfiltrated</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>WaterDrained</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>TranspirationByLayer</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>EvaporationTaken</code>, <code>RunoffGenerated</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>NitrificationOccurred</code>, <code>MineralizationOccurred</code>, <code>DenitrificationOccurred</code>, <code>VolatilizationOccurred</code>, <code>NutrientLeached</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>PhosphorusFixationOccurred</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>SOMDecomposed</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>CO2Respired</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>N2OEmitted</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>CH4Emitted</code>, <code>CH4Oxidized</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>TillageApplied</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+<tr>
+<td><code>AggregateStructureUpdated</code></td>
+<td>none</td>
+<td>none (client)</td>
+<td>nothing since #647</td>
+</tr>
+</tbody>
+</table>
+<h2 id="multi-day-event-duplication">Multi-day Event Duplication<a class="headerlink" href="#multi-day-event-duplication" title="Permanent link">&para;</a></h2>
+<p>When stepping multiple days (<code>days &gt; 1</code>), the <strong>last day's events</strong> appear in
+both <code>patches[field_id][].events</code> and the final entry of <code>daily_snapshots[].events</code>.
+This is by design — <code>patches</code> always reflects the most recent day, while
+<code>daily_snapshots</code> gives per-day history. Frontend consumers should use one
+source, not both, to avoid double-counting the final day.</p>
+<h2 id="filtering-tips">Filtering Tips<a class="headerlink" href="#filtering-tips" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Water flow visualization</strong>: filter for <code>WaterInfiltrated</code>, <code>WaterDrained</code>, <code>TranspirationByLayer</code>, <code>EvaporationTaken</code></li>
+<li><strong>Nutrient cycling</strong>: filter for events from <code>agrogame.soil.nitrogen.events</code> module</li>
+<li><strong>Growth milestones</strong>: filter for <code>StageChanged</code>, <code>LAIUpdated</code></li>
+<li><strong>Stress indicators</strong>: filter for <code>WaterStressComputed</code>, <code>NutrientStressComputed</code></li>
+</ul>
+<h2 id="notes">Notes<a class="headerlink" href="#notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Events are cleared at the start of each day step — each day's events are independent</li>
+<li>All numeric values use metric units (mm, g/m2, kg/ha, etc.)</li>
+<li>Events are emitted in simulation order within each day</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
