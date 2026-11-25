@@ -119,32 +119,30 @@ def test_heat_during_flowering_reduces_grain() -> None:
     )
 
 
-def test_heat_grain_reduction_isolated() -> None:
-    """Heat just above threshold reduces grain without killing growth.
+def test_heat_exposure_event_carries_tmax_and_threshold_only() -> None:
+    """Hot grain-fill days emit an exposure event, season after season (#664).
 
-    Uses tmax=36C (just above maize 35C threshold) so cardinal_temp_factor
-    is still positive (tmean=25.5, well below temp_max_c=42). This isolates
-    the heat_grain_reduction mechanism from temperature-growth suppression.
+    The event carries tmax_c and threshold_c and nothing about grain: the
+    per-day grain cap it once reported was refilled from reserves (Blum 1998)
+    and is retired. A cool season emits none.
     """
-    control = _make_orch("maize")
-    heat = _make_orch("maize")
-    # Grow to grain fill: maize flowers ~759 GDD, grain fill starts after.
-    # With tmin=15, tmax=28 (Tbase=8): GDD/day=13.5, flower ~day 56.
-    _step(control, 65, tmin=15.0, tmax=28.0)
-    _step(heat, 65, tmin=15.0, tmax=28.0)
-    # Both in GRAIN_FILL now. Apply heat: tmax=36C (just above 35C threshold)
-    _step(heat, 10, tmin=15.0, tmax=36.0, start_day=65)
-    _step(control, 10, tmin=15.0, tmax=28.0, start_day=65)
-    # Continue
-    _step(heat, 30, tmin=15.0, tmax=28.0, start_day=75)
-    _step(control, 30, tmin=15.0, tmax=28.0, start_day=75)
-    assert heat.canopy.state.grain_biomass_g_m2 < (
-        control.canopy.state.grain_biomass_g_m2
-    ), (
-        f"Heat grain ({heat.canopy.state.grain_biomass_g_m2:.1f}) should be "
-        f"less than control ({control.canopy.state.grain_biomass_g_m2:.1f}) "
-        f"with targeted heat just above threshold"
-    )
+    from agrogame.soil.canopy.events import HeatDamageApplied
+
+    seen: list[HeatDamageApplied] = []
+    counts = []
+    for _ in range(2):  # two seasons, a fresh crop each (the check is stateless)
+        orch = _make_orch("maize")
+        orch.event_bus.subscribe(HeatDamageApplied, seen.append)
+        before = len(seen)
+        # Maize flowers ~day 56 at tmin 15 / tmax 28 (Tbase 8).
+        _step(orch, 65, tmin=15.0, tmax=28.0)
+        assert len(seen) == before, "no exposure on cool days"
+        _step(orch, 10, tmin=15.0, tmax=36.0, start_day=65)
+        counts.append(len(seen) - before)
+        _step(orch, 30, tmin=15.0, tmax=28.0, start_day=75)
+    assert counts == [10, 10], counts
+    assert all(e.tmax_c == 36.0 and e.threshold_c == 35.0 for e in seen)
+    assert not hasattr(seen[0], "grain_reduction_factor")
 
 
 def test_waterlogging_reduces_lai() -> None:

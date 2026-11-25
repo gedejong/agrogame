@@ -314,7 +314,7 @@ func _heat_step(n: int, heat_day: int, first: int = 1) -> Dictionary:
 				events.append(
 					{
 						"event_type": "HeatDamageApplied",
-						"data": {"grain_reduction_factor": 0.5, "threshold_c": 35.0}
+						"data": {"tmax_c": 36.0, "threshold_c": 35.0}
 					}
 				)
 			(

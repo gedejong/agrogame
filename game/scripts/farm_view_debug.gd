@@ -23,12 +23,12 @@ const SUN_ENERGY_CLEAR := 1.15
 ## overlay can be exercised without waiting for the simulation to produce them.
 const FAKE_STRESS_EVENTS: Array = [
 	{"event_type": "FrostDamageApplied", "module": "debug", "data": {"severity": 0.5}},
-	# The engine's fields exactly (agrogame/soil/canopy/events.py, #569): spring
-	# wheat's 1 - 0.6 on a 34 C flowering day, past its 32 C threshold.
+	# The engine's fields exactly (agrogame/soil/canopy/events.py, #664): a
+	# 34 C flowering day, past spring wheat's 32 C threshold.
 	{
 		"event_type": "HeatDamageApplied",
 		"module": "debug",
-		"data": {"grain_reduction_factor": 0.4, "tmax_c": 34.0}
+		"data": {"tmax_c": 34.0, "threshold_c": 32.0}
 	},
 	{"event_type": "WaterloggingDetected", "module": "debug", "data": {"theta": 0.45}},
 	{"event_type": "WaterStressComputed", "module": "debug", "data": {"stress": 0.2}},

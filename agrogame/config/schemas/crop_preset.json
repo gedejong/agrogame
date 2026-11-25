@@ -90,7 +90,6 @@
         "frost_threshold_c": { "type": "number" },
         "frost_damage_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
         "heat_damage_threshold_c": { "type": "number" },
-        "heat_grain_reduction_fraction": { "type": "number", "minimum": 0, "maximum": 1 },
         "waterlog_days_for_damage": { "type": "integer", "minimum": 1 },
         "waterlog_lai_loss_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
       }

@@ -176,12 +176,13 @@ class CanopyRuntime(RuntimeMemory):
                 )
             )
 
-    def _check_heat_damage(self, tmax_c: float) -> float:
-        """Return grain reduction factor for heat stress on grain set.
+    def _check_heat_damage(self, tmax_c: float) -> None:
+        """Emit ``HeatDamageApplied`` when Tmax exceeds the crop's threshold.
 
-        When tmax > threshold during FLOWERING or GRAIN_FILL, grain_inc is
-        multiplied by (1 - heat_grain_reduction_fraction). Returns 1.0 if
-        no heat stress. Ref: DSSAT CERES heat stress on grain set.
+        Exposure check only: it fires on a FLOWERING or GRAIN_FILL day with
+        Tmax above ``heat_damage_threshold_c`` and changes no growth (the
+        per-day grain cap it once returned was refilled from reserves and was
+        retired in #664). Ref: Hatfield & Prueger 2015 (35 degC maize).
         """
         from agrogame.soil.phenology import PhenologyStage
 
@@ -189,21 +190,15 @@ class CanopyRuntime(RuntimeMemory):
             PhenologyStage.FLOWERING,
             PhenologyStage.GRAIN_FILL,
         ):
-            return 1.0
+            return
         p = self.canopy.params
         if tmax_c <= p.heat_damage_threshold_c:
-            return 1.0
-        factor = 1.0 - p.heat_grain_reduction_fraction
+            return
         from agrogame.soil.canopy.events import HeatDamageApplied
 
         self.event_bus.emit(
-            HeatDamageApplied(
-                grain_reduction_factor=factor,
-                tmax_c=tmax_c,
-                threshold_c=p.heat_damage_threshold_c,
-            )
+            HeatDamageApplied(tmax_c=tmax_c, threshold_c=p.heat_damage_threshold_c)
         )
-        return factor
 
     def _check_waterlogging_damage(self) -> None:
         """Apply LAI loss after consecutive waterlogged days.
@@ -311,16 +306,15 @@ class CanopyRuntime(RuntimeMemory):
         )
         tf = self._compute_temp_factor(ev)
 
-        # Heat stress: reduce grain allocation during flowering (AGRO-34)
+        # Heat exposure event on flowering / grain-fill days (AGRO-34, #664)
         tmax = float(ev.tmax_c) if ev.tmax_c is not None else 25.0
-        heat_grain_factor = self._check_heat_damage(tmax)
+        self._check_heat_damage(tmax)
 
         _ = self.canopy.daily_step(
             incident_shortwave_mj_m2=par,
             temp_factor=tf,
             water_stress=effective_water,
             n_stress=nutrient_stress,
-            heat_grain_factor=heat_grain_factor,
             root_allocation_fraction=self.root_allocation_fraction,
         )
         # Damage checks (drought senescence, frost, waterlogging) — AGRO-34, #373

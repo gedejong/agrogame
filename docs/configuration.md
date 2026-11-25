@@ -187,8 +187,7 @@ phenology, canopy dynamics, roots, and optional per-climate overrides. A file is
 | `leaf_remob_fraction` | number | fraction/day | 0–1 | 0.0 | Daily leaf pool remobilised to grain. |
 | `frost_threshold_c` | number | °C | guidance: −5–2 | 0.0 | Tmin below which frost damages LAI. |
 | `frost_damage_fraction` | number | fraction | 0–1 | 0.3 | LAI lost per frost event. |
-| `heat_damage_threshold_c` | number | °C | guidance: 30–40 | 35.0 | Tmax above which flowering heat reduces grain. |
-| `heat_grain_reduction_fraction` | number | fraction | 0–1 | 0.5 | Grain reduction per heat event at flowering. |
+| `heat_damage_threshold_c` | number | °C | guidance: 30–40 | 35.0 | Tmax above which a flowering or grain-fill day counts as heat exposure (`HeatDamageApplied`); no effect on growth. |
 | `waterlog_days_for_damage` | integer | days | ≥ 1 | 3 | Consecutive saturated days before LAI loss. |
 | `waterlog_lai_loss_fraction` | number | fraction | 0–1 | 0.15 | LAI lost per waterlogging-damage event. |
 

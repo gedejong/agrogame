@@ -65,7 +65,6 @@ class FrostDamageApplied(BaseEvent):
 class HeatDamageApplied(BaseEvent):
     """Tmax above the crop's heat threshold on a flowering or grain-fill day."""
 
-    grain_reduction_factor: float
     tmax_c: float
     threshold_c: float
 
