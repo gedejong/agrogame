@@ -199,9 +199,16 @@ def test_acidification_accumulates_with_n(
 def test_no_n_no_drift_over_five_years(
     trajectories: dict[str, _Trajectory],
 ) -> None:
-    """A4(b): at 0 kg N, |year-5 pH - 6.8| <= 0.01 (prototype 0.002)."""
+    """A4(b): at 0 kg N, |year-5 pH - 6.8| <= 0.02 (prototype 0.002; #694 0.0109).
+
+    Re-anchored from 0.01 to 0.02 by Edwin's ruling on #694 (2026-11-25). Since
+    #694 roots leave the CERES uptake residual (ADR-013 amendment 2026-11-25),
+    so about 9 kg N/ha more mineral N passes each maturity. Mineralised N that
+    is nitrified and left as nitrate, then leached over the winters of this
+    continuous run, leaves its nitrification H+ in the layer (ADR-020).
+    """
     ph = trajectories["0 kg N"].year_end_ph
-    assert abs(ph[4] - 6.8) <= 0.01, ph
+    assert abs(ph[4] - 6.8) <= 0.02, ph
 
 
 def test_lime_persists(trajectories: dict[str, _Trajectory]) -> None:
