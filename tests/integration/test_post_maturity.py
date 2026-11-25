@@ -5,8 +5,8 @@ uptake stop (CERES-Maize ISTAGE gating; APSIM NG ``RootFrontVelocity``; WOFOST
 ``DVS_NPK_STOP``). Root turnover continues (APSIM NG ``Root.cs``). A
 determinate crop carries no green leaf from its first MATURITY canopy step, so
 it transpires nothing while it stands (#623: WOFOST ``crop_finish``, DSSAT
-``IHARI = 'M'``, CERES-Wheat LSPHE, FAO-56 Kcb_end); grape keeps its leaves
-until leaf drop (FAO-56 Table 12, footnote 18).
+``IHARI = 'M'``, CERES-Wheat LSPHE, FAO-56 Kcb_end); grape still transpires
+at the season's end (FAO-56 grape rows, Kcb_end 0.40 > Kc_min, Table 17).
 
 Engine path as ``test_realism._run_scenario``, seeds 42-51. Day *m* is the
 first step after which the phenology stage is MATURITY; every assertion covers
@@ -342,8 +342,9 @@ def test_grape_keeps_its_leaves_after_maturity_across_two_seasons() -> None:
 
     Kenya-highland grape, seed 42, loam, 1 Mar: maturity + 30 standing days,
     harvest, 10 bare days, replant, then season 2 to maturity + 30 days.
-    FAO-56 Table 12, footnote 18: a deciduous perennial keeps its leaves until
-    leaf drop, so senescence runs on at the pre-#623 peak rate.
+    FAO-56 grape rows: Kcb_end 0.40 (Table 17) above Kc_min 0.15-0.20
+    (Eq. 76), so the vine keeps a transpiring canopy and senescence runs on at
+    the pre-#623 peak rate.
     """
     climate = load_climate_presets(Path("data/climate/presets.yaml")).climates[
         "kenya_highlands"

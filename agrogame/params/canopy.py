@@ -75,9 +75,13 @@ class CanopyParams:
     # 60 °C·d after maturity (``CER_Growth.for:818-822``, ``WHCER048.ECO``/
     # ``.SPE``), and the FAO-56 basal coefficient of field-dried grain maize,
     # Kcb_end 0.15, is Kc_min for dry bare soil (Allen et al. 1998, Tables 12
-    # and 17, Eq. 76). False for a deciduous perennial whose MATURITY is fruit
-    # ripeness and which keeps its leaves until leaf drop (FAO-56 Table 12,
-    # footnote 18): grape.
+    # and 17, Eq. 76). False for grape, whose MATURITY is fruit ripeness on a
+    # vine that still transpires: the FAO-56 grape rows (table/raisin and
+    # wine) end the season at Kc_end 0.45 (Table 12) and Kcb_end 0.40
+    # (Table 17), above Kc_min 0.15-0.20 for dry bare soil (Eq. 76). By
+    # analogy only: Table 12 footnote 18, on the deciduous fruit- and nut-tree
+    # rows (almond, apple/cherry/pear, apricot/peach, walnut), not on grapes,
+    # gives those trees' Kc_end as the value prior to leaf drop.
     green_leaf_dies_at_maturity: bool = True
     # Harvest index: fraction of daily biomass allocated to grain during grain fill
     # Typical: maize 0.50, wheat 0.45, rice 0.45, sorghum 0.35 (DSSAT/APSIM)

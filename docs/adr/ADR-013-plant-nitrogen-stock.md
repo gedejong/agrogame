@@ -95,8 +95,11 @@ leaf to zero at LSPHE 6.3, 60 °C·d after maturity (`CER_Growth.for:818-822`,
 `WHCER048.ECO`/`.SPE`), and FAO-56 gives field-dried grain maize a Kcb_end of
 0.15, which is Kc_min for dry bare soil (Allen et al. 1998, Tables 12 and 17).
 Grape is exempt through the preset flag `green_leaf_dies_at_maturity`: its
-MATURITY is fruit ripeness on a deciduous vine that keeps its leaves until
-leaf drop (FAO-56 Table 12, footnote 18).
+MATURITY is fruit ripeness on a vine that still transpires. The FAO-56 grape
+rows (table/raisin and wine) end the season at Kc_end 0.45 (Table 12) and
+Kcb_end 0.40 (Table 17), above Kc_min 0.15–0.20 for dry bare soil (Eq. 76).
+Table 12 footnote 18, which gives Kc_end prior to leaf drop, sits on the
+deciduous fruit- and nut-tree rows, not on grapes, and is an analogy only.
 
 The gate reads the saved phenology stage, so a save taken after maturity
 before this change loses its green leaf at the first step after loading, and

@@ -45,8 +45,8 @@ N, P, S and micronutrient uptake stop at maturity as well
 ([ADR-013](adr/ADR-013-plant-nitrogen-stock.md), amendment 2026-11-24).
 Water uptake stops too, through the canopy: a determinate crop has no green
 leaf from its first MATURITY step, so it transpires nothing while it stands;
-grape keeps its leaves until leaf drop (#623, ADR-013 amendment 2026-11-25,
-[Canopy](canopy.md)).
+grape keeps a transpiring canopy, as the FAO-56 grape rows end the season
+above Kc_min (#623, ADR-013 amendment 2026-11-25, [Canopy](canopy.md)).
 
 ## Related
 

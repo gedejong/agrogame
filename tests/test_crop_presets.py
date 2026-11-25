@@ -176,8 +176,9 @@ def test_harvest_product_rejects_out_of_range_fraction(dmf: float) -> None:
 def test_only_grape_keeps_green_leaf_after_maturity() -> None:
     """#623 AC4: every determinate crop drops its leaf; grape, cited, does not.
 
-    FAO-56 Table 12, footnote 18: a deciduous perennial keeps its leaves until
-    leaf drop. Climate overrides inherit the flag from the base preset.
+    FAO-56 grape rows: Kc_end 0.45 (Table 12) and Kcb_end 0.40 (Table 17),
+    above Kc_min 0.15-0.20 (Eq. 76), so the vine still transpires at the
+    season's end. Climate overrides inherit the flag from the base preset.
     """
     _load_crop_presets_cached.cache_clear()
     lib = load_crop_presets(Path("data/crops/presets.yaml"))

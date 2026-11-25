@@ -57,9 +57,14 @@ cereals ~2.7–3.0). Never feed shortwave directly to RUE. See
   `WHCER048.ECO`/`.SPE`), and FAO-56 puts Kcb_end for field-dried grain maize
   at 0.15, which is Kc_min for dry bare soil (Allen et al. 1998, Tables 12 and
   17). The preset flag `green_leaf_dies_at_maturity` (default `true`) is
-  `false` for grape: its MATURITY is fruit ripeness on a deciduous vine that
-  keeps its leaves until leaf drop (FAO-56 Table 12, footnote 18), so it keeps
-  the peak grain-fill senescence rate.
+  `false` for grape, so it keeps the peak grain-fill senescence rate. Its
+  MATURITY is fruit ripeness on a vine that still transpires: the FAO-56
+  grape rows (table/raisin and wine) end the season at Kc_end 0.45 (Table 12)
+  and Kcb_end 0.40 (Table 17), above Kc_min 0.15–0.20 for dry bare soil
+  (Eq. 76). By analogy only, Table 12 footnote 18, which sits on the
+  deciduous fruit- and nut-tree rows (almond, apple/cherry/pear,
+  apricot/peach, walnut) and not on grapes, gives those trees' Kc_end as the
+  value prior to leaf drop.
 - Events: `LightIntercepted`, `BiomassAccumulated`, `LAIUpdated`
 
 ### Stress integration
