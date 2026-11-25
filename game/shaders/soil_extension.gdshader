@@ -96,18 +96,18 @@ void fragment() {
 			float half_t = max(1.0 - q.x * q.x, 0.0);
 			body = max(body, 1.0 - smoothstep(half_t - aa, half_t + aa, abs(q.y)));
 		} else {
-			// An old root: a dark, wavy trace, at least a pixel wide, fading out
-			// from its top (q.y = -1) to its tip (q.y = 1).
+			// An old root: a dark, wavy trace at least 1.5 px wide, from its top
+			// (q.y = -1), fading out over its lower half to none at its tip.
 			float dx = abs(p.x - box.x - ROOT_WIGGLE_M * vnoise(p.y * 9.0 + info.y * 40.0));
-			float half_w = max(box.z, px * 0.5);
+			float half_w = max(box.z, px * 0.75);
 			float line = 1.0 - smoothstep(half_w - px * 0.5, half_w + px * 0.5, dx);
-			root = max(root, line * step(-1.0, q.y) * clamp(0.5 - 0.5 * q.y, 0.0, 1.0));
+			root = max(root, line * step(-1.0, q.y) * smoothstep(1.0, 0.0, q.y));
 		}
 	}
 	alb = mix(alb, a_alb * (1.0 - 0.35 * rim), body);
 	nor = mix(nor, a_nor, body);
 	arm = mix(arm, a_arm, body);
-	alb = mix(alb, ROOT_COLOUR, root * 0.8);
+	alb = mix(alb, ROOT_COLOUR, root * 0.9);
 	alb *= 1.0 - 0.4 * (1.0 - smoothstep(0.0, SEAM_M, p.y - profile_bottom_m));
 	ALBEDO = alb;
 	NORMAL_MAP = nor;
