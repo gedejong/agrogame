@@ -2,9 +2,11 @@
 
 ## Status: Accepted
 
-**Amended by [ADR-022](ADR-022-diorama-presentation.md) (proposed, 2026-11-24):** the
+**Amended by [ADR-022](ADR-022-diorama-presentation.md) (accepted, 2026-11-25):** the
 underground is shown on the cut faces of a diorama slab, always visible, instead of
-the camera-into-the-ground cutaway described under "The Underground" below.
+the camera-into-the-ground cutaway described under "The Underground" below. World
+assets (buildings, trees, terrain, soil materials) are realistic downloaded models and
+PBR textures, not the stylised look under "Art Style" below.
 
 **Update (AGRO-113):** Monorepo structure — Godot project lives in `game/`
 alongside the Python simulation. GDScript is the primary scripting language

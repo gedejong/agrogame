@@ -4,7 +4,7 @@
 Proposed
 
 Item 4 (soil cutaway) is amended by [ADR-022](ADR-022-diorama-presentation.md)
-(proposed, 2026-11-24): the pit cutaway is retired in favour of the diorama slab's
+(accepted, 2026-11-25): the pit cutaway is retired in favour of the diorama slab's
 cut faces.
 
 ## Context

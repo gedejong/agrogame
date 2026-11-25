@@ -2,9 +2,16 @@
 
 ## Status
 
-Proposed. Edwin chose the direction on 2026-11-24 ("Yes to 1 and 2. Also, would
-be nice to have a bit of elevation"); this text awaits his acceptance.
-Amends [ADR-005](ADR-005-frontend-architecture.md) ("The Underground") and
+Accepted (Edwin, 2026-11-25), with three changes to the proposal:
+- assets are downloaded and realistic, not procedural low-poly (decision 5);
+- the slab is drawn deeper than the simulated profile, for its look (decision 1);
+- the shaded face gets a fill light (decision 1).
+
+Edwin chose the direction on 2026-11-24 ("Yes to 1 and 2. Also, would be nice to
+have a bit of elevation").
+
+Amends [ADR-005](ADR-005-frontend-architecture.md) ("The Underground", and its
+stylised art direction for world assets) and
 [ADR-007](ADR-007-3d-rendering-migration.md) (item 4, soil cutaway).
 
 ## Context
@@ -36,7 +43,20 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
      each day tick. Horizon boundaries come from `SoilProfile.layers`. Each
      horizon darkens with its organic carbon and with its water content
      relative to field capacity. Root traces reach `RootState.current_depth_cm`,
-     with density fading with depth.
+     which the model caps at the profile bottom (#651), with density fading with
+     depth.
+   - **Depth (Edwin, 2026-11-25).**
+     - The simulated profile is drawn at true vertical scale, so roots and
+       horizons keep their real proportions against the canopy.
+     - Below it, the slab continues for its look, to 4 to 8 times the profile's
+       depth. It shows realistic regional layers (subsoil, parent material,
+       weathered rock), artefacts such as stones, old roots and gravel lenses,
+       and surface relief through normal or bump maps.
+     - The extension is decorative: no simulation value drives it.
+   - **Lighting.** The face that points away from the sun receives a soft fill,
+     in proportion to the soil's albedo. Without it, at real soil albedos
+     (8 to 15 %), the face renders near black. This is the one exception to
+     lighting by `farm_environment.tres` alone.
    - Under decorative land, the face shows a static profile typical of the
      scenario's region.
    - **Soil detail follows the same rule: drawn from the simulation where the
@@ -46,9 +66,8 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
      - Grey and rust redox mottles appear where a layer's redox potential drops
        into the iron-reducing range (Vepraskas 1992). They are the visible trace
        of a fluctuating water table.
-     - Below the simulated profile, a band of regional parent material: rock
-       fragments, ironstone gravel or marine clay. It lies outside the model, so
-       it is decorative.
+     - Below the simulated profile, the decorative extension shows regional
+       parent material: rock fragments, ironstone gravel or marine clay.
      - No aquifer or water table is drawn while the water balance drains freely
        and has no groundwater. Adding one is a hydrology decision, not a
        presentation one.
@@ -75,15 +94,30 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
    - Sloping a managed field would first need a slope-adjusted curve number
      (Williams 1995, as used in EPIC and SWAT) and erosion. That is a separate
      decision.
-5. **Assets are procedural.** Terrain, plants, buildings and props are low-poly
-   meshes generated in GDScript from deterministic per-scenario seeds. They are
-   drawn in the established palette and lit by `farm_environment.tres`. No
-   imported binary models: every asset stays reviewable as text and verifiable
-   with a headless render.
+5. **Assets are downloaded and realistic (Edwin, 2026-11-25: "not low-poly, you
+   can download assets").** Buildings, trees, props, terrain and soil materials
+   come from asset libraries as glTF models and PBR texture sets (albedo,
+   normal, roughness), not from procedural low-poly meshes. This amends
+   ADR-005's stylised art direction for world assets.
+   - **Licence.** Use CC0 sources first, such as Poly Haven and ambientCG.
+     Anything that needs attribution, or carries any other licence, needs
+     Edwin's approval first.
+   - **Provenance.** `game/assets/CREDITS.md` records, for every file: its
+     source URL, author, licence and download date, plus any edits made.
+   - **Review.** Binary assets can't be reviewed as text. Each asset PR
+     therefore carries `/visual-check` frames for every scenario it touches,
+     and a GUT test that checks the asset loads and has its credits entry.
+   - **Weight.** Import at the smallest resolution that reads at default zoom.
+     Each PR reports the bytes it adds. Whether to move binaries to Git LFS is
+     decided at the first asset PR, once its size is known.
+   - Placement, variety and seeding stay procedural: the scenario's climate key
+     and a deterministic seed choose and place assets.
 6. **Performance budget.** At default zoom, the slab and surroundings together
    add at most 3 ms of GPU frame time over the baseline after #640, measured on
-   the development machine. Decorative crops use instanced simple meshes, not
-   the managed-field crop renderer.
+   the development machine. Realistic assets keep to it through levels of
+   detail, instancing and texture sizes; a PR that cannot meet it reports why,
+   and Edwin decides. Decorative crops use instanced meshes, not the
+   managed-field crop renderer.
 7. **Framing.** The default camera keeps the managed fields as the subject;
    zooming out reveals the surroundings.
 
@@ -95,8 +129,11 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
   without the player opening anything.
 - Fewer layers are visible at once than in the pit, and decorative land gives
   no data. The Soil Analysis panel remains the place for detail.
-- New code for the slab, terrain, vegetation and buildings needs visual review
-  for each scenario; `/visual-check` frames per climate become part of each PR.
+- New code and assets for the slab, terrain, vegetation and buildings need
+  visual review for each scenario; `/visual-check` frames per climate become
+  part of each PR.
+- Downloaded assets add binary weight and a licence duty; `CREDITS.md` and the
+  load-and-credits test carry that duty.
 - Farm-business features (storage, land, machinery) get a physical home in the
   farmyard.
 
@@ -107,9 +144,12 @@ depth (#634). A cosmetic fix there would polish a mode this ADR removes.
 - **A 2D profile chart in a side panel.** Clear, but it removes the soil from
   the world, and ADR-005's goal is that the player sees the soil as part of the
   land.
-- **Imported glTF models.** These look richer, but they are binary assets that
-  agents can neither review as text nor generate reproducibly. They could
-  return for hero assets later.
+- **Procedural low-poly assets generated in GDScript.** Reviewable as text and
+  reproducible, but Edwin rejected the low-poly look on 2026-11-25.
+- **The slab at the simulated depth only (1×) or exaggerated (2×).** At 1×
+  the face is about 31 px tall at 1280×720 and reads poorly; 2× doubles the
+  roots against the canopy. Edwin chose true scale plus a decorative extension
+  below.
 - **Slope on managed fields now.** It needs hydrology changes (above); this ADR
   keeps elevation visual.
 
