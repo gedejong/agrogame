@@ -1,8 +1,95 @@
 extends GutTest
 ## The field strip (#602, #472 C-d): one toggle card per field in layout order,
-## reading the field's crop, stage and lowest Quick Status gauge (G3).
+## reading the field's crop, stage and the gauge the Quick Status card advises on.
 
 const SEP := FieldStrip.SEP
+
+## The #602 amendment's A cases (2026-11-25): one vegetative maize tile unless the
+## overrides say otherwise, its attention and the card's advice on it.
+const _WATER_NOW := "Crop is short of water. Irrigate now."
+const _WATER_SOON := "Crop is starting to run short of water. Consider irrigating."
+const _UREA := "Nitrogen is limiting growth. Apply urea or ammonium nitrate."
+const _NONE := "No action needed."
+const _A_CASES: Array = [
+	["A1", {"water_ks": 0.32, "n_stress": 0.4}, "Water 32", _WATER_NOW],
+	[
+		"A2",
+		{
+			"growth_vs_potential": 0.95,
+			"root_zone_water_fraction": 0.9,
+			"depletion_fraction_p": 0.55
+		},
+		"OK",
+		_NONE,
+	],
+	["A3", {"n_stress": 0.2}, "Nutrients 80", _UREA],
+	["A4", {"crop_stage_name": "grain_fill", "n_stress": 0.2}, "OK", _NONE],
+	[
+		"A5",
+		{
+			"water_ks": 0.96,
+			"n_stress": 0.7,
+			"growth_vs_potential": 0.05,
+			"root_zone_water_fraction": 0.33,
+			"depletion_fraction_p": 0.55,
+		},
+		"Nutrients 30",
+		_UREA,
+	],
+	[
+		"A6",
+		{
+			"growth_vs_potential": 0.04,
+			"root_zone_water_fraction": 0.9,
+			"depletion_fraction_p": 0.55
+		},
+		"OK",
+		"Growth is behind its potential after earlier stress or damage.",
+	],
+	[
+		"A7",
+		{"root_zone_water_fraction": 0.40, "depletion_fraction_p": 0.55},
+		"Root zone 40",
+		"Root zone is drying. Irrigate before the crop shows stress.",
+	],
+	["A8", {"root_zone_water_fraction": 0.50, "depletion_fraction_p": 0.55}, "OK", _NONE],
+	[
+		"A9",
+		{
+			"crop_stage_name": "grain_fill",
+			"water_ks": 0.46,
+			"root_zone_water_fraction": 0.21,
+			"depletion_fraction_p": 0.55,
+		},
+		"Water 46",
+		_WATER_SOON,
+	],
+	[
+		"A10",
+		{
+			"crop_stage_name": "maturity",
+			"water_ks": 0.1,
+			"growth_vs_potential": 0.45,
+			"root_zone_water_fraction": 0.05,
+			"depletion_fraction_p": 0.55,
+		},
+		"OK",
+		"Mature: ready to harvest.",
+	],
+	[
+		"A11",
+		{"crop_key": "", "crop_stage_name": "", "root_zone_water_fraction": 0.45},
+		"OK",
+		"No crop planted. Consider planting.",
+	],
+	[
+		"A12",
+		{"crop_stage_name": "planted", "water_ks": 0.1, "n_stress": 0.9},
+		"OK",
+		"Sown, not yet emerged.",
+	],
+	["A13", {"water_ks": 0.70}, "OK", _NONE],
+]
 
 
 func _strip() -> FieldStrip:
@@ -91,36 +178,40 @@ func test_stage_names_the_single_stage_or_says_mixed() -> void:
 	assert_eq(FieldStrip.stage_text([_tile("f", "rice", "")]), "planted", "sown, not stepped")
 
 
-func test_water_32_under_nutrient_60_reads_water_32_and_healthy_reads_ok() -> void:
-	var dry := _tile("f", "maize", "vegetative", {"water_ks": 0.32, "n_stress": 0.4})
-	assert_eq(FieldStrip.attention_text([dry]), "Water 32")
-	var healthy := _tile(
-		"f",
-		"maize",
-		"vegetative",
-		{"water_ks": 1.0, "growth_vs_potential": 0.95, "root_zone_water_fraction": 0.9}
-	)
-	assert_eq(FieldStrip.attention_text([healthy]), "OK")
+func test_attention_names_the_gauge_the_cards_advice_acts_on() -> void:
+	for case: Array in _A_CASES:
+		var tile := _tile("f", "maize", "vegetative", case[1])
+		assert_eq(FieldStrip.attention_text([tile]), case[2], "%s attention" % case[0])
+		assert_eq(QuickStatusCard.compute_recommendation(tile), case[3], "%s advice" % case[0])
+	var bare := _tile("f", "maize", "vegetative", _A_CASES[10][1])
+	assert_eq(FieldStrip.card_text("field_1", [bare]), "Field 1%sbare\nOK" % SEP, "A11 card")
 
 
-func test_attention_is_the_lowest_gauge_over_the_fields_tiles() -> void:
-	var low_n := _tile("f", "maize", "vegetative", {"water_ks": 0.8, "p_stress": 0.5})
-	var low_water := _tile("f", "maize", "vegetative", {"water_ks": 0.65})
-	assert_eq(FieldStrip.attention_text([low_water, low_n]), "Nutrients 50")
-	var tie := _tile("f", "maize", "vegetative", {"water_ks": 0.5})
-	assert_eq(FieldStrip.attention_text([low_n, tie]), "Water 50", "a tie goes to water")
-	var dry_root := _tile("f", "", "", {"root_zone_water_fraction": 0.45})
-	assert_eq(FieldStrip.attention_text([dry_root]), "Root zone 45")
-	var slow := _tile("f", "maize", "maturity", {"growth_vs_potential": 0.04})
-	assert_eq(FieldStrip.attention_text([slow]), "Growth 4")
+## Vegetative maize tiles for the B cases.
+func _veg(extra: Dictionary) -> Dictionary:
+	return _tile("f", "maize", "vegetative", extra)
 
 
-func test_only_a_score_below_good_and_shown_counts() -> void:
-	var at_good := _tile("f", "maize", "vegetative", {"water_ks": 0.7})
-	assert_eq(FieldStrip.attention_text([at_good]), "OK", "70 is not below 70")
-	var unsown := _tile("f", "maize", "planted", {"water_ks": 0.1, "n_stress": 0.9})
-	assert_eq(FieldStrip.attention_text([unsown]), "OK", "not shown before emergence")
-	assert_eq(FieldStrip.attention_text([]), "OK")
+func test_a_fields_attention_ranks_its_tiles_advice() -> void:
+	var dry_root := {"root_zone_water_fraction": 0.10, "depletion_fraction_p": 0.55}
+	var mature := {
+		"crop_stage_name": "maturity",
+		"root_zone_water_fraction": 0.05,
+		"growth_vs_potential": 0.3,
+		"depletion_fraction_p": 0.55,
+	}
+	var drying := {"root_zone_water_fraction": 0.30, "depletion_fraction_p": 0.55}
+	var cases: Array = [
+		["B1", [{"water_ks": 0.65}, {"water_ks": 0.8, "p_stress": 0.5}], "Nutrients 50"],
+		["B2", [{"water_ks": 0.8, "p_stress": 0.5}, {"water_ks": 0.5}], "Water 50"],
+		["B3", [dry_root, {"n_stress": 0.2}], "Nutrients 80"],
+		["B4", [mature, {"water_ks": 0.6}], "Water 60"],
+		["B5", [{"growth_vs_potential": 0.2}, drying], "Root zone 30"],
+		["B6", [], "OK"],
+	]
+	for case: Array in cases:
+		var tiles: Array = (case[1] as Array).map(_veg)
+		assert_eq(FieldStrip.attention_text(tiles), case[2], case[0])
 
 
 func test_card_text_leaves_the_stage_out_on_a_bare_field() -> void:
