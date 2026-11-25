@@ -32,7 +32,6 @@ from agrogame.api.forecast import (
     root_zone_mineral_n_kg_ha,
     stage_depth_multiplier,
 )
-from agrogame.api.routes import _projection_inputs
 from agrogame.plant.presets import _load_crop_presets_cached, load_crop_presets
 from agrogame.sim.orchestrator import FullSimulationOrchestrator
 from agrogame.soil.aggregation.dynamic_state import root_penetration_factor
@@ -114,7 +113,12 @@ def _forecast_inputs(orch: FullSimulationOrchestrator) -> dict[str, object]:
     The same extraction as ``GET /forecast`` (``_projection_inputs``) on a
     stand-in for the maize patch, with the last stepped day's mean air
     temperature, less the deepening inputs that ``_deepening_kwargs`` adds.
+    Imported here: ``routes`` needs the ``api`` extra, and the Benchmarks job
+    collects this module without it.
     """
+    pytest.importorskip("fastapi")
+    from agrogame.api.routes import _projection_inputs
+
     config = SimpleNamespace(crop_key="maize", climate_key="netherlands_temperate")
     patch = SimpleNamespace(orch=orch, config=config)
     anchor = _RECORDS[orch][orch.day_counter - 1]
